@@ -1,0 +1,12 @@
+interfaceVersion
+SetContextVariable
+GetContextVariable
+DropContextVariable
+GetAllContextVariables
+GetCallerContext
+GetContextVariableReference
+ThrowException0
+ThrowException1
+ThrowException2
+ThrowException
+ThrowCondition

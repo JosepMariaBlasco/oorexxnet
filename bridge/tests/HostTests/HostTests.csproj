@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RexxNetDir Condition="'$(RexxNetDir)' == ''">/home/claude/build/rexxnet</RexxNetDir>
+  </PropertyGroup>
+  <!-- A .NET application hosting ooRexx: its own copy of Rexx.Net (host mode) -->
+  <ItemGroup>
+    <Reference Include="Rexx.Net"><HintPath>$(RexxNetDir)/Rexx.Net.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RexxNetDir Condition="'$(RexxNetDir)' == ''">/home/claude/build/rexxnet</RexxNetDir>
+  </PropertyGroup>
+  <!-- The bridge's managed half: the host uses it too (one copy, "bothways") -->
+  <ItemGroup>
+    <Reference Include="Rexx.Net"><HintPath>$(RexxNetDir)/Rexx.Net.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+</Project>

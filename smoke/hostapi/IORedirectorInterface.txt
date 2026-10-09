@@ -1,0 +1,12 @@
+interfaceVersion
+ReadInput
+ReadInputBuffer
+WriteOutput
+WriteError
+WriteOutputBuffer
+WriteErrorBuffer
+IsInputRedirected
+IsOutputRedirected
+IsErrorRedirected
+AreOutputAndErrorSameTarget
+IsRedirectionRequested

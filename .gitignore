@@ -1,0 +1,6 @@
+# .NET build outputs (the scripts build out of tree, but just in case)
+bin/
+obj/
+*.user
+# local builds
+build/

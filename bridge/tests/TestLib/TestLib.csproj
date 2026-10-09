@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AssemblyName>TestLib</AssemblyName>
+    <RexxNetDir Condition="'$(RexxNetDir)' == ''">/home/claude/build/rexxnet</RexxNetDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Phase 3 catches Rexx.Net.RexxException; not copied: the bridge's own copy is used -->
+    <Reference Include="Rexx.Net">
+      <HintPath>$(RexxNetDir)/Rexx.Net.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

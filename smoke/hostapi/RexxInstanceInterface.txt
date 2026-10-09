@@ -1,0 +1,8 @@
+interfaceVersion
+Terminate
+AttachThread
+InterpreterVersion
+LanguageLevel
+Halt
+SetTrace
+AddCommandEnvironment
