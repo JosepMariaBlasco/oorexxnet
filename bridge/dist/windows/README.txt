@@ -9,14 +9,44 @@ What you need
 -------------
 
 - ooRexx 5, 64-bit (tested with 5.3.0 trunk).
-- .NET 8 or later, x64. For Windows Forms, and for CLR.CLS's Windows
-  samples, the ".NET Desktop Runtime" (it includes the .NET Runtime; a .NET
-  SDK has both): https://dotnet.microsoft.com/download/dotnet/10.0
-  Without the desktop runtime everything else works.
-  "dotnet --list-runtimes" shows what is installed: look for
-  Microsoft.WindowsDesktop.App.
+- .NET 8 or later, x64: the ".NET Desktop Runtime", for Windows Forms and
+  CLR.CLS's Windows samples (see "Which .NET?" below). Without its desktop
+  part everything else works.
 
 Nothing needs to be compiled, and no Java.
+
+
+Which .NET? (Windows)
+---------------------
+
+Three different things are called ".NET" on Windows:
+
+- .NET Framework (4.x) is the old, Windows-only .NET that comes with
+  Windows. The bridge does not use it. (BSF4ooRexx's CLR.CLS reached it
+  through Java and jni4net.)
+- .NET (8, 10...; once ".NET Core") is the current one, and what the bridge
+  needs: version 8 or later. Microsoft offers several installers of it:
+    - ".NET Runtime": the base (Microsoft.NETCore.App). Enough for most
+      of .NET, but not for Windows Forms.
+    - ".NET Desktop Runtime" (Windows only): the base plus the desktop
+      framework (Microsoft.WindowsDesktop.App): Windows Forms, WPF,
+      System.Drawing, SystemSounds, SystemEvents... Install this one.
+    - "ASP.NET Core Runtime": for web servers; not needed.
+    - The ".NET SDK", for building .NET programs, includes all of them.
+- 32 or 64 bits: each comes for x64 and for x86. A 64-bit ooRexx needs
+  the x64 one (in C:\Program Files\dotnet); an x86 .NET (in
+  C:\Program Files (x86)\dotnet) is invisible to it.
+
+The bridge starts the newest .NET it finds (x64), and adds the desktop
+framework when that version has it; when it does not, everything works
+except the desktop types ("no .NET type System.Windows.Forms.Form"). So
+install the Desktop Runtime of your newest .NET, or simply the newest:
+https://dotnet.microsoft.com/download/dotnet/10.0, ".NET Desktop Runtime",
+Windows, x64.
+
+To see what is installed: "dotnet --list-runtimes" (Microsoft.WindowsDesktop.App
+must be listed, with the same major version as the newest
+Microsoft.NETCore.App), or check.rex below.
 
 
 Installing

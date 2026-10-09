@@ -44,6 +44,29 @@ library is `librexxnet.dylib` and the variable `DYLD_LIBRARY_PATH`; ooRexx
 must be installed first (`setup-env.sh` installs only .NET there), with its
 `bin/` on the `PATH`.
 
+### Which .NET on Windows
+
+Three different things are called ".NET" on Windows. **.NET Framework**
+(4.x), the old Windows-only one that comes with Windows, is not used by the
+bridge. **.NET** (8, 10...; once ".NET Core") is, version 8 or later, and
+Microsoft installs it in parts: the **.NET Runtime** (the base,
+`Microsoft.NETCore.App`), the **.NET Desktop Runtime** (the base plus the
+desktop framework, `Microsoft.WindowsDesktop.App`: Windows Forms, WPF,
+`System.Drawing`, `SystemSounds`, `SystemEvents`...), the ASP.NET Core
+Runtime (web servers; not needed) and the SDK (everything, for building).
+Each comes for x64 and x86: a 64-bit ooRexx needs the x64 one (`C:\Program
+Files\dotnet`); an x86 .NET (`C:\Program Files (x86)\dotnet`) is invisible
+to it.
+
+The bridge starts the newest .NET it finds and adds the desktop framework
+when that version has it; when it does not, everything works except the
+desktop types (`no .NET type "System.Windows.Forms.Form"`). So: install the
+**.NET Desktop Runtime, x64**, of your newest .NET, or simply the newest
+(<https://dotnet.microsoft.com/download/dotnet/10.0>). `dotnet
+--list-runtimes` shows what is installed: `Microsoft.WindowsDesktop.App`
+must be there, with the same major version as the newest
+`Microsoft.NETCore.App`.
+
 ## 2. ooRexx → .NET
 
 `.net` is the root of .NET's namespaces. Going down by name reaches a
