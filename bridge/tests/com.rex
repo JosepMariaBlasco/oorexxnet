@@ -28,9 +28,10 @@ call ok "an array result: a Rexx Array",   keys~items keys[1], "4 a"
 -- the default member: o[i], o[i] = v
 call ok "o[key]: the default member",      d["b"], "two"
 d["c"] = 3
-call ok "o[key] = v",                      d~Count d["c"], "4 3"
-d~CompareMode = 1
-call ok "a property set",                  d~CompareMode, 1
+call ok "o[key] = v",                      d~Count d["c"], "5 3"
+e = .net~createObject("Scripting.Dictionary")              -- (CompareMode: only while empty)
+e~CompareMode = 1
+call ok "a property set",                  e~CompareMode, 1
 
 -- another server; COM objects returned by COM objects; enumeration
 fso = .net~createObject("Scripting.FileSystemObject")
