@@ -60,9 +60,10 @@ be indexed from 1 in Rexx).
 ## Building and testing (Linux)
 
 ```bash
-scripts/setup-env.sh          # ooRexx (a 5.3.0 trunk .deb) and the .NET SDKs 8 and 10
-export DOTNET_ROOT=<the SDK directory> PATH=$DOTNET_ROOT:$PATH
-bridge/tests/run.sh [OUT]     # builds into OUT and runs all the tests
+sudo scripts/setup-env.sh --no-dotnet       # ooRexx 5.3.0 trunk (.deb), if there is no rexx yet
+DOTNET_DIR=~/dotnet scripts/setup-env.sh    # the .NET SDKs 8 and 10 into ~/dotnet
+export DOTNET_ROOT=~/dotnet PATH=~/dotnet:$PATH
+bridge/tests/run.sh ~/rexxnet               # builds into ~/rexxnet and runs all the tests
 ```
 
 The scripts default to the paths of the environment they were written in
