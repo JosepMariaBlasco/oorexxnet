@@ -129,8 +129,9 @@ CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
 
 ## Packaging
 
-- **NuGet** (`bridge/pack.sh [--native RID=FILE ...] [DEST]`): the package
-  `Rexx.Net`, for .NET applications that run Rexx code. The assembly
+- **NuGet**: the package [`Rexx.Net`](https://www.nuget.org/packages/Rexx.Net)
+  (`dotnet add package Rexx.Net --prerelease`), for .NET applications that
+  run Rexx code; made by `bridge/pack.sh [--native RID=FILE ...] [DEST]`. The assembly
   carries `net.cls` and `CLR.CLS` inside it, so the Rexx code it runs can
   `::requires "net.cls"` without any file; the native library `rexxnet`
   (needed only for `.net` in that Rexx code) goes in `runtimes/<rid>/native/`
@@ -139,6 +140,9 @@ CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
 - **Windows binaries** (`powershell -ExecutionPolicy Bypass -File
   bridge\package-windows.ps1`): a zip with everything a Rexx programmer
   needs to try the bridge without building it.
+- **Releases**: a tag `vX.Y.Z[-suffix]` makes the CI publish the package to
+  nuget.org (trusted publishing) and a GitHub release with the package and
+  the Windows zip: [releases](https://github.com/JosepMariaBlasco/oorexxnet/releases).
 
 ## Related work
 

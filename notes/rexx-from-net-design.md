@@ -841,8 +841,11 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
 `lib/net8.0/Rexx.Net.dll` (with its `.snupkg`), and
 `runtimes/<rid>/native/` with `rexxnet` for this platform (built by the
 script) and for any other given (`--native win-x64=rexxnet.dll`). Version
-`0.1.0-preview.<date>` unless `--version`. Not published: it is a local
-`.nupkg` until there is a decision to publish it. Tested here from a local
+`0.1.0-preview.<date>` unless `--version`. Published: **`0.1.0-preview.1`** on
+nuget.org (09/10/2026), by the CI from the tag `v0.1.0-preview.1`, through
+nuget.org's trusted publishing (a policy naming this repository and
+`build.yml`; no stored API key), with a GitHub release carrying the package
+and the Windows zip. Tested here from a local
 feed: a new console application with a `PackageReference`, run as built
 (`runtimes/linux-x64/native/`) and published for `linux-x64` (the library
 next to the application), with no `REXXNET_DIR` and no `REXX_PATH`.
