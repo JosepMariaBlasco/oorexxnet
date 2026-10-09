@@ -63,7 +63,7 @@ $list = @(
     @('baginski', '08-WebClient.rxj',           'downloads https://wu.ac.at and counts some HTML5 tags in it (needs the internet; the counts depend on the page as it is today: zero is possible)', 'analyzing web page at:', 'ask'),
     @('baginski', '09-clock.rxj',               'a clock in the console, every second: press a key to end it', 'The current time is', 'ask'),
     @('baginski', '10-gui.introduction.rxj',    'a "Hello World" window with an icon and a label: close it', '', 'ask'),
-    @('baginski', '11-drawing.rxj',             'prints the properties of images\html5.jpg, then shows it resized in a window: close it', '', 'ask'),
+    @('baginski', '11-drawing.rxj',             'prints the properties of images\html5.jpg, shows it resized in a window: close it; then asks whether to save the new image (Y/N) and does', '', 'ask'),
     @('baginski', '12-savefile.rxj',            'a "Save Text" window: type something, click Save, a Save File dialog opens on another Rexx thread (it needs an STA thread): save, it confirms; close the window', '', 'ask'),
     @('baginski', '13-loadfile.rxj',            'an Open File dialog when the window loads: pick a text file, its text is shown; close the window', '', 'ask'),
     @('baginski', '15-text.to.speech.rxj',      'speaks a text, then reads 02-textfile.txt aloud word by word (a line "''0'' is not recognized..." is the sample''s own: its line 49 ends in a continuation); long', '', 'ask')
