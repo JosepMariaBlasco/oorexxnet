@@ -29,6 +29,11 @@ call ok "... so ToChar(int)",           clr.import("System.Convert")~ToChar(65),
 call ok "other strings as net.cls",     .clr~new("System.Text.StringBuilder")~Append("x7")~ToString, "x7"
 sb~Capacity = 100
 call ok "a property set",               sb~Capacity, 100
+psi = .clr~new("System.Diagnostics.ProcessStartInfo")
+psi~UseShellExecute = .true
+call ok "a property set: the value to its type (.true to a Boolean)", psi~UseShellExecute, 1
+psi~CreateNoWindow = 0
+call ok "... (0 to a Boolean)",          psi~CreateNoWindow, 0
 call ok "static members through an instance", .clr~new("System.DateTime")~Now~Year > 2000, 1
 p = .clr~new("System.Diagnostics.Process")
 call ok "clr.dispatch: a static method through an instance", -

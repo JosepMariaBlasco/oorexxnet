@@ -49,7 +49,15 @@ they return (wrapped as `CLR_Proxy`):
   where `net.cls` alone would choose `ToChar(string)` for the Rexx string
   `"84"`. Other arguments convert as `net.cls` converts them (a superset of
   what CLR.CLS accepted: CLR.CLS required exact types, through
-  `Type.GetMethod(name, types)`).
+  `Type.GetMethod(name, types)`). Not for a property's value
+  (`form~AutoSize = .true`): that converts to the property's type, as
+  CLR.CLS's `clr.setPropertyValue` did (found on Windows: `.true`, an
+  `Int32` 1, could not set a `Boolean`).
+- **`Process.Start(file [, arguments])`, the static method, goes through the
+  shell** (`UseShellExecute`), as on .NET Framework, where that was the
+  default: a document or a URL opens with its application (Baginski's 06
+  and 07). On .NET the default is false and only executables start; through
+  `net.cls` that stays so.
 - **Instance and static members together.** CLR.CLS looked members up with
   `Type.GetMethod` / `GetProperty`'s default flags, which find static members
   through an instance: `.clr~new("System.DateTime")~Now` (Baginski's 09),
@@ -85,12 +93,17 @@ they return (wrapped as `CLR_Proxy`):
 | raffel/01-helloworld-clr | runs |
 | raffel/05-server-clr, 05-client-clr | run (a TCP message from one to the other) |
 | baginski/02-streamwriter, 03-streamreader | run |
-| baginski/07-MAC | runs up to its last step: the MAC is right (checked against Python's `hmac`); then `Process.Start(file)` opens the file with the default editor on Windows, and on Linux .NET tries to run it |
+| baginski/07-MAC | runs: the MAC is right (checked against Python's `hmac`); then `Process.Start(file)`, through the shell (see above), opens the file with the default editor (`xdg-open` on Linux) |
 | baginski/09-clock | runs (in a terminal: `Console.ReadKey`) |
 | baginski/08-WebClient | not run here (needs the internet; `WebClient` still exists) |
 | raffel/02-eventlog, 03-systemevents, 04-forms; baginski/01, 04, 05, 06, 10–13, 15 | Windows only (event log, system events and sounds, WinForms, `MessageBox`, `SendKeys`, speech): `tests/clr-samples-windows.ps1` runs them, with the person at the keyboard saying whether each did what it should (see `netobject-design.md`, "Windows", for what the bridge needed) |
 | baginski/14-menu, 16-GeoLocation | cannot run: `MainMenu` and `System.Device.Location` are not in .NET Core |
 | raffel/00-helloworld-bsf | BSF4ooRexx's Java bridge, not CLR.CLS |
+
+Baginski's 15 has a bug of its own: its line 49 ends in a continuation
+(`mystream~~linein -`), which joins it to line 50 into a comparison, sent as
+a command (`'0' is not recognized...` on Windows); the rate set there is
+lost. Run unchanged, as every sample.
 
 ## Bridge bugs the samples found (fixed, with tests in `phase1.rex`)
 

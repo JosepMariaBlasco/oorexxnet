@@ -58,15 +58,15 @@ $list = @(
     @('baginski', '03-streamreader.rxj',        'reads 02-textfile.txt back', '[~~First Heading~~]', 'auto'),
     @('baginski', '04-messagebox.rxj',          'a MessageBox: click its button', '', 'ask'),
     @('baginski', '05-messagebox.advanced.rxj', 'MessageBoxes with buttons and icons: answer them; it says what you clicked', '', 'ask'),
-    @('baginski', '06-process.demonstration.rxj', 'MessageBoxes, then Notepad with 02-textfile.txt, a web page in the default browser, Internet Explorer (an error where there is none), F11 sent twice (SendKeys), Notepad maximized: close what it opens', '', 'ask'),
+    @('baginski', '06-process.demonstration.rxj', 'MessageBoxes, then Notepad with 02-textfile.txt, google.com in the default browser, then in "IExplore" (Edge, or an error, where there is no Internet Explorer), F11 sent twice (SendKeys), Notepad maximized: close what it opens', '', 'ask'),
     @('baginski', '07-MAC.rxj',                 'computes a MAC, writes it to 07-MAC.txt and opens that with the default editor (on Linux this last step fails)', '', 'ask'),
-    @('baginski', '08-WebClient.rxj',           'downloads a web page and counts its HTML and HTML5 tags (needs the internet)', 'analyzing web page at:', 'ask'),
+    @('baginski', '08-WebClient.rxj',           'downloads https://wu.ac.at and counts some HTML5 tags in it (needs the internet; the counts depend on the page as it is today: zero is possible)', 'analyzing web page at:', 'ask'),
     @('baginski', '09-clock.rxj',               'a clock in the console, every second: press a key to end it', 'The current time is', 'ask'),
     @('baginski', '10-gui.introduction.rxj',    'a "Hello World" window with an icon and a label: close it', '', 'ask'),
     @('baginski', '11-drawing.rxj',             'prints the properties of images\html5.jpg, then shows it resized in a window: close it', '', 'ask'),
     @('baginski', '12-savefile.rxj',            'a "Save Text" window: type something, click Save, a Save File dialog opens on another Rexx thread (it needs an STA thread): save, it confirms; close the window', '', 'ask'),
     @('baginski', '13-loadfile.rxj',            'an Open File dialog when the window loads: pick a text file, its text is shown; close the window', '', 'ask'),
-    @('baginski', '15-text.to.speech.rxj',      'speaks a text, then reads 02-textfile.txt aloud word by word (long: Ctrl+C in the voice part ends everything)', '', 'ask')
+    @('baginski', '15-text.to.speech.rxj',      'speaks a text, then reads 02-textfile.txt aloud word by word (a line "''0'' is not recognized..." is the sample''s own: its line 49 ends in a continuation); long', '', 'ask')
 )
 
 $results = @()
@@ -100,7 +100,9 @@ foreach ($s in $list) {
     Write-Output "    -> $verdict"
     $results += "$verdict  $name"
     Add-Content $log "`n=== $name ($how): $verdict`n    should: $what"
-    Add-Content $log ($text -split "`r?`n" | ForEach-Object { "    | $_" })
+    $lines = @($text -split "`r?`n")
+    if ($lines.Count -gt 60) { $lines = $lines[0..59] + "... ($($lines.Count - 60) more lines)" }
+    Add-Content $log ($lines | ForEach-Object { "    | $_" })
 }
 
 Add-Content $log "`n=== summary"

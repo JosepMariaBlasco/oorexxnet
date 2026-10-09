@@ -69,9 +69,13 @@ syntax: raise propagate
   signal on syntax
   if name~right(1) == "=" then do      -- o~Name = value
     if args~items \= 1 | args[1]~isA(.NetEvent) then forward class (super)   -- (o~Click += h: net.cls checks it)
-    call NetRequest "set", self, name~left(name~length - 1), "b", clr.args(args)[1]
+    -- the value as it is, converted to the property's type (CLR.CLS's
+    -- clr.setPropertyValue): not clr.args' Int32, which is for overloads
+    call NetRequest "set", self, name~left(name~length - 1), "b", args[1]
     return
   end
+  started = clr.shellStart(self, name, args)
+  if started \== .nil then return clr.result(started[1])
   call NetRequest "send", self, name, "b", clr.args(args)
   if var("RESULT") then return clr.result(result)
   return
@@ -110,6 +114,8 @@ syntax: raise propagate
 ::method unknown                     -- static members, else the members of the System.Type object
   use arg name, args
   signal on syntax name staticFailed
+  started = clr.shellStart(self, name, args)
+  if started \== .nil then return clr.result(started[1])
   forward class (super) arguments (.array~of(name, clr.args(args))) continue
   if var("RESULT") then return clr.result(result)
   return
@@ -217,6 +223,23 @@ syntax: raise propagate
     out[i] = a
   end
   return out
+
+-- Process.Start(file [, arguments]), the static method, through the shell
+-- (ProcessStartInfo.UseShellExecute), as .NET Framework did by default: a
+-- document or a URL opens with its application (.NET's default is false,
+-- and then only executables start). An array with the result (the Process,
+-- or .nil), or .nil when the message is not that one.
+::routine clr.shellStart private
+  use arg target, name, args
+  if name~upper \== "START" | args~items < 1 | args~items > 2 | args~size > 2 then return .nil
+  do i = 1 to args~size
+    if \args~hasIndex(i) | \args[i]~isA(.String) then return .nil
+  end
+  if .net~typeObject(target)~FullName \== "System.Diagnostics.Process" then return .nil
+  psi = .net~System~Diagnostics~ProcessStartInfo~new(args[1])
+  if args~items = 2 then psi~Arguments = args[2]
+  psi~UseShellExecute = .true
+  return .array~of(.net~System~Diagnostics~Process~Start(psi))
 
 -- A result: a plain .NetObject as a CLR proxy; anything else as net.cls gives it.
 ::routine clr.result private

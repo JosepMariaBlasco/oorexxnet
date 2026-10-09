@@ -44,10 +44,13 @@ timeout 60 rexx 03-streamreader.rxj > "$WORK/03.out" 2>&1
 check "baginski/03-streamreader (ReadLine)" "$WORK/03.out" "[~~First Heading~~]"
 check "baginski/03-streamreader (Read, ToChar)" "$WORK/03.out" "This ooRexx.NET application will create"
 # 07: the MAC is computed and written; its last step opens the file with the
-# default editor (Process.Start(file): Windows; on Linux .NET tries to run it)
+# default editor (Process.Start(file) through the shell, as CLR.CLS does:
+# xdg-open on Linux, which may find no editor here, but .NET raises no error)
 timeout 60 rexx 07-MAC.rxj > "$WORK/07.out" 2>&1
 check "baginski/07-MAC (the MAC)" "07-MAC.txt" "MAC for this message: 98-8C-DA-05-2E-6B-D0-BA-50-8F-4D-A4-BA-D0-1F-C3"
-check "baginski/07-MAC (the static Process.Start through an instance)" "$WORK/07.out" "An error occurred trying to start process"
+count=$((count + 1))
+if ! grep -q 'Error' "$WORK/07.out"; then echo "ok   baginski/07-MAC (the static Process.Start through an instance, by the shell)"
+else echo "FAIL baginski/07-MAC (Process.Start)"; tail -5 "$WORK/07.out"; fails=$((fails + 1)); fi
 # 09: Console.ReadKey needs a terminal: script(1) gives it one; a key ends it
 (sleep 3; printf 'x') | run_tty 30 rexx 09-clock.rxj > "$WORK/09.out" 2>&1
 check "baginski/09-clock (DateTime~Now through an instance)" "$WORK/09.out" "The current time is ["
