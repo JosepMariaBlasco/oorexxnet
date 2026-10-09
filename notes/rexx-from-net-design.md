@@ -895,6 +895,13 @@ a program file's `::requires` from a temporary directory, another
 instance's end, `Net = false` afterwards); every other suite, the guide,
 `clr-samples.sh` and `smoke/` unchanged and passing on Linux, .NET 10.
 
+**Every platform's `rexxnet`, by CI** (`.github/workflows/build.yml`, the same
+day): each push builds and tests on Linux x64, macOS arm64 and Windows x64
+(ooRexx from its portable builds, pinned to r13267, the first with #2106
+fixed; .NET 8 and 10), and a last job runs `pack.sh` with the other two
+natives: the package has `runtimes/linux-x64`, `osx-arm64` and `win-x64`.
+The Windows binary zip is made there too. Both are the run's artifacts.
+
 **A name's case.** The built-in packages are `net.cls` and `CLR.CLS`, as
 the files are; ooRexx compares loaded names exactly, so `::requires NET.CLS`
 (unquoted: uppercase) is not satisfied by them and goes to the disk, as

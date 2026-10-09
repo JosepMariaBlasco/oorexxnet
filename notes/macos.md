@@ -2,8 +2,15 @@
 
 *The bridge was written and tested on Linux. This note records what was
 changed so that it builds and runs on macOS, and what could only be checked
-from Linux: nothing here has run on a Mac yet. The last section lists what
-to look at first if something fails there.*
+from Linux. The last section lists what to look at first if something fails
+there.*
+
+**Confirmed (09/10/2026)** by the CI (`.github/workflows/build.yml`) on a
+GitHub macOS 14 runner, Apple silicon (arm64), with ooRexx r13267's portable
+build and .NET 8 and 10: every test suite (`tests/run.sh`: 609 checks), the
+guide's 19 examples and the PowerShell sample pass, unchanged. Not run
+there: the smoke tests and `clr-samples.sh`; nor on an Intel Mac, nor with
+ooRexx installed from its `.dmg` (in `~/Applications/ooRexx5`).
 
 ## What differs, and where it is handled
 

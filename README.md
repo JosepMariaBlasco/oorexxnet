@@ -1,5 +1,7 @@
 # ooRexx/.NET
 
+[![build](https://github.com/JosepMariaBlasco/oorexxnet/actions/workflows/build.yml/badge.svg)](https://github.com/JosepMariaBlasco/oorexxnet/actions/workflows/build.yml)
+
 A bidirectional bridge between [ooRexx](https://sourceforge.net/projects/oorexx/)
 and .NET (the CLR: C#, F#, VB, PowerShell).
 
@@ -34,8 +36,10 @@ int n = rexx.Run<int>("return 6 * 7");      // 42
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
 (trunk); on Windows too (MSVC, .NET 10: every suite and every example of
 the guide pass, and every sample of BSF4ooRexx's `CLR.CLS` that .NET still
-supports, Windows Forms and common dialogs included). The build and test scripts also support macOS, not yet
-tried there. The design is still being
+supports, Windows Forms and common dialogs included), and on macOS (Apple
+silicon). Every push runs the test suites on Linux, macOS and Windows
+(GitHub Actions: `.github/workflows/build.yml`), which also makes the NuGet
+package, with the native library of all three, and the Windows binaries. The design is still being
 discussed and parts of the API may change.
 
 **Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
@@ -97,7 +101,7 @@ otherwise (`REXXNET_BUILD` changes `~/build`). To use the bridge from Rexx:
 `cd OUT && LD_LIBRARY_PATH=. rexx prog.rex` (macOS: `DYLD_LIBRARY_PATH`),
 with `::requires "net.cls"` in the program.
 
-**macOS** (written for it, not tried yet): ooRexx 5 installed (by default
+**macOS** (tested by the CI on Apple silicon): ooRexx 5 installed (by default
 it goes to `~/Applications/ooRexx5`) with its `bin/` on the `PATH`; the
 Xcode command line tools (`clang`); a .NET 8 SDK or later (Microsoft's
 installer, or `scripts/setup-env.sh`, which puts the SDKs in `~/.dotnet`).
