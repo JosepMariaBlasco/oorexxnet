@@ -43,6 +43,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <objbase.h>
 #define LIBHANDLE HMODULE
 static LIBHANDLE openLib(const char_t *p) { return LoadLibraryW(p); }
 static void *libSym(LIBHANDLE h, const char *n) { return (void *)GetProcAddress(h, n); }
@@ -54,9 +55,22 @@ static std::basic_string<char_t> thisDir()
     wchar_t buf[MAX_PATH]; GetModuleFileNameW(self, buf, MAX_PATH);
     std::wstring p(buf); return p.substr(0, p.find_last_of(L"\\/"));
 }
+static bool fileExists(const std::wstring &p) { return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES; }
+// The Rexx thread that starts .NET: a single-threaded apartment before the
+// runtime makes it MTA (Bridge.Enter does the same for the other Rexx
+// threads; notes/netobject-design.md, "Windows"), unless REXXNET_APARTMENT=MTA
+// or COM is already initialized on it.
+static void startingThread()
+{
+    char v[8] = "";
+    DWORD n = GetEnvironmentVariableA("REXXNET_APARTMENT", v, sizeof v);
+    if (n > 0 && n < sizeof v && _stricmp(v, "MTA") == 0) return;
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+}
 #define STR(s) L##s
 #else
 #include <dlfcn.h>
+#include <unistd.h>
 #define LIBHANDLE void *
 static LIBHANDLE openLib(const char_t *p) { return dlopen(p, RTLD_LAZY | RTLD_LOCAL); }
 static void *libSym(LIBHANDLE h, const char *n) { return dlsym(h, n); }
@@ -76,6 +90,8 @@ static std::string thisDir()
     }
     return ".";
 }
+static bool fileExists(const std::string &p) { return access(p.c_str(), F_OK) == 0; }
+static void startingThread() {}
 #define STR(s) s
 #endif
 
@@ -106,10 +122,22 @@ static void loadClr()
     auto init = (hostfxr_initialize_for_runtime_config_fn)libSym(lib, "hostfxr_initialize_for_runtime_config");
     auto getDelegate = (hostfxr_get_runtime_delegate_fn)libSym(lib, "hostfxr_get_runtime_delegate");
     auto closeFxr = (hostfxr_close_fn)libSym(lib, "hostfxr_close");
+    auto setErrorWriter = (hostfxr_set_error_writer_fn)libSym(lib, "hostfxr_set_error_writer");
     auto dir = thisDir();
     auto config = dir + STR("/Rexx.Net.runtimeconfig.json"), assembly = dir + STR("/Rexx.Net.dll");
+    // Rexx.Net.core.runtimeconfig.json (build.ps1, on Windows: the config
+    // without the Windows Desktop framework): the one to use when .NET is
+    // already running without that framework (a .NET application hosting
+    // ooRexx, phase C), with which the full config is incompatible; the first
+    // attempt's complaint is then silenced
+    auto core = dir + STR("/Rexx.Net.core.runtimeconfig.json");
+    bool haveCore = fileExists(core);
+    startingThread();
     hostfxr_handle cx = nullptr;
+    if (haveCore && setErrorWriter) setErrorWriter([](const char_t *) {});
     int rc = init(config.c_str(), nullptr, &cx);
+    if (haveCore && setErrorWriter) setErrorWriter(nullptr);
+    if ((rc < 0 || !cx) && haveCore) { cx = nullptr; rc = init(core.c_str(), nullptr, &cx); }
     if (rc < 0 || !cx) { loadError = "cannot start the .NET runtime (Rexx.Net.runtimeconfig.json next to rexxnet?)"; return; }
     // Rexx.Net goes to the default load context (hdt_load_assembly, .NET 8),
     // not to an isolated one (hdt_load_assembly_and_get_function_pointer):

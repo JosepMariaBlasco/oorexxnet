@@ -67,9 +67,14 @@ try {
     # The runtime also gets the Windows Desktop framework, when installed (as
     # with the .NET SDK): Windows Forms, System.Drawing, SystemSounds, the
     # event log, SystemEvents. Written without a BOM (hostfxr reads it).
-    # REXXNET_NO_DESKTOP=1 leaves it out.
+    # REXXNET_NO_DESKTOP=1 leaves it out. The config as built stays as
+    # Rexx.Net.core.runtimeconfig.json: rexxnet's fallback when .NET already
+    # runs without that framework (a .NET application hosting ooRexx).
     $config = Join-Path $Out 'Rexx.Net.runtimeconfig.json'
+    $coreConfig = Join-Path $Out 'Rexx.Net.core.runtimeconfig.json'
+    if (Test-Path $coreConfig) { Remove-Item $coreConfig }
     if ((Test-Path (Join-Path $dotnetRoot 'shared\Microsoft.WindowsDesktop.App')) -and $env:REXXNET_NO_DESKTOP -ne '1') {
+        Copy-Item $config $coreConfig -ErrorAction Stop
         $json = Get-Content $config -Raw | ConvertFrom-Json
         $core = $json.runtimeOptions.framework
         $desktop = [pscustomobject]@{ name = 'Microsoft.WindowsDesktop.App'; version = $core.version }
@@ -79,12 +84,13 @@ try {
     }
 
     # /MT: libnethost.lib is built against the static C runtime (and says so:
-    # a /MD build fails to link); its registry lookups need advapi32
+    # a /MD build fails to link); its registry lookups need advapi32; ole32:
+    # CoInitializeEx (the starting thread an STA)
     Push-Location $work                             # (the .obj, .lib, .exp go here)
     try {
         & cl.exe /nologo /LD /EHsc /O2 /MT /std:c++17 /W3 /DNETHOST_USE_AS_STATIC "/I$api" "/I$native" `
             (Join-Path $here 'native\rexxnet.cpp') "/Fe$(Join-Path $Out 'rexxnet.dll')" `
-            /link (Join-Path $native 'libnethost.lib') advapi32.lib /IMPLIB:rexxnet.lib
+            /link (Join-Path $native 'libnethost.lib') advapi32.lib ole32.lib /IMPLIB:rexxnet.lib
         if ($LASTEXITCODE) { throw 'the native build (cl) failed' }
     } finally { Pop-Location }
     Copy-Item (Join-Path $here 'rexx\net.cls'), (Join-Path $here 'rexx\CLR.CLS') $Out -ErrorAction Stop

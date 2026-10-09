@@ -841,14 +841,21 @@ with `Microsoft.NETCore.App` alone cannot run:
   `Rexx.Net.runtimeconfig.json` when it is installed (it comes with the SDK
   and the desktop runtime): Windows Forms, `System.Drawing`,
   `SystemSounds`, `EventLog`, `SystemEvents`. `REXXNET_NO_DESKTOP=1`
-  leaves it out. The assembly stays one, `net8.0`, for every platform.
+  leaves it out. The assembly stays one, `net8.0`, for every platform. The
+  config as built stays too, as `Rexx.Net.core.runtimeconfig.json`:
+  `rexxnet` falls back to it when .NET already runs without the desktop
+  framework (a .NET application hosting ooRexx that loads `.net`, phase C),
+  for which the full config is incompatible.
 - **Types of every framework.** Types and namespaces were looked for in the
   core library's directory only; now in every framework the runtime was
   started with, from its trusted platform assemblies (only those under
   dotnet's `shared/`, not a host application's own).
 - **STA threads.** On Windows a Rexx thread becomes a single-threaded
   apartment at its first request to .NET (`TrySetApartmentState`, only
-  while COM is not yet initialized on it): common dialogs, the clipboard
+  while COM is not yet initialized on it; for the thread that starts .NET,
+  `rexxnet` calls `CoInitializeEx` before the runtime starts, as the
+  runtime makes its starting thread MTA — the first run on Windows found
+  it): common dialogs, the clipboard
   and drag and drop throw on an MTA thread, as .NET's GUI applications
   (`[STAThread]`) and PowerShell's threads are STA by default.
   `REXXNET_APARTMENT=MTA` leaves the thread alone. In host mode the .NET
