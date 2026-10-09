@@ -71,6 +71,7 @@ static class Com
     internal static void Release(object o)
     {
         if (!OperatingSystem.IsWindows() || !Marshal.IsComObject(o)) throw new BridgeException("not a COM object");
+        ComEvents.Disconnect(o);                            // its event sinks first
         Marshal.FinalReleaseComObject(o);
     }
 
@@ -108,7 +109,7 @@ static class Com
     }
 
     /// A Rexx number as an int, a long or a double; any other string as itself.
-    static object Number(string s)
+    internal static object Number(string s)
     {
         var t = s.Trim();
         if (t.Length == 0 || t.Length > 40) return s;

@@ -25,6 +25,7 @@
 //   setIndex O target, value, A indices                -> V: o[i, ...] = value
 //   await    O                                         -> the result of a Task / ValueTask (V if none)
 //   event    O target, S name, S add|remove, handler    -> V: o~Name += h, o~Name -= h
+//   events   O                                         -> A of S: the names of its events (.NET or COM)
 //   nextEvent S seconds (-1: no limit), S generation (-1: none) -> A [S handler id, A args] | N
 //   loopGeneration                                     -> S (for .net~eventLoop)
 //   stopLoops                                          -> V (.net~stopEventLoop)
@@ -101,9 +102,11 @@ public static unsafe class Bridge
         {
             var r = Wire.Parse(request);
             Dispatch(r[0].Text, r, w);
+            if (ComEvents.TakePending() is Exception pe) throw pe;   // a COM event's handler failed meanwhile
         }
         catch (Exception e)
         {
+            ComEvents.TakePending();
             if (Callbacks.RexxCause(e) is RexxException re)       // a Rexx error in a callback: raise it again
             {
                 w = new Writer();
@@ -187,6 +190,17 @@ public static unsafe class Bridge
             case "arrayDim": Collections.ArrayDimension(ArrayOf(r[1]), r[2].Items, w); break;
             case "arraySize": w.Add('S', ArrayOf(r[1]).LongLength.ToString()); break;
             case "event": Event(r[1], r[2].Text, r[3].Text, r[4]); w.Add('V', ""); break;
+            case "events":
+            {
+                var o = Handles.Get(r[1].Id);
+                var a = new Writer();
+                var names = Com.Is(o) ? ComEvents.Names(o)
+                          : o is StaticOf so ? so.Type.GetEvents(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy).Select(e => e.Name)
+                          : o.GetType().GetEvents(BindingFlags.Public | BindingFlags.Instance).Select(e => e.Name);
+                foreach (var n in names) a.Add('S', n);
+                w.Add('A', a.ToArray());
+                break;
+            }
             case "nextEvent": Callbacks.NextEvent(double.Parse(r[1].Text, System.Globalization.CultureInfo.InvariantCulture), int.Parse(r[2].Text), w); break;
             case "loopGeneration": w.Add('S', Callbacks.Generation.ToString()); break;
             case "stopLoops": Callbacks.StopLoops(); w.Add('V', ""); break;
@@ -249,7 +263,7 @@ public static unsafe class Bridge
     static void Send(Rec target, string name, bool exact, List<Rec> args, Writer w, bool both = false)
     {
         var (t, isStatic, inst) = Target(target);
-        if (!isStatic && Com.Is(inst)) { Com.Send(inst!, name, args, w); return; }   // COM: IDispatch (Com.cs)
+        if (!isStatic && Com.Is(inst)) { ComSend(target, inst!, name, args, w); return; }   // COM: IDispatch (Com.cs)
         Type[]? given = null;                               // Name<T1, T2>: a generic method's type arguments
         int lt = name.IndexOf('<');
         if (lt > 0 && name.EndsWith('>'))
@@ -305,6 +319,33 @@ public static unsafe class Bridge
         for (int i = 0; i < args.Count; i++) if (args[i].Tag == 'R') Conv.ToRexx(inner, conv[i]);
         w.Add('R', inner.ToArray());
     }
+
+    // A message to a COM object; o~add_Name(h), o~remove_Name(h) and o~Name
+    // (a .NetEvent, for +=) for its events (ComEvents.cs).
+    static void ComSend(Rec target, object o, string name, List<Rec> args, Writer w)
+    {
+        if (args.Count == 1)
+        {
+            string op = name.StartsWith("add_", StringComparison.OrdinalIgnoreCase) ? "add"
+                      : name.StartsWith("remove_", StringComparison.OrdinalIgnoreCase) ? "remove" : "";
+            if (op != "" && ComEvents.Find(o, name.Substring(op.Length + 1)) is ComEvents.Info ev)
+            {
+                ComEvents.Change(o, ev.Name, op, ComHandler(args[0], ev.Name));
+                w.Add('V', "");
+                return;
+            }
+        }
+        try { Com.Send(o, name, args, w); }
+        catch (NoMemberException) when (args.Count == 0 && ComEvents.Find(o, name) is ComEvents.Info ev)
+        {
+            int id = Handles.Add(o);
+            w.Add('e', $"{id}\to\t{Types.Display(o.GetType())}\t{ev.Name}");
+        }
+    }
+
+    static RexxHandler ComHandler(Rec value, string name) =>
+        value.Tag == 'H' ? Callbacks.HandlerOf(value)
+        : throw new BridgeException($"the handler of the COM event {name} must be a .net~handler, not {Conv.Describe(value)}");
 
     // Waits for a Task or ValueTask (blocking this thread, as C#'s .Result:
     // never on a thread whose SynchronizationContext the task needs).
@@ -371,6 +412,7 @@ public static unsafe class Bridge
     static void Event(Rec target, string name, string op, Rec value, bool exact = false)
     {
         var (t, isStatic, inst) = Target(target);
+        if (!isStatic && Com.Is(inst)) { ComEvents.Change(inst!, name, op, ComHandler(value, name)); return; }
         var set = Members_(t, isStatic, name, exact);
         var ev = set.Event ?? throw new BridgeException($"{set.Name} of {Types.Display(t)} is not an event");
         var ht = ev.EventHandlerType!;

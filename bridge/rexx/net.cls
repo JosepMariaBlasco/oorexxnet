@@ -114,6 +114,14 @@
  * until .net~stopEventLoop. Option "latest" (implies "queued") keeps at most
  * one call of the handler waiting, the newest. handler~release: its later
  * calls do nothing (queued ones are dropped).
+ *
+ * COM objects (Windows, .net~createObject): their events work the same way
+ * (excel~SheetChange += h, .net~addHandler(excel, "SheetChange", h)...);
+ * the method gets the event's parameters, and one passed by reference as a
+ * Rexx.Net.ComRef: ref~Value = .true gives the event's source a new value
+ * (Cancel). COM delivers events from another process to a Rexx thread only
+ * while it waits in .NET: .net~nextEvent(seconds), .net~eventLoop, or a call
+ * to the COM object. .net~events(o) lists an object's events (.NET or COM).
  */
 .environment~net = .NetGlobal~new("")
 
@@ -383,6 +391,11 @@ syntax: raise propagate
   use strict arg o
   call NetRequest "comRelease", o
   return
+syntax: raise propagate
+::method events unguarded            -- .net~events(o): the names of its events (a .NET object or type, or a COM object)
+  signal on syntax
+  use strict arg o
+  return NetRequest("events", o)
 syntax: raise propagate
 ::method new unguarded               -- .net~new(type, args...)
   signal on syntax

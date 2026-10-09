@@ -225,6 +225,7 @@ public static unsafe class Callbacks
             while (true)
             {
                 if (gen >= 0 && gen != generation) break;
+                if (ComEvents.HasPending) break;            // a COM event's handler failed here: its error goes up
                 if (queue.First != null) { p = queue.First.Value; queue.RemoveFirst(); break; }
                 if (seconds < 0) Monitor.Wait(queueGate);
                 else
@@ -242,6 +243,12 @@ public static unsafe class Callbacks
         pair.Add('S', p.Handler.Id.ToString());
         pair.Add('A', args.ToArray());
         w.Add('A', pair.ToArray());
+    }
+
+    /// Wakes the threads waiting in NextEvent (they look again).
+    internal static void Wake()
+    {
+        lock (queueGate) Monitor.PulseAll(queueGate);
     }
 
     public static int Generation { get { lock (queueGate) return generation; } }

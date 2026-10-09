@@ -908,8 +908,7 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
 - **`.net~releaseObject(o)`**: `Marshal.FinalReleaseComObject`, so that a
   server such as Excel can end at once, not at .NET's next collection. The
   proxy remains, unusable (98.900).
-- **Not done**: COM events (`.OLEObject`'s `~events`, connection points);
-  `GetObject` (a running instance: `Marshal.GetActiveObject` is not in .NET 5+);
+- **Not done**: `GetObject` (a running instance: `Marshal.GetActiveObject` is not in .NET 5+);
   named arguments; typed access through Office's interop assemblies (their
   interfaces would go through reflection already: objects of interop types
   are not `__ComObject`, `Com.Is`).
@@ -918,4 +917,59 @@ Tests: `tests/com.rex` (22, Windows only, in `tests/run.ps1` and the CI:
 `Scripting.Dictionary`, `Scripting.FileSystemObject`, `WScript.Shell`).
 `samples/office/`: Excel, Word and PowerPoint, each with `.OLEObject` and
 through the bridge, run on Windows with Office 365: all six pass.
+
+## COM events: built (09/10/2026)
+
+`managed/ComEvents.cs`. A COM object's events are .NET events, with the same
+syntax: `o~Name += h`, `o~Name -= h`, `.net~addHandler(o, "Name", h)`,
+`o~add_Name(h)`, their removals; `o~Name` alone is a `.NetEvent` (when the
+object has no property of that name). `h` must be a `.net~handler`
+(synchronous or `queued`). **Δ** `.OLEObject` instead calls the methods of
+the object itself (a subclass of `.OLEObject`, created `"WITHEVENTS"`, or
+`addEventMethod`): here any object and method, as for .NET events, added and
+removed at any time. `.net~events(o)` lists the events (of a .NET object or
+type too), as `.OLEObject`'s `getKnownEvents` (names only).
+
+- **Which events**: the methods of the object's source dispinterfaces,
+  found as `.OLEObject` finds them (orexxole.cpp, `getEventTypeInfo`): the
+  coclass from `IProvideClassInfo` (when it is a coclass: Outlook's gives an
+  interface), else the coclass of the object's type library that implements
+  its `IDispatch` interface (as its default, preferably); its
+  `[default, source]` interface first, then the other source interfaces
+  (a dual one through its dispinterface; a vtable-only one is skipped).
+  Restricted methods are left out. Cached per object (RCW).
+- **The sink**: one per (object, source interface), a managed object
+  exposed to COM as `IDispatch` that also answers to the source IID
+  (`ICustomQueryInterface`, as .NET's own `ComEventsSink`);
+  `IConnectionPoint::Advise` with the first handler, `Unadvise` with the
+  last, and on `.net~releaseObject`. Its `Invoke` reads the `DISPPARAMS`
+  itself (positional arguments come in reverse; named ones at their
+  positions) and calls each handler of the DISPID through
+  `Callbacks.Call`, in the order added (a handler added twice is called
+  twice; `-=` removes the last entry).
+- **Parameters by reference** (Excel's `Cancel`, ADO's `adStatus`): a
+  `Rexx.Net.ComRef`; `ref~Value` reads, `ref~Value = x` sets, and a value set
+  is written back into the `VARIANT` when the handlers return, converted to
+  its type (`VT_BOOL` from a Rexx logical, numbers, `BSTR`, `DATE`, `CY`,
+  `VARIANT`). **Δ** `.OLEObject` puts the method's return value into the out
+  parameter (an Array for several). Open question for Rony. A queued
+  handler gets a `ComRef` too, but too late to change anything.
+- **Errors**: a Rexx condition in a synchronous handler while a Rexx caller
+  waits on that thread (the event came during a call to the COM object, or
+  while `.net~nextEvent` waits) is kept and raised in that caller when its
+  request ends (`Bridge.Handle`; `nextEvent` returns at once); the sink
+  answers `S_OK` (the source can do nothing with an error). With no Rexx
+  caller waiting, it is reported, as for .NET events.
+- **Threads**: Rexx threads are STA (rexxnet). COM delivers an out-of-process
+  server's events to the STA while it pumps: during a call to that server
+  (its events caused by the call arrive during it), or in a .NET wait
+  (`Monitor.Wait` pumps COM on an STA: `.net~nextEvent`, `.net~eventLoop`).
+  `.OLEObject`'s samples wait with `SysSleep`.
+
+Tests: `tests/com.rex` (Windows, CI): `ADODB.Recordset`, which raises its
+events synchronously, during the call: `WillMove` (cancelled through
+`adStatus`), `MoveComplete`, `+=`, `-=`, `add_`, `addHandler`, twice,
+queued, an error in a handler, `.net~events`. `samples/office/
+excel-events-{ole,net}.rex`: `SheetChange` and `WorkbookBeforeClose`
+(`Cancel`), both ways.
 

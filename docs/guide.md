@@ -20,6 +20,7 @@ tried there. The design behind each choice is in `notes/`.
 - [9. .NET → ooRexx](#9-net--oorexx)
 - [10. Programs written for CLR.CLS](#10-programs-written-for-clrcls)
 - [11. If you know BSF4ooRexx](#11-if-you-know-bsf4oorexx)
+- [12. COM objects (Windows)](#12-com-objects-windows)
 
 ## 1. Setting up
 
@@ -561,3 +562,47 @@ And from `.JSObject` (ooRexx in WebAssembly): the same shape (`.net` as
 queued event model), with the differences the design notes mark **Δ**: names
 caseless with the uppercase member winning, arrays from 1, an unknown member
 an error rather than `.nil`.
+
+## 12. COM objects (Windows)
+
+`.net~createObject(progID)` creates a COM object (Excel, Word, the
+`Scripting` objects...). With no .NET interop type, it is reached through
+`IDispatch`, late-bound, as `.OLEObject` reaches it, and with the same Rexx
+syntax as any `.NetObject`: messages by name, caseless; `o~Name = v`;
+`o[i]` for the default member; DO OVER a COM collection. A Rexx number goes
+as a number (`.net~box("string", "007")` keeps a string), an omitted
+argument as "not given". Each call is made in English (US), as VBA's: Excel
+reads `=SUM(...)` on any Windows. `.net~releaseObject(o)` releases it at
+once (Excel's process can end).
+
+Its events are .NET events: `o~Name += h`, `o~Name -= h`,
+`.net~addHandler(o, "Name", h)`, `o~add_Name(h)`; `.net~events(o)` lists
+them. The method gets the event's parameters; one passed by reference
+arrives as a `Rexx.Net.ComRef`, and `ref~Value = x` gives the event's source
+a new value when the method returns (Excel's `Cancel`):
+
+```rexx
+excel = .net~createObject("Excel.Application")
+w = .Watcher~new
+excel~SheetChange += .net~handler(w, "CHANGED")
+excel~WorkbookBeforeClose += .net~handler(w, "CLOSING")
+book = excel~Workbooks~Add
+book~Worksheets~Item(1)~Range("A1")~Value = 42    -- SheetChange, during the call
+book~Close(.false)                                  -- refused
+say excel~Workbooks~Count                           -- 1
+excel~DisplayAlerts = .false; excel~Quit; .net~releaseObject(excel)
+::requires "net.cls"
+::class Watcher
+::method changed
+  use arg sheet, range
+  say "changed:" range~Address
+::method closing
+  use arg book, cancel
+  cancel~Value = .true
+```
+
+COM delivers the events of another process (Excel) to a Rexx thread while
+that thread waits in .NET: during a call to the COM object (as above), in
+`.net~nextEvent(seconds)` or `.net~eventLoop`. `samples/office/` has
+Excel, Word and PowerPoint programs written twice, with `.OLEObject` and
+through the bridge, events included.

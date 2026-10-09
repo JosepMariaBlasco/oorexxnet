@@ -1,6 +1,6 @@
 # Office from Rexx: a Rosetta stone
 
-Three short programs, each written twice: with ooRexx's own `.OLEObject`
+Short programs, each written twice: with ooRexx's own `.OLEObject`
 (COM) and through the .NET bridge. Side by side they show that the bridge
 reaches Office as `.OLEObject` does: `.net~createObject("Excel.Application")`
 gives a COM object driven through `IDispatch`, late-bound and caseless,
@@ -13,6 +13,7 @@ let Office's process end at once.
 | Excel: a table, formulas, formatting, saved as .xlsx | `excel-ole.rex` | `excel-net.rex` |
 | Word: a heading, a paragraph, a table, saved as .docx | `word-ole.rex` | `word-net.rex` |
 | PowerPoint: two slides, saved as .pptx | `powerpoint-ole.rex` | `powerpoint-net.rex` |
+| Excel's events: cells changed, a Close refused | `excel-events-ole.rex` | `excel-events-net.rex` |
 
 `diff excel-ole.rex excel-net.rex` shows everything that differs.
 
@@ -22,6 +23,16 @@ let Office's process end at once.
 bridge `=SUM(D2:D4)` works on any Windows, through `.OLEObject` on a
 Spanish Windows it must be `=SUMA(D2:D4)` (so `excel-ole.rex` writes
 `=D2+D3+D4`). And Excel refuses a call whose language it does not know.
+
+**Events** are where the two differ most. `.OLEObject` created
+`"WITHEVENTS"` calls its own methods named after the events (a subclass of
+`.OLEObject`), and a method's return value goes to the event's out
+parameter (`Cancel`). Through the bridge, COM events are .NET events:
+`excel~SheetChange += .net~handler(obj, "MESSAGE")`, any object, any
+method name, added and removed at any time; a parameter passed by
+reference arrives as a `Rexx.Net.ComRef` (`cancel~Value = .true`). While
+waiting for Excel's events, the `.OLEObject` version sleeps (`SysSleep`),
+the bridge's waits in .NET (`.net~nextEvent(1)`).
 
 They need Windows with Office installed; the .NET versions, the bridge (its
 folder on the `PATH` and `REXX_PATH`, as for the other samples). Each saves
