@@ -3,11 +3,17 @@
 # zip. ooRexx comes from its portable builds on SourceForge, pinned to one
 # revision: the bridge needs at least r13267 (ooRexx bug #2106, fixed there),
 # and a newer one is taken deliberately, after checking it.
+#
+# A tag vX.Y.Z[-suffix] (git tag v0.1.0-preview.1 && git push origin
+# v0.1.0-preview.1) also publishes: the package, with that version, to
+# nuget.org (the secret NUGET_API_KEY), and a GitHub release with the package
+# and the Windows zip. Pushes to main publish nothing.
 name: build
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -130,10 +136,42 @@ jobs:
           path: natives
       - name: Pack
         run: |
-          bridge/pack.sh --native win-x64=natives/native-win-x64/rexxnet.dll \
+          V=()
+          if [ "$GITHUB_REF_TYPE" = tag ]; then V=(--version "${GITHUB_REF_NAME#v}"); fi
+          bridge/pack.sh "${V[@]}" --native win-x64=natives/native-win-x64/rexxnet.dll \
                          --native osx-arm64=natives/native-osx-arm64/librexxnet.dylib nupkg
           unzip -l nupkg/Rexx.Net.*[0-9].nupkg
       - uses: actions/upload-artifact@v4
         with:
           name: nuget
           path: nupkg/*
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [nuget, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write                       # the GitHub release
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget
+          path: nupkg
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: zip
+      - name: nuget.org
+        run: |
+          dotnet nuget push "nupkg/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" "${pre[@]}" \
+            --title "$GITHUB_REF_NAME" --generate-notes nupkg/* zip/*.zip
