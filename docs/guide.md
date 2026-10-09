@@ -6,7 +6,8 @@ followed by its output; `docs/check-guide.py` runs them all and compares (so
 what you read here is what the bridge does).
 
 The bridge is a prototype: it runs on Linux, with .NET 8 or later and ooRexx
-5.3.0 (trunk); its scripts support macOS too, not yet tried there. The design behind each choice is in `notes/`.
+5.3.0 (trunk), and on Windows; its scripts support macOS too, not yet
+tried there. The design behind each choice is in `notes/`.
 
 - [1. Setting up](#1-setting-up)
 - [2. ooRexx → .NET](#2-oorexx--net)

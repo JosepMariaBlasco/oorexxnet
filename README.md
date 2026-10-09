@@ -32,8 +32,9 @@ int n = rexx.Run<int>("return 6 * 7");      // 42
 
 **Status: prototype.** Both directions are built and covered by more than 500
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
-(trunk). The build and test scripts also support macOS and Windows, but
-have not been tried there yet. The design is still being
+(trunk); on Windows too (MSVC, .NET 10: every suite and every example of
+the guide pass). The build and test scripts also support macOS, not yet
+tried there. The design is still being
 discussed and parts of the API may change.
 
 **Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
@@ -100,7 +101,7 @@ Then `bridge/tests/run.sh` as above; the native library is
 (Homebrew's `subversion`), or takes a directory of them; the timeouts use
 coreutils' `gtimeout` when there is one.
 
-**Windows** (written for it, not tried yet): ooRexx 5, 64-bit, with
+**Windows**: ooRexx 5, 64-bit, with
 `rexx.exe` on the `PATH` (its `api\` folder has the headers); a .NET 8 SDK
 or later; Visual Studio or its Build Tools with "Desktop development with
 C++" (`cl.exe`, found through `vswhere` when it is not on the `PATH`).
