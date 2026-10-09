@@ -10,6 +10,7 @@ param([string]$Out = (Join-Path $env:USERPROFILE 'build\rexxnet'))
 # 'Continue', every step checked explicitly: with 'Stop', Windows PowerShell
 # 5.1 turns a native command's stderr into a terminating error when redirected
 $ErrorActionPreference = 'Continue'
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'; $env:DOTNET_NOLOGO = '1'
 $here = $PSScriptRoot
 & (Join-Path $here '..\build.ps1') -Out $Out
 if (-not $?) { exit 1 }
