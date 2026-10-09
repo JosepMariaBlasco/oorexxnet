@@ -134,8 +134,9 @@ public static unsafe class Bridge
     {
         switch (op)
         {
-            case "send": Send(r[1], r[2].Text, r[3].Text == "1", r[4].Items, w); break;
-            case "set": Set(r[1], r[2].Text, r[3].Text == "1", r[4]); w.Add('V', ""); break;
+            // the mode: "0" caseless, "1" exact, "b" caseless in both scopes (CLR.CLS)
+            case "send": Send(r[1], r[2].Text, r[3].Text == "1", r[4].Items, w, r[3].Text == "b"); break;
+            case "set": Set(r[1], r[2].Text, r[3].Text == "1", r[4], r[3].Text == "b"); w.Add('V', ""); break;
             case "new": New(TypeOf(r[1]), r[2].Items, w); break;
             case "has": w.Add('S', Has(r[1], r[2].Text) ? "1" : "0"); break;
             case "ns":
@@ -205,7 +206,9 @@ public static unsafe class Bridge
     static Type MakeType(List<Rec> r)
     {
         if (r.Count == 0) throw new BridgeException(".net~type: a type name is needed");
-        var t = r[0].Tag == 'S' ? Types.Parse(r[0].Text) : TypeOf(r[0]);
+        var t = r[0].Tag == 'S' ? Types.Parse(r[0].Text)
+              : Handles.Get(r[0].Id) is Type given ? given              // .net~type(a System.Type object): that type
+              : TypeOf(r[0]);
         if (r.Count == 1) return t;
         var args = r.Skip(1).Select(a => a.Tag == 'S' ? Types.Parse(a.Text) : TypeOf(a)).ToArray();
         if (!t.IsGenericTypeDefinition)
@@ -223,12 +226,25 @@ public static unsafe class Bridge
     }
 
     // A member set; none: 97.1 (message: the message name as Rexx sees it).
-    static MemberSet Members_(Type t, bool isStatic, string name, bool exact, string? message = null) =>
-        Members.Find(t, isStatic, name, exact) ?? throw new NoMemberException(message ?? name,
+    // both: an object's instance and static members together, as CLR.CLS
+    // looked members up (Type.GetMethod's default flags).
+    static MemberSet Members_(Type t, bool isStatic, string name, bool exact, string? message = null, bool both = false) =>
+        (both && !isStatic ? Merge(Members.Find(t, false, name, exact), Members.Find(t, true, name, exact))
+                           : Members.Find(t, isStatic, name, exact)) ?? throw new NoMemberException(message ?? name,
             $"{Types.Display(t)} has no public {(isStatic ? "static" : "instance")} member \"{name}\"" +
             (isStatic ? " (for the members of the System.Type object, use .net~typeObject)" : ""));
 
-    static void Send(Rec target, string name, bool exact, List<Rec> args, Writer w)
+    static MemberSet? Merge(MemberSet? a, MemberSet? b) => a == null ? b : b == null ? a : new MemberSet
+    {
+        Name = a.Name,
+        Methods = a.Methods.Concat(b.Methods).ToArray(),
+        Generic = a.Generic.Concat(b.Generic).ToArray(),
+        Properties = a.Properties.Concat(b.Properties).ToArray(),
+        Field = a.Field ?? b.Field,
+        Event = a.Event ?? b.Event,
+    };
+
+    static void Send(Rec target, string name, bool exact, List<Rec> args, Writer w, bool both = false)
     {
         var (t, isStatic, inst) = Target(target);
         Type[]? given = null;                               // Name<T1, T2>: a generic method's type arguments
@@ -247,7 +263,7 @@ public static unsafe class Bridge
             w.Add('V', "");
             return;
         }
-        var set = Members_(t, isStatic, name, exact, given != null ? name + "<" + string.Join(", ", given.Select(Types.Display)) + ">" : null);
+        var set = Members_(t, isStatic, name, exact, given != null ? name + "<" + string.Join(", ", given.Select(Types.Display)) + ">" : null, both);
         if (args.Count == 0 && given == null)
         {
             var p = set.Properties.FirstOrDefault(x => x.GetIndexParameters().Length == 0);
@@ -305,10 +321,10 @@ public static unsafe class Bridge
         Conv.ToRexx(w, rt.GetProperty("Result")!.GetValue(task));
     }
 
-    static void Set(Rec target, string name, bool exact, Rec value)
+    static void Set(Rec target, string name, bool exact, Rec value, bool both = false)
     {
         var (t, isStatic, inst) = Target(target);
-        var set = Members_(t, isStatic, name, exact, name + "=");
+        var set = Members_(t, isStatic, name, exact, name + "=", both);
         var p = set.Properties.FirstOrDefault(x => x.GetIndexParameters().Length == 0);
         Type to;
         if (p != null)

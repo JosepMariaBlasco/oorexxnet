@@ -137,10 +137,11 @@ public static class Types
             var t = SafeGetType(asm, n);
             if (t != null) return t;
         }
-        // Not loaded yet: the framework assemblies named by a prefix of it.
+        // Not loaded yet: the framework assemblies named by it or by a prefix of it.
         string? best = null;
         foreach (var an in frameworkAssemblies.Value)
-            if (n.StartsWith(an + ".", StringComparison.OrdinalIgnoreCase) && (best == null || an.Length > best.Length))
+            if ((n.StartsWith(an + ".", StringComparison.OrdinalIgnoreCase) || n.Equals(an, StringComparison.OrdinalIgnoreCase))
+                && (best == null || an.Length > best.Length))           // (System.Console is in System.Console.dll)
                 best = an;
         for (string? an = best; an != null; an = Shorter(an))
         {

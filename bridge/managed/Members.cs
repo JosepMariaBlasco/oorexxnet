@@ -308,8 +308,11 @@ public static class Members
                           : Conv.TryConvert(args[i], ps[i], out conv[i]);
                     if (c == Conv.Fail) ok = false; else cost += c;
                 }
-                else if (s.HasDefault[i]) conv[i] = s.Defaults[i];
-                else if (hasParams && i == n - 1) conv[i] = Array.CreateInstance(s.ParamsElement!, 0);
+                // C#: a candidate that needs a default filled in, or an empty
+                // params array, loses a tie with one that does not
+                // (Console.WriteLine(string) against (string, params object[]))
+                else if (s.HasDefault[i]) { conv[i] = s.Defaults[i]; cost += 1; }
+                else if (hasParams && i == n - 1) { conv[i] = Array.CreateInstance(s.ParamsElement!, 0); cost += 1; }
                 else ok = false;
             }
             if (ok) return (cost, conv);

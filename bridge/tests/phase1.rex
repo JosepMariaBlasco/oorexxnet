@@ -80,6 +80,11 @@ call ok ".net~as type",         p~Kind(.net~as(7, .net~System~Byte)), "System.By
 call ok ".net~as name",         p~Kind(.net~as(7, "long")), "System.Int64"
 call ok ".net~null",            p~Kind(.net~null), "null"
 call ok "forced settles tie",   p~Ambig(.net~int64(1), 2), "long,int"
+call ok "no empty params array wins (WriteLine(string))", p~Tie("a") p~Tie("a", 1), "plain params 1"
+call ok "no default filled in wins", p~Tie2("a") p~Tie2("a", 2), "plain default"
+call ok "a type in an assembly named as it (System.Console)", .net~type("System.Console")~makeString, "a NetType (System.Console)"
+call ok ".net~type(a System.Type object)", .net~type(.net~typeObject(.net~System~Text~StringBuilder~new))~makeString, -
+   "a NetType (System.Text.StringBuilder)"
 -- box / unbox: a .NET object holding the value (CLR.CLS's names too)
 bx = .net~box("short", 5)
 call ok "box: a .NetObject",    bx~isA(.NetObject) .net~typeOf(bx), "1 System.Int16"

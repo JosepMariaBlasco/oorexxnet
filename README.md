@@ -43,16 +43,20 @@ discussed and parts of the API may change.
   - `native/rexxnet.cpp` — `librexxnet`, the ooRexx external library that
     hosts the CLR (`nethost` / `hostfxr`).
   - `rexx/net.cls` — the Rexx side (`.net`, `.NetObject` and friends).
+  - `rexx/CLR.CLS` — a compatibility package: programs written for
+    BSF4ooRexx's `CLR.CLS` run unchanged (see `notes/clr-compat.md`).
   - `build.sh`, `tests/run.sh` — build, and run every test suite.
   - `tests/` — `phase1.rex`, `phase2.rex`, `phase3.rex` (ooRexx → .NET),
-    `bothways.rex` (ooRexx as the host, .NET calling back), `HostTests/`
-    (.NET → ooRexx).
+    `bothways.rex` (ooRexx as the host, .NET calling back), `clr.rex` (the
+    `CLR.CLS` package), `HostTests/` (.NET → ooRexx); `clr-samples.sh` runs
+    `CLR.CLS`'s own portable samples.
 - `smoke/` — the smallest possible proofs of each mechanism (`smoke/run.sh`,
   `smoke/hostapi/run.sh`).
 - `notes/` — the design: `netobject-design.md` (ooRexx → .NET),
   `rexx-from-net-design.md` (.NET → ooRexx, and both ways in one process),
   `decisions-20261008.md` (the initial decisions), `bsf4oorexx-clr.md`
-  (notes on BSF4ooRexx's earlier CLR support). Each design note records,
+  (notes on BSF4ooRexx's earlier CLR support), `clr-compat.md` (the
+  `CLR.CLS` compatibility package). Each design note records,
   phase by phase, what was built and where it departed from the plan
   (marked **Δ**).
 - `patches/oorexx/` — patches proposed to ooRexx itself (#2106).
@@ -80,6 +84,7 @@ Rexx: `cd OUT && LD_LIBRARY_PATH=. rexx prog.rex`, with
 
 - [BSF4ooRexx](https://sourceforge.net/projects/bsf4oorexx/), the ooRexx–Java
   bridge, whose conventions this bridge follows where it can, and whose
-  earlier CLR support (`CLR.CLS`, through jni4net) it supersedes.
+  earlier CLR support (`CLR.CLS`, through jni4net) it supersedes: programs
+  written for `CLR.CLS` run on this bridge through `rexx/CLR.CLS`.
 - `.JSObject`, the ooRexx–JavaScript bridge of the ooRexx WebAssembly port,
   the model for the Rexx surface.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds the bridge and the test assembly, runs tests/phase1.rex, phase2.rex,
 # phase3.rex (ooRexx -> .NET), bothways.rex (phase C: ooRexx as the host, .NET
-# calling it back), then tests/HostTests (.NET -> ooRexx).
+# calling it back), clr.rex (the CLR.CLS compatibility package), then
+# tests/HostTests (.NET -> ooRexx).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=${1:-/home/claude/build/rexxnet}
@@ -13,7 +14,7 @@ cp -r "$HERE/TestLib" "$WORK/"
 cd "$OUT"
 # LD_LIBRARY_PATH relative, as documented (the bridge makes its own path absolute)
 rc=0
-for t in phase1 phase2 phase3 bothways; do
+for t in phase1 phase2 phase3 bothways clr; do
   LD_LIBRARY_PATH=. timeout 300 rexx "$HERE/$t.rex" "$WORK/out/TestLib.dll" || rc=1
 done
 # .NET -> ooRexx: a .NET application hosting ooRexx (librexx found by Rexx.Net itself)

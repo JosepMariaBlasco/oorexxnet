@@ -20,5 +20,5 @@ test -f "$OUT/Rexx.Net.dll"
 HOSTPK=$(dirname "$(find "$DOTNET_ROOT/packs" -name nethost.h | sort | tail -1)")
 g++ -shared -fPIC -O2 -Wall -I"${REXX_INCLUDE:-/usr/local/include}" -I"$HOSTPK" "$HERE/native/rexxnet.cpp" \
     "$HOSTPK/libnethost.a" -ldl -Wl,-soname,librexxnet.so -o "$OUT/librexxnet.so"
-cp "$HERE/rexx/net.cls" "$OUT/"
+cp "$HERE/rexx/net.cls" "$HERE/rexx/CLR.CLS" "$OUT/"
 echo "built: $OUT"

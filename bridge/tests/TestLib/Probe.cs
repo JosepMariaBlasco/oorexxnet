@@ -13,6 +13,11 @@ public static class Probe
     public static string Opt(int a, int b = 5) => $"{a},{b}";
     public static int Sum(params int[] xs) => xs.Sum();
     public static string Kind(object? o) => o?.GetType().FullName ?? "null";
+    // C#'s tie-break: no params array to fill, no default to fill in, wins
+    public static string Tie(string s) => "plain";
+    public static string Tie(string s, params object[] rest) => "params " + rest.Length;
+    public static string Tie2(string s) => "plain";
+    public static string Tie2(string s, int n = 1) => "default";
     public static string Num(int x) => "int";
     public static string Num(double x) => "double";
     public static string Num(string x) => "string";

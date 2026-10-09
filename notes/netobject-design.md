@@ -770,3 +770,24 @@ Settled:
   should look (as here: .NET's `"Bold, Italic"`; `d = "bold, italic"`;
   `d~HasFlag(f)`).
 
+## Fixes found by CLR.CLS's samples (09/10/2026)
+
+Running BSF4ooRexx's `CLR.CLS` samples on the compatibility package
+(`notes/clr-compat.md`) found two bugs of the bridge itself, fixed with tests
+in `phase1.rex` (128, was 124):
+
+- **Overloads: C#'s tie-break for `params` and defaults.** A candidate that
+  needs an empty `params` array, or a default filled in, costs one more than
+  one that takes the arguments as they are: `Console.WriteLine("text")` was
+  ambiguous between `WriteLine(string)` and `WriteLine(string, params
+  object[])`.
+- **Types in an assembly named as the type**: `.net~type("System.Console")`
+  looked in the framework assemblies named by a prefix of the type's name
+  (`System`), not in `System.Console.dll`. (`.net~System~Console` worked: the
+  namespace path loads assemblies by namespace.)
+
+Also: `.net~type(o)`, `o` a `System.Type` object, is that type; and a `send`
+/ `set` request has a third lookup mode, `"b"` (instance and static members
+as one set, as CLR.CLS's `Type.GetMethod` found them), used only by
+`CLR.CLS`.
+
