@@ -33,7 +33,8 @@ int n = rexx.Run<int>("return 6 * 7");      // 42
 **Status: prototype.** Both directions are built and covered by more than 500
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
 (trunk); on Windows too (MSVC, .NET 10: every suite and every example of
-the guide pass). The build and test scripts also support macOS, not yet
+the guide pass, and every sample of BSF4ooRexx's `CLR.CLS` that .NET still
+supports, Windows Forms and common dialogs included). The build and test scripts also support macOS, not yet
 tried there. The design is still being
 discussed and parts of the API may change.
 
