@@ -42,10 +42,15 @@ should print something like
 
     ooRexx: REXX-ooRexx_5.3.0(MT)_64-bit 6.06 8 Oct 2026
     .NET:   .NET 10.0.12
+    .NET frameworks in C:\Program Files\dotnet\shared:
+        Microsoft.NETCore.App: 8.0.31 10.0.12
+        Microsoft.WindowsDesktop.App: 8.0.31 10.0.12
     StringBuilder: Hello, world 12
     Windows Forms: ok
 
 then open a MessageBox, and print "MessageBox: ok" when you close it.
+If it says "Windows Forms: not available", Microsoft.WindowsDesktop.App is
+missing from that list: install the .NET Desktop Runtime (x64).
 ("rexx C:\rexxnet\check.rex nogui" opens no window.)
 
 
