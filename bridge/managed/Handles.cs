@@ -63,3 +63,13 @@ public sealed class BridgeException : Exception
 {
     public BridgeException(string message) : base(message) { }
 }
+
+/// One of Rexx's own errors (93.907, 93.925...), raised as Rexx raises it,
+/// where a .NET object stands for a Rexx one (a .NET array as a Rexx Array).
+public sealed class RexxSyntaxException : Exception
+{
+    public int Code { get; }                 // 93907 for 93.907
+    public string[] Substitutions { get; }
+    public RexxSyntaxException(int code, params string[] substitutions)
+        : base($"Rexx error {code / 1000}.{code % 1000}") { Code = code; Substitutions = substitutions; }
+}

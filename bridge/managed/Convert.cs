@@ -349,6 +349,6 @@ public static class Conv
     {
         int id = Handles.Add(o);
         if (o is StaticOf so) w.Add('O', $"{id}\tt\t{Types.Display(so.Type)}");
-        else w.Add('O', $"{id}\to\t{Types.Display(o.GetType())}");
+        else w.Add('O', $"{id}\t{(o is Array ? 'a' : 'o')}\t{Types.Display(o.GetType())}");
     }
 }

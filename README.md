@@ -16,7 +16,9 @@ and .NET (the CLR: C#, F#, VB, PowerShell).
 say .net~System~Math~Max(3, 7)                                    -- 7
 list = .net~type("System.Collections.Generic.List<int>")~new
 list~Add(3); list~Add(1); list~Sort
-say list[0] list~Count                                            -- 1 2
+say list[0] list~Count                                            -- 1 2  (a List: as .NET)
+bytes = .net~System~Text~Encoding~UTF8~GetBytes("abc")           -- a .NET byte[]
+say bytes[1] bytes~items                                          -- 97 3  (an array: as a Rexx Array)
 
 ::requires "net.cls"
 ```
@@ -28,11 +30,10 @@ using var rexx = RexxInterpreter.Create();
 int n = rexx.Run<int>("return 6 * 7");      // 42
 ```
 
-**Status: prototype.** Both directions are built and covered by about 440
+**Status: prototype.** Both directions are built and covered by about 470
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
 (trunk). Windows has not been tried yet. The design is still being
-discussed and parts of the API will change (for instance, .NET arrays will
-be indexed from 1 in Rexx).
+discussed and parts of the API may change.
 
 ## Layout
 

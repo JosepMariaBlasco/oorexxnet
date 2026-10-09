@@ -82,20 +82,22 @@ is the exact escape.
 
 The methods it has of its own, all forced by Rexx protocols: `unknown`,
 `[]`, `[]=`, `==` (and friends), `hashCode`, `string`, `makeArray`,
-`supplier`, `await`, `uninit`; a type also `new`.
+`supplier`, `await`, `uninit`; a type also `new`; an array (a `.NetArray`)
+also `at`, `put`, `putStrict`, `items`, `size`, `dimension` (see "Arrays as
+Rexx Arrays: built", below).
 
 | Rexx | .NET |
 |---|---|
 | `o~Name` | property, field, or method with no arguments; an event gives a `.NetEvent` (for `+=`) |
 | `o~Name(a, b)` | method (overloads below); an indexed property with arguments |
 | `o~Name = v` | property or field set |
-| `o[i]`, `o[i] = v`, `o[i, j]` | indexer (`Item`), array element (**0-based**, as in C#) |
+| `o[i]`, `o[i] = v`, `o[i, j]` | indexer (`Item`, **0-based** for lists, as .NET documents them); array element (**from 1**, a `.NetArray`: see "Arrays as Rexx Arrays") |
 | `t~new(args)` | constructor (t a type) |
 | `t~Name` | a static member of the type t |
 | `o~Click += h`, `o~Click -= h` | add / remove an event handler (`.NetEvent` `+` / `-`; the `CLICK=` that follows is a no-op) — taken from `CLR.CLS` |
 | `o~await` | `Task` / `ValueTask`: wait, result |
 | `DO x OVER o` | `IEnumerable`: the items (a dictionary gives `KeyValuePair`s, as C#'s `foreach`) |
-| `DO WITH INDEX k ITEM v OVER o` | `IDictionary`: keys and values; `IEnumerable`: 1..n and items |
+| `DO WITH INDEX k ITEM v OVER o` | `IDictionary`: keys and values; an array: its positions from 1; a list: from 0; other `IEnumerable`: 1..n and items |
 
 **Types.** A type is a `.NetType` (subclass of `.NetObject`): `t~Name`
 resolves the static members; `~new` constructs. The `System.Type` object
@@ -282,6 +284,8 @@ free there.
    between sister bridges, with the reasons above. (The WASM side might
    adopt `.js~typeOf(o)` too: its own lesson says so.)
 5. Arrays and indexers 0-based, as .NET (`.JSObject` does the same for JS).
+   *Superseded for arrays*: a .NET array is now a Rexx Array from 1 in every
+   dimension (see "Arrays as Rexx Arrays: built"); indexers stay 0-based.
 6. Names: `net.cls`, library `rexxnet`, assembly `Rexx.Net`.
 
 ## Phase 1: built (08/10/2026)
@@ -554,3 +558,66 @@ mode (.NET → ooRexx), a .NET thread with no Rexx request may still have
   while one of its guarded methods runs (as any Rexx thread would):
   documented in `net.cls` ("make such handler methods UNGUARDED"). Nested
   on the same thread there is no wait (verified).
+
+## Arrays as Rexx Arrays: built (09/10/2026)
+
+**Decided:** a .NET array reaches Rexx as a **`.NetArray`** (a subclass of
+`.NetObject`), which behaves as a Rexx Array: **from 1 in every dimension**,
+with the protocol of BSF4ooRexx's `BSF_ARRAY_REFERENCE` for Java arrays
+(`BSF.CLS`): `at`, `[]`, `put`, `[]=`, `putStrict`, `items`, `size`,
+`dimension`, `makeArray`, `supplier`. **Lists and the other collections stay
+as .NET documents them** (`list[0]`, `dict["key"]`): a Rexx List does not
+expose positions either, and BSF4ooRexx leaves `java.util.List` 0-based.
+
+**Δ `.JSObject`** keeps JavaScript arrays 0-based. Reasons for the
+difference: a Rexx programmer should not have to think in offsets (Rexx
+arrays start at 1); BSF4ooRexx, the other bridge to a typed platform, does
+it for Java arrays and has for years, and the two bridges should feel alike;
+and a .NET array is a fixed-size, typed block, close to a Rexx Array, where
+a JavaScript array is an ordinary object whose indexes are property names.
+
+`tests/phase2.rex` (106 tests, was 76) and `tests/HostTests` (184, was 183);
+phases 1 and 3, bothways, `smoke/run.sh` and `smoke/hostapi/run.sh` pass
+unchanged (.NET 10, ooRexx r13267). Changes: `Collections.cs`, `Bridge.cs`,
+`Convert.cs`, `Handles.cs`, `Host/RexxInterpreter.BothWays.cs`,
+`native/rexxnet.cpp`, `rexx/net.cls`.
+
+| Rexx | |
+|---|---|
+| `a[i]`, `a[i, j]`, `a~at(i, j)`, `a~at(.array~of(i, j))` | an element, from 1 |
+| `a[i] = v`, `a~put(v, i, j)`, `a~put(v, .array~of(i, j))` | set one |
+| `a~putStrict(type, v, i...)` | set one as that .NET type (a name, `"short"`, or a `.NetType`): `.net~as(v, type)` |
+| `a~items`, `a~size` | the number of elements (all of them: a .NET array has a fixed size; `BSF_ARRAY_REFERENCE` answers the same) |
+| `a~dimension`, `a~dimension(n)` | the rank; the length of dimension n (0 past the rank, as a Rexx Array) |
+| `DO x OVER a`, `a~makeArray` | every element, row by row (the last index fastest) |
+| `DO WITH INDEX i ITEM v OVER a`, `a~supplier` | positions from 1; rank > 1: an Array of positions, as a Rexx Array's supplier gives |
+| `a~Length`, `a~Rank`, `a~GetValue(0)` | .NET's own members, as before (they are 0-based: .NET's) |
+
+Settled while building:
+
+- **Rexx's own errors.** Wrong indexes raise what a Rexx Array raises, not
+  98.900: 93.907 (rank 1: "Method argument *n* must be a positive whole
+  number", *n* counted as Rexx counts it: 2 for `put`'s first index), 93.924
+  (rank > 1: "Invalid position argument specified"), 93.925 / 93.926 ("Not
+  enough / Too many subscripts for array; *r* expected"), 93.901 (no index,
+  or `put` without a value). A new response record carries them from the
+  managed side (`Y`: code and substitutions; `RexxSyntaxException`).
+- **One past the bounds** is .NET's `IndexOutOfRangeException` (98.900),
+  as `BSF_ARRAY_REFERENCE` gives Java's. A Rexx Array returns `.nil` from
+  `at` past its end and grows on `put`; a .NET array cannot grow, and a
+  `.nil` there would hide a mistake.
+- **Differences from a Rexx Array that stay:** `items` counts every element
+  (a Rexx Array counts the non-empty ones), and `makeArray` / `supplier`
+  give `null` elements as `.nil` (a Rexx Array skips empty ones): as
+  `BSF_ARRAY_REFERENCE`. A `.NetArray` is not an instance of `.Array`.
+- **A jagged array** (`int[][]`) is an array of arrays: `jag[2]` is a
+  `.NetArray`, `jag[2][3]` its element.
+- **By reference, as any `.NetObject`**: nothing is copied; a `.NetArray`
+  goes back to .NET as the same array, and .NET sees what Rexx put.
+- **Both directions.** A .NET array handed to Rexx by a .NET host
+  (`rexx.Run("use arg a; a[1] = 9", arr)`) is a `.NetArray` too. Rexx code
+  run by a host sees `.net` but not net.cls's classes by name (they are not
+  in `.environment`): `a~class~id` is `NETARRAY`.
+- `o[i]` on a `.NetObject` that holds an array (it cannot be made one now,
+  but the managed side does not rely on that) also counts from 1.
+

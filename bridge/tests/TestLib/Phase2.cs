@@ -25,6 +25,9 @@ public static class Coll
     public static IShape MakeHidden() => new Hidden();
     public static IEnumerable<int> Range(int n) { for (int i = 1; i <= n; i++) yield return i * 10; }
     public static int[,] Grid() => new[,] { { 1, 2, 3 }, { 4, 5, 6 } };
+    public static int[][] Jagged() => new[] { new[] { 1, 2 }, new[] { 4, 5, 6 } };
+    public static string TypesOf(object?[] a) => string.Join(" ", a.Select(x => x?.GetType().Name ?? "null"));
+    public static int SumAll(int[,] g) { int n = 0; foreach (var x in g) n += x; return n; }
     public static IReadOnlyDictionary<string, int> ReadOnly() => new RoDict(new() { ["x"] = 1, ["y"] = 2 });
     public static IList<string> Hidden2() => new List<string> { "p", "q" }.AsReadOnly();
 }

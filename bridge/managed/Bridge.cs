@@ -85,12 +85,12 @@ public static unsafe class Bridge
     /// rexxnet or from a host that loaded net.cls: a .NetObject that reaches
     /// .NET becomes its .NET object again.
     [UnmanagedCallersOnly]
-    public static void Classes(nint netObject, nint netType) => SetClasses(netObject, netType);
+    public static void Classes(nint netObject, nint netType, nint netArray) => SetClasses(netObject, netType, netArray);
 
-    internal static nint NetObjectClass, NetTypeClass;
-    internal static void SetClasses(nint netObject, nint netType)
+    internal static nint NetObjectClass, NetTypeClass, NetArrayClass;
+    internal static void SetClasses(nint netObject, nint netType, nint netArray)
     {
-        if (NetObjectClass == 0) { NetTypeClass = netType; NetObjectClass = netObject; }
+        if (NetObjectClass == 0) { NetTypeClass = netType; NetArrayClass = netArray; NetObjectClass = netObject; }
     }
 
     public static byte[] Handle(ReadOnlySpan<byte> request)
@@ -119,7 +119,8 @@ public static unsafe class Bridge
                 e = e.InnerException;
             if (e is AggregateException ae && ae.InnerExceptions.Count == 1) e = ae.InnerExceptions[0];
             w = new Writer();
-            if (e is BridgeException) w.Add('E', "0\t\t" + e.Message);
+            if (e is RexxSyntaxException rx) w.Add('Y', rx.Code + "\t" + string.Join("\t", rx.Substitutions));
+            else if (e is BridgeException) w.Add('E', "0\t\t" + e.Message);
             else w.Add('E', Handles.Add(e) + "\t" + Types.Display(e.GetType()) + "\t.NET error: " +
                             e.GetType().FullName + ": " + e.Message);
         }
@@ -170,6 +171,10 @@ public static unsafe class Bridge
             case "pairs": Collections.Pairs(Handles.Get(r[1].Id), w); break;
             case "index": Collections.Index(Handles.Get(r[1].Id), r[2].Items, w); break;
             case "setIndex": Collections.SetIndex(Handles.Get(r[1].Id), r[2], r[3].Items); w.Add('V', ""); break;
+            case "arrayAt": Collections.ArrayAt(ArrayOf(r[1]), r[2].Items, w); break;
+            case "arrayPut": Collections.ArrayPut(ArrayOf(r[1]), r[2], int.Parse(r[3].Text), r[4].Items); w.Add('V', ""); break;
+            case "arrayDim": Collections.ArrayDimension(ArrayOf(r[1]), r[2].Items, w); break;
+            case "arraySize": w.Add('S', ArrayOf(r[1]).LongLength.ToString()); break;
             case "event": Event(r[1], r[2].Text, r[3].Text, r[4]); w.Add('V', ""); break;
             case "nextEvent": Callbacks.NextEvent(double.Parse(r[1].Text, System.Globalization.CultureInfo.InvariantCulture), int.Parse(r[2].Text), w); break;
             case "loopGeneration": w.Add('S', Callbacks.Generation.ToString()); break;
@@ -179,6 +184,8 @@ public static unsafe class Bridge
             default: throw new BridgeException("unknown operation " + op);
         }
     }
+
+    static Array ArrayOf(Rec r) => Handles.Get(r.Id) as Array ?? throw new BridgeException("not a .NET array");
 
     // The type of a handle: a .NetType's type, or an object's runtime type.
     static Type TypeOf(Rec r)

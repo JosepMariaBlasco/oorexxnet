@@ -83,7 +83,7 @@ typedef unsigned char *(CORECLR_DELEGATE_CALLTYPE *request_fn)(RexxThreadContext
 typedef void (CORECLR_DELEGATE_CALLTYPE *free_fn)(unsigned char *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *release_fn)(int);
 typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *);
-typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr);
+typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
 
 static request_fn mRequest;
 static free_fn mFree;
@@ -141,7 +141,7 @@ static void loadClr()
 // ---------------------------------------------------------------- the classes
 
 // net.cls's classes, found once from a context inside net.cls.
-struct Classes { RexxClassObject netObject, netType, netNamespace, netTyped, netRef, netHandler, netEvent, string; };
+struct Classes { RexxClassObject netObject, netType, netArray, netNamespace, netTyped, netRef, netHandler, netEvent, string; };
 static Classes cls;
 static std::once_flag clsOnce;
 
@@ -149,7 +149,7 @@ template <class Ctx> static void findClasses(Ctx *c)
 {
     std::call_once(clsOnce, [c] {
         auto find = [c](const char *n) { return (RexxClassObject)c->RequestGlobalReference(c->FindContextClass(n)); };
-        cls.netObject = find("NETOBJECT"); cls.netType = find("NETTYPE");
+        cls.netObject = find("NETOBJECT"); cls.netType = find("NETTYPE"); cls.netArray = find("NETARRAY");
         cls.netNamespace = find("NETNAMESPACE"); cls.netTyped = find("NETTYPED"); cls.netRef = find("NETREF");
         cls.netHandler = find("NETHANDLER"); cls.netEvent = find("NETEVENT");
         cls.string = find("STRING");
@@ -281,6 +281,12 @@ static std::string field(const std::string &s, int index)        // the index-th
     return s.substr(start, end == std::string::npos ? std::string::npos : end - start);
 }
 
+// The proxy class for a kind: "t" a type, "a" an array, "o" any other object.
+static RexxClassObject proxyClass(const std::string &kind)
+{
+    return kind == "t" ? cls.netType : kind == "a" ? cls.netArray : cls.netObject;
+}
+
 static RexxObjectPtr newProxy(RexxThreadContext *c, RexxClassObject k, const std::string &id, const std::string &display)
 {
     return c->SendMessage2(k, "NEW", c->String(id.c_str()), c->String(display.c_str()));
@@ -297,7 +303,7 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         case 'V': return NULLOBJECT;
         case 'P': return c->SendMessage1(cls.netNamespace, "NEW", c->String(payload.c_str()));
         case 'O':
-            return newProxy(c, field(payload, 1) == "t" ? cls.netType : cls.netObject, field(payload, 0), field(payload, 2));
+            return newProxy(c, proxyClass(field(payload, 1)), field(payload, 0), field(payload, 2));
         case 'A':
         {
             RexxArrayObject a = c->NewArray(0);
@@ -316,7 +322,7 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             return NULLOBJECT;
         case 'e':                                   // a .NetEvent: its owner and name
         {
-            RexxObjectPtr owner = newProxy(c, field(payload, 1) == "t" ? cls.netType : cls.netObject, field(payload, 0), field(payload, 2));
+            RexxObjectPtr owner = newProxy(c, proxyClass(field(payload, 1)), field(payload, 0), field(payload, 2));
             return c->SendMessage2(cls.netEvent, "NEW", owner, c->String(field(payload, 3).c_str()));
         }
         case 'C':                                   // a Rexx condition from a callback, raised again
@@ -337,6 +343,21 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, NULLOBJECT);
             if (k.additional) c->ReleaseGlobalReference(k.additional);
             if (k.description) c->ReleaseGlobalReference(k.description);
+            return NULLOBJECT;
+        }
+        case 'Y':                                   // one of Rexx's own errors: code, substitutions
+        {
+            std::vector<std::string> f;
+            for (size_t at = 0;;)
+            {
+                size_t end = payload.find('\t', at);
+                f.push_back(payload.substr(at, end == std::string::npos ? std::string::npos : end - at));
+                if (end == std::string::npos) break;
+                at = end + 1;
+            }
+            RexxArrayObject subs = c->NewArray(f.size() - 1);
+            for (size_t k = 1; k < f.size(); k++) c->ArrayPut(subs, c->String(f[k].c_str()), k);
+            c->RaiseException((size_t)strtoul(f[0].c_str(), nullptr, 10), subs);
             return NULLOBJECT;
         }
         case 'E':
@@ -366,7 +387,7 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
         return NULLOBJECT;
     }
     static std::once_flag classesOnce;           // net.cls's classes, for the managed side (.NetObjects in RexxObject's world)
-    if (cls.netObject) std::call_once(classesOnce, [] { mClasses(cls.netObject, cls.netType); });
+    if (cls.netObject) std::call_once(classesOnce, [] { mClasses(cls.netObject, cls.netType, cls.netArray); });
     int len = 0;
     // The thread context goes with the request: .NET code called from here
     // calls Rexx back on this thread, nested (RexxInterpreter.Current).

@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*/
-/* ooRexx/.NET: .NET objects as Rexx objects (prototype, phase 3).            */
+/* ooRexx/.NET: .NET objects as Rexx objects (prototype).                    */
 /* Design: notes/netobject-design.md (ooRexx/.NET project).                   */
 /*----------------------------------------------------------------------------*/
 /*
@@ -23,13 +23,22 @@
  * one (Process~Start, .net~System~String), else to Rexx's Object; say and
  * concatenation show a proxy through MAKESTRING.
  *
- * Collections: o[i], o[i, j] = v are array elements and indexers, 0-based
- * as in C# (list[0], dict["key"], grid[1, 2]). DO x OVER o gives the items
- * of any IEnumerable (a dictionary's KeyValuePairs, as C#'s foreach); DO
- * WITH INDEX i ITEM v OVER o gives keys and values of a dictionary, the
- * 0-based positions of an array or list, 1..n otherwise. Both take a
- * snapshot when the loop starts; an enum type gives its names (DO OVER) or
- * names and values (DO WITH).
+ * Arrays: a .NET array is a .NetArray, which behaves as a Rexx Array (as
+ * BSF4ooRexx's BSF_ARRAY_REFERENCE does for Java arrays): from 1 in every
+ * dimension, a[1], grid[2, 3] = v, a~at(i), a~put(v, i), a~putStrict(type,
+ * v, i) (v as that .NET type), indexes one by one or as one Rexx Array
+ * (a~at(.array~of(2, 3))); a~items and a~size (all its elements: a .NET
+ * array has a fixed size), a~dimension (the rank), a~dimension(n), DO OVER,
+ * makeArray, supplier. It is still the .NET array, by reference: a~Length,
+ * a~Rank work, and it goes back to .NET as itself.
+ *
+ * Other collections, as .NET documents them: o[i], o[i, j] = v are the
+ * indexer, 0-based (list[0], dict["key"]). DO x OVER o gives the items of any
+ * IEnumerable (a dictionary's KeyValuePairs, as C#'s foreach); DO WITH INDEX
+ * i ITEM v OVER o gives keys and values of a dictionary, the positions of an
+ * array (from 1) or a list (from 0), 1..n otherwise. Both take a snapshot
+ * when the loop starts; an enum type gives its names (DO OVER) or names and
+ * values (DO WITH).
  *
  * Generic methods: type arguments inferred from the arguments (a Rexx string
  * counts as a System.String: .net~int32(5) for an int), or given in the name:
@@ -96,9 +105,10 @@
 ::method netId unguarded             -- the handle, for the bridge
   expose netid
   return netid
-::method makeString unguarded        -- a NetObject (System.Text.StringBuilder #12), a NetType (System.Math)
+::method makeString unguarded        -- a NetObject (System.Text.StringBuilder #12), a NetType (System.Math), a NetArray (System.Int32[] #3)
   expose netid netdisplay                -- (say and concatenation use makeString; STRING is free for .NET)
   if self~isA(.NetType) then return "a NetType ("netdisplay")"
+  if self~isA(.NetArray) then return "a NetArray ("netdisplay "#"netid")"
   return "a NetObject ("netdisplay "#"netid")"
 ::method string unguarded            -- a .NET member String if there is one, else makeString
   if NetRequest("has", self, "STRING") then forward message "UNKNOWN" arguments (.array~of("STRING", arg(1, "A")))
@@ -165,6 +175,47 @@ syntax: raise propagate
 ::method request unguarded
   if NetRequest("has", self, "REQUEST") then forward message "UNKNOWN" arguments (.array~of("REQUEST", arg(1, "A")))
   forward class (super)
+
+/** A .NET array, as a Rexx Array: from 1 in every dimension (see the header). */
+::class NetArray public subclass NetObject
+::method at unguarded                -- a~at(i, j), a~at(.array~of(i, j))
+  signal on syntax
+  return NetRequest("arrayAt", self, arg(1, "A"))
+syntax: raise propagate
+::method "[]" unguarded              -- a[i, j]
+  signal on syntax
+  return NetRequest("arrayAt", self, arg(1, "A"))
+syntax: raise propagate
+::method put unguarded               -- a~put(v, i, j), a~put(v, .array~of(i, j))
+  signal on syntax
+  if arg(1, "O") then raise syntax 93.901 array(2)
+  call NetRequest "arrayPut", self, arg(1), "2", arg(2, "A")
+  return
+syntax: raise propagate
+::method "[]=" unguarded             -- a[i, j] = v (Rexx sends the value first)
+  signal on syntax
+  if arg(1, "O") then raise syntax 93.901 array(2)
+  call NetRequest "arrayPut", self, arg(1), "2", arg(2, "A")
+  return
+syntax: raise propagate
+::method putStrict unguarded         -- a~putStrict(type, v, i, j): v as that .NET type (name or .NetType)
+  signal on syntax
+  if arg(1, "O") | arg(2, "O") then raise syntax 93.901 array(3)
+  call NetRequest "arrayPut", self, .net~as(arg(2), arg(1)), "3", arg(3, "A")
+  return
+syntax: raise propagate
+::method items unguarded             -- all its elements (a .NET array has a fixed size)
+  signal on syntax
+  return NetRequest("arraySize", self)
+syntax: raise propagate
+::method size unguarded
+  signal on syntax
+  return NetRequest("arraySize", self)
+syntax: raise propagate
+::method dimension unguarded         -- the rank; dimension(n): the length of dimension n
+  signal on syntax
+  return NetRequest("arrayDim", self, arg(1, "A"))
+syntax: raise propagate
 
 /** A .NET type: its messages go to its static members; NEW makes an instance. */
 ::class NetType public subclass NetObject

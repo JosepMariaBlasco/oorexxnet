@@ -5,7 +5,7 @@ parse arg testlib
 x = .net~load(testlib)
 coll = .net~RexxNetTests~Coll
 
--- indexers and arrays (0-based)
+-- indexers (0-based, as .NET documents them)
 l = .net~type("System.Collections.Generic.List<int>")~new
 l~Add(3); l~Add(1); l~Add(2)
 call ok "list[0]",              l[0], 3
@@ -16,18 +16,61 @@ d = .net~type("System.Collections.Generic.Dictionary<string, int>")~new
 d["a"] = 1; d["b"] = 2
 call ok "dictionary[key]",      d["b"], 2
 call err "missing key",         "x = .local~d2['zz']", "KeyNotFoundException"
+
+-- arrays as Rexx Arrays (from 1 in every dimension: BSF_ARRAY_REFERENCE's protocol)
 bytes = .net~System~Text~Encoding~ASCII~GetBytes("abc")
-call ok "byte[] element",       bytes[1], 98
-bytes[1] = 120
+call ok "an array is a .NetArray", bytes~isA(.NetArray) bytes~isA(.NetObject), "1 1"
+call ok "makeString",           bytes~makeString~word(2), "NetArray"
+call ok "byte[] element (from 1)", bytes[1] bytes[3], "97 99"
+bytes[2] = 120
 call ok "byte[] set",           .net~System~Text~Encoding~ASCII~GetString(bytes), "axc"
-call err "byte[] range",        ".local~g2[0, 0] = 1E10", "cannot store"
+call ok "at",                   bytes~at(2), 120
+bytes~put(121, 3)
+call ok "put",                  bytes~at(3), 121
+call ok "at(Array of indexes)", bytes~at(.array~of(1)), 97
+call ok "items, size",          bytes~items bytes~size, "3 3"
+call ok "dimension",            bytes~dimension bytes~dimension(1) bytes~dimension(2), "1 3 0"
+call ok ".NET members still",   bytes~Length bytes~Rank, "3 1"
+call err "byte[] range",        ".local~b2[1] = 1E10", "cannot store"
+call err "index 0",             "x = .local~b2[0]", "Method argument 1 must be a positive whole number"
+call err "index not a number",  ".local~b2~put(1, 'x')", "Method argument 2 must be a positive whole number"
+call err "past the end",        "x = .local~b2[4]", "IndexOutOfRangeException"
+call err "too many subscripts", "x = .local~b2[1, 1]", "Too many subscripts for array; 1 expected"
+call err "put without value",   ".local~b2~put", "Not enough arguments for method; 2 expected"
+call err "dimension(0)",        "x = .local~b2~dimension(0)", "Method argument 1 must be a positive whole number"
+call err "no index",            "x = .local~b2~at", "Not enough arguments for method; 1 expected"
+code = 0
+signal on syntax name codeOf
+x = .local~b2[0]
+codeOf: code = condition("O")~code
+signal off syntax
+call ok "the code of a Rexx Array's error", code, "93.907"
 g = coll~Grid
-call ok "int[,] element",       g[1, 2], 6
-g[0, 0] = 9
-call ok "int[,] set",           g[0, 0], 9
-call err "wrong rank",          "x = .local~g2[1]", "takes 2 indexes, not 1"
-call err "bad index",           "x = .local~g2['a', 1]", "an array index is a whole number"
-call err "bad element",         ".local~g2[0, 0] = 'x'", "cannot store"
+call ok "int[,] element",       g[1, 2] g[2, 3], "2 6"
+g[1, 1] = 9
+call ok "int[,] set",           g[1, 1], 9
+call ok "int[,] at(Array)",     g~at(.array~of(2, 1)), 4
+g~put(7, .array~of(2, 2))
+call ok "int[,] put(v, Array)", g[2, 2], 7
+call ok "int[,] items",         g~items, 6
+call ok "int[,] dimension",     g~dimension g~dimension(1) g~dimension(2) g~dimension(3), "2 2 3 0"
+call err "not enough subscripts", "x = .local~g2[1]", "Not enough subscripts for array; 2 expected"
+call err "too many (Array)",    "x = .local~g2~at(.array~of(1, 1, 1))", "Too many subscripts for array; 2 expected"
+call err "bad position",        "x = .local~g2['a', 1]", "Invalid position argument specified; found ""a"""
+call err "bad element",         ".local~g2[1, 1] = 'x'", "cannot store"
+o = .net~System~Array~CreateInstance(.net~type("object"), 3)
+o~putStrict("short", 5, 1)
+o~putStrict(.net~type("long"), 6, 2)
+o[3] = 7
+call ok "putStrict: types",     coll~TypesOf(o), "Int16 Int64 String"
+call err "putStrict without value", ".local~b2~putStrict('int')", "Not enough arguments for method; 3 expected"
+s = .net~System~Array~CreateInstance(.net~type("string"), 3)
+s[1] = "a"; s[3] = "c"
+call ok "null element is .nil", s[2] == .nil, 1
+call ok "items counts every element", s~items, 3
+jag = coll~Jagged
+call ok "jagged: an array of arrays", jag[2]~isA(.NetArray) jag[2][3], "1 6"
+call ok "an array back to .NET is itself", coll~SumAll(g), 31
 sb = .net~System~Text~StringBuilder~new("abc")
 call ok "StringBuilder[1] (Chars)", sb[1], "b"
 sb[0] = "X"
@@ -55,7 +98,12 @@ call ok "do over iterator",     s~strip, "10 20 30"
 s = ""; do with index i item v over coll~Range(2); s = s i"="v; end
 call ok "do with iterator (1..n)", s~strip, "1=10 2=20"
 s = ""; do with index i item v over g; s = s i~makeString("L", ",")"="v; end
-call ok "do with int[,]",       s~strip, "0,0=9 0,1=2 0,2=3 1,0=4 1,1=5 1,2=6"
+call ok "do with int[,] (from 1)", s~strip, "1,1=9 1,2=2 1,3=3 2,1=4 2,2=7 2,3=6"
+s = ""; do with index i item v over bytes; s = s i"="v; end
+call ok "do with byte[] (from 1)", s~strip, "1=97 2=120 3=121"
+s = ""; do v over g; s = s v; end
+call ok "do over int[,] (row by row)", s~strip, "9 2 3 4 7 6"
+call ok "makeArray of int[,]",  g~makeArray~items, 6
 call ok "makeArray",            l~makeArray~items, 3
 call err "not enumerable",      "do x over .local~sb0; end", "is not enumerable"
 
@@ -160,6 +208,7 @@ exit .fails > 0
   .local~l2 = .net~type("System.Collections.Generic.List<int>")~new
   .local~d2 = .net~type("System.Collections.Generic.Dictionary<string, int>")~new
   .local~g2 = .net~RexxNetTests~Coll~Grid
+  .local~b2 = .net~System~Text~Encoding~ASCII~GetBytes("abc")
   .local~h2 = .net~RexxNetTests~Coll~MakeHidden
   signal on syntax
   interpret code

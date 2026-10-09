@@ -85,8 +85,10 @@ static partial class Program
         Ok("C: a NetType comes back as its Type", ReferenceEquals(rexx.Run<object>("return .net~System~Math"), typeof(Math)), true);
         Ok("C: List<int>, DO OVER",         rexx.Run<int>("use arg l; t = 0; do x over l; t += x; end; return t", new List<int> { 1, 2, 3 }), 6);
         var arr = new[] { 1, 2, 3 };
-        rexx.Run("use arg a; a[0] = 9", arr);
+        rexx.Run("use arg a; a[1] = 9", arr);
         Ok("C: an array by reference",      arr[0], 9);
+        Ok("C: an array is a .NetArray (from 1)",
+           rexx.Run<string>("use arg a; return a~class~id a~items a~dimension a[3]", arr), "NETARRAY 3 1 3");
         Func<int, int> twice = x => x * 2;
         Ok("C: a delegate",                 rexx.Run<int>("use arg f; return f~Invoke(21)", twice), 42);
         Ok("C: same object, same identity", rexx.Run<bool>("use arg a, b; return a == b", sb, sb), true);
