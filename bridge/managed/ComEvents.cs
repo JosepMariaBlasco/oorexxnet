@@ -162,6 +162,7 @@ static class ComEvents
     /// An event: its source interface, DISPID and name as the type library gives it.
     internal sealed record Info(Guid Iid, int DispId, string Name);
 
+    [SupportedOSPlatform("windows")]
     sealed class State
     {
         public Dictionary<string, Info>? Events;            // caseless; first source interface first

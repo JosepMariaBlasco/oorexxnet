@@ -28,7 +28,7 @@ table~Borders~Enable = .true
 
 say "Paragraphs:" doc~Paragraphs~Count", words:" doc~Words~Count
 file = value("TEMP", , "ENVIRONMENT") || "\word-sample.docx"
-doc~SaveAs2(file)
+doc~SaveAs2(file, 16)                                       -- wdFormatDocumentDefault: .docx
 say "Saved" file
 doc~Close
 word~Quit

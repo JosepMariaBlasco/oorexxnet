@@ -29,7 +29,7 @@ table~Borders~Enable = .true
 
 say "Paragraphs:" doc~Paragraphs~Count", words:" doc~Words~Count
 file = .net~System~IO~Path~Combine(.net~System~IO~Path~GetTempPath, "word-sample-net.docx")
-doc~SaveAs2(file)
+doc~SaveAs2(file, 16)                                       -- wdFormatDocumentDefault: .docx
 say "Saved" file
 doc~Close
 word~Quit
