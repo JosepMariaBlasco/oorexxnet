@@ -3,6 +3,8 @@
 Patches proposed to ooRexx, not part of the bridge.
 Reported as **#2106** (<https://sourceforge.net/p/oorexx/bugs/2106/>,
 08/10/2026): "CallRoutine / CallProgram cost ~200 µs on Linux's main thread".
+**Fixed in ooRexx trunk r13267** (08/10/2026), with this patch as proposed.
+Kept here for the record.
 
 ## `sysactivity-stack-per-thread.diff` (08/10/2026, against trunk r13263)
 

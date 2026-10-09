@@ -739,7 +739,8 @@ case still open; item 6 changed later):
 8. **A `.NetHandler` remembers its instance**: rexxnet attached callbacks to
    the first instance that used .NET (a static); now each handler keeps the
    instance that made it (`c->instance`), for hosts with several instances.
-9. **Found (ooRexx bug #2106): on Linux, ooRexx's `CallRoutine` / `CallProgram` cost ~200 µs on
+9. **Found (ooRexx bug #2106, fixed in ooRexx r13267): on Linux, ooRexx's
+   `CallRoutine` / `CallProgram` cost ~200 µs on
    a process's main thread** (5 µs on any other thread; `SendMessage`,
    `NewRoutine`, `LoadPackage` unaffected). Measured with this session's and
    the previous session's builds, on r13254 and r13263. Cause:
@@ -757,7 +758,8 @@ case still open; item 6 changed later):
    `patches/oorexx/sysactivity-stack-per-thread.diff` keeps the stack's
    answer per thread (`thread_local` in `SysActivity.cpp`), which also
    covers `RexxStart` (3 reads a call: 7 ms → 0.2 ms with 3000 mappings);
-   built and tested here with ooRexx's test suite. See
+   built and tested here with ooRexx's test suite. **Committed to ooRexx
+   as r13267** (09/10/2026: the patch as proposed). See
    `patches/oorexx/README.md`. Why phase A's and B's numbers for `Run` / `Call` were
    lower is not known (perhaps measured off the main thread); the phase-C
    cost test runs on a thread of its own.
