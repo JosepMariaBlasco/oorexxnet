@@ -154,5 +154,11 @@ CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
   bridge, whose conventions this bridge follows where it can, and whose
   earlier CLR support (`CLR.CLS`, through jni4net) it supersedes: programs
   written for `CLR.CLS` run on this bridge through `rexx/CLR.CLS`.
+- [Alchemy](https://github.com/animatedads/alchemy), a large collection of
+  ooRexx packages, includes an ooRexx–.NET proof of concept
+  (`packages/oorexx_dotnet_alchemy_*`: Linux, a .NET application as the
+  host) centred on replacing a CLR object's behaviour live from C# or Rexx,
+  as well as a foreign-function runtime for ooRexx (libffi) and an
+  ooRexx–Python bridge.
 - `.JSObject`, the ooRexx–JavaScript bridge of the ooRexx WebAssembly port,
   the model for the Rexx surface.
