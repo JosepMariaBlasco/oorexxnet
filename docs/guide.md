@@ -6,7 +6,7 @@ followed by its output; `docs/check-guide.py` runs them all and compares (so
 what you read here is what the bridge does).
 
 The bridge is a prototype: it runs on Linux, with .NET 8 or later and ooRexx
-5.3.0 (trunk). The design behind each choice is in `notes/`.
+5.3.0 (trunk); its scripts support macOS too, not yet tried there. The design behind each choice is in `notes/`.
 
 - [1. Setting up](#1-setting-up)
 - [2. ooRexx → .NET](#2-oorexx--net)
@@ -38,7 +38,10 @@ cd ~/rexxnet && LD_LIBRARY_PATH=. rexx ~/prog.rex
 ```
 
 (Or put the build directory on `REXX_PATH` and `LD_LIBRARY_PATH` and run from
-anywhere.) The .NET runtime is found through `DOTNET_ROOT`.
+anywhere.) The .NET runtime is found through `DOTNET_ROOT`. On macOS the
+library is `librexxnet.dylib` and the variable `DYLD_LIBRARY_PATH`; ooRexx
+must be installed first (`setup-env.sh` installs only .NET there), with its
+`bin/` on the `PATH`.
 
 ## 2. ooRexx → .NET
 

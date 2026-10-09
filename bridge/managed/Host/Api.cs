@@ -5,6 +5,7 @@
 // both tables is one pointer-sized slot (smoke/hostapi/layout.cpp checks it;
 // Slots.cs is generated from oorexxapi.h by smoke/hostapi/gen-slots.sh).
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -41,22 +42,77 @@ internal static unsafe class Native
     }
 
     // "rexx": REXX_HOME first (its lib/ or bin/), then the system's search,
-    // then where ooRexx installs itself.
+    // then the installation the `rexx` on the PATH belongs to, then where
+    // ooRexx installs itself. "libc" on macOS: libSystem (pthread_self).
     static IntPtr Resolve(string name, Assembly asm, DllImportSearchPath? path)
     {
+        if (name == "libc" && OperatingSystem.IsMacOS())
+            return NativeLibrary.TryLoad("/usr/lib/libSystem.B.dylib", out var sys) ? sys : IntPtr.Zero;
         if (name != "rexx") return IntPtr.Zero;
         string file = OperatingSystem.IsWindows() ? "rexx.dll" : OperatingSystem.IsMacOS() ? "librexx.dylib" : "librexx.so";
         var home = Environment.GetEnvironmentVariable("REXX_HOME");
         if (!string.IsNullOrEmpty(home))
             foreach (var d in new[] { home, Path.Combine(home, "lib"), Path.Combine(home, "bin") })
-                if (NativeLibrary.TryLoad(Path.Combine(d, file), out var h)) return h;
+                if (TryLoadRexx(d, file, out var h)) return h;
         if (NativeLibrary.TryLoad(file, asm, path, out var h2)) return h2;
-        var candidates = OperatingSystem.IsWindows()
-            ? new[] { @"C:\Program Files\ooRexx", @"C:\Program Files (x86)\ooRexx" }
-            : new[] { "/usr/local/lib", "/usr/lib", "/opt/ooRexx/lib", "/usr/local/lib64", "/usr/lib64" };
-        foreach (var d in candidates)
-            if (NativeLibrary.TryLoad(Path.Combine(d, file), out var h3)) return h3;
+        foreach (var d in Candidates())
+            if (TryLoadRexx(d, file, out var h3)) return h3;
         return IntPtr.Zero;
+    }
+
+    static IEnumerable<string> Candidates()
+    {
+        // <home>/bin/rexx (a link followed: /usr/local/bin/rexx may point
+        // elsewhere): <home>/bin (Windows: rexx.dll next to rexx.exe), <home>/lib
+        string exe = OperatingSystem.IsWindows() ? "rexx.exe" : "rexx";
+        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var f = Path.Combine(dir, exe);
+            if (!File.Exists(f)) continue;
+            string real;
+            try { real = File.ResolveLinkTarget(f, returnFinalTarget: true)?.FullName ?? f; }
+            catch (IOException) { real = f; }
+            var bin = Path.GetDirectoryName(real);
+            if (bin is null) break;
+            yield return bin;
+            var root = Path.GetDirectoryName(bin);
+            if (root is not null) { yield return Path.Combine(root, "lib"); yield return Path.Combine(root, "lib64"); }
+            break;
+        }
+        if (OperatingSystem.IsWindows())
+        {
+            yield return @"C:\Program Files\ooRexx";
+            yield return @"C:\Program Files (x86)\ooRexx";
+            yield break;
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            // ooRexx's default installation on macOS: ~/Applications/ooRexx5
+            var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            yield return Path.Combine(user, "Applications", "ooRexx5", "lib");
+            yield return "/Applications/ooRexx5/lib";
+            yield return "/opt/homebrew/lib";
+        }
+        foreach (var d in new[] { "/usr/local/lib", "/usr/lib", "/opt/ooRexx/lib", "/usr/local/lib64", "/usr/lib64" })
+            yield return d;
+    }
+
+    // librexx from a directory. On macOS librexx names librexxapi through
+    // @rpath, and ooRexx's rpath is @executable_path/../lib: right for rexx,
+    // not for a .NET host (dotnet's own directory). librexxapi loaded first,
+    // from the same directory, is the one dyld then uses (it matches loaded
+    // images by install name). Linux's rpath is $ORIGIN-relative: no need.
+    static bool TryLoadRexx(string dir, string file, out IntPtr handle)
+    {
+        handle = IntPtr.Zero;
+        var full = Path.Combine(dir, file);
+        if (!File.Exists(full)) return false;
+        if (OperatingSystem.IsMacOS())
+        {
+            var api = Path.Combine(dir, "librexxapi.dylib");
+            if (File.Exists(api)) NativeLibrary.TryLoad(api, out _);
+        }
+        return NativeLibrary.TryLoad(full, out handle);
     }
 
     [DllImport("rexx")]

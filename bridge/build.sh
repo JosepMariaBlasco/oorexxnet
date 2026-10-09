@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
 # Builds the ooRexx/.NET bridge (prototype) into OUT (default
-# /home/claude/build/rexxnet): Rexx.Net.dll + its runtimeconfig (managed),
-# librexxnet.so (native; its soname lets a .NET host load it first, from its
-# directory, for ooRexx to find), net.cls. Needs scripts/setup-env.sh first,
-# or an ooRexx 5 with its API headers (REXX_INCLUDE, default /usr/local/include).
+# $REXXNET_BUILD/rexxnet, see scripts/platform.sh): Rexx.Net.dll + its
+# runtimeconfig (managed), librexxnet.so on Linux / librexxnet.dylib on macOS
+# (native; its soname / install name lets a .NET host load it first, from its
+# directory, for ooRexx to find), net.cls, CLR.CLS. Needs scripts/setup-env.sh
+# first, or an ooRexx 5 with its API headers (found from `rexx` on the PATH;
+# REXX_HOME or REXX_INCLUDE to choose) and a .NET 8 SDK or later.
 # The managed project is built from a copy (no bin/ obj/ in the project, and
 # never an output directory above the sources).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-OUT=${1:-/home/claude/build/rexxnet}
-export DOTNET_ROOT=${DOTNET_ROOT:-/home/claude/dotnet} DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
-DOTNET="$DOTNET_ROOT/dotnet"
+. "$HERE/../scripts/platform.sh"
+OUT=${1:-$REXXNET_BUILD/rexxnet}
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$OUT"
+test -f "$REXX_INCLUDE/oorexxapi.h" || { echo "no oorexxapi.h in $REXX_INCLUDE (set REXX_HOME or REXX_INCLUDE)" >&2; exit 1; }
+test -f "$HOSTPK/nethost.h" || { echo "no .NET host pack (nethost.h) under $DOTNET_ROOT/packs (set DOTNET_ROOT)" >&2; exit 1; }
 rm -f "$OUT/Rexx.Net.dll"                 # a failed build must not leave the old one passing
 cp -r "$HERE/managed" "$WORK/managed"
 "$DOTNET" build "$WORK/managed" -c Release -o "$OUT" -nologo -v q 2>&1 | grep -E "error|warning CS" || true
 test -f "$OUT/Rexx.Net.dll"
-HOSTPK=$(dirname "$(find "$DOTNET_ROOT/packs" -name nethost.h | sort | tail -1)")
-g++ -shared -fPIC -O2 -Wall -I"${REXX_INCLUDE:-/usr/local/include}" -I"$HOSTPK" "$HERE/native/rexxnet.cpp" \
-    "$HOSTPK/libnethost.a" -ldl -Wl,-soname,librexxnet.so -o "$OUT/librexxnet.so"
+native_lib "$OUT/librexxnet.$SOEXT" "$HERE/native/rexxnet.cpp"
 cp "$HERE/rexx/net.cls" "$HERE/rexx/CLR.CLS" "$OUT/"
 echo "built: $OUT"

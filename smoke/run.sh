@@ -12,8 +12,7 @@
 # Needs scripts/setup-env.sh first.  Exit status 1 on any failure.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-export DOTNET_ROOT=${DOTNET_ROOT:-/home/claude/dotnet} DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
-DOTNET="$DOTNET_ROOT/dotnet"
+. "$HERE/../scripts/platform.sh"
 WORK=$(mktemp -d)
 SRC="$WORK/src"                   # build a copy: no bin/ obj/ in the project
 OUT="$WORK/out"                   # (and never an output dir above the sources:
@@ -23,25 +22,22 @@ fail=0
 check() { if grep -qF -- "$2" <<<"$3"; then echo "ok   $1"; else echo "FAIL $1"; echo "$3" | sed 's/^/     /'; fail=1; fi; }
 
 "$DOTNET" build "$SRC/managed" -c Release -o "$OUT" >/dev/null
-HOSTPK=$(dirname "$(find "$DOTNET_ROOT/packs" -name nethost.h | sort | tail -1)")
-g++ -shared -fPIC -O2 -I/usr/local/include -I"$HOSTPK" "$SRC/native/netprobe.cpp" \
-    "$HOSTPK/libnethost.a" -ldl -o "$OUT/libnetprobe.so"
+native_lib "$OUT/libnetprobe.$SOEXT" "$SRC/native/netprobe.cpp"
 cp "$SRC/native/max.rex" "$OUT/"
-r=$(cd "$OUT" && NETPROBE_DIR="$OUT" LD_LIBRARY_PATH="$OUT" rexx max.rex 2>&1 || true)
+r=$(cd "$OUT" && NETPROBE_DIR="$OUT" env "$LIBVAR=$OUT" rexx max.rex 2>&1 || true)
 check "ooRexx -> .NET: System.Math.Max"       "System.Math.Max(3, 7) = 7" "$r"
 check "ooRexx -> .NET: a property getter"     "Environment.ProcessorCount =" "$r"
 check "ooRexx -> .NET: an exception is SYNTAX" "error: .NET: MissingMethodException" "$r"
 
-r=$("$DOTNET" run --project "$SRC/hostrexx" -c Release 2>&1 || true)
+r=$(env "$LIBVAR=$REXX_LIB" "$DOTNET" run --project "$SRC/hostrexx" -c Release 2>&1 || true)
 check ".NET -> ooRexx: a program from a C# string" "Rexx says: hello from fromdotnet.rex with 12" "$r"
 check ".NET -> ooRexx: argument and result"         "C# got back: 21 144 3" "$r"
 check ".NET -> ooRexx: a Rexx error is a C# exception" "C# caught: RexxStart returned -35" "$r"
 CB="$WORK/cb"; mkdir -p "$CB"
 "$DOTNET" build "$SRC/callbacks/managed" -c Release -o "$CB" >/dev/null
-g++ -shared -fPIC -O2 -I/usr/local/include -I"$HOSTPK" "$SRC/callbacks/native/cbprobe.cpp" \
-    "$HOSTPK/libnethost.a" -ldl -o "$CB/libcbprobe.so"
+native_lib "$CB/libcbprobe.$SOEXT" "$SRC/callbacks/native/cbprobe.cpp"
 cp "$SRC/callbacks/native/callbacks.rex" "$CB/"
-r=$(cd "$CB" && CBPROBE_DIR="$CB" LD_LIBRARY_PATH="$CB" timeout 60 rexx callbacks.rex 2>&1 || true)
+r=$(cd "$CB" && CBPROBE_DIR="$CB" timeout 60 env "$LIBVAR=$CB" rexx callbacks.rex 2>&1 || true)
 check "callbacks: from another thread, Rexx inside .NET" "block: during=3 total=3 finished=True otherThread=True" "$r"
 check "callbacks: re-entrant, same thread (comparator)"  "sort: apple banana fig pear" "$r"
 check "callbacks: from a thread while Rexx code runs"   "async: done 5 of 5, handled 5" "$r"

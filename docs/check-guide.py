@@ -6,20 +6,35 @@
 Every ```rexx block followed by a ```text block is a program and its output;
 the same for the ```csharp block (built as a small console project against
 the bridge's Rexx.Net.dll). build-dir: the bridge's build (default
-/home/claude/build/rexxnet; bridge/build.sh first). Needs DOTNET_ROOT.
+$REXXNET_BUILD/rexxnet, as scripts/platform.sh; bridge/build.sh first).
+DOTNET_ROOT: found as scripts/platform.sh does when not set.
 """
-import os, re, subprocess, sys, tempfile
+import os, re, shutil, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = sys.argv[1] if len(sys.argv) > 1 else "/home/claude/build/rexxnet"
+def default_build():   # as scripts/platform.sh
+    if os.environ.get("REXXNET_BUILD"): return os.environ["REXXNET_BUILD"]
+    if os.path.isdir("/home/claude") and os.access("/home/claude", os.W_OK): return "/home/claude/build"
+    return os.path.expanduser("~/build")
+
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(default_build(), "rexxnet")
+LIBVAR = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
 guide = open(os.path.join(HERE, "guide.md"), encoding="utf-8").read()
 blocks = re.findall(r"```(\w+)\n(.*?)```", guide, re.S)
 pairs = [(blocks[i][0], blocks[i][1], blocks[i + 1][1]) for i in range(len(blocks) - 1)
          if blocks[i][0] in ("rexx", "csharp") and blocks[i + 1][0] == "text"]
 
-env = dict(os.environ, LD_LIBRARY_PATH=OUT, REXX_PATH=OUT, REXXNET_DIR=OUT,
+env = dict(os.environ, **{LIBVAR: OUT}, REXX_PATH=OUT, REXXNET_DIR=OUT,
            DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1")
-dotnet = os.path.join(env.get("DOTNET_ROOT", "/home/claude/dotnet"), "dotnet")
+def default_dotnet():   # as scripts/platform.sh
+    for d in ("/home/claude/dotnet", os.path.expanduser("~/.dotnet")):
+        if os.access(os.path.join(d, "dotnet"), os.X_OK): return d
+    found = shutil.which("dotnet")
+    if found: return os.path.dirname(os.path.realpath(found))
+    return "/usr/local/share/dotnet" if sys.platform == "darwin" else "/usr/share/dotnet"
+
+env.setdefault("DOTNET_ROOT", default_dotnet())
+dotnet = os.path.join(env["DOTNET_ROOT"], "dotnet")
 fails = 0
 with tempfile.TemporaryDirectory() as work:
     for n, (lang, code, want) in enumerate(pairs, 1):

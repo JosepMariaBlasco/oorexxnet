@@ -32,7 +32,8 @@ int n = rexx.Run<int>("return 6 * 7");      // 42
 
 **Status: prototype.** Both directions are built and covered by more than 500
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
-(trunk). Windows has not been tried yet. The design is still being
+(trunk). The build and test scripts also support macOS, but have not been
+tried there yet; Windows has not been tried yet either. The design is still being
 discussed and parts of the API may change.
 
 **Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
@@ -60,15 +61,18 @@ both directions feature by feature, every example run and checked
   `rexx-from-net-design.md` (.NET → ooRexx, and both ways in one process),
   `decisions-20261008.md` (the initial decisions), `bsf4oorexx-clr.md`
   (notes on BSF4ooRexx's earlier CLR support), `clr-compat.md` (the
-  `CLR.CLS` compatibility package). Each design note records,
+  `CLR.CLS` compatibility package), `macos.md` (the macOS port: what was
+  done, what is still to be confirmed on a Mac). Each design note records,
   phase by phase, what was built and where it departed from the plan
   (marked **Δ**).
 - `docs/` — `guide.md` (the user's guide) and `check-guide.py` (runs its
   examples and compares their output).
 - `patches/oorexx/` — patches proposed to ooRexx itself (#2106).
-- `scripts/setup-env.sh` — installs the environment (see below).
+- `scripts/setup-env.sh` — installs the environment (see below);
+  `scripts/platform.sh` — what differs between Linux and macOS, for the
+  scripts.
 
-## Building and testing (Linux)
+## Building and testing (Linux, macOS)
 
 ```bash
 sudo scripts/setup-env.sh --no-dotnet       # ooRexx 5.3.0 trunk (.deb), if there is no rexx yet
@@ -77,14 +81,23 @@ export DOTNET_ROOT=~/dotnet PATH=~/dotnet:$PATH
 bridge/tests/run.sh ~/rexxnet               # builds into ~/rexxnet and runs all the tests
 ```
 
-The scripts default to the paths of the environment they were written in
-(`/home/claude/dotnet`, `/home/claude/build/rexxnet`); `DOTNET_DIR` /
-`DOTNET_ROOT` and the `OUT` argument override them. With an ooRexx of your
-own instead of the `.deb`, set `REXX_INCLUDE` to the directory of its API
-headers (`oorexxapi.h`; default `/usr/local/include`), and make sure `rexx`
-and `librexx` are on the paths. To use the bridge from
-Rexx: `cd OUT && LD_LIBRARY_PATH=. rexx prog.rex`, with
-`::requires "net.cls"` in the program.
+The scripts find ooRexx from the `rexx` on the `PATH` (its installation's
+`include/` and `lib/`; `REXX_HOME`, or `REXX_INCLUDE` / `REXX_LIB`, to
+choose another) and .NET from `DOTNET_ROOT`, else `dotnet` on the `PATH`.
+Builds go to `~/build/rexxnet` (`/home/claude/build/rexxnet` in the
+environment the project is developed in) unless an `OUT` argument says
+otherwise (`REXXNET_BUILD` changes `~/build`). To use the bridge from Rexx:
+`cd OUT && LD_LIBRARY_PATH=. rexx prog.rex` (macOS: `DYLD_LIBRARY_PATH`),
+with `::requires "net.cls"` in the program.
+
+**macOS** (written for it, not tried yet): ooRexx 5 installed (by default
+it goes to `~/Applications/ooRexx5`) with its `bin/` on the `PATH`; the
+Xcode command line tools (`clang`); a .NET 8 SDK or later (Microsoft's
+installer, or `scripts/setup-env.sh`, which puts the SDKs in `~/.dotnet`).
+Then `bridge/tests/run.sh` as above; the native library is
+`librexxnet.dylib`. `clr-samples.sh` fetches the samples with `svn`
+(Homebrew's `subversion`), or takes a directory of them; the timeouts use
+coreutils' `gtimeout` when there is one.
 
 ## Related work
 

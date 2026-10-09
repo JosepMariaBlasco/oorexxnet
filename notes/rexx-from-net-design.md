@@ -112,7 +112,9 @@ Verified with the current bridge:
 
 Name `rexx` (`librexx.so`, `rexx.dll`, `librexx.dylib`) resolved by a
 `NativeLibrary` resolver: `REXX_HOME` if set, then the system's search
-(`PATH` on Windows, where the ooRexx installer puts it). In guest mode the
+(`PATH` on Windows, where the ooRexx installer puts it), then the
+installation of the `rexx` on the `PATH`, then fixed places (macOS:
+`macos.md`). In guest mode the
 library is already loaded: same handle. ooRexx itself is not shipped in the
 NuGet package (an installed ooRexx 5.0 or later is a prerequisite, as Java is
 for BSF4ooRexx).
