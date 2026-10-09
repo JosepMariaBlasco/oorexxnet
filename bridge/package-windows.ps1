@@ -16,7 +16,7 @@ $repo = Split-Path $PSScriptRoot
 $commit = (& git -C $repo rev-parse --short HEAD)
 if ($LASTEXITCODE -or -not $commit) { throw "not a git checkout: $repo" }
 $commit = $commit.Trim()
-$dirty = & git -C $repo status --porcelain
+$dirty = & git -C $repo status --porcelain --untracked-files=no   # (logs written into the checkout do not count)
 if ($dirty) { Write-Warning "uncommitted changes in $repo : the package will not match commit $commit" }
 $date = Get-Date -Format yyyyMMdd
 $name = "rexxnet-windows-x64-$date-$commit"
