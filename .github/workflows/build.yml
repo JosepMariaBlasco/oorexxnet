@@ -6,7 +6,9 @@
 #
 # A tag vX.Y.Z[-suffix] (git tag v0.1.0-preview.1 && git push origin
 # v0.1.0-preview.1) also publishes: the package, with that version, to
-# nuget.org (the secret NUGET_API_KEY), and a GitHub release with the package
+# nuget.org (trusted publishing: a policy on nuget.org for this repository
+# and build.yml; the secret NUGET_USER, the nuget.org user name), and a
+# GitHub release with the package
 # and the Windows zip. Pushes to main publish nothing.
 name: build
 
@@ -152,6 +154,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write                       # the GitHub release
+      id-token: write                       # nuget.org's trusted publishing (OIDC)
     steps:
       - uses: actions/setup-dotnet@v4
         with:
@@ -164,9 +167,16 @@ jobs:
         with:
           name: windows-binaries
           path: zip
+      # Trusted publishing: no stored API key; nuget.org's policy names this
+      # repository and build.yml, and gives a key valid for an hour
+      - name: nuget.org login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}   # the nuget.org user name (profile), not an e-mail
       - name: nuget.org
         run: |
-          dotnet nuget push "nupkg/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" \
+          dotnet nuget push "nupkg/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
             --source https://api.nuget.org/v3/index.json --skip-duplicate
       - name: GitHub release
         env:
