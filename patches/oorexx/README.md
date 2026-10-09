@@ -78,8 +78,8 @@ that particular mistake would also stop the rest of the suite.
 
 ## `package-from-data-cache.diff` (09/10/2026, against trunk r13268)
 
-Not reported yet when written (`sf-bug-report-datapackage.md` is the report,
-ready to paste). Two files: `interpreter/package/PackageManager.cpp` and
+Reported as **#2108** (<https://sourceforge.net/p/oorexx/bugs/2108/>,
+09/10/2026), from `sf-bug-report-datapackage.md`. Two files: `interpreter/package/PackageManager.cpp` and
 `.hpp`.
 
 **Problem.** A package loaded with `LoadPackageFromData(name, ...)` satisfies

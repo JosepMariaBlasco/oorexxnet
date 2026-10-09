@@ -870,8 +870,9 @@ uses `.net`. That is what a package should spare its users, so:
   global references to its classes). The bridge now keeps a global
   reference to both packages for the process. (The requires cache holds
   packages through WeakReferences, right for files, which are read again,
-  wrong for data: an ooRexx bug, with a reproducer and a patch in
-  `patches/oorexx/`, `package-from-data-cache.diff`.)
+  wrong for data: ooRexx bug
+  [#2108](https://sourceforge.net/p/oorexx/bugs/2108/), reported with a
+  reproducer and a patch, `patches/oorexx/package-from-data-cache.diff`.)
 - **`rexxnet` gets the managed entry points directly.** New export
   `RexxNetRegister(request, free, release, init, classes)`: the managed side,
   already running, hands over `Bridge.Request` and the rest, so `rexxnet`
