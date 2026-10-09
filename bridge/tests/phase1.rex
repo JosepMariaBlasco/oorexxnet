@@ -19,7 +19,7 @@ call ok "lazy assembly",        .net~System~Text~RegularExpressions~Regex~IsMatc
 call ok "static method",        .net~System~Math~Max(3, 7), 7
 call ok "overload by value",    .net~System~Math~Max(3, 7.5), 7.5
 call ok "static field (const)", .net~System~Math~PI~left(7), "3.14159"
-call ok "static property",      .net~System~Environment~NewLine == "0a"x, 1
+call ok "static property",      .net~System~Environment~NewLine == .endOfLine, 1
 
 -- instances, properties, identity
 sb = .net~System~Text~StringBuilder~new

@@ -51,7 +51,7 @@ namespace, then a type; a type's messages go to its static members, and
 
 ```rexx
 say .net~System~Math~Max(3, 7)
-say .net~System~Environment~NewLine == "0a"x
+say .net~System~Environment~NewLine == .endOfLine
 sb = .net~System~Text~StringBuilder~new("Hello")
 sb~Append(", ")~Append("world")
 say sb~ToString sb~Length

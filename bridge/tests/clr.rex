@@ -17,7 +17,7 @@ call ok ".clr~clr.import: in .local by the type name", .System.Math~Abs(-3), 3
 t = .clr~clr.import("System.IO.Path", "MyPath")
 call ok "... or by the name given",     .MyPath~GetExtension("a.txt"), ".txt"
 t = clr.import("System.Environment", "Env")
-call ok "clr.import with a name: in .local", .Env~NewLine == "0a"x, 1
+call ok "clr.import with a name: in .local", .Env~NewLine == .endOfLine, 1
 
 -- .clr~new: instances
 sb = .clr~new("System.Text.StringBuilder", "ab")
