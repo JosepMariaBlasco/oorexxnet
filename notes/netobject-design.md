@@ -876,3 +876,46 @@ with `Microsoft.NETCore.App` alone cannot run:
   next to the bridge, when the runtime does not know the name: what was in
   .NET Framework's GAC and is a NuGet package now (`System.Speech`) is
   found by copying its `.dll` there.
+
+## COM objects: built (09/10/2026)
+
+`managed/Com.cs`. A COM object with no .NET interop type (`System.__ComObject`:
+from `.net~createObject(progID)`, or returned by another COM object) is
+reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
+`.OLEObject` reach it; the Rexx syntax is the same as for any `.NetObject`.
+
+- **Messages**: by name, caselessly (`IDispatch` is), as a method call or a
+  property read in one (`DISPATCH_METHOD | DISPATCH_PROPERTYGET`: servers
+  take either); `o~name = v` a property write; `o[i]`, `o[i] = v` the
+  default member (DISPID 0). DO OVER a COM collection works (the runtime's
+  `_NewEnum` support). An unknown name is 97.1 (`DISP_E_UNKNOWNNAME`,
+  `DISP_E_MEMBERNOTFOUND`), any other failure 98.900 with the
+  `COMException`.
+- **Arguments**: a Rexx string that is a Rexx number goes as `int`, `long`
+  or `double`, as `.OLEObject` sends it (so `"007"` is 7;
+  `.net~box("string", "007")` keeps the string); an omitted argument, and
+  `.nil`, as "not given" (`Type.Missing`: COM's optional parameters). To
+  make omitted arguments possible, **Δ** a message's argument list may now
+  have omitted items (`rexxnet`, `encodeArgs`): for a .NET method they are
+  `null`, as `.nil`. An Array as a value still refuses them.
+- **The language of each call** (`IDispatch::Invoke`'s LCID): English (US),
+  as VBA. The invariant culture's LCID, the first choice, made Excel refuse
+  every call (`TYPE_E_INVDATAREAD`, "Old format or invalid type library";
+  Word and PowerPoint did not mind), and Excel reads `Formula` "in the
+  language of the macro": with English, `=SUM(...)` works on any Windows.
+  `.OLEObject` gives the user's language: on a Spanish Windows it needs
+  `=SUMA(...)` (found running `samples/office` there).
+- **`.net~releaseObject(o)`**: `Marshal.FinalReleaseComObject`, so that a
+  server such as Excel can end at once, not at .NET's next collection. The
+  proxy remains, unusable (98.900).
+- **Not done**: COM events (`.OLEObject`'s `~events`, connection points);
+  `GetObject` (a running instance: `Marshal.GetActiveObject` is not in .NET 5+);
+  named arguments; typed access through Office's interop assemblies (their
+  interfaces would go through reflection already: objects of interop types
+  are not `__ComObject`, `Com.Is`).
+
+Tests: `tests/com.rex` (22, Windows only, in `tests/run.ps1` and the CI:
+`Scripting.Dictionary`, `Scripting.FileSystemObject`, `WScript.Shell`).
+`samples/office/`: Excel, Word and PowerPoint, each with `.OLEObject` and
+through the bridge, run on Windows with Office 365: all six pass.
+
