@@ -296,6 +296,13 @@ free there.
    *Superseded for arrays*: a .NET array is now a Rexx Array from 1 in every
    dimension (see "Arrays as Rexx Arrays: built"); indexers stay 0-based.
 6. Names: `net.cls`, library `rexxnet`, assembly `Rexx.Net`.
+7. **Protected members** (settled 09/10/2026): only a Rexx class that
+   extends a .NET class may call and override that class's protected
+   members, as a C# subclass may. Rexx code never reaches the protected
+   members of an arbitrary .NET object (no equivalent of Java's
+   `setAccessible(true)`): proxies see public members only. Protected access
+   comes with Rexx classes extending .NET classes (not started; see "Unknown
+   members: built").
 
 ## Phase 1: built (08/10/2026)
 

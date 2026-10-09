@@ -523,9 +523,13 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    `TextReader`); while a property is null, its forwarder passes everything
    to the stream it replaced (`forward to`), and messages it does not know
    go there too. Properties settable at any time (and `RexxOptions`
-   `Output` / `Error` / `Input` at creation). Not caught: `.stdout` /
-   `.stderr` / `.stdin` used directly, and processes started by `ADDRESS
-   SYSTEM`. Rexx code may still push its own destination (verified: it gets
+   `Output` / `Error` / `Input` at creation). Not caught, because it never
+   reaches the monitors: `.stdout` / `.stderr` / `.stdin` used directly
+   (which bypasses ooRexx's own redirection too), and the output of
+   processes started by `ADDRESS SYSTEM`, written to the process's file
+   descriptors. Rexx code can route the latter through the monitor itself:
+   `ADDRESS SYSTEM 'cmd' WITH OUTPUT USING (.output)` (verified: a
+   destination pushed on `.output` gets the child's lines). Rexx code may still push its own destination (verified: it gets
    the output until it pops it). An error that ends a call from .NET is not
    written (it is the `RexxException`); an error in a Rexx thread of its own
    (`reply`, `~start`) is, as Rexx writes it. At an input's end, reads give
