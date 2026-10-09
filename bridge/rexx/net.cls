@@ -373,6 +373,17 @@ syntax: raise propagate
   use strict arg name
   return NetRequest("load", name)
 syntax: raise propagate
+::method createObject unguarded      -- .net~createObject(progID): a new COM object (Windows), reached through IDispatch
+  signal on syntax
+  use strict arg progID
+  return NetRequest("comCreate", progID)
+syntax: raise propagate
+::method releaseObject unguarded     -- .net~releaseObject(o): releases a COM object now (lets its server end)
+  signal on syntax
+  use strict arg o
+  call NetRequest "comRelease", o
+  return
+syntax: raise propagate
 ::method new unguarded               -- .net~new(type, args...)
   signal on syntax
   use arg type

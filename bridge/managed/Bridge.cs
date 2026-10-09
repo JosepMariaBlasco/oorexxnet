@@ -148,6 +148,8 @@ public static unsafe class Bridge
             case "nsname": w.Add('P', Types.NamespaceName(r[1].Text)); break;
             case "type": Conv.AddObject(w, StaticOf.For(MakeType(r[1].Items))); break;
             case "load": w.Add('S', Types.Load(r[1].Text).FullName ?? ""); break;
+            case "comCreate": Conv.AddObject(w, Com.Create(r[1].Text)); break;
+            case "comRelease": Com.Release(Handles.Get(r[1].Id)); w.Add('V', ""); break;
             case "typeOf": w.Add('S', Types.Display(TypeOf(r[1]))); break;
             case "typeObject": Conv.AddObject(w, TypeOf(r[1])); break;
             case "isInstance":
@@ -247,6 +249,7 @@ public static unsafe class Bridge
     static void Send(Rec target, string name, bool exact, List<Rec> args, Writer w, bool both = false)
     {
         var (t, isStatic, inst) = Target(target);
+        if (!isStatic && Com.Is(inst)) { Com.Send(inst!, name, args, w); return; }   // COM: IDispatch (Com.cs)
         Type[]? given = null;                               // Name<T1, T2>: a generic method's type arguments
         int lt = name.IndexOf('<');
         if (lt > 0 && name.EndsWith('>'))
@@ -324,6 +327,7 @@ public static unsafe class Bridge
     static void Set(Rec target, string name, bool exact, Rec value, bool both = false)
     {
         var (t, isStatic, inst) = Target(target);
+        if (!isStatic && Com.Is(inst)) { Com.Set(inst!, name, value); return; }
         var set = Members_(t, isStatic, name, exact, name + "=", both);
         var p = set.Properties.FirstOrDefault(x => x.GetIndexParameters().Length == 0);
         Type to;

@@ -114,6 +114,7 @@ public static class Collections
     {
         if (o is StaticOf so) throw new BridgeException($"{Types.Display(so.Type)} is a type: it has no indexer");
         if (o is Array a) { ArrayAt(a, idx, w); return; }
+        if (Com.Is(o)) { Com.Index(o, idx, w); return; }
         var getters = Members.Indexers(o.GetType()).Where(p => p.GetMethod is { IsPublic: true }).Select(p => p.GetMethod!).ToList();
         if (getters.Count == 0) throw new BridgeException($"{Types.Display(o.GetType())} has no indexer");
         var (m, conv) = Members.Choose(getters, idx, $"{Types.Display(o.GetType())}[]");
@@ -123,6 +124,7 @@ public static class Collections
     public static void SetIndex(object o, Rec value, List<Rec> idx)
     {
         if (o is StaticOf so) throw new BridgeException($"{Types.Display(so.Type)} is a type: it has no indexer");
+        if (Com.Is(o)) { Com.SetIndex(o, value, idx); return; }
         if (o is Array a) { ArrayPut(a, value, 2, idx); return; }
         var setters = Members.Indexers(o.GetType()).Where(p => p.SetMethod is { IsPublic: true }).Select(p => p.SetMethod!).ToList();
         if (setters.Count == 0)
