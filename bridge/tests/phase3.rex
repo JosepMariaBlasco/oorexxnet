@@ -83,7 +83,7 @@ btype~RaiseShared
 call ok "static: t~add_Shared(h)", t~shared, 3
 call ok "a method named add_X wins", b~add_Thing(1), "method"
 call err "addHandler: not an event", ".net~addHandler(.b, 'ClickSubscribers', .h)", "is not an event"
-call err "add_X: not an event",  ".b~add_Nothing(.h)", "no public"
+call err "add_X: not an event",  ".b~add_Nothing(.h)", 'does not understand message "ADD_NOTHING"'
 
 -- other threads
 c0 = t~clicks

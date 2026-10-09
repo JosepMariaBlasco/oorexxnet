@@ -126,7 +126,9 @@ convention). **Δ** the opposite of `.JSObject`'s lowercase rule (DOM: `document
 both.
 
 Unknown name: an error. **Δ** `.JSObject` gives `.nil` (as `undefined`);
-.NET has no such thing, and a typo should not pass silently.
+.NET has no such thing, and a typo should not pass silently. Since
+09/10/2026 that error is Rexx's own 97.1, as for any Rexx object (see
+"Unknown members: built").
 
 COM objects (`__ComObject`: Office through interop)
 are not visible to reflection: their members go through `IDispatch`
@@ -659,4 +661,52 @@ type for a static event, `t~add_Shared(h)`, and exact through
 when the type has an event of that name and no ordinary member with the
 accessor's own name (a method called `add_Thing` wins, tested); `h` is
 anything `+=` takes (a `.NetHandler`, or a delegate).
+
+## Unknown members: built (09/10/2026)
+
+**Decided:** an unknown message behaves as it does on any Rexx object: the
+object's `UNKNOWN` gets it first; only if nothing handles it, **SYNTAX 97.1**
+("Object ... does not understand message ..."), with the .NET exception that
+describes the failure in the condition's additional information. Before, it
+was 98.900 (".NET error: ... has no public member ..."). BSF4ooRexx raises
+its own error naming either a missing method or an execution error; here,
+with no compatible bridge to keep, the message is the one every Rexx
+programmer knows.
+
+`tests/phase1.rex` 124 (was 108); everything else unchanged and passing on
+.NET 10 and .NET 8; `smoke/` too. Changes: `Bridge.cs`, `Handles.cs`,
+`native/rexxnet.cpp`, `rexx/net.cls`.
+
+- **The 97.1.** `condition("O")~additional` is what ooRexx gives a 97.1 —
+  [1] the receiver (the very proxy, or the object given to `.net~invoke`,
+  `.net~get`, `.net~set`, `.net~addHandler`), [2] the message name as Rexx
+  sent it (`NOSUCHTHING`, `NOSUCHTHING=` for a set, the exact name through
+  `.net~invoke`) — plus **[3] a `System.MissingMemberException`** (a
+  `.NetObject`) whose message says what was looked for (".. has no public
+  instance member ..."; the hint about `.net~typeObject` on a type). There
+  is no .NET exception when the bridge's own lookup fails, so it makes one.
+  *Position [3]: the first two are ooRexx's; asked whether [3] is what was
+  meant.* Only a missing member is 97.1; the other errors of a lookup (an
+  ambiguous name, a property that cannot be read, a field given arguments)
+  stay 98.900, and so do exceptions thrown by .NET code.
+- **`UNKNOWN` first.** On a `.NetObject`, .NET's members are found by its
+  `UNKNOWN` method (they are not Rexx methods). So "UNKNOWN first" is Rexx's
+  own rule, once Rexx code can make objects of a subclass:
+  **`.MyClass~new(o)`**, with `MyClass` a subclass of `.NetObject` (or
+  `.NetArray`) and `o` a `.NetObject`, is an object of that class standing
+  for o's .NET object (one more proxy for the same handle: `== o`, the same
+  `netId`, released by its `uninit`). Its methods win over .NET members of
+  the same name; its `UNKNOWN` gets every other message and reaches .NET
+  with `FORWARD CLASS (SUPER)`; if .NET has no such member either, 97.1.
+  Tested: a subclass answering `SHOUT` itself, `Length` through .NET, its
+  `capacity` method hiding .NET's `Capacity`, `NOPE` a 97.1, its instance
+  going to .NET as the `StringBuilder`, 2 000 instances released.
+- **Not done:** NOMETHOD. ooRexx raises the NOMETHOD condition instead of
+  97.1 when it is trapped and the object has no `UNKNOWN`; a `.NetObject`
+  always has one (the bridge's), so as for any Rexx class with an `UNKNOWN`,
+  SYNTAX 97.1 is what comes. A .NET object returned by .NET later is a plain
+  `.NetObject` again (the subclass is a view chosen by Rexx code, not a
+  property of the .NET object). A Rexx class that *extends* a .NET class (so
+  that .NET calls its overrides) is a different, larger feature, not
+  started.
 

@@ -64,6 +64,16 @@ public sealed class BridgeException : Exception
     public BridgeException(string message) : base(message) { }
 }
 
+/// No member of that name: Rexx's 97.1 ("Object ... does not understand
+/// message ..."), with a MissingMemberException for the Rexx code to look at.
+public sealed class NoMemberException : Exception
+{
+    public string MessageName { get; }       // as Rexx sent it: "FOO", "FOO=", or the exact name
+    public MissingMemberException Missing { get; }
+    public NoMemberException(string messageName, string detail) : base(detail)
+    { MessageName = messageName; Missing = new MissingMemberException(detail); }
+}
+
 /// One of Rexx's own errors (93.907, 93.925...), raised as Rexx raises it,
 /// where a .NET object stands for a Rexx one (a .NET array as a Rexx Array).
 public sealed class RexxSyntaxException : Exception

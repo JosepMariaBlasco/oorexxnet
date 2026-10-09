@@ -110,7 +110,7 @@ call err "not enumerable",      "do x over .local~sb0; end", "is not enumerable"
 -- objects of non-public types: what C# sees (public base class and interfaces)
 h = coll~MakeHidden
 call ok "interface member",     h~Name h~Area, "hidden 2"
-call err "public member of a non-public type", "x = .local~h2~Secret", "no public instance member"
+call err "public member of a non-public type", "x = .local~h2~Secret", 'does not understand message "SECRET"'
 e = coll~Range(2)~GetEnumerator
 call ok "iterator through IEnumerable<T>", e~MoveNext e~Current, "1 10"
 ro = coll~Hidden2

@@ -121,10 +121,48 @@ call ok "exact get",            .net~get(c, "value"), 2
 .net~set(c, "value", 9)
 call ok "exact set",            .net~get(c, "value"), 9
 call ok "exact invoke",         .net~invoke(sb, "ToString"), "a"
-call err "exact is exact",      ".net~invoke(.local~sb0, 'tostring')", "no public instance member"
+call err "exact is exact",      ".net~invoke(.local~sb0, 'tostring')", 'does not understand message "tostring"'
 call err "read-only property",  ".net~RexxNetTests~Case~new~Fixed = 3", "cannot be set"
 call ok "hidden by new",        .net~RexxNetTests~Derived~new~Who, "derived"
-call err "unknown member",      "x = .net~System~Math~NoSuchThing", "has no public static member"
+call err "unknown member",      "x = .net~System~Math~NoSuchThing", 'does not understand message "NOSUCHTHING"'
+
+-- an unknown member: 97.1, as any Rexx object; additional: [1] receiver, [2] name, [3] the .NET exception
+signal on syntax name unknown1
+x = sb~NoSuchThing(1)
+unknown1:
+c = condition("O")
+call ok "97.1",                 c~code, "97.1"
+call ok "97.1: [1] the receiver", c~additional[1] == sb, 1
+call ok "97.1: [2] the message", c~additional[2], "NOSUCHTHING"
+call ok "97.1: [3] the exception", .net~typeOf(c~additional[3]), "System.MissingMemberException"
+call ok "97.1: its message",    c~additional[3]~Message, 'System.Text.StringBuilder has no public instance member "NOSUCHTHING"'
+signal on syntax name unknown2
+sb~NoSuchThing = 1
+unknown2:
+call ok "97.1 setting: NAME=",  condition("O")~additional[2], "NOSUCHTHING="
+signal on syntax name unknown3
+x = .net~get(sb, "nope")
+unknown3:
+call ok "97.1 from .net~get: the receiver", (condition("O")~additional[1] == sb) condition("O")~additional[2], "1 nope"
+signal off syntax
+
+-- a Rexx subclass of .NetObject: its UNKNOWN (and its methods) first
+l = .LoudSB~new(.net~System~Text~StringBuilder~new("abc"))
+call ok "subclass: its own UNKNOWN", l~Shout, "ABC"
+call ok "subclass: forward to .NET", l~Length, 3
+call ok "subclass: its method wins", l~Capacity, "mine"
+l~Append("d")
+call ok "subclass: the same object", l~ToString, "abcd"
+call ok "subclass: makeString",  l~makeString~word(2), "LOUDSB"
+call ok "subclass: goes to .NET as itself", p~Kind(l), "System.Text.StringBuilder"
+l2 = .LoudSB~new(sb)
+call ok "subclass: == the proxy", l2 == sb, 1
+signal on syntax name unknown4
+x = l~Nope
+unknown4:
+call ok "subclass: nothing handles it, 97.1", condition("O")~code condition("O")~additional[2], "97.1 NOPE"
+signal off syntax
+call err "subclass: one argument", "x = .LoudSB~new(.local~sb0, 1)", "Too many arguments"
 
 -- structs
 pt = p~MakePt(1, 2)
@@ -197,3 +235,11 @@ syntax:
   if msg~pos(fragment) > 0 then return
   .local~fails += 1
   say "FAIL" name": message ["msg"], want ["fragment"]"
+
+::class LoudSB subclass NetObject    -- a Rexx subclass of a .NET proxy (tests)
+::method unknown
+  use arg name, args
+  if name = "SHOUT" then return self~ToString~upper
+  forward class (super)
+::method capacity
+  return "mine"

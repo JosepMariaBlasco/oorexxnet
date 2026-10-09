@@ -59,7 +59,17 @@
  * Rexx object (a Directory, a Stem, an instance of a Rexx class...) goes by
  * reference, a Rexx.Net.RexxObject that .NET can keep and send messages to,
  * and comes back as itself. A .NET exception is SYNTAX 98.900 ".NET error:
- * Type: message"; the exception is condition("O")~additional[2]. A Rexx
+ * Type: message"; the exception is condition("O")~additional[2]. A name
+ * that is no member of the .NET object is SYNTAX 97.1, as for any Rexx
+ * object ("Object ... does not understand message ..."): additional[1] is
+ * the object, [2] the message name, [3] a System.MissingMemberException.
+ *
+ * Rexx subclasses: .MyClass~new(o), MyClass a subclass of NetObject, is an
+ * object of that class for o's .NET object (o~netId the same, == o, it goes
+ * to .NET as that object). Its methods and its UNKNOWN come first, as in
+ * any Rexx class; FORWARD CLASS (SUPER) in its UNKNOWN reaches .NET, and a
+ * name that nothing handles is 97.1. (A subclass's own INIT must call
+ * self~init:super(o).) A Rexx
  * error in Rexx code that the .NET code called, which that code lets
  * through, is raised again here as it was.
  *
@@ -104,17 +114,34 @@
 
 /** A .NET object. */
 ::class NetObject public
-::method init
+::method init                        -- (handle, display) from the bridge; or (a .NetObject): see below
   expose netid netdisplay
-  use strict arg netid, netdisplay
+  use strict arg id, display = .nil
+  if id~isA(.NetObject) then do        -- .MyClass~new(o): an instance of a Rexx subclass for o's .NET object
+    if arg() > 1 then raise syntax 93.902 array(1)
+    call NetRequest "retain", id         -- one more proxy for the handle (its uninit releases it)
+    netid = id~netId
+    netdisplay = id~netDisplay
+  end
+  else do
+    netid = id
+    netdisplay = display
+  end
 ::method netId unguarded             -- the handle, for the bridge
   expose netid
   return netid
+::method netDisplay unguarded        -- the type's name, for makeString
+  expose netdisplay
+  return netdisplay
 ::method makeString unguarded        -- a NetObject (System.Text.StringBuilder #12), a NetType (System.Math), a NetArray (System.Int32[] #3)
   expose netid netdisplay                -- (say and concatenation use makeString; STRING is free for .NET)
   if self~isA(.NetType) then return "a NetType ("netdisplay")"
-  if self~isA(.NetArray) then return "a NetArray ("netdisplay "#"netid")"
-  return "a NetObject ("netdisplay "#"netid")"
+  select                               -- NetObject, NetArray, or a Rexx subclass's name
+    when self~class == .NetObject then kind = "NetObject"
+    when self~class == .NetArray then kind = "NetArray"
+    otherwise kind = self~class~id
+  end
+  return "a" kind "("netdisplay "#"netid")"
 ::method string unguarded            -- a .NET member String if there is one, else makeString
   if NetRequest("has", self, "STRING") then forward message "UNKNOWN" arguments (.array~of("STRING", arg(1, "A")))
   return self~makeString

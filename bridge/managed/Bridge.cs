@@ -119,7 +119,9 @@ public static unsafe class Bridge
                 e = e.InnerException;
             if (e is AggregateException ae && ae.InnerExceptions.Count == 1) e = ae.InnerExceptions[0];
             w = new Writer();
-            if (e is RexxSyntaxException rx) w.Add('Y', rx.Code + "\t" + string.Join("\t", rx.Substitutions));
+            if (e is NoMemberException nm)
+                w.Add('U', Handles.Add(nm.Missing) + "\t" + Types.Display(nm.Missing.GetType()) + "\t" + nm.MessageName);
+            else if (e is RexxSyntaxException rx) w.Add('Y', rx.Code + "\t" + string.Join("\t", rx.Substitutions));
             else if (e is BridgeException) w.Add('E', "0\t\t" + e.Message);
             else w.Add('E', Handles.Add(e) + "\t" + Types.Display(e.GetType()) + "\t.NET error: " +
                             e.GetType().FullName + ": " + e.Message);
@@ -166,6 +168,7 @@ public static unsafe class Bridge
                 break;
             }
             case "count": w.Add('S', Handles.Count.ToString()); break;
+            case "retain": Handles.Add(Handles.Get(r[1].Id)); w.Add('V', ""); break;   // one more proxy for it
             case "await": Await(Handles.Get(r[1].Id), w); break;
             case "items": Collections.Items(Handles.Get(r[1].Id), w); break;
             case "pairs": Collections.Pairs(Handles.Get(r[1].Id), w); break;
@@ -216,8 +219,9 @@ public static unsafe class Bridge
         return o is StaticOf so ? (so.Type, true, null) : (o.GetType(), false, o);
     }
 
-    static MemberSet Members_(Type t, bool isStatic, string name, bool exact) =>
-        Members.Find(t, isStatic, name, exact) ?? throw new BridgeException(
+    // A member set; none: 97.1 (message: the message name as Rexx sees it).
+    static MemberSet Members_(Type t, bool isStatic, string name, bool exact, string? message = null) =>
+        Members.Find(t, isStatic, name, exact) ?? throw new NoMemberException(message ?? name,
             $"{Types.Display(t)} has no public {(isStatic ? "static" : "instance")} member \"{name}\"" +
             (isStatic ? " (for the members of the System.Type object, use .net~typeObject)" : ""));
 
@@ -240,7 +244,7 @@ public static unsafe class Bridge
             w.Add('V', "");
             return;
         }
-        var set = Members_(t, isStatic, name, exact);
+        var set = Members_(t, isStatic, name, exact, given != null ? name + "<" + string.Join(", ", given.Select(Types.Display)) + ">" : null);
         if (args.Count == 0 && given == null)
         {
             var p = set.Properties.FirstOrDefault(x => x.GetIndexParameters().Length == 0);
@@ -301,7 +305,7 @@ public static unsafe class Bridge
     static void Set(Rec target, string name, bool exact, Rec value)
     {
         var (t, isStatic, inst) = Target(target);
-        var set = Members_(t, isStatic, name, exact);
+        var set = Members_(t, isStatic, name, exact, name + "=");
         var p = set.Properties.FirstOrDefault(x => x.GetIndexParameters().Length == 0);
         Type to;
         if (p != null)

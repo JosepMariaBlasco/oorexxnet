@@ -292,6 +292,10 @@ static RexxObjectPtr newProxy(RexxThreadContext *c, RexxClassObject k, const std
     return c->SendMessage2(k, "NEW", c->String(id.c_str()), c->String(display.c_str()));
 }
 
+// The receiver of the message being answered, for a 97.1 (decode 'U'): set
+// once the managed side has answered, so nested requests cannot change it.
+static thread_local RexxObjectPtr answering = NULLOBJECT;
+
 // A response record as a Rexx value. NULLOBJECT: no value (void), or an error
 // (then a condition is pending: c->CheckCondition()).
 static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &payload)
@@ -345,6 +349,16 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             if (k.description) c->ReleaseGlobalReference(k.description);
             return NULLOBJECT;
         }
+        case 'U':                                   // no such member: 97.1, the receiver, the name, the exception
+        {
+            std::string name = payload.substr(payload.find('\t', payload.find('\t') + 1) + 1);
+            RexxArrayObject info = c->NewArray(3);
+            c->ArrayPut(info, answering ? answering : c->Nil(), 1);
+            c->ArrayPut(info, c->String(name.c_str()), 2);
+            c->ArrayPut(info, newProxy(c, cls.netObject, field(payload, 0), field(payload, 1)), 3);
+            c->RaiseException(Rexx_Error_No_method_name, info);
+            return NULLOBJECT;
+        }
         case 'Y':                                   // one of Rexx's own errors: code, substitutions
         {
             std::vector<std::string> f;
@@ -377,7 +391,8 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
 
 // Sends a request to the managed side and decodes the response. A response
 // R (a call with .NetRef arguments) is the result, then the refs' new values.
-static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const Refs *refs = nullptr)
+static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const Refs *refs = nullptr,
+                             RexxObjectPtr receiver = NULLOBJECT)
 {
     if (!instance) instance = c->instance;
     std::call_once(clrOnce, loadClr);
@@ -392,6 +407,7 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
     // The thread context goes with the request: .NET code called from here
     // calls Rexx back on this thread, nested (RexxInterpreter.Current).
     unsigned char *resp = mRequest(c, (const unsigned char *)req.data(), (int)req.size(), &len);
+    answering = receiver;
     char tag; std::string payload;
     parseRecord(resp, (size_t)len, 0, tag, payload);
     mFree(resp);
@@ -452,16 +468,16 @@ RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
         record(req, 'S', "0");
         Refs refs;
         if (!encode(c, args, req, &refs)) return NULLOBJECT;
-        return request(c, req, &refs);
+        return request(c, req, &refs, context->GetSelf());
     }
-    return request(c, req);
+    return request(c, req, nullptr, context->GetSelf());
 }
 
 // NetObject~uninit: one Rexx proxy fewer for this handle.
 RexxMethod0(RexxObjectPtr, net_uninit)
 {
     RexxObjectPtr id = context->GetObjectVariable("NETID");
-    if (mRelease && id != NULLOBJECT) mRelease(atoi(context->ObjectToStringValue(id)));
+    if (mRelease && id != NULLOBJECT && context->IsString(id)) mRelease(atoi(context->ObjectToStringValue(id)));   // (none if init failed)
     return NULLOBJECT;
 }
 
@@ -475,7 +491,9 @@ RexxRoutine2(RexxObjectPtr, NetRequest, CSTRING, op, ARGLIST, args)
     size_t n = context->ArraySize(args);
     Refs refs;
     for (size_t i = 2; i <= n; i++) if (!encode(c, context->ArrayAt(args, i), req, &refs)) return NULLOBJECT;
-    return request(c, req, &refs);
+    std::string o(op);                              // .net~invoke(o, ...), .net~get, .net~set, events: o receives
+    RexxObjectPtr receiver = (o == "send" || o == "set" || o == "event") && n >= 2 ? context->ArrayAt(args, 2) : NULLOBJECT;
+    return request(c, req, &refs, receiver);
 }
 
 // NetHandlerNew(): a new handler id. NetHandlerOf(id): the handler (.nil if
