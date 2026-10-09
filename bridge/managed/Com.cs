@@ -12,6 +12,7 @@
 // (.net~box("string", "007") forces a string); .nil, and an omitted argument,
 // as "not given" (Type.Missing: COM's optional parameters); .NET objects as
 // themselves. Results as any .NET result (another COM object: a .NetObject).
+// Every call is made in English (US): see English below.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -28,6 +29,12 @@ static class Com
         o != null && OperatingSystem.IsWindows() && Marshal.IsComObject(o) && o.GetType().FullName == "System.__ComObject";
 
     const BindingFlags Get = BindingFlags.InvokeMethod | BindingFlags.GetProperty;
+    // The locale every call carries (IDispatch::Invoke's LCID): English (US),
+    // as VBA's. Excel refuses an LCID it has no language for (the invariant
+    // culture's: TYPE_E_INVDATAREAD, "Old format or invalid type library"),
+    // and reads Formula and its kin in the caller's language: with English,
+    // =SUM(...) on any Windows, as Microsoft's documentation writes them.
+    static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
     const int DISP_E_UNKNOWNNAME = unchecked((int)0x80020006);
     const int DISP_E_MEMBERNOTFOUND = unchecked((int)0x80020003);
 
@@ -71,7 +78,7 @@ static class Com
     {
         try
         {
-            return o.GetType().InvokeMember(name, how, null, o, args, CultureInfo.InvariantCulture);
+            return o.GetType().InvokeMember(name, how, null, o, args, English);
         }
         catch (Exception e) when (e is MissingMemberException ||
                                   e is COMException { HResult: DISP_E_UNKNOWNNAME or DISP_E_MEMBERNOTFOUND })

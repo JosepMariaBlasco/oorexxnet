@@ -22,7 +22,7 @@ end
 sheet~Range("D1")~Value = "Total"
 sheet~Range("D2:D4")~Formula = "=B2*C2"                     -- relative: D3 is =B3*C3...
 sheet~Range("C6")~Value = "Sum"
-sheet~Range("D6")~Formula = "=SUM(D2:D4)"
+sheet~Range("D6")~Formula = "=SUM(D2:D4)"                   -- English names on any Windows
 
 sheet~Range("A1:D1")~Font~Bold = .true
 sheet~Range("C2:D6")~NumberFormat = "0.00"

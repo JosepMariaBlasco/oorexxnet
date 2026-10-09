@@ -16,6 +16,13 @@ let Office's process end at once.
 
 `diff excel-ole.rex excel-net.rex` shows everything that differs.
 
+**One real difference: the language.** Each COM call carries a language
+(a locale). `.OLEObject` gives the user's; the bridge always gives English
+(US), as VBA does. Excel reads `Formula` in that language: through the
+bridge `=SUM(D2:D4)` works on any Windows, through `.OLEObject` on a
+Spanish Windows it must be `=SUMA(D2:D4)` (so `excel-ole.rex` writes
+`=D2+D3+D4`). And Excel refuses a call whose language it does not know.
+
 They need Windows with Office installed; the .NET versions, the bridge (its
 folder on the `PATH` and `REXX_PATH`, as for the other samples). Each saves
 its file in the temporary folder and closes Office again. With the

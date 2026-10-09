@@ -20,12 +20,16 @@ end
 sheet~Range("D1")~Value = "Total"
 sheet~Range("D2:D4")~Formula = "=B2*C2"                     -- relative: D3 is =B3*C3...
 sheet~Range("C6")~Value = "Sum"
-sheet~Range("D6")~Formula = "=SUM(D2:D4)"
+sheet~Range("D6")~Formula = "=D2+D3+D4"                     -- (see below)
 
 sheet~Range("A1:D1")~Font~Bold = .true
 sheet~Range("C2:D6")~NumberFormat = "0.00"
 sheet~Range("A:D")~Columns~AutoFit
 say "Total:" sheet~Range("D6")~Value                        -- computed by Excel
+/* Why not =SUM(D2:D4): Excel reads Formula "in the language of the macro",
+   the language the caller gives with each call. .OLEObject gives the
+   user's: on a Spanish Windows, Excel wants =SUMA(D2:D4), and =SUM gives
+   #NAME?. The bridge always gives English, as VBA does (excel-net.rex). */
 
 file = value("TEMP", , "ENVIRONMENT") || "\excel-sample.xlsx"
 excel~DisplayAlerts = .false                                 -- overwrite without asking
