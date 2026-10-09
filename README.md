@@ -39,7 +39,7 @@ discussed and parts of the API may change.
 
 **Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
 both directions feature by feature, every example run and checked
-(`docs/check-guide.py`).
+(`docs/check-guide.rex`).
 
 ## Layout
 
@@ -67,7 +67,7 @@ both directions feature by feature, every example run and checked
   done, what is still to be confirmed on a Mac). Each design note records,
   phase by phase, what was built and where it departed from the plan
   (marked **Δ**).
-- `docs/` — `guide.md` (the user's guide) and `check-guide.py` (runs its
+- `docs/` — `guide.md` (the user's guide) and `check-guide.rex` (runs its
   examples and compares their output).
 - `patches/oorexx/` — patches proposed to ooRexx itself (#2106).
 - `scripts/setup-env.sh` — installs the environment (see below);
@@ -112,9 +112,9 @@ change it) and `bridge\tests\run.ps1` runs the same suites as `run.sh`:
 powershell -ExecutionPolicy Bypass -File bridge\tests\run.ps1
 ```
 
-From Rexx, `rexxnet.dll` is found through the `PATH`. `docs/check-guide.py`
-runs there too; the smoke tests and `clr-samples.sh` are Linux and macOS
-only.
+From Rexx, `rexxnet.dll` is found through the `PATH`. The guide's examples:
+`rexx docs\check-guide.rex` (on every platform: `rexx docs/check-guide.rex`).
+The smoke tests and `clr-samples.sh` are Linux and macOS only.
 
 ## Related work
 

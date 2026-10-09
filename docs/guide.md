@@ -2,7 +2,7 @@
 
 This guide shows how to use the bridge, from both sides: ooRexx programs that
 use .NET, and .NET programs that run Rexx. Every example is a complete program
-followed by its output; `docs/check-guide.py` runs them all and compares (so
+followed by its output; `docs/check-guide.rex` runs them all and compares (so
 what you read here is what the bridge does).
 
 The bridge is a prototype: it runs on Linux, with .NET 8 or later and ooRexx
