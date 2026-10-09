@@ -30,7 +30,7 @@ using var rexx = RexxInterpreter.Create();
 int n = rexx.Run<int>("return 6 * 7");      // 42
 ```
 
-**Status: prototype.** Both directions are built and covered by about 500
+**Status: prototype.** Both directions are built and covered by more than 500
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
 (trunk). Windows has not been tried yet. The design is still being
 discussed and parts of the API may change.
