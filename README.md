@@ -114,7 +114,9 @@ powershell -ExecutionPolicy Bypass -File bridge\tests\run.ps1
 
 From Rexx, `rexxnet.dll` is found through the `PATH`. The guide's examples:
 `rexx docs\check-guide.rex` (on every platform: `rexx docs/check-guide.rex`).
-The smoke tests and `clr-samples.sh` are Linux and macOS only.
+CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
+`bridge\tests\clr-samples-windows.ps1`, interactive. The smoke tests and
+`clr-samples.sh` are Linux and macOS only.
 
 ## Related work
 

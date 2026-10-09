@@ -829,3 +829,33 @@ the JIT, not the bridge; and the order of loops in one script changes the
 results. Earlier figures in these notes measured in one cold pass are upper
 bounds.
 
+
+## Windows: the desktop framework, STA threads, local assemblies (09/10/2026)
+
+Found while preparing CLR.CLS's Windows samples (Windows Forms,
+`MessageBox`, system sounds, the event log, speech), which a .NET started
+with `Microsoft.NETCore.App` alone cannot run:
+
+- **The Windows Desktop framework.** On Windows, `build.ps1` names
+  `Microsoft.WindowsDesktop.App` next to `Microsoft.NETCore.App` in
+  `Rexx.Net.runtimeconfig.json` when it is installed (it comes with the SDK
+  and the desktop runtime): Windows Forms, `System.Drawing`,
+  `SystemSounds`, `EventLog`, `SystemEvents`. `REXXNET_NO_DESKTOP=1`
+  leaves it out. The assembly stays one, `net8.0`, for every platform.
+- **Types of every framework.** Types and namespaces were looked for in the
+  core library's directory only; now in every framework the runtime was
+  started with, from its trusted platform assemblies (only those under
+  dotnet's `shared/`, not a host application's own).
+- **STA threads.** On Windows a Rexx thread becomes a single-threaded
+  apartment at its first request to .NET (`TrySetApartmentState`, only
+  while COM is not yet initialized on it): common dialogs, the clipboard
+  and drag and drop throw on an MTA thread, as .NET's GUI applications
+  (`[STAThread]`) and PowerShell's threads are STA by default.
+  `REXXNET_APARTMENT=MTA` leaves the thread alone. In host mode the .NET
+  application decides, as for any of its threads. Test: phase 1, "the
+  thread's apartment". (Related: the GUI-thread class still to design.)
+- **Assemblies by name, locally.** `.net~load(name)` (and CLR.CLS's
+  `clr.addAssembly`) looks for `name.dll` in the current directory, then
+  next to the bridge, when the runtime does not know the name: what was in
+  .NET Framework's GAC and is a NuGet package now (`System.Speech`) is
+  found by copying its `.dll` there.

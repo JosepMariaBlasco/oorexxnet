@@ -88,7 +88,7 @@ they return (wrapped as `CLR_Proxy`):
 | baginski/07-MAC | runs up to its last step: the MAC is right (checked against Python's `hmac`); then `Process.Start(file)` opens the file with the default editor on Windows, and on Linux .NET tries to run it |
 | baginski/09-clock | runs (in a terminal: `Console.ReadKey`) |
 | baginski/08-WebClient | not run here (needs the internet; `WebClient` still exists) |
-| raffel/02-eventlog, 03-systemevents, 04-forms; baginski/01, 04, 05, 06, 10–13, 15 | Windows only (event log, system events and sounds, WinForms, `MessageBox`, `SendKeys`, speech): to run on Windows |
+| raffel/02-eventlog, 03-systemevents, 04-forms; baginski/01, 04, 05, 06, 10–13, 15 | Windows only (event log, system events and sounds, WinForms, `MessageBox`, `SendKeys`, speech): `tests/clr-samples-windows.ps1` runs them, with the person at the keyboard saying whether each did what it should (see `netobject-design.md`, "Windows", for what the bridge needed) |
 | baginski/14-menu, 16-GeoLocation | cannot run: `MainMenu` and `System.Device.Location` are not in .NET Core |
 | raffel/00-helloworld-bsf | BSF4ooRexx's Java bridge, not CLR.CLS |
 

@@ -20,6 +20,10 @@ call ok "static method",        .net~System~Math~Max(3, 7), 7
 call ok "overload by value",    .net~System~Math~Max(3, 7.5), 7.5
 call ok "static field (const)", .net~System~Math~PI~left(7), "3.14159"
 call ok "static property",      .net~System~Environment~NewLine == .endOfLine, 1
+-- a Rexx thread in .NET: a single-threaded apartment on Windows (GUI, common dialogs)
+apartment = .net~System~Threading~Thread~CurrentThread~GetApartmentState
+if .rexxInfo~platform~upper~abbrev("WIN") then call ok "the thread's apartment (Windows: STA)", apartment, "STA"
+else call ok "the thread's apartment (not Windows: Unknown)", apartment, "Unknown"
 
 -- instances, properties, identity
 sb = .net~System~Text~StringBuilder~new

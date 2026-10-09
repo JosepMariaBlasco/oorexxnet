@@ -64,6 +64,20 @@ try {
     & $dotnet build (Join-Path $work 'managed') -c Release -o $Out -nologo -v q
     if ($LASTEXITCODE -or -not (Test-Path $dll)) { throw 'the managed build failed' }
 
+    # The runtime also gets the Windows Desktop framework, when installed (as
+    # with the .NET SDK): Windows Forms, System.Drawing, SystemSounds, the
+    # event log, SystemEvents. Written without a BOM (hostfxr reads it).
+    # REXXNET_NO_DESKTOP=1 leaves it out.
+    $config = Join-Path $Out 'Rexx.Net.runtimeconfig.json'
+    if ((Test-Path (Join-Path $dotnetRoot 'shared\Microsoft.WindowsDesktop.App')) -and $env:REXXNET_NO_DESKTOP -ne '1') {
+        $json = Get-Content $config -Raw | ConvertFrom-Json
+        $core = $json.runtimeOptions.framework
+        $desktop = [pscustomobject]@{ name = 'Microsoft.WindowsDesktop.App'; version = $core.version }
+        $json.runtimeOptions.PSObject.Properties.Remove('framework')
+        $json.runtimeOptions | Add-Member -NotePropertyName frameworks -NotePropertyValue @($core, $desktop)
+        [IO.File]::WriteAllText($config, ($json | ConvertTo-Json -Depth 10))
+    }
+
     # /MT: libnethost.lib is built against the static C runtime (and says so:
     # a /MD build fails to link); its registry lookups need advapi32
     Push-Location $work                             # (the .obj, .lib, .exp go here)

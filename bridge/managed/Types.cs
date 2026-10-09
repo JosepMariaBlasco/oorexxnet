@@ -36,16 +36,38 @@ public static class Types
 
     static readonly ConcurrentDictionary<string, Type?> byName = new(StringComparer.OrdinalIgnoreCase);
 
-    // The shared framework's assembly names (System.Private.* left out).
-    static readonly Lazy<string[]> frameworkAssemblies = new(() =>
+    // The shared frameworks' assemblies, name -> path (System.Private.* left
+    // out): every framework the runtime was started with, as its trusted
+    // platform assemblies list them (Microsoft.NETCore.App; on Windows also
+    // Microsoft.WindowsDesktop.App, with Windows Forms, System.Drawing...),
+    // only those inside dotnet's shared/ (not a host application's own);
+    // else the core library's directory.
+    static readonly Lazy<Dictionary<string, string>> frameworkPaths = new(() =>
     {
-        var dir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        return Directory.GetFiles(dir, "*.dll")
-            .Select(f => Path.GetFileNameWithoutExtension(f)!)
-            .Where(n => !n.Contains(".Private.", StringComparison.Ordinal) && !n.StartsWith("api-ms-", StringComparison.Ordinal)
-                        && !n.StartsWith("Microsoft.VisualBasic", StringComparison.Ordinal) && n != "netstandard" && n != "mscorlib")
-            .ToArray();
+        var core = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        var shared = Path.GetDirectoryName(Path.GetDirectoryName(core));   // .../shared
+        var tpa = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+        IEnumerable<string> files = string.IsNullOrEmpty(tpa)
+            ? Directory.GetFiles(core, "*.dll")
+            : tpa.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var f in files)
+        {
+            if (!f.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) continue;
+            var dir = Path.GetDirectoryName(f);
+            if (!SameDir(dir, core) && (shared == null || !SameDir(Path.GetDirectoryName(Path.GetDirectoryName(dir)), shared))) continue;
+            var n = Path.GetFileNameWithoutExtension(f);
+            if (n.Contains(".Private.", StringComparison.Ordinal) || n.StartsWith("api-ms-", StringComparison.Ordinal)
+                || n.StartsWith("Microsoft.VisualBasic", StringComparison.Ordinal) || n == "netstandard" || n == "mscorlib") continue;
+            map.TryAdd(n, f);
+        }
+        return map;
     });
+
+    static readonly Lazy<string[]> frameworkAssemblies = new(() => frameworkPaths.Value.Keys.ToArray());
+
+    static bool SameDir(string? a, string? b) =>
+        string.Equals(a, b, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     // Every public type of the shared framework -> its assembly, and every
     // namespace (with its prefixes), read from the assemblies' metadata
@@ -61,12 +83,11 @@ public static class Types
     static readonly Lazy<FrameworkIndex> frameworkIndex = new(() =>
     {
         var index = new FrameworkIndex();
-        var dir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        foreach (var an in frameworkAssemblies.Value)
+        foreach (var (an, path) in frameworkPaths.Value)
         {
             try
             {
-                using var file = File.OpenRead(Path.Combine(dir, an + ".dll"));
+                using var file = File.OpenRead(path);
                 using var pe = new PEReader(file);
                 if (!pe.HasMetadata) continue;
                 var md = pe.GetMetadataReader();
@@ -220,17 +241,38 @@ public static class Types
     }
 
     /// Loads an assembly by name, or by path (a name with a slash or ending
-    /// in .dll). Forgets the "not found" answers cached so far.
+    /// in .dll). A name the runtime does not know is looked for as name.dll
+    /// in the current directory, then next to the bridge (an assembly that
+    /// was in .NET Framework's GAC and is a package now, such as
+    /// System.Speech: its .dll copied there). Forgets the "not found"
+    /// answers cached so far.
     public static Assembly Load(string nameOrPath)
     {
         Assembly asm;
         if (nameOrPath.Contains('/') || nameOrPath.Contains('\\') || nameOrPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             asm = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(nameOrPath));
         else
-            asm = Assembly.Load(new AssemblyName(nameOrPath));
+        {
+            try { asm = Assembly.Load(new AssemblyName(nameOrPath)); }
+            catch (FileNotFoundException) when (LocalAssembly(nameOrPath) is string path)
+            {
+                asm = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
+            }
+        }
         foreach (var kv in byName) if (kv.Value == null) byName.TryRemove(kv.Key, out _);
         namespaces = null;
         return asm;
+    }
+
+    static string? LocalAssembly(string name)
+    {
+        foreach (var dir in new[] { Directory.GetCurrentDirectory(), Path.GetDirectoryName(typeof(Types).Assembly.Location) })
+        {
+            if (string.IsNullOrEmpty(dir)) continue;
+            var path = Path.Combine(dir, name + ".dll");
+            if (File.Exists(path)) return path;
+        }
+        return null;
     }
 
     // ------------------------------------------------------------- namespaces
