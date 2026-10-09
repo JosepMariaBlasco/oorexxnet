@@ -37,8 +37,8 @@
  * IEnumerable (a dictionary's KeyValuePairs, as C#'s foreach); DO WITH INDEX
  * i ITEM v OVER o gives keys and values of a dictionary, the positions of an
  * array (from 1) or a list (from 0), 1..n otherwise. Both take a snapshot
- * when the loop starts; an enum type gives its names (DO OVER) or names and
- * values (DO WITH).
+ * when the loop starts; an enum type gives its values (DO OVER) or numbers
+ * and names (DO WITH).
  *
  * Generic methods: type arguments inferred from the arguments (a Rexx string
  * counts as a System.String: .net~int32(5) for an int), or given in the name:
@@ -47,8 +47,15 @@
  * ValueTask: o~await waits (blocking this thread) and gives its result.
  * Structs come as a boxed copy: setting a field changes that copy.
  *
- * Values: .NET strings, numbers, bools (1/0), chars and enums (their names)
- * come back as Rexx strings, null as .nil, anything else as a .NetObject.
+ * Values: .NET strings, numbers, bools (1/0) and chars come back as Rexx
+ * strings, null as .nil, anything else as a .NetObject. An enum value is a
+ * .NetEnum (as BSF4ooRexx's Java enums): its string value is its name (say d
+ * shows Monday; flags: "Bold, Italic"), d~name, d~ordinal (its number: the
+ * underlying value); d = "monday" (caseless; flags in any order), d = 1 (its
+ * number) and d = another .NetEnum compare values, d == "Monday" exactly. An
+ * enum type: DO OVER (makeArray) gives its values in number order, DO WITH
+ * (supplier) numbers and names. A name still goes as the enum where .NET
+ * wants one (p~Day("monday")).
  * A Rexx string goes as the type of the parameter it is for ("007" stays
  * "007" for a string, is 7 for an int); .net~int16(x) ... .net~decimal(x),
  * .net~bool(x), .net~char(x), .net~string(x), .net~as(x, type) and .net~null
@@ -248,6 +255,53 @@ syntax: raise propagate
   signal on syntax
   return NetRequest("arrayDim", self, arg(1, "A"))
 syntax: raise propagate
+
+/** A .NET enum value, as an object (see the header): its string is its name. */
+::class NetEnum public subclass NetObject
+::method info unguarded private      -- its name and number, asked once
+  expose name number
+  if \var("NAME") then do
+    a = NetRequest("enumInfo", self)
+    name = a[1]; number = a[2]
+  end
+::method name unguarded              -- "Monday"; flags: "Bold, Italic"
+  expose name
+  self~info
+  return name
+::method ordinal unguarded           -- its number (the underlying value: 1 for Monday)
+  expose number
+  self~info
+  return number
+::method value unguarded             -- the same
+  expose number
+  self~info
+  return number
+::method makeString unguarded
+  return self~name
+::method string unguarded
+  return self~name
+::method "=" unguarded               -- the same enum value: another .NetEnum, or a name (caseless; flags
+  use strict arg other                 -- in any order), or its number
+  signal on syntax
+  return NetRequest("enumEquals", self, other)
+syntax: raise propagate
+::method "\=" unguarded
+  forward message "=" continue
+  return \result
+::method "<>" unguarded
+  forward message "\="
+::method "><" unguarded
+  forward message "\="
+::method "==" unguarded              -- strictly: another .NetEnum of the same value, or exactly its name
+  use strict arg other
+  if other~isA(.NetEnum) then return NetRequest("enumEquals", self, other)
+  if \other~isA(.String) then return .false
+  return self~name == other
+::method "\==" unguarded
+  forward message "==" continue
+  return \result
+::method hashCode unguarded          -- as its name's (== by value)
+  return self~name~hashCode
 
 /** A .NET type: its messages go to its static members; NEW makes an instance. */
 ::class NetType public subclass NetObject

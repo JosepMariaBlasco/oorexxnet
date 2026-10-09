@@ -83,7 +83,7 @@ typedef unsigned char *(CORECLR_DELEGATE_CALLTYPE *request_fn)(RexxThreadContext
 typedef void (CORECLR_DELEGATE_CALLTYPE *free_fn)(unsigned char *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *release_fn)(int);
 typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *);
-typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
+typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
 
 static request_fn mRequest;
 static free_fn mFree;
@@ -141,7 +141,7 @@ static void loadClr()
 // ---------------------------------------------------------------- the classes
 
 // net.cls's classes, found once from a context inside net.cls.
-struct Classes { RexxClassObject netObject, netType, netArray, netNamespace, netTyped, netRef, netHandler, netEvent, string; };
+struct Classes { RexxClassObject netObject, netType, netArray, netEnum, netNamespace, netTyped, netRef, netHandler, netEvent, string; };
 static Classes cls;
 static std::once_flag clsOnce;
 
@@ -149,7 +149,7 @@ template <class Ctx> static void findClasses(Ctx *c)
 {
     std::call_once(clsOnce, [c] {
         auto find = [c](const char *n) { return (RexxClassObject)c->RequestGlobalReference(c->FindContextClass(n)); };
-        cls.netObject = find("NETOBJECT"); cls.netType = find("NETTYPE"); cls.netArray = find("NETARRAY");
+        cls.netObject = find("NETOBJECT"); cls.netType = find("NETTYPE"); cls.netArray = find("NETARRAY"); cls.netEnum = find("NETENUM");
         cls.netNamespace = find("NETNAMESPACE"); cls.netTyped = find("NETTYPED"); cls.netRef = find("NETREF");
         cls.netHandler = find("NETHANDLER"); cls.netEvent = find("NETEVENT");
         cls.string = find("STRING");
@@ -281,10 +281,10 @@ static std::string field(const std::string &s, int index)        // the index-th
     return s.substr(start, end == std::string::npos ? std::string::npos : end - start);
 }
 
-// The proxy class for a kind: "t" a type, "a" an array, "o" any other object.
+// The proxy class for a kind: "t" a type, "a" an array, "e" an enum value, "o" any other object.
 static RexxClassObject proxyClass(const std::string &kind)
 {
-    return kind == "t" ? cls.netType : kind == "a" ? cls.netArray : cls.netObject;
+    return kind == "t" ? cls.netType : kind == "a" ? cls.netArray : kind == "e" ? cls.netEnum : cls.netObject;
 }
 
 static RexxObjectPtr newProxy(RexxThreadContext *c, RexxClassObject k, const std::string &id, const std::string &display)
@@ -402,7 +402,7 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
         return NULLOBJECT;
     }
     static std::once_flag classesOnce;           // net.cls's classes, for the managed side (.NetObjects in RexxObject's world)
-    if (cls.netObject) std::call_once(classesOnce, [] { mClasses(cls.netObject, cls.netType, cls.netArray); });
+    if (cls.netObject) std::call_once(classesOnce, [] { mClasses(cls.netObject, cls.netType, cls.netArray, cls.netEnum); });
     int len = 0;
     // The thread context goes with the request: .NET code called from here
     // calls Rexx back on this thread, nested (RexxInterpreter.Current).

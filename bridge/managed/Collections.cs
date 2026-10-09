@@ -4,7 +4,8 @@
 // arrays as Rexx Arrays (.NetArray: from 1 in every dimension, as
 // BSF4ooRexx's BSF_ARRAY_REFERENCE does for Java arrays).
 //
-// An enum type is enumerable too: DO OVER its names, DO WITH names and values.
+// An enum type is enumerable too (as BSF4ooRexx's Java enum classes): DO OVER
+// gives its values (.NetEnums) by number, DO WITH numbers and names.
 //
 // Indexes for DO WITH are what o[index] takes back: an IDictionary's keys
 // (also a generic IDictionary / IReadOnlyDictionary's), the 1-based positions
@@ -35,9 +36,9 @@ public static class Collections
     public static void Items(object o, Writer w)
     {
         var a = new Writer();
-        if (o is StaticOf { Type.IsEnum: true } en)             // an enum type: its names
+        if (o is StaticOf { Type.IsEnum: true } en)             // an enum type: its values (objects), by number
         {
-            foreach (var n in Enum.GetNames(en.Type)) a.Add('S', n);
+            foreach (var v in Enum.GetValues(en.Type)) Conv.ToRexx(a, v);
             w.Add('A', a.ToArray());
             return;
         }
@@ -49,13 +50,12 @@ public static class Collections
     {
         var idx = new Writer();
         var items = new Writer();
-        if (o is StaticOf { Type.IsEnum: true } en)             // an enum type: names and values
+        if (o is StaticOf { Type.IsEnum: true } en)             // an enum type: numbers and names
         {
-            var under = Enum.GetUnderlyingType(en.Type);
             foreach (var v in Enum.GetValues(en.Type))
             {
-                idx.Add('S', v.ToString()!);
-                Conv.ToRexx(items, System.Convert.ChangeType(v, under));
+                idx.Add('S', Bridge.EnumNumber(v));
+                items.Add('S', v.ToString()!);
             }
             var b = new Writer(); b.Add('A', idx.ToArray()); b.Add('A', items.ToArray());
             w.Add('A', b.ToArray());

@@ -333,7 +333,6 @@ public static class Conv
             case string s: w.Add('S', s); return;
             case bool b: w.Add('S', b ? "1" : "0"); return;
             case char c: w.Add('S', c.ToString()); return;
-            case Enum e: w.Add('S', e.ToString()); return;
             case double d: w.Add('S', d.ToString("R", Inv)); return;
             case float f: w.Add('S', f.ToString("R", Inv)); return;
             case decimal m: w.Add('S', m.ToString(Inv)); return;
@@ -349,6 +348,6 @@ public static class Conv
     {
         int id = Handles.Add(o);
         if (o is StaticOf so) w.Add('O', $"{id}\tt\t{Types.Display(so.Type)}");
-        else w.Add('O', $"{id}\t{(o is Array ? 'a' : 'o')}\t{Types.Display(o.GetType())}");
+        else w.Add('O', $"{id}\t{(o is Array ? 'a' : o is Enum ? 'e' : 'o')}\t{Types.Display(o.GetType())}");
     }
 }

@@ -87,6 +87,9 @@ static partial class Program
         var arr = new[] { 1, 2, 3 };
         rexx.Run("use arg a; a[1] = 9", arr);
         Ok("C: an array by reference",      arr[0], 9);
+        Ok("C: an enum is a .NetEnum",      rexx.Run<string>("use arg d; return d~class~id d d~ordinal (d = 'monday')", DayOfWeek.Monday),
+           "NETENUM Monday 1 1");
+        Ok("C: an enum comes back as itself", rexx.Run<object>("use arg d; return d", DayOfWeek.Friday), DayOfWeek.Friday);
         Ok("C: an array is a .NetArray (from 1)",
            rexx.Run<string>("use arg a; return a~class~id a~items a~dimension a[3]", arr), "NETARRAY 3 1 3");
         Func<int, int> twice = x => x * 2;
@@ -165,11 +168,16 @@ static partial class Program
         var pass = rexx.Compile("pass", "use arg o; return o");
         var call = rexx.Compile("call", "use arg d; return .net~type('HostLib')~Echo(d)");
         var dir = rexx.Run("return .directory~new")!;
-        double Rate(Action a, int n)
+        double Rate(Action a, int n)                        // the best of three samples: a GC pause in one is noise, not growth
         {
-            var w = Stopwatch.StartNew();
-            for (int i = 0; i < n; i++) a();
-            return w.Elapsed.TotalMilliseconds * 1000 / n;
+            double best = double.MaxValue;
+            for (int k = 0; k < 3; k++)
+            {
+                var w = Stopwatch.StartNew();
+                for (int i = 0; i < n; i++) a();
+                best = Math.Min(best, w.Elapsed.TotalMilliseconds * 1000 / n);
+            }
+            return best;
         }
         for (int i = 0; i < 200; i++) { pass.Call(sb); call.Call(dir); }
         double p1 = Rate(() => pass.Call<object>(sb), 2000), c1 = Rate(() => call.Call(dir), 2000);

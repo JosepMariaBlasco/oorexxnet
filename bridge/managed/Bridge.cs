@@ -85,12 +85,13 @@ public static unsafe class Bridge
     /// rexxnet or from a host that loaded net.cls: a .NetObject that reaches
     /// .NET becomes its .NET object again.
     [UnmanagedCallersOnly]
-    public static void Classes(nint netObject, nint netType, nint netArray) => SetClasses(netObject, netType, netArray);
+    public static void Classes(nint netObject, nint netType, nint netArray, nint netEnum) =>
+        SetClasses(netObject, netType, netArray, netEnum);
 
-    internal static nint NetObjectClass, NetTypeClass, NetArrayClass;
-    internal static void SetClasses(nint netObject, nint netType, nint netArray)
+    internal static nint NetObjectClass, NetTypeClass, NetArrayClass, NetEnumClass;
+    internal static void SetClasses(nint netObject, nint netType, nint netArray, nint netEnum)
     {
-        if (NetObjectClass == 0) { NetTypeClass = netType; NetArrayClass = netArray; NetObjectClass = netObject; }
+        if (NetObjectClass == 0) { NetTypeClass = netType; NetArrayClass = netArray; NetEnumClass = netEnum; NetObjectClass = netObject; }
     }
 
     public static byte[] Handle(ReadOnlySpan<byte> request)
@@ -175,6 +176,8 @@ public static unsafe class Bridge
             case "index": Collections.Index(Handles.Get(r[1].Id), r[2].Items, w); break;
             case "setIndex": Collections.SetIndex(Handles.Get(r[1].Id), r[2], r[3].Items); w.Add('V', ""); break;
             case "box": Box(r[1], r[2], w); break;
+            case "enumInfo": EnumInfo(Handles.Get(r[1].Id) as Enum ?? throw new BridgeException("not an enum value"), w); break;
+            case "enumEquals": w.Add('S', EnumEquals(Handles.Get(r[1].Id) as Enum ?? throw new BridgeException("not an enum value"), r[2]) ? "1" : "0"); break;
             case "unbox": Unbox(r[1], w); break;
             case "arrayAt": Collections.ArrayAt(ArrayOf(r[1]), r[2].Items, w); break;
             case "arrayPut": Collections.ArrayPut(ArrayOf(r[1]), r[2], int.Parse(r[3].Text), r[4].Items); w.Add('V', ""); break;
@@ -411,6 +414,33 @@ public static unsafe class Bridge
         var o = r.Tag == 'O' ? Handles.Get(r.Id) : null;
         if (o is string || o is Enum || (o != null && (o.GetType().IsPrimitive || o is decimal))) Conv.ToRexx(w, o);
         else w.Add('V', "");
+    }
+
+    // ----------------------------------------------------------------- enums
+
+    // An enum value's name ("Monday", "Bold, Italic"; the number when it has
+    // none) and its number (the underlying value).
+    static void EnumInfo(Enum e, Writer w)
+    {
+        var a = new Writer();
+        a.Add('S', e.ToString());
+        a.Add('S', EnumNumber(e));
+        w.Add('A', a.ToArray());
+    }
+
+    internal static string EnumNumber(object e) =>
+        System.Convert.ToString(System.Convert.ChangeType(e, Enum.GetUnderlyingType(e.GetType())), Inv)!;
+
+    static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    // e = other: another enum value of the same type and number, or a string
+    // that names it as .NET reads one (caseless; "Italic, Bold" for flags in
+    // any order; or its number).
+    static bool EnumEquals(Enum e, Rec other)
+    {
+        if (other.Tag == 'O') return Handles.Get(other.Id) is Enum o && o.GetType() == e.GetType() && o.Equals(e);
+        if (other.Tag != 'S') return false;
+        return Enum.TryParse(e.GetType(), other.Text.Trim(), true, out var v) && e.Equals(v);
     }
 
     static bool Has(Rec target, string name)

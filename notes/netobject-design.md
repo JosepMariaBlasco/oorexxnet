@@ -142,9 +142,9 @@ are not visible to reflection: their members go through `IDispatch`
 - integers, `float`, `double` (round-trip), `decimal` → Rexx number strings,
   culture-invariant; `NaN` / `Infinity` as such;
 - `bool` → `1` / `0`; `null` → `.nil`;
-- **enums → their name** (`"Yes"`, flags `"Bold, Italic"`): they go back
-  through the parameter's type, so nothing is lost (proposal, see Open
-  points);
+- **enums → a `.NetEnum`** (since 09/10/2026; before, their name): an
+  object whose string value is its name (`"Yes"`, flags `"Bold, Italic"`);
+  see "Enums as objects: built";
 - a Rexx object that had gone to .NET → the same Rexx object;
 - everything else (objects, structs, arrays, delegates, tasks) → `.NetObject`.
 
@@ -280,6 +280,7 @@ free there.
 1. `ref` / `out` through a `.NetRef` holder instead of extra return values
    (changes decision 6's wording).
 2. Enums come to Rexx as their names (strings), not as objects.
+   *Superseded*: enum values are objects (see "Enums as objects: built").
 3. The overrides of `start`, `send`, `copy`, `run`, `request` (and, since
    phase 1, `string`, with display through `makeString`): the .NET member
    wins when there is one.
@@ -649,8 +650,7 @@ another type. `.net~box(type, .nil)` is `.nil` for a reference type (as
 `System.Byte`").
 
 **`.net~unbox(o)`**: a boxed primitive, `decimal`, string or enum held by a
-`.NetObject` gives its Rexx value (an enum: its name, as everywhere for
-now); anything else, a `.NetObject` of another kind or a Rexx object, comes
+`.NetObject` gives its Rexx value (an enum: its name); anything else, a `.NetObject` of another kind or a Rexx object, comes
 back unchanged (as `clr.unbox`).
 
 **Events.** Besides `o~Click += h` / `-= h`: `.net~addHandler(o, "Click",
@@ -709,4 +709,60 @@ programmer knows.
   property of the .NET object). A Rexx class that *extends* a .NET class (so
   that .NET calls its overrides) is a different, larger feature, not
   started.
+
+## Enums as objects: built (09/10/2026)
+
+**Decided:** an enum value is an object, as Java enums are in BSF4ooRexx: a
+**`.NetEnum`** (a subclass of `.NetObject`). On an enum type, `makeArray`
+(`DO OVER`) gives its values and `supplier` (`DO WITH`) numbers as indexes
+and names as items (BSF4ooRexx's `1-071_demoDoOver_Enum.rxj`: ordinals and
+names). **Built ahead of the answers to three open questions** (the string
+value, `=` against a string, flags), with the choices below; they are easy
+to change.
+
+`tests/phase2.rex` 127 (was 106), `tests/HostTests` 186 (was 184);
+everything else unchanged and passing on .NET 10 and .NET 8; `smoke/` too.
+Changes: `Bridge.cs`, `Collections.cs`, `Convert.cs`, `Host/RexxInterpreter.cs`,
+`Host/RexxInterpreter.BothWays.cs`, `native/rexxnet.cpp`, `rexx/net.cls`.
+
+| Rexx | |
+|---|---|
+| `say d`, `"is" d`, `d~string`, `d~makeString` | its name: `Monday`; flags `Bold, Italic`; a value with no name, its number |
+| `d~name`, `d~ordinal` (`d~value`) | its name; its number (the underlying value: `1` for `Monday`) |
+| `d = "monday"`, `d = "italic, bold"`, `d = 1`, `d = other` | the same value: a name as .NET reads one (caseless; flags in any order), its number, or another `.NetEnum` of the same type and value; `\=`, `<>`, `><` |
+| `d == "Monday"`, `d == other` | strictly: exactly its name, or another `.NetEnum` of the same type and value; `\==` |
+| `d~HasFlag(f)`, `d~CompareTo(x)`... | .NET's own members, as before |
+| `p~Day(d)`, `p~Day("monday")` | to .NET as the enum value; a name or number still converts |
+| `DO x OVER t`, `t~makeArray` (t an enum type) | its values (`.NetEnum`s), in number order (.NET's `GetValues`) |
+| `DO WITH INDEX n ITEM name OVER t`, `t~supplier` | numbers and names |
+| `.net~unbox(d)` | its name |
+
+Settled:
+
+- **The string value is the name.** Code written for names keeps working:
+  `say`, concatenation, `SELECT ... WHEN d = "Thursday"`, `pos(...)`; only
+  code that relied on it *being* a string object (`d~length`, `d~upper`:
+  messages to the object) sees a `.NetEnum`: `d~name~upper`.
+- **`=` compares values**, as `CLR.CLS`'s `CLR_Enum` compares names
+  caselessly, but through .NET's own parser (`Enum.TryParse`, caseless): so
+  flags match in any order and spacing, and a number matches the value with
+  that number (Rexx's `=` is numeric for numbers too). `==` is strict:
+  exactly the name, as `==` on strings. Values of two enum types are never
+  equal. `hashCode` is the name's (consistent with `==`), so a `.NetEnum` is
+  a good index for a Directory or a Set.
+- **The "ordinal" is the number.** Java's `ordinal()` is the position in
+  the declaration; .NET enums have no such thing, only the underlying value
+  (and `GetValues` orders by it); flags and explicit numbers (`None = 0,
+  Bold = 1, Italic = 2, Under = 4`) make the value the only meaningful
+  index. `ordinal` and `value` both give it.
+- **A .NET object, by reference, as before**: a `.NetEnum` goes back to
+  .NET as the boxed enum value. Values from a .NET host to Rexx are
+  `.NetEnum`s too (`rexx.Run("use arg d; ...", DayOfWeek.Monday)`), and come
+  back as the enum value.
+- **Cost**: every enum value that reaches Rexx is a proxy (a handle), not a
+  string; its name and number are asked once, when first needed.
+- **Open** (asked): whether the string value should be the name (as here),
+  whether `=` against a string should be allowed (as here), and how flags
+  should look (as here: .NET's `"Bold, Italic"`; `d = "bold, italic"`;
+  `d~HasFlag(f)`).
 

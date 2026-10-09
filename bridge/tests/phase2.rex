@@ -136,15 +136,40 @@ s = ""; do x over linq~Repeat(.net~int32(7), 3); s = s x; end
 call ok "Enumerable.Repeat",    s~strip, "7 7 7"
 call ok "Enumerable.Empty<int>", .net~invoke(linq, "Empty<int>")~makeArray~items, 0
 
--- enums: names both ways, flags, the type enumerable
+-- enums: values as objects (.NetEnum), names to .NET, flags, the type enumerable
 s = ""; do n over .net~System~DayOfWeek; s = s n; end
-call ok "do over an enum type", s~word(1) s~words, "Sunday 7"
+call ok "do over an enum type: its values", s~word(1) s~words, "Sunday 7"
+x = .net~System~DayOfWeek~makeArray
+call ok "makeArray: .NetEnums by number", x[2]~isA(.NetEnum) x[2]~name x[2]~ordinal, "1 Monday 1"
 s = ""; do with index n item v over .net~RexxNetTests~Style; s = s n"="v; end
-call ok "do with an enum type", s~strip, "None=0 Bold=1 Italic=2 Under=4"
-call ok "enum static field",    .net~RexxNetTests~Style~Italic, "Italic"
+call ok "do with an enum type: numbers and names", s~strip, "0=None 1=Bold 2=Italic 4=Under"
+ital = .net~RexxNetTests~Style~Italic
+call ok "enum static field: a .NetEnum", ital~isA(.NetEnum) ital~isA(.NetObject), "1 1"
+call ok "its string is its name", ital, "Italic"
+call ok "say / concatenation",  "is" ital, "is Italic"
+call ok "name, ordinal, value", ital~name ital~ordinal ital~value, "Italic 2 2"
+call ok "= a name, caseless",   ital = "italic", 1
+call ok "= its number",         ital = 2, 1
+call ok "\= another name",      ital \= "Bold", 1
+call ok "== exactly its name",  (ital == "Italic") (ital == "italic"), "1 0"
+call ok "= another .NetEnum",   ital = .net~RexxNetTests~Style~Italic, 1
+call ok "== another .NetEnum (by value)", ital == gen~StyleOf(2), 1
+call ok "not = another enum type's", ital = .net~System~DayOfWeek~Tuesday, 0
+dow = .net~System~DateTime~new(2026, 10, 8)~DayOfWeek
+call ok "a property: a .NetEnum", dow~isA(.NetEnum) dow, "1 Thursday"
+call ok "select on an enum",    pick(dow), "thu"
+call ok "goes to .NET as the enum", .net~RexxNetTests~Probe~Day(dow), "Thursday"
+call ok "the enum, to int",     .net~System~Convert~ToInt32(dow), 4
+fs = gen~StyleOf(3)
+call ok "flags: name",          fs fs~ordinal, "Bold, Italic 3"
+call ok "flags = any order",    fs = "italic, bold", 1
+call ok "flags: HasFlag",       fs~HasFlag(ital), 1
+call ok "an undefined value: its number", gen~StyleOf(8) == "8", 1
 call ok "flags from names",     gen~Styled("Bold, Italic"), "Bold, Italic"
 call ok "flags to a number",    gen~StyleValue("Italic, Under") gen~StyleValue(3), "6 3"
 call ok "enum forced, to int",  .net~System~Convert~ToInt32(.net~as("Friday", .net~System~DayOfWeek)), 5
+call ok "unbox: its name",      .net~unbox(ital), "Italic"
+call ok "as a Directory index", .directory~new~~put("x", ital)~at(.net~RexxNetTests~Style~Italic), "x"
 call err "not an enum name",    "x = .net~RexxNetTests~Gen~Styled('Purple')", "accepts"
 
 -- structs: a .NetObject holds a boxed copy
@@ -220,3 +245,11 @@ syntax:
   if msg~pos(fragment) > 0 then return
   .local~fails += 1
   say "FAIL" name": message ["msg"], want ["fragment"]"
+
+::routine pick                    -- SELECT with an enum value (= compares names)
+  use arg d
+  select
+    when d = "Wednesday" then return "wed"
+    when d = "Thursday" then return "thu"
+    otherwise return "?"
+  end

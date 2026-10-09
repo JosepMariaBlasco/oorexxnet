@@ -188,7 +188,7 @@ Later, possibly through Rexx's own `sendWith` if it carries named arguments
 | `null` | `.nil` |
 | a `RexxObject` | the Rexx object itself |
 | `RexxValue.Omitted` | an omitted argument (`arg(2, 'O')` is true) |
-| any other object (arrays and collections included) | a `.NetObject`, by reference (`net.cls` loaded on first need); an array is a `.NetArray`, a Rexx Array from 1 (see `netobject-design.md`) |
+| any other object (arrays and collections included) | a `.NetObject`, by reference (`net.cls` loaded on first need); an array is a `.NetArray`, a Rexx Array from 1; an enum value a `.NetEnum`, whose string is its name (see `netobject-design.md`) |
 
 Copies are explicit: `rexx.NewArray(items)` makes a Rexx Array,
 `rexx.NewDirectory(pairs)` / `NewStringTable(pairs)` make a Directory or a

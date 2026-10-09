@@ -153,7 +153,7 @@ public sealed unsafe partial class RexxInterpreter
     {
         EnsureNet(c);
         int id = Handles.Add(o);
-        nint cls = o is StaticOf ? Bridge.NetTypeClass : o is Array ? Bridge.NetArrayClass : Bridge.NetObjectClass;
+        nint cls = o is StaticOf ? Bridge.NetTypeClass : o is Array ? Bridge.NetArrayClass : o is Enum ? Bridge.NetEnumClass : Bridge.NetObjectClass;
         nint a = c.NewArray(2), s1 = c.Str(id.ToString()), s2 = c.Str(Types.Display(o is StaticOf so ? so.Type : o.GetType()));
         c.ArrayPut(a, s1, 1); c.ArrayPut(a, s2, 2);
         c.ReleaseLocal(s1); c.ReleaseLocal(s2);
@@ -217,10 +217,10 @@ public sealed unsafe partial class RexxInterpreter
                     "a .NET object cannot go to Rexx: net.cls and rexxnet are needed (in ooRexx's search path, in " +
                     "REXXNET_DIR, or next to Rexx.Net.dll)" + (why != null ? ": " + why.Message : ""), why);
             nint k1 = c.FindPackageClass(pkg, "NETOBJECT"), k2 = c.FindPackageClass(pkg, "NETTYPE"),
-                 k3 = c.FindPackageClass(pkg, "NETARRAY");
-            if (k1 == 0 || k2 == 0 || k3 == 0) throw new InvalidOperationException("net.cls has no NetObject class");
-            Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3));
-            c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(pkg);
+                 k3 = c.FindPackageClass(pkg, "NETARRAY"), k4 = c.FindPackageClass(pkg, "NETENUM");
+            if (k1 == 0 || k2 == 0 || k3 == 0 || k4 == 0) throw new InvalidOperationException("net.cls has no NetObject class");
+            Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4));
+            c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4); c.ReleaseLocal(pkg);
         }
     }
 

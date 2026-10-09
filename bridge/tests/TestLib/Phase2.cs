@@ -71,6 +71,7 @@ public static class Gen
     public static string Many<T>(params T[] xs) => typeof(T).Name + " " + xs.Length;
     public static string Styled(Style s) => s.ToString();
     public static int StyleValue(Style s) => (int)s;
+    public static Style StyleOf(int n) => (Style)n;
     public static Pt Moved(Pt p, int dx) { p.X += dx; return p; }
     public static void Swap(ref int a, ref int b) { (a, b) = (b, a); }
     public static bool Split(string s, out string head, out string tail)
