@@ -768,8 +768,10 @@ case still open; item 6 changed later):
 Rexx and back (`Call<object>(sb)`, a `.NetObject` made, its `NETID` read)
 ~10–15 µs (5 of them the `CallRoutine`); from Rexx, a call to a .NET method
 passing a Rexx object and getting it back ~4–12 µs; no growth over 40 000
-calls each way. `.net~type("Name")` costs ~18 µs (it searches the loaded
-assemblies each time: worth a cache, in the other direction's code).
+calls each way. `.net~type("Name")` costs ~18 µs (measured cold; 7 µs warm: the
+types were already cached by name on the managed side, the cost was the
+request and the proxy. Since 09/10/2026 `net.cls` remembers them: ~2 µs; see
+`netobject-design.md`, "Name lookups remembered").
 
 **Not done (later, if wanted):** Arrays to a `RexxObject` parameter as
 themselves; Directory → `Dictionary` (StringTable and Directory →

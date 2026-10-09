@@ -800,3 +800,32 @@ Also: `.net~type(o)`, `o` a `System.Type` object, is that type; and a `send`
 as one set, as CLR.CLS's `Type.GetMethod` found them), used only by
 `CLR.CLS`.
 
+## Name lookups remembered (09/10/2026)
+
+`.net~System~Math~Max(1, 2)` asked .NET once per step (`System`, `Math`): a
+request each, ~4–5 µs. What a name resolves to never changes once found (a
+namespace stays a namespace, a type that type), so `net.cls` now remembers
+it: **each namespace keeps its members** (the `.NetNamespace` or `.NetType`
+a name gave, by the message name as Rexx sends it), and **`.net~type(name)`
+keeps its types by name** (caseless). Namespaces are therefore unique
+objects (`.net~System` is the same object each time), and so is a type
+reached by name. A name *not* found is not remembered: after a `.net~load`
+it may be there. Tests in `phase1.rex` (133).
+
+Measured (.NET 10, ooRexx r13267, this container; the best of five rounds of
+20 000 after warm-up):
+
+| | before | after |
+|---|---|---|
+| `.net~System~Math~Max(1, 2)` | 21.2 µs | 9.7 µs |
+| `m~Max(1, 2)` (`m` the type, in a variable) | 7.0 µs | 6.4 µs |
+| `.net~System~Text~StringBuilder` | 16.6 µs | 3.2 µs |
+| `.net~type("System.Text.StringBuilder")` | 7.0 µs | 2.1 µs |
+
+**Measuring: warm up first.** .NET's tiered JIT runs a method unoptimized
+for its first calls and replaces it in the background: the first ~40 000
+calls of `m~Max(1, 2)` cost ~28 µs, later ones ~8 µs. A cold loop measures
+the JIT, not the bridge; and the order of loops in one script changes the
+results. Earlier figures in these notes measured in one cold pass are upper
+bounds.
+

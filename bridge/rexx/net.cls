@@ -321,15 +321,26 @@ syntax: raise propagate
 ::method string unguarded            -- .net~System~String is the type System.String
   expose netns
   signal on syntax
-  return NetRequest("ns", netns, "String")
+  return NetNamespaceMember(netns, "String")
 syntax: return self~makeString
-::method unknown unguarded
-  expose netns
+::method unknown unguarded           -- ~Name: a namespace or a type, remembered by this namespace once found
+  expose netns members
   use arg name, args
+  if var("MEMBERS") then do
+    found = members[name]
+    if found \== .nil then return found
+  end
+  else members = .stringTable~new
   signal on syntax
   if args~items > 0 then raise syntax 98.900 array("a .NET namespace takes no arguments:" netns"."name)
-  return NetRequest("ns", netns, name)
+  found = NetNamespaceMember(netns, name)
+  members[name] = found
+  return found
 syntax: raise propagate
+::method lookups class unguarded     -- what names resolved to (namespaces, types): they never change
+  expose lookups
+  if \var("LOOKUPS") then lookups = .stringTable~new
+  return lookups
 
 /** .net: the root namespace and the bridge's helpers. */
 ::class NetGlobal public subclass NetNamespace
@@ -346,6 +357,15 @@ syntax: raise propagate
 syntax: raise propagate
 ::method type unguarded              -- .net~type("System.Collections.Generic.List<int>"), or (open generic, type args...)
   signal on syntax
+  if arg() = 1, arg(1)~isA(.String) then do   -- by name: remembered (a type found stays that type)
+    key = "type:" || arg(1)~upper
+    found = .NetNamespace~lookups[key]
+    if found == .nil then do
+      found = NetRequest("type", arg(1, "A"))
+      .NetNamespace~lookups[key] = found
+    end
+    return found
+  end
   return NetRequest("type", arg(1, "A"))
 syntax: raise propagate
 ::method load unguarded              -- .net~load(assembly name or .dll path): its full name
@@ -546,6 +566,18 @@ syntax: raise propagate
 ::method makeString
   expose handler arguments
   return "a NetCall ("handler~target"~"handler~message", "arguments~items "arguments)"
+
+/** prefix~name: a namespace or a type, remembered once found (.net~System~Math~Max in a loop asks .NET once). */
+::routine NetNamespaceMember
+  use arg prefix, name
+  key = (prefix"."name)~upper
+  found = .NetNamespace~lookups[key]
+  if found \== .nil then return found
+  signal on syntax
+  found = NetRequest("ns", prefix, name)
+  .NetNamespace~lookups[key] = found
+  return found
+syntax: raise propagate
 
 /** The next queued call, as a .NetCall (.nil: time over, or the loop stopped). */
 ::routine NetNextCall
