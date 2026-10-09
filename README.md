@@ -35,6 +35,10 @@ automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
 (trunk). Windows has not been tried yet. The design is still being
 discussed and parts of the API may change.
 
+**Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
+both directions feature by feature, every example run and checked
+(`docs/check-guide.py`).
+
 ## Layout
 
 - `bridge/` — the bridge.
@@ -59,6 +63,8 @@ discussed and parts of the API may change.
   `CLR.CLS` compatibility package). Each design note records,
   phase by phase, what was built and where it departed from the plan
   (marked **Δ**).
+- `docs/` — `guide.md` (the user's guide) and `check-guide.py` (runs its
+  examples and compares their output).
 - `patches/oorexx/` — patches proposed to ooRexx itself (#2106).
 - `scripts/setup-env.sh` — installs the environment (see below).
 

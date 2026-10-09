@@ -83,6 +83,8 @@ call ok "forced settles tie",   p~Ambig(.net~int64(1), 2), "long,int"
 call ok "no empty params array wins (WriteLine(string))", p~Tie("a") p~Tie("a", 1), "plain params 1"
 call ok "no default filled in wins", p~Tie2("a") p~Tie2("a", 2), "plain default"
 call ok "a type in an assembly named as it (System.Console)", .net~type("System.Console")~makeString, "a NetType (System.Console)"
+call ok "a namespace no assembly is named after (System.Timers)", .net~System~Timers~Timer~makeString, "a NetType (System.Timers.Timer)"
+call ok "... and its types by name", .net~type("System.Timers.ElapsedEventArgs")~makeString, "a NetType (System.Timers.ElapsedEventArgs)"
 call ok ".net~type(a System.Type object)", .net~type(.net~typeObject(.net~System~Text~StringBuilder~new))~makeString, -
    "a NetType (System.Text.StringBuilder)"
 -- box / unbox: a .NET object holding the value (CLR.CLS's names too)

@@ -786,6 +786,15 @@ in `phase1.rex` (128, was 124):
   (`System`), not in `System.Console.dll`. (`.net~System~Console` worked: the
   namespace path loads assemblies by namespace.)
 
+And one found by the guide's examples (`docs/guide.md`): **namespaces no
+assembly is named after** (`.net~System~Timers`: `System.Timers.Timer` is in
+`System.ComponentModel.TypeConverter.dll`) were not found, as names only
+guided which framework assembly to load. Now, as a last resort, the bridge
+reads the shared framework's metadata (`System.Reflection.Metadata`, without
+loading the assemblies) into an index of public types → assembly and of
+namespaces: ~0.5 s, once, only the first time a name is not found the cheap
+way. Tests in `phase1.rex` (130).
+
 Also: `.net~type(o)`, `o` a `System.Type` object, is that type; and a `send`
 / `set` request has a third lookup mode, `"b"` (instance and static members
 as one set, as CLR.CLS's `Type.GetMethod` found them), used only by

@@ -16,6 +16,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Runtime.Loader;
 
 namespace Rexx.Net;
@@ -43,6 +45,44 @@ public static class Types
             .Where(n => !n.Contains(".Private.", StringComparison.Ordinal) && !n.StartsWith("api-ms-", StringComparison.Ordinal)
                         && !n.StartsWith("Microsoft.VisualBasic", StringComparison.Ordinal) && n != "netstandard" && n != "mscorlib")
             .ToArray();
+    });
+
+    // Every public type of the shared framework -> its assembly, and every
+    // namespace (with its prefixes), read from the assemblies' metadata
+    // without loading them. The last resort, for a type whose assembly is not
+    // named by its namespace (System.Timers.Timer is in
+    // System.ComponentModel.TypeConverter): built the first time it is needed.
+    sealed class FrameworkIndex
+    {
+        public readonly Dictionary<string, string> Types = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, string> Namespaces = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    static readonly Lazy<FrameworkIndex> frameworkIndex = new(() =>
+    {
+        var index = new FrameworkIndex();
+        var dir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        foreach (var an in frameworkAssemblies.Value)
+        {
+            try
+            {
+                using var file = File.OpenRead(Path.Combine(dir, an + ".dll"));
+                using var pe = new PEReader(file);
+                if (!pe.HasMetadata) continue;
+                var md = pe.GetMetadataReader();
+                foreach (var h in md.TypeDefinitions)
+                {
+                    var td = md.GetTypeDefinition(h);
+                    if ((td.Attributes & TypeAttributes.VisibilityMask) != TypeAttributes.Public) continue;
+                    var ns = md.GetString(td.Namespace);
+                    index.Types.TryAdd(ns.Length > 0 ? ns + "." + md.GetString(td.Name) : md.GetString(td.Name), an);
+                    for (var n = ns; n.Length > 0; n = n.LastIndexOf('.') is int dot && dot > 0 ? n.Substring(0, dot) : "")
+                        index.Namespaces.TryAdd(n, n);
+                }
+            }
+            catch (Exception e) when (e is IOException or BadImageFormatException or UnauthorizedAccessException) { }
+        }
+        return index;
     });
 
     // ------------------------------------------------------------------ types
@@ -149,6 +189,9 @@ public static class Types
             var t = asm == null ? null : SafeGetType(asm, n);
             if (t != null) return t;
         }
+        // The last resort: the framework's index (an assembly not named by the namespace)
+        if (frameworkIndex.Value.Types.TryGetValue(n, out var where) && TryLoad(where) is Assembly found)
+            return SafeGetType(found, n);
         return null;
     });
 
@@ -239,6 +282,8 @@ public static class Types
             if (t != null) return t;
             if (Namespaces().TryGetValue(full, out spelled)) return spelled;
         }
+        // The framework's index: a namespace no assembly is named after (System.Timers)
+        if (frameworkIndex.Value.Namespaces.TryGetValue(full, out spelled)) return spelled;
         throw new BridgeException(prefix.Length == 0
             ? $"no .NET namespace \"{name}\""
             : $"no .NET namespace or type \"{name}\" in {prefix}");
@@ -246,7 +291,8 @@ public static class Types
 
     /// The full name of a namespace spelled as .NET spells it.
     public static string NamespaceName(string full) =>
-        Namespaces().TryGetValue(full, out var s) ? s : throw new BridgeException($"no .NET namespace \"{full}\"");
+        Namespaces().TryGetValue(full, out var s) || frameworkIndex.Value.Namespaces.TryGetValue(full, out s)
+            ? s : throw new BridgeException($"no .NET namespace \"{full}\"");
 
     /// A readable name: System.Collections.Generic.List<System.Int32>.
     public static string Display(Type t)
