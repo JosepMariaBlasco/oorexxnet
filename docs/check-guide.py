@@ -18,13 +18,16 @@ def default_build():   # as scripts/platform.sh
     return os.path.expanduser("~/build")
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(default_build(), "rexxnet")
-LIBVAR = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
+if sys.platform == "win32":   # rexxnet.dll: found through the PATH
+    LIBVAR, LIBPATH = "PATH", OUT + os.pathsep + os.environ.get("PATH", "")
+else:
+    LIBVAR, LIBPATH = ("DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"), OUT
 guide = open(os.path.join(HERE, "guide.md"), encoding="utf-8").read()
 blocks = re.findall(r"```(\w+)\n(.*?)```", guide, re.S)
 pairs = [(blocks[i][0], blocks[i][1], blocks[i + 1][1]) for i in range(len(blocks) - 1)
          if blocks[i][0] in ("rexx", "csharp") and blocks[i + 1][0] == "text"]
 
-env = dict(os.environ, **{LIBVAR: OUT}, REXX_PATH=OUT, REXXNET_DIR=OUT,
+env = dict(os.environ, **{LIBVAR: LIBPATH}, REXX_PATH=OUT, REXXNET_DIR=OUT,
            DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1")
 def default_dotnet():   # as scripts/platform.sh
     for d in ("/home/claude/dotnet", os.path.expanduser("~/.dotnet")):

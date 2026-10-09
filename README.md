@@ -32,8 +32,8 @@ int n = rexx.Run<int>("return 6 * 7");      // 42
 
 **Status: prototype.** Both directions are built and covered by more than 500
 automated tests, on Linux, with .NET 8 and .NET 10, against ooRexx 5.3.0
-(trunk). The build and test scripts also support macOS, but have not been
-tried there yet; Windows has not been tried yet either. The design is still being
+(trunk). The build and test scripts also support macOS and Windows, but
+have not been tried there yet. The design is still being
 discussed and parts of the API may change.
 
 **Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
@@ -50,7 +50,8 @@ both directions feature by feature, every example run and checked
   - `rexx/net.cls` — the Rexx side (`.net`, `.NetObject` and friends).
   - `rexx/CLR.CLS` — a compatibility package: programs written for
     BSF4ooRexx's `CLR.CLS` run unchanged (see `notes/clr-compat.md`).
-  - `build.sh`, `tests/run.sh` — build, and run every test suite.
+  - `build.sh`, `tests/run.sh` — build, and run every test suite (Windows:
+    `build.ps1`, `tests/run.ps1`).
   - `tests/` — `phase1.rex`, `phase2.rex`, `phase3.rex` (ooRexx → .NET),
     `bothways.rex` (ooRexx as the host, .NET calling back), `clr.rex` (the
     `CLR.CLS` package), `HostTests/` (.NET → ooRexx); `clr-samples.sh` runs
@@ -72,7 +73,7 @@ both directions feature by feature, every example run and checked
   `scripts/platform.sh` — what differs between Linux and macOS, for the
   scripts.
 
-## Building and testing (Linux, macOS)
+## Building and testing (Linux, macOS, Windows)
 
 ```bash
 sudo scripts/setup-env.sh --no-dotnet       # ooRexx 5.3.0 trunk (.deb), if there is no rexx yet
@@ -98,6 +99,21 @@ Then `bridge/tests/run.sh` as above; the native library is
 `librexxnet.dylib`. `clr-samples.sh` fetches the samples with `svn`
 (Homebrew's `subversion`), or takes a directory of them; the timeouts use
 coreutils' `gtimeout` when there is one.
+
+**Windows** (written for it, not tried yet): ooRexx 5, 64-bit, with
+`rexx.exe` on the `PATH` (its `api\` folder has the headers); a .NET 8 SDK
+or later; Visual Studio or its Build Tools with "Desktop development with
+C++" (`cl.exe`, found through `vswhere` when it is not on the `PATH`).
+`bridge\build.ps1` builds into `%USERPROFILE%\build\rexxnet` (`-Out` to
+change it) and `bridge\tests\run.ps1` runs the same suites as `run.sh`:
+
+```bat
+powershell -ExecutionPolicy Bypass -File bridge\tests\run.ps1
+```
+
+From Rexx, `rexxnet.dll` is found through the `PATH`. `docs/check-guide.py`
+runs there too; the smoke tests and `clr-samples.sh` are Linux and macOS
+only.
 
 ## Related work
 
