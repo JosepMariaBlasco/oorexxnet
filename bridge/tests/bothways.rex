@@ -29,6 +29,27 @@ call ok "a handler's Rexx object",       bw~HandlerGives(.net~as(.net~handler(t,
 call ok "... on another thread",         bw~HandlerGivesElsewhere(.net~as(.net~handler(t, "MAKEDIR"), "System.Func<object>")), "Directory 5"
 call ok "98.900 round trip (guest)",     bw~CatchesBoom, "98.900 InvalidOperationException boom"
 
+-- a StringTable to a .NET dictionary with string keys: a copy, values converted
+st = .stringTable~new; st["b"] = 2; st["a"] = 1
+call ok "StringTable to Dictionary<string, int>", bw~Ints(st), "a=2,b=3"
+st2 = .stringTable~new; st2["x"] = "007"; st2["y"] = "hi"
+call ok "to IReadOnlyDictionary<string, string>", bw~Strings(st2), "x=007,y=hi"
+st3 = .stringTable~new; st3["s"] = "v"; st3["o"] = .net~System~Text~StringBuilder~new; st3["r"] = .directory~new
+call ok "to IDictionary<string, object>", bw~Objects(st3), "o:StringBuilder,r:RexxObject,s:String"
+st4 = .stringTable~new; st4["k"] = "v"
+call ok "to the non-generic IDictionary", bw~NonGeneric(st4), "1 v"
+call ok "a copy: .NET's changes stay there", bw~Grow(st) st~items, "3 2"
+sb = .net~System~Text~StringBuilder~new("z"); st5 = .stringTable~new; st5["sb"] = sb
+call ok "a .NetObject value: itself", bw~Builder(st5) == sb, 1
+call ok "keys keep their case",  bw~Cases(.stringTable~new~~put(1, "Mixed")~~put(2, "low")), "Mixed,low"
+call ok "an overload taking a RexxObject wins (no copy)", bw~Which(st), "reference"
+call ok "a StringTable is still a RexxObject", bw~ClassOf(st), "StringTable"
+call ok "an empty StringTable",  bw~Ints(.stringTable~new), ""
+.local~stBad = .stringTable~new~~put("x", "k")
+call ok "a value that does not convert", message(".bw~Ints(.stBad)")~pos("accepts") > 0, 1
+.local~dirArg = .directory~new~~put(1, "a")
+call ok "a Directory: not (yet)", message(".bw~Ints(.dirArg)")~pos("accepts") > 0, 1
+
 -- a Rexx error in Rexx code that .NET called: raised here again, as it was
 .local~acct = .Account~new(10)
 call ok "the same error",                code(".bw~Withdraw(.acct, 100)"), "88.900"

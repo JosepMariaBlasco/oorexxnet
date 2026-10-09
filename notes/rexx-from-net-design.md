@@ -772,6 +772,50 @@ calls each way. `.net~type("Name")` costs ~18 µs (it searches the loaded
 assemblies each time: worth a cache, in the other direction's code).
 
 **Not done (later, if wanted):** Arrays to a `RexxObject` parameter as
-themselves; Directory → `Dictionary`; the NativeAOT / custom-host
+themselves; Directory → `Dictionary` (StringTable → `Dictionary`: built, see
+below); the NativeAOT / custom-host
 registration (see "One process, both ways"); a test with two instances whose
 handlers call back (item 8 is a correctness fix without its own test).
+
+## StringTable → `Dictionary`: built (09/10/2026)
+
+A **StringTable** goes to .NET as a dictionary with string keys where one
+is asked for: a parameter of type `Dictionary<string, T>`,
+`IDictionary<string, T>`, `IReadOnlyDictionary<string, T>` or the
+non-generic `IDictionary` gets **a new `Dictionary<string, T>`** with its
+entries, each value converted to `T` as a Rexx result is (`"007"` to an
+`int` is 7, to a `string` stays `"007"`; a `.NetObject` is its .NET object;
+for `object`, a Rexx string is a `string` and any other Rexx object a
+`RexxObject`). A copy: what .NET changes stays in .NET. Keys keep their case
+(a StringTable's keys are case-sensitive). The same from a .NET host:
+`rexx.Run<Dictionary<string, int>>(...)` (and `RexxConvert.To`, `Send<T>`,
+`Call<T>`) turns a StringTable result into one.
+
+`tests/bothways.rex` 32 (was 20), `tests/HostTests` 189 (was 186);
+everything else unchanged and passing on .NET 10 and .NET 8; `smoke/` too.
+Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
+
+- **Read only when needed.** A StringTable still goes to .NET as itself
+  (an X / G record, by reference); only when the parameter being tried is
+  a dictionary does the managed side check its class (`.StringTable`, once
+  per argument) and read its `supplier` (once per argument, however many
+  overloads are tried). Passing a StringTable to an `object` or `RexxObject`
+  parameter costs what it cost before.
+- **Ranking**: the copy costs 20; a `RexxObject` (or `object`) parameter
+  takes the Rexx object as itself at cost 0–1, so an overload taking a
+  `RexxObject` wins over one taking a dictionary (no copy when .NET can use
+  the object).
+- **A value that does not convert** (`"k"` for a `Dictionary<string, int>`)
+  makes that candidate fail, as any argument that does not convert: "no
+  ... accepts (a StringTable (whose values do not all convert))". From a
+  host: `InvalidCastException`.
+- **Only a StringTable.** A Directory, or any other Rexx object, is not a
+  dictionary (an error where only a dictionary fits; `InvalidCastException`
+  from a host). Whether a Directory should be copied too is open; adding it
+  would be one more class in the same check (`FromStringTable` /
+  `RexxConvert.To`), with the note that keys set with `d~name` are
+  uppercase.
+- Not done: nested conversion (a StringTable whose values are
+  StringTables, to `Dictionary<string, Dictionary<string, T>>`: the inner
+  ones go as `RexxObject`s and fail to convert).
+

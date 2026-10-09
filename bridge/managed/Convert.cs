@@ -78,6 +78,7 @@ public static class Conv
                 return FromHandler(r, under ?? to, out value);
             case 'X':
             case 'G':
+                if (DictionaryOf(under ?? to) is Type vt) return FromStringTable(r, vt, out value);
                 return FromRexx(r, under ?? to, out value);
         }
         return Fail;
@@ -203,10 +204,8 @@ public static class Conv
     // A Rexx object (phase C): its RexxObject proxy, for a parameter that
     // takes one. X: a pointer valid during the request; G: a global reference
     // handed over (a callback's result), adopted once.
-    static int FromRexx(Rec r, Type to, out object? value)
+    static RexxObject Adopt(Rec r)
     {
-        value = null;
-        if (!to.IsAssignableFrom(typeof(RexxObject)) && !typeof(RexxObject).IsAssignableFrom(to)) return Fail;
         if (r.Adopted == null)
         {
             if (r.Tag == 'X') r.Adopted = RexxInterpreter.FromRequest((nint)nuint.Parse(r.Text));
@@ -216,10 +215,60 @@ public static class Conv
                 r.Adopted = RexxInterpreter.Adopt((nint)nuint.Parse(r.Text.Substring(0, tab)), (nint)nuint.Parse(r.Text.Substring(tab + 1)));
             }
         }
-        var proxy = r.Adopted;
+        return r.Adopted;
+    }
+
+    static int FromRexx(Rec r, Type to, out object? value)
+    {
+        value = null;
+        if (!to.IsAssignableFrom(typeof(RexxObject)) && !typeof(RexxObject).IsAssignableFrom(to)) return Fail;
+        var proxy = Adopt(r);
         if (!to.IsInstanceOfType(proxy)) return Fail;
         value = proxy;
         return proxy.GetType() == to ? 0 : 1;
+    }
+
+    // A dictionary with string keys that a StringTable can become: its value
+    // type (Dictionary<string, T>, IDictionary<string, T>,
+    // IReadOnlyDictionary<string, T>: T; the non-generic IDictionary: object).
+    internal static Type? DictionaryOf(Type to)
+    {
+        if (to == typeof(IDictionary)) return typeof(object);
+        if (!to.IsGenericType) return null;
+        var d = to.GetGenericTypeDefinition();
+        if (d != typeof(Dictionary<,>) && d != typeof(IDictionary<,>) && d != typeof(IReadOnlyDictionary<,>)) return null;
+        var a = to.GetGenericArguments();
+        return a[0] == typeof(string) ? a[1] : null;
+    }
+
+    // A StringTable to a dictionary: a copy (a new Dictionary<string, T>, the
+    // values converted as for an argument of type T). Only a StringTable: a
+    // Directory, or any other Rexx object, goes by reference (a RexxObject).
+    static int FromStringTable(Rec r, Type vt, out object? value)
+    {
+        value = null;
+        var o = Adopt(r);
+        r.IsStringTable ??= o.Interpreter.FindClass("StringTable") is RexxClass st && o.Is(st);
+        if (r.IsStringTable != true) return Fail;
+        r.Pairs ??= o.Supplier();
+        try { value = DictionaryCopy(r.Pairs, vt); }
+        catch (InvalidCastException) { return Fail; }
+        return 20;
+    }
+
+    // A new Dictionary<string, vt> with a StringTable's pairs, the values
+    // converted as Rexx results (InvalidCastException: one does not convert).
+    internal static IDictionary DictionaryCopy(IReadOnlyList<KeyValuePair<object?, object?>> pairs, Type vt)
+    {
+        var d = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(typeof(string), vt))!;
+        foreach (var (k, v) in pairs)
+        {
+            object? item;
+            try { item = vt == typeof(object) && v is RexxString s ? s.Value : RexxConvert.To(v, vt); }
+            catch (Exception e) when (e is FormatException or OverflowException) { throw new InvalidCastException(e.Message, e); }
+            d[k is RexxString ks ? ks.Value : k?.ToString() ?? ""] = item;
+        }
+        return d;
     }
 
     static int FromString(string s, Type to, out object? value)
@@ -318,7 +367,8 @@ public static class Conv
     {
         'S' => r.Text, 'N' => ".nil", 'O' => Types.Display(Handles.Get(r.Id) is StaticOf so ? so.Type : Handles.Get(r.Id).GetType()),
         'A' => "an Array", 'T' => r.Text + " " + Describe(r.Inner!), 'R' => "a NetRef", 'H' => "a NetHandler",
-        'X' or 'G' => "a Rexx object", _ => r.Tag.ToString(),
+        'X' or 'G' => r.IsStringTable == true ? "a StringTable (whose values do not all convert)" : "a Rexx object",
+        _ => r.Tag.ToString(),
     };
 
     // ------------------------------------------------------------ .NET -> Rexx

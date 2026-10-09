@@ -2,6 +2,9 @@
 // by ooRexx itself (rexx bothways.rex), i.e. guest mode: the instance is
 // ooRexx's, reached through RexxInterpreter.Current.
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Rexx.Net;
@@ -22,6 +25,16 @@ public static class BothWays
     public static int Nested() => RexxInterpreter.Current!.Run<int>("return 6 * 7");
     public static string ClassOf(RexxObject o) => o.Send("CLASS")!.Send<string>("ID");
     public static object? Echo(object? o) => o;
+    // A StringTable to a dictionary (a copy)
+    public static string Ints(Dictionary<string, int> d) => string.Join(",", d.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value + 1}"));
+    public static string Strings(IReadOnlyDictionary<string, string> d) => string.Join(",", d.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"));
+    public static string Objects(IDictionary<string, object?> d) => string.Join(",", d.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}:{p.Value?.GetType().Name ?? "null"}"));
+    public static string NonGeneric(IDictionary d) => $"{d.Count} {d["k"]}";
+    public static int Grow(Dictionary<string, int> d) { d["new"] = 1; return d.Count; }
+    public static StringBuilder Builder(Dictionary<string, StringBuilder> d) => d["sb"];
+    public static string Which(RexxObject o) => "reference";
+    public static string Which(Dictionary<string, int> d) => "copy";
+    public static string Cases(Dictionary<string, int> d) => string.Join(",", d.Keys.OrderBy(k => k, StringComparer.Ordinal));
     public static int LengthInRexx(string s) =>
         RexxInterpreter.Current!.Run<int>("use arg sb; return sb~Length", new StringBuilder(s));
     public static string BackFromRexx() =>

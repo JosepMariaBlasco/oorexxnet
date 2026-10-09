@@ -90,6 +90,12 @@ static partial class Program
         Ok("C: an enum is a .NetEnum",      rexx.Run<string>("use arg d; return d~class~id d d~ordinal (d = 'monday')", DayOfWeek.Monday),
            "NETENUM Monday 1 1");
         Ok("C: an enum comes back as itself", rexx.Run<object>("use arg d; return d", DayOfWeek.Friday), DayOfWeek.Friday);
+        var dict = rexx.Run<Dictionary<string, int>>("return .stringTable~new~~put(1, 'a')~~put(2, 'B')");
+        Ok("C: a StringTable as Dictionary<string, int>", $"{dict.Count} {dict["a"]} {dict["B"]}", "2 1 2");
+        Ok("C: ... as IReadOnlyDictionary<string, object>",
+           rexx.Run<IReadOnlyDictionary<string, object>>("return .stringTable~new~~put('v', 'k')")["k"], "v");
+        try { rexx.Run<Dictionary<string, int>>("return .directory~new"); Ok("C: a Directory is no dictionary (yet)", "no exception", "InvalidCastException"); }
+        catch (InvalidCastException) { Ok("C: a Directory is no dictionary (yet)", "InvalidCastException", "InvalidCastException"); }
         Ok("C: an array is a .NetArray (from 1)",
            rexx.Run<string>("use arg a; return a~class~id a~items a~dimension a[3]", arr), "NETARRAY 3 1 3");
         Func<int, int> twice = x => x * 2;

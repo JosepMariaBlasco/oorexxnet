@@ -401,6 +401,12 @@ public static class RexxConvert
             throw new InvalidCastException($"Rexx gave .nil or nothing; a {t.Name} is needed");
         }
         if (t.IsInstanceOfType(v) && t != typeof(object) || t == typeof(object)) return v;
+        // A StringTable where a dictionary with string keys is asked for: a copy
+        if (v is RexxObject ro && v is not RexxString && Conv.DictionaryOf(t) is Type vt)
+        {
+            if (ro.Interpreter.FindClass("StringTable") is RexxClass st && ro.Is(st)) return Conv.DictionaryCopy(ro.Supplier(), vt);
+            throw new InvalidCastException($"a Rexx object ({v}) is not a {t.Name}: only a StringTable becomes a dictionary");
+        }
         if (under != null) t = under;
         var s = v is RexxString rs ? rs.Value : t == typeof(string) ? v.ToString() : null;
         if (s == null) throw new InvalidCastException($"a Rexx object ({v}) is not a {t.Name}");
