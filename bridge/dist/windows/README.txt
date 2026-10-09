@@ -107,6 +107,16 @@ run unchanged. Baginski's 15 (speech) uses System.Speech, which was part of
 and the bridge finds it next to itself.
 
 
+Samples
+-------
+
+samples\rexx (every platform) and samples\windows (Windows Forms, dialogs,
+the registry, the clipboard...): small commented programs, listed in
+samples\README.md. With the two variables set:
+
+    rexx C:\rexxnet\samples\windows\forms-hello.rex
+
+
 From PowerShell
 ---------------
 
@@ -129,6 +139,6 @@ Notes
 - Files: rexxnet.dll (the native library ooRexx loads), Rexx.Net.dll (the
   .NET side) with its .runtimeconfig.json files, .deps.json and .pdb,
   net.cls, CLR.CLS, System.Speech.dll, check.rex, hello.ps1, guide.md,
-  clr-compat.md, this file.
+  clr-compat.md, samples\, this file.
 - A prototype. Problems and comments are very welcome:
   https://github.com/JosepMariaBlasco/oorexxnet/issues

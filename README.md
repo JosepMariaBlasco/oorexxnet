@@ -65,7 +65,11 @@ both directions feature by feature, every example run and checked
     `bothways.rex` (ooRexx as the host, .NET calling back), `clr.rex` (the
     `CLR.CLS` package), `HostTests/` (.NET → ooRexx); `clr-samples.sh` runs
     `CLR.CLS`'s own portable samples.
-- `samples/powershell/hello.ps1` — PowerShell 7 hosting ooRexx.
+- `samples/` — small commented programs: Rexx using .NET (`rexx/`, every
+  platform; `windows/`: Windows Forms, dialogs...), a C# program using the
+  NuGet package (`csharp/hello/`), PowerShell 7 hosting ooRexx
+  (`powershell/hello.ps1`). `samples/check-samples.rex` runs them (the CI
+  does, on every platform).
 - `smoke/` — the smallest possible proofs of each mechanism (`smoke/run.sh`,
   `smoke/hostapi/run.sh`).
 - `notes/` — the design: `netobject-design.md` (ooRexx → .NET),

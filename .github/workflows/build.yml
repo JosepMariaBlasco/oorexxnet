@@ -66,6 +66,10 @@ jobs:
       - name: PowerShell sample
         shell: pwsh
         run: ./samples/powershell/hello.ps1 "$env:REXXNET_BUILD/rexxnet"
+      - name: Samples
+        run: rexx samples/check-samples.rex
+      - name: C# sample (the package on nuget.org)
+        run: dotnet run --project samples/csharp/hello
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.name }}
@@ -103,6 +107,10 @@ jobs:
       - name: PowerShell sample
         shell: pwsh
         run: .\samples\powershell\hello.ps1 "$env:RUNNER_TEMP\build\rexxnet"
+      - name: Samples
+        run: rexx samples\check-samples.rex "${{ runner.temp }}\build\rexxnet"
+      - name: C# sample (the package on nuget.org)
+        run: dotnet run --project samples\csharp\hello
       - uses: actions/upload-artifact@v4
         with:
           name: native-win-x64
