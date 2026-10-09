@@ -67,7 +67,10 @@ bridge/tests/run.sh [OUT]     # builds into OUT and runs all the tests
 
 The scripts default to the paths of the environment they were written in
 (`/home/claude/dotnet`, `/home/claude/build/rexxnet`); `DOTNET_DIR` /
-`DOTNET_ROOT` and the `OUT` argument override them. To use the bridge from
+`DOTNET_ROOT` and the `OUT` argument override them. With an ooRexx of your
+own instead of the `.deb`, set `REXX_INCLUDE` to the directory of its API
+headers (`oorexxapi.h`; default `/usr/local/include`), and make sure `rexx`
+and `librexx` are on the paths. To use the bridge from
 Rexx: `cd OUT && LD_LIBRARY_PATH=. rexx prog.rex`, with
 `::requires "net.cls"` in the program.
 

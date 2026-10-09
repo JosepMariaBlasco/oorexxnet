@@ -2,7 +2,8 @@
 # Builds the ooRexx/.NET bridge (prototype) into OUT (default
 # /home/claude/build/rexxnet): Rexx.Net.dll + its runtimeconfig (managed),
 # librexxnet.so (native; its soname lets a .NET host load it first, from its
-# directory, for ooRexx to find), net.cls. Needs scripts/setup-env.sh first.
+# directory, for ooRexx to find), net.cls. Needs scripts/setup-env.sh first,
+# or an ooRexx 5 with its API headers (REXX_INCLUDE, default /usr/local/include).
 # The managed project is built from a copy (no bin/ obj/ in the project, and
 # never an output directory above the sources).
 set -euo pipefail
@@ -17,7 +18,7 @@ cp -r "$HERE/managed" "$WORK/managed"
 "$DOTNET" build "$WORK/managed" -c Release -o "$OUT" -nologo -v q 2>&1 | grep -E "error|warning CS" || true
 test -f "$OUT/Rexx.Net.dll"
 HOSTPK=$(dirname "$(find "$DOTNET_ROOT/packs" -name nethost.h | sort | tail -1)")
-g++ -shared -fPIC -O2 -Wall -I/usr/local/include -I"$HOSTPK" "$HERE/native/rexxnet.cpp" \
+g++ -shared -fPIC -O2 -Wall -I"${REXX_INCLUDE:-/usr/local/include}" -I"$HOSTPK" "$HERE/native/rexxnet.cpp" \
     "$HOSTPK/libnethost.a" -ldl -Wl,-soname,librexxnet.so -o "$OUT/librexxnet.so"
 cp "$HERE/rexx/net.cls" "$OUT/"
 echo "built: $OUT"
