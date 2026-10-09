@@ -759,7 +759,7 @@ case still open; item 6 changed later):
    answer per thread (`thread_local` in `SysActivity.cpp`), which also
    covers `RexxStart` (3 reads a call: 7 ms → 0.2 ms with 3000 mappings);
    built and tested here with ooRexx's test suite. **Committed to ooRexx
-   as r13267** (09/10/2026: the patch as proposed). See
+   as r13267** (08/10/2026: the patch as proposed). See
    `patches/oorexx/README.md`. Why phase A's and B's numbers for `Run` / `Call` were
    lower is not known (perhaps measured off the main thread); the phase-C
    cost test runs on a thread of its own.
