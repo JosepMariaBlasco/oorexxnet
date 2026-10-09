@@ -15,7 +15,7 @@ say "Desktop:  " env~GetFolderPath("Desktop")
 say "Drives:"
 do d over .net~System~IO~DriveInfo~GetDrives
   if d~IsReady then
-    say "  " d~Name d~DriveType~string~left(9) (d~AvailableFreeSpace % 2**30)"/"(d~TotalSize % 2**30) "GB free"
+    say "  " d~Name d~DriveType~string~left(9) d~AvailableFreeSpace % 2**30 || "/" || d~TotalSize % 2**30 "GB free"
   else say "  " d~Name d~DriveType "(not ready)"
 end
 
