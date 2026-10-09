@@ -56,11 +56,13 @@ static std::basic_string<char_t> thisDir()
     std::wstring p(buf); return p.substr(0, p.find_last_of(L"\\/"));
 }
 static bool fileExists(const std::wstring &p) { return GetFileAttributesW(p.c_str()) != INVALID_FILE_ATTRIBUTES; }
-// The Rexx thread that starts .NET: a single-threaded apartment before the
-// runtime makes it MTA (Bridge.Enter does the same for the other Rexx
-// threads; notes/netobject-design.md, "Windows"), unless REXXNET_APARTMENT=MTA
-// or COM is already initialized on it.
-static void startingThread()
+// Every Rexx thread, at its first request to .NET (and before the runtime
+// starts, for the thread that starts it: the runtime would make it MTA): a
+// single-threaded apartment, unless REXXNET_APARTMENT=MTA or COM is already
+// initialized on it (CoInitializeEx then changes nothing). Not left to the
+// managed side: there a thread with no COM yet already reads as MTA (the
+// process's implicit MTA). notes/netobject-design.md, "Windows".
+static void rexxThreadApartment()
 {
     char v[8] = "";
     DWORD n = GetEnvironmentVariableA("REXXNET_APARTMENT", v, sizeof v);
@@ -91,7 +93,7 @@ static std::string thisDir()
     return ".";
 }
 static bool fileExists(const std::string &p) { return access(p.c_str(), F_OK) == 0; }
-static void startingThread() {}
+static void rexxThreadApartment() {}
 #define STR(s) s
 #endif
 
@@ -132,7 +134,7 @@ static void loadClr()
     // attempt's complaint is then silenced
     auto core = dir + STR("/Rexx.Net.core.runtimeconfig.json");
     bool haveCore = fileExists(core);
-    startingThread();
+    rexxThreadApartment();
     hostfxr_handle cx = nullptr;
     if (haveCore && setErrorWriter) setErrorWriter([](const char_t *) {});
     int rc = init(config.c_str(), nullptr, &cx);
@@ -423,6 +425,8 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
                              RexxObjectPtr receiver = NULLOBJECT)
 {
     if (!instance) instance = c->instance;
+    static thread_local bool entered = false;
+    if (!entered) { entered = true; rexxThreadApartment(); }
     std::call_once(clrOnce, loadClr);
     if (!mRequest)
     {

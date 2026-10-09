@@ -22,8 +22,15 @@ call ok "static field (const)", .net~System~Math~PI~left(7), "3.14159"
 call ok "static property",      .net~System~Environment~NewLine == .endOfLine, 1
 -- a Rexx thread in .NET: a single-threaded apartment on Windows (GUI, common dialogs)
 apartment = .net~System~Threading~Thread~CurrentThread~GetApartmentState
-if .rexxInfo~platform~upper~abbrev("WIN") then call ok "the thread's apartment (Windows: STA)", apartment, "STA"
-else call ok "the thread's apartment (not Windows: Unknown)", apartment, "Unknown"
+started = .ApartmentProbe~new~start("get")~result
+if .rexxInfo~platform~upper~abbrev("WIN") then do
+  call ok "the thread's apartment (Windows: STA)", apartment, "STA"
+  call ok "... a thread made by START too", started, "STA"     -- (it read as MTA, the implicit MTA)
+end
+else do
+  call ok "the thread's apartment (not Windows: Unknown)", apartment, "Unknown"
+  call ok "... a thread made by START too", started, "Unknown"
+end
 
 -- instances, properties, identity
 sb = .net~System~Text~StringBuilder~new
@@ -258,3 +265,7 @@ syntax:
   forward class (super)
 ::method capacity
   return "mine"
+
+::class ApartmentProbe
+::method get
+  return .net~System~Threading~Thread~CurrentThread~GetApartmentState~string

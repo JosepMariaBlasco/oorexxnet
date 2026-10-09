@@ -55,7 +55,6 @@ public static unsafe class Bridge
     public static byte* Request(nint threadContext, byte* req, int len, int* outLen)
     {
         byte[] answer;
-        if (!entered) Enter();
         var rexx = RexxInterpreter.ForContext(threadContext);
         rexx.PushFrame(threadContext);
         depth++;
@@ -65,28 +64,6 @@ public static unsafe class Bridge
         answer.CopyTo(new Span<byte>(p, answer.Length));
         *outLen = answer.Length;
         return p;
-    }
-
-    // A Rexx thread's first request. On Windows the thread becomes a
-    // single-threaded apartment (STA), as a GUI thread must be (common
-    // dialogs, the clipboard, drag and drop: Windows Forms' OLE features
-    // throw on an MTA thread) and as PowerShell's threads are by default;
-    // left as it is when COM was already initialized on it (by ooRexx's OLE
-    // support, say), or with REXXNET_APARTMENT=MTA.
-    [ThreadStatic] static bool entered;
-
-    static void Enter()
-    {
-        entered = true;
-        if (!OperatingSystem.IsWindows()) return;
-        if (string.Equals(Environment.GetEnvironmentVariable("REXXNET_APARTMENT"), "MTA", StringComparison.OrdinalIgnoreCase)) return;
-        try
-        {
-            var t = System.Threading.Thread.CurrentThread;
-            if (t.GetApartmentState() == System.Threading.ApartmentState.Unknown)
-                t.TrySetApartmentState(System.Threading.ApartmentState.STA);
-        }
-        catch (Exception e) when (e is InvalidOperationException or System.Threading.ThreadStateException) { }
     }
 
     // Rexx -> .NET requests running on this thread: 0 means no Rexx code

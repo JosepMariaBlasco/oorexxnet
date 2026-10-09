@@ -850,17 +850,20 @@ with `Microsoft.NETCore.App` alone cannot run:
   core library's directory only; now in every framework the runtime was
   started with, from its trusted platform assemblies (only those under
   dotnet's `shared/`, not a host application's own).
-- **STA threads.** On Windows a Rexx thread becomes a single-threaded
-  apartment at its first request to .NET (`TrySetApartmentState`, only
-  while COM is not yet initialized on it; for the thread that starts .NET,
-  `rexxnet` calls `CoInitializeEx` before the runtime starts, as the
-  runtime makes its starting thread MTA — the first run on Windows found
-  it): common dialogs, the clipboard
-  and drag and drop throw on an MTA thread, as .NET's GUI applications
-  (`[STAThread]`) and PowerShell's threads are STA by default.
-  `REXXNET_APARTMENT=MTA` leaves the thread alone. In host mode the .NET
-  application decides, as for any of its threads. Test: phase 1, "the
-  thread's apartment". (Related: the GUI-thread class still to design.)
+- **STA threads.** On Windows every Rexx thread becomes a single-threaded
+  apartment at its first request to .NET: `rexxnet` calls `CoInitializeEx`
+  (STA) on it, before the runtime starts for the thread that starts it (the
+  runtime would make it MTA), and does nothing where COM is already
+  initialized. Common dialogs, the clipboard and drag and drop need it (on
+  an MTA thread a `SaveFileDialog` hung: CLR.CLS's 12-savefile), as .NET's
+  GUI applications (`[STAThread]`) and PowerShell's threads are STA by
+  default. Not done on the managed side: a thread with no COM yet reads
+  there as MTA already (the process's implicit MTA), so
+  `TrySetApartmentState` was never tried. `REXXNET_APARTMENT=MTA` leaves
+  the threads alone. In host mode the .NET application's own threads keep
+  their apartment (already initialized). Tests: phase 1, "the thread's
+  apartment" (the main thread and one made by `START`). (Related: the
+  GUI-thread class still to design.)
 - **Assemblies by name, locally.** `.net~load(name)` (and CLR.CLS's
   `clr.addAssembly`) looks for `name.dll` in the current directory, then
   next to the bridge, when the runtime does not know the name: what was in
