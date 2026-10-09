@@ -59,7 +59,7 @@ btype~Shared += .net~handler(t, "ONSHARED")
 btype~RaiseShared
 call ok "static event",         t~shared, 1
 call ok "a NetEvent",           b~Click~makeString, "a NetEvent (Click of a NetObject (RexxNetTests.Button #" || b~netId || "))"
-.local~b = b
+.local~b = b; .local~h = h
 call err "= on an event",       ".b~Click = 5", "is an event: use o~Click += handler"
 call err "another object's event", ".b~Click = .net~RexxNetTests~Button~new~Click", "an event changes only with += and -="
 call err "event with arguments", "x = .b~Click(1)", "is not a method"
@@ -67,6 +67,23 @@ call err "+= a string",         ".b~Click += 'x'", "cannot use x as a System.Eve
 call err "a ref event",         ".b~WithRef += .net~handler(.t, 'ADD')", "ref, out, pointer or span parameters"
 b~Click -= h
 call ok "-= the last one",      b~ClickSubscribers, 0
+-- addHandler / removeHandler, and .NET's accessor names
+.net~addHandler(b, "Click", h)
+call ok ".net~addHandler",      b~ClickSubscribers, 1
+.net~removeHandler(b, "click", h)
+call ok ".net~removeHandler",   b~ClickSubscribers, 0
+b~add_Click(h); b~add_Click(h)
+call ok "o~add_Click(h)",       b~ClickSubscribers, 2
+b~remove_Click(h)
+call ok "o~remove_Click(h)",    b~ClickSubscribers, 1
+.net~invoke(b, "remove_Click", h)
+call ok ".net~invoke(o, 'remove_Click', h)", b~ClickSubscribers, 0
+btype~add_Shared(.net~handler(t, "ONSHARED"))
+btype~RaiseShared
+call ok "static: t~add_Shared(h)", t~shared, 3
+call ok "a method named add_X wins", b~add_Thing(1), "method"
+call err "addHandler: not an event", ".net~addHandler(.b, 'ClickSubscribers', .h)", "is not an event"
+call err "add_X: not an event",  ".b~add_Nothing(.h)", "no public"
 
 -- other threads
 c0 = t~clicks

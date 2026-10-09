@@ -52,7 +52,10 @@
  * A Rexx string goes as the type of the parameter it is for ("007" stays
  * "007" for a string, is 7 for an int); .net~int16(x) ... .net~decimal(x),
  * .net~bool(x), .net~char(x), .net~string(x), .net~as(x, type) and .net~null
- * force a type; a Rexx Array goes as an array or List (a copy); any other
+ * force a type; .net~box(type, x) makes a .NET object holding x as type (a
+ * .NetObject: CLR.CLS's names "INT16", "BOolean", "STring"... work too) and
+ * .net~unbox(o) gives its Rexx value back; a Rexx Array goes as an array or
+ * List (a copy); any other
  * Rexx object (a Directory, a Stem, an instance of a Rexx class...) goes by
  * reference, a Rexx.Net.RexxObject that .NET can keep and send messages to,
  * and comes back as itself. A .NET exception is SYNTAX 98.900 ".NET error:
@@ -68,6 +71,8 @@
  *    list~Sort(.net~handler(self, "COMPARE"))       -- a Comparison<T>
  *    button~Click += .net~handler(self, "CLICKED")  -- an event
  *    button~Click -= .net~handler...                -- the same handler object
+ *    .net~addHandler(button, "Click", h)            -- the same, as a call
+ *    button~add_Click(h); button~remove_Click(h)    -- the same, .NET's accessors
  *    ::method clicked
  *      use arg sender, e                            -- the delegate's arguments
  *
@@ -353,6 +358,31 @@ syntax: raise propagate
 ::method ref unguarded               -- .net~ref([value]): a .NetRef, for ref / out parameters
   use strict arg value = .nil
   return .NetRef~new(value)
+::method box unguarded               -- .net~box(type, value): a .NET object (a .NetObject) holding value as type
+  signal on syntax
+  use strict arg type, value
+  return NetRequest("box", type, value)
+syntax: raise propagate
+::method unbox unguarded             -- .net~unbox(o): a boxed primitive, string or enum as a Rexx string; else o
+  signal on syntax
+  use strict arg o
+  if \o~isA(.NetObject) then return o
+  call NetRequest "unbox", o
+  if var("RESULT") then return result
+  return o
+syntax: raise propagate
+::method addHandler unguarded        -- .net~addHandler(o, "Click", handler): o~Click += handler
+  signal on syntax
+  use strict arg o, name, handler
+  call NetRequest "event", o, name, "add", handler
+  return
+syntax: raise propagate
+::method removeHandler unguarded     -- .net~removeHandler(o, "Click", handler): o~Click -= handler
+  signal on syntax
+  use strict arg o, name, handler
+  call NetRequest "event", o, name, "remove", handler
+  return
+syntax: raise propagate
 ::method as unguarded                -- .net~as(x, type or "type name")
   use strict arg x, type
   if type~isA(.NetType) then return .NetTyped~new("#"type~netId, x)

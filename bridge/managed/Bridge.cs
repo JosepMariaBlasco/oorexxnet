@@ -171,6 +171,8 @@ public static unsafe class Bridge
             case "pairs": Collections.Pairs(Handles.Get(r[1].Id), w); break;
             case "index": Collections.Index(Handles.Get(r[1].Id), r[2].Items, w); break;
             case "setIndex": Collections.SetIndex(Handles.Get(r[1].Id), r[2], r[3].Items); w.Add('V', ""); break;
+            case "box": Box(r[1], r[2], w); break;
+            case "unbox": Unbox(r[1], w); break;
             case "arrayAt": Collections.ArrayAt(ArrayOf(r[1]), r[2].Items, w); break;
             case "arrayPut": Collections.ArrayPut(ArrayOf(r[1]), r[2], int.Parse(r[3].Text), r[4].Items); w.Add('V', ""); break;
             case "arrayDim": Collections.ArrayDimension(ArrayOf(r[1]), r[2].Items, w); break;
@@ -232,6 +234,12 @@ public static unsafe class Bridge
         if (t.ContainsGenericParameters && isStatic)
             throw new BridgeException($"{Types.Display(t)} is an open generic type: give its type arguments, " +
                                       "e.g. .net~type(\"System.Collections.Generic.List<int>\")");
+        if (given == null && args.Count == 1 && Accessor(t, isStatic, name, exact) is (string op, string ev))
+        {                                                   // o~add_Click(h), o~remove_Click(h): .NET's accessors
+            Event(target, ev, op, args[0], exact);
+            w.Add('V', "");
+            return;
+        }
         var set = Members_(t, isStatic, name, exact);
         if (args.Count == 0 && given == null)
         {
@@ -333,15 +341,72 @@ public static unsafe class Bridge
 
     // o~Name += value, o~Name -= value: value converted to the event's
     // delegate type (a .NetHandler gives its cached delegate of that type).
-    static void Event(Rec target, string name, string op, Rec value)
+    static void Event(Rec target, string name, string op, Rec value, bool exact = false)
     {
         var (t, isStatic, inst) = Target(target);
-        var set = Members_(t, isStatic, name, false);
+        var set = Members_(t, isStatic, name, exact);
         var ev = set.Event ?? throw new BridgeException($"{set.Name} of {Types.Display(t)} is not an event");
         var ht = ev.EventHandlerType!;
         if (Conv.TryConvert(value, ht, out var d) == Conv.Fail || d is not Delegate del)
             throw new BridgeException($"cannot use {Conv.Describe(value)} as a {Types.Display(ht)} for the event {set.Name}");
         if (op == "add") ev.AddEventHandler(inst, del); else ev.RemoveEventHandler(inst, del);
+    }
+
+    // add_Name / remove_Name, when Name is an event and no member has the
+    // accessor's own name: ("add" or "remove", the event's name).
+    static (string, string)? Accessor(Type t, bool isStatic, string name, bool exact)
+    {
+        var cmp = exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        string op = name.StartsWith("add_", cmp) ? "add" : name.StartsWith("remove_", cmp) ? "remove" : "";
+        if (op == "") return null;
+        var ev = name.Substring(op.Length + 1);
+        if (ev.Length == 0 || Members.Find(t, isStatic, name, exact) != null) return null;
+        return Members.Find(t, isStatic, ev, exact)?.Event != null ? (op, ev) : null;
+    }
+
+    // ----------------------------------------------------------- box / unbox
+
+    // CLR.CLS's type indicators (clr.box), and its long names, which may be
+    // shortened down to their capitals ("STring", "BOolean", "CHAR"acter).
+    static readonly (string Name, int Min, Type Type)[] clrNames =
+    {
+        ("Boolean", 2, typeof(bool)), ("Byte", 2, typeof(byte)), ("Character", 4, typeof(char)),
+        ("Decimal", 2, typeof(decimal)), ("Double", 2, typeof(double)), ("Int16", 5, typeof(short)),
+        ("UInt16", 6, typeof(ushort)), ("Int32", 5, typeof(int)), ("UInt32", 6, typeof(uint)),
+        ("Int64", 5, typeof(long)), ("UInt64", 6, typeof(ulong)), ("SByte", 2, typeof(sbyte)),
+        ("Single", 2, typeof(float)), ("String", 2, typeof(string)),
+    };
+
+    static Type BoxType(Rec r)
+    {
+        if (r.Tag != 'S') return TypeOf(r);
+        var n = r.Text.Trim();
+        foreach (var (name, min, type) in clrNames)
+            if (n.Length >= min && n.Length <= name.Length && name.StartsWith(n, StringComparison.OrdinalIgnoreCase)) return type;
+        return Types.Parse(n);
+    }
+
+    // .net~box(type, value): a .NET object holding value as that type, by
+    // reference (a .NetObject, where a Rexx string would go as the type of
+    // the parameter it meets).
+    static void Box(Rec type, Rec value, Writer w)
+    {
+        var t = BoxType(type);
+        if (t.ContainsGenericParameters || t == typeof(void))
+            throw new BridgeException($".net~box: cannot make a {Types.Display(t)}");
+        if (Conv.TryConvert(value, t, out var v) == Conv.Fail)
+            throw new BridgeException($".net~box: \"{Conv.Describe(value)}\" cannot be a {Types.Display(t)}");
+        if (v == null) { w.Add('N', ""); return; }
+        Conv.AddObject(w, v);
+    }
+
+    // .net~unbox(o): the Rexx value of a boxed primitive, string or enum;
+    // nothing (o itself, says net.cls) for any other object.
+    static void Unbox(Rec r, Writer w)
+    {
+        var o = r.Tag == 'O' ? Handles.Get(r.Id) : null;
+        if (o is string || o is Enum || (o != null && (o.GetType().IsPrimitive || o is decimal))) Conv.ToRexx(w, o);
+        else w.Add('V', "");
     }
 
     static bool Has(Rec target, string name)

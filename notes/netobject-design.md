@@ -62,9 +62,11 @@ the root of the namespaces, plus the bridge's helpers.
 | `.net~new(type, args...)` | `new` (also `type~new(args...)`) |
 | `.net~int16(x)`, `~int32`, `~int64`, `~byte`, `~sbyte`, `~uint16`…, `~single`, `~double`, `~decimal`, `~bool`, `~char`, `~string`, `~null` | force a type (`.NetTyped`) |
 | `.net~as(x, type)` | force any type (an enum, a nullable, an interface) |
+| `.net~box(type, x)`, `.net~unbox(o)` | a real .NET object holding x as type (a `.NetObject`; CLR.CLS's names too); its Rexx value back |
 | `.net~ref([value])` | a `.NetRef`, for `ref` / `out` parameters |
 | `.net~bytes(string)`, `.net~byteString(o)` | Rexx string ↔ `byte[]` |
 | `.net~handler(obj, msg [, options])` | a Rexx method as a delegate or event handler (see Callbacks) |
+| `.net~addHandler(o, "Click", h)`, `.net~removeHandler(...)` | `o~Click += h`, `o~Click -= h` as calls (also `o~add_Click(h)`, `o~remove_Click(h)`) |
 | `.net~nextEvent([s])`, `~eventLoop`, `~stopEventLoop` | the queued model, as `.js` |
 | `.net~invoke(o, "Name", args...)`, `.net~get(o, "Name")`, `.net~set(o, "Name", v)` | exact member, no guessing |
 | `.net~typeOf(o)`, `.net~typeObject(o)`, `.net~isInstance(o, type)`, `.net~members(o)` | introspection |
@@ -620,4 +622,41 @@ Settled while building:
   in `.environment`): `a~class~id` is `NETARRAY`.
 - `o[i]` on a `.NetObject` that holds an array (it cannot be made one now,
   but the managed side does not rely on that) also counts from 1.
+
+## box / unbox, addHandler / removeHandler: built (09/10/2026)
+
+`tests/phase1.rex` 108 (was 93: box / unbox), `tests/phase3.rex` 77 (was 68:
+the event forms); everything else unchanged and passing on .NET 10 and .NET
+8. Changes: `Bridge.cs`, `rexx/net.cls`, `TestLib/Phase3.cs`.
+
+**`.net~box(type, x)`** makes a real .NET object holding x converted to
+type, and gives it as a `.NetObject`, by reference. Where `.net~int16(x)`
+only marks an argument (the conversion happens at the call), a box *is* the
+.NET value: it goes to .NET as itself (`object` parameters see an `Int16`,
+an overload tie is settled), it can be kept, put in a collection, compared.
+A .NET method that returns it gives a Rexx string again, as any boxed
+primitive. The type is a `.NetType`, any name `.net~type` takes (`"short"`,
+`"System.UInt32"`, an enum, a struct whose conversion exists), or one of
+CLR.CLS's (`clr.box`): the indicators `BO BY CHAR DE DO INT16 UINT16 INT32
+UINT32 INT64 UINT64 SB SI ST` and the long names `Boolean Byte Character
+Decimal Double Int16 UInt16 Int32 UInt32 Int64 UInt64 SByte Single String`,
+caseless, shortened down to their capitals (`STring`, `BOolean`, `CHAR`).
+CLR.CLS's names are tried first; none of them is also a C# alias for
+another type. `.net~box(type, .nil)` is `.nil` for a reference type (as
+`clr.box`); a value that does not fit is an error ("`300` cannot be a
+`System.Byte`").
+
+**`.net~unbox(o)`**: a boxed primitive, `decimal`, string or enum held by a
+`.NetObject` gives its Rexx value (an enum: its name, as everywhere for
+now); anything else, a `.NetObject` of another kind or a Rexx object, comes
+back unchanged (as `clr.unbox`).
+
+**Events.** Besides `o~Click += h` / `-= h`: `.net~addHandler(o, "Click",
+h)` and `.net~removeHandler(o, "Click", h)` (the name caseless), and .NET's
+own accessor names, `o~add_Click(h)` and `o~remove_Click(h)` (also on a
+type for a static event, `t~add_Shared(h)`, and exact through
+`.net~invoke(o, "add_Click", h)`). An accessor name is taken as such only
+when the type has an event of that name and no ordinary member with the
+accessor's own name (a method called `add_Thing` wins, tested); `h` is
+anything `+=` takes (a `.NetHandler`, or a delegate).
 

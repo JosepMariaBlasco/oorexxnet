@@ -26,6 +26,9 @@ public class Button
     public event RefDelegate? WithRef;
 
     public int ClickSubscribers => Click?.GetInvocationList().Length ?? 0;
+    public event EventHandler? Thing;
+    public string add_Thing(object x) => "method";              // a method with an accessor's name
+    public void RaiseThing() => Thing?.Invoke(this, EventArgs.Empty);
 
     public void PerformClick() => Click?.Invoke(this, EventArgs.Empty);
     public void SetValue(int v) => ValueChanged?.Invoke(this, new ValueEventArgs(v));

@@ -80,6 +80,29 @@ call ok ".net~as type",         p~Kind(.net~as(7, .net~System~Byte)), "System.By
 call ok ".net~as name",         p~Kind(.net~as(7, "long")), "System.Int64"
 call ok ".net~null",            p~Kind(.net~null), "null"
 call ok "forced settles tie",   p~Ambig(.net~int64(1), 2), "long,int"
+-- box / unbox: a .NET object holding the value (CLR.CLS's names too)
+bx = .net~box("short", 5)
+call ok "box: a .NetObject",    bx~isA(.NetObject) .net~typeOf(bx), "1 System.Int16"
+call ok "box goes as itself",   p~Kind(bx), "System.Int16"
+call ok "box, settles tie",     p~Ambig(.net~box("long", 1), 2), "long,int"
+call ok "unbox",                .net~unbox(bx), 5
+call ok "unbox a Rexx string",  .net~unbox("abc"), "abc"
+sbx = .net~System~Text~StringBuilder~new
+call ok "unbox another object", .net~unbox(sbx) == sbx, 1
+call ok "box: a .NetType",      .net~typeOf(.net~box(.net~System~Byte, 7)), "System.Byte"
+call ok "box: a full name",     .net~typeOf(.net~box("System.UInt32", 7)), "System.UInt32"
+call ok "box: STring",          .net~typeOf(.net~box("STring", 7)), "System.String"
+call ok "box: CLR.CLS indicators", -
+   .net~typeOf(.net~box("BO", 1)) .net~typeOf(.net~box("SI", 1.5)) .net~typeOf(.net~box("SB", -1)) -
+   .net~typeOf(.net~box("de", 2.5)) .net~typeOf(.net~box("UINT64", 1)) .net~typeOf(.net~box("CHAR", "x")), -
+   "System.Boolean System.Single System.SByte System.Decimal System.UInt64 System.Char"
+call ok "box: long names, shortened", -
+   .net~typeOf(.net~box("Character", "x")) .net~typeOf(.net~box("bool", 0)) .net~typeOf(.net~box("Doub", 1)), -
+   "System.Char System.Boolean System.Double"
+call ok "box: an enum",         .net~unbox(.net~box(.net~System~DayOfWeek, "Monday")), "Monday"
+call ok "box: .nil as string",  .net~box("string", .nil) == .nil, 1
+call err "box: too short",      "x = .net~box('S', 1)", 'no .NET type "S"'
+call err "box: out of range",   "x = .net~box('byte', 300)", "cannot be a System.Byte"
 call err "ambiguous overload",  "x = .net~RexxNetTests~Probe~Ambig(1, 2)", "is ambiguous"
 call ok "object passed back",   p~Same(sb, sb), "same"
 call ok "static field set/get", p~Counter, 0
