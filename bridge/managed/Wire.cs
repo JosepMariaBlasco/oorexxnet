@@ -44,8 +44,8 @@ public sealed class Rec
     public List<Rec> Items = new();
     public Rec? Inner;                  // T, R: the value
     internal RexxObject? Adopted;       // X, G: its proxy, made once (overloads try a record many times)
-    internal bool? IsStringTable;       // X, G: asked once
-    internal IReadOnlyList<KeyValuePair<object?, object?>>? Pairs;   // X, G: a StringTable's, read once
+    internal bool? IsMap;               // X, G: a StringTable or a Directory? asked once
+    internal IReadOnlyList<KeyValuePair<object?, object?>>? Pairs;   // X, G: its entries, read once
 
     public int Id => int.Parse(Text);
     public override string ToString() => Tag + ":" + Text;

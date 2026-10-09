@@ -29,7 +29,7 @@ call ok "a handler's Rexx object",       bw~HandlerGives(.net~as(.net~handler(t,
 call ok "... on another thread",         bw~HandlerGivesElsewhere(.net~as(.net~handler(t, "MAKEDIR"), "System.Func<object>")), "Directory 5"
 call ok "98.900 round trip (guest)",     bw~CatchesBoom, "98.900 InvalidOperationException boom"
 
--- a StringTable to a .NET dictionary with string keys: a copy, values converted
+-- a StringTable or a Directory to a .NET dictionary with string keys: a copy, values converted
 st = .stringTable~new; st["b"] = 2; st["a"] = 1
 call ok "StringTable to Dictionary<string, int>", bw~Ints(st), "a=2,b=3"
 st2 = .stringTable~new; st2["x"] = "007"; st2["y"] = "hi"
@@ -47,8 +47,14 @@ call ok "a StringTable is still a RexxObject", bw~ClassOf(st), "StringTable"
 call ok "an empty StringTable",  bw~Ints(.stringTable~new), ""
 .local~stBad = .stringTable~new~~put("x", "k")
 call ok "a value that does not convert", message(".bw~Ints(.stBad)")~pos("accepts") > 0, 1
-.local~dirArg = .directory~new~~put(1, "a")
-call ok "a Directory: not (yet)", message(".bw~Ints(.dirArg)")~pos("accepts") > 0, 1
+dd = .directory~new; dd~name = 1; dd["Mixed"] = 2
+call ok "a Directory too (d~name: uppercase)", bw~Ints(dd), "Mixed=3,NAME=2"
+dm = .directory~new; dm["k"] = 1; dm~setMethod("CALC", "return 41"); dm~setMethod("UNKNOWN", "return 0")
+call ok "a Directory's setMethod entry: its result", bw~Ints(dm), "CALC=42,k=2"
+call ok "a Directory is still a RexxObject", bw~ClassOf(dd) bw~Which(dd), "Directory reference"
+call ok "a Directory subclass",  bw~Ints(.MyDir~new~~put(5, "q")), "q=6"
+.local~arrArg = .array~of(1)
+call ok "an Array is no dictionary", message(".bw~Ints(.arrArg)")~pos("accepts") > 0, 1
 
 -- a Rexx error in Rexx code that .NET called: raised here again, as it was
 .local~acct = .Account~new(10)
@@ -94,3 +100,5 @@ syntax:
 
 ::class Tester
 ::method makeDir; d = .directory~new; d~x = 5; return d
+
+::class MyDir subclass Directory      -- a Directory subclass (tests)

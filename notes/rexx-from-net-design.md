@@ -772,14 +772,14 @@ calls each way. `.net~type("Name")` costs ~18 µs (it searches the loaded
 assemblies each time: worth a cache, in the other direction's code).
 
 **Not done (later, if wanted):** Arrays to a `RexxObject` parameter as
-themselves; Directory → `Dictionary` (StringTable → `Dictionary`: built, see
-below); the NativeAOT / custom-host
+themselves; Directory → `Dictionary` (StringTable and Directory →
+`Dictionary`: built, see below); the NativeAOT / custom-host
 registration (see "One process, both ways"); a test with two instances whose
 handlers call back (item 8 is a correctness fix without its own test).
 
 ## StringTable → `Dictionary`: built (09/10/2026)
 
-A **StringTable** goes to .NET as a dictionary with string keys where one
+A **StringTable** (and, provisionally, a **Directory**: see below) goes to .NET as a dictionary with string keys where one
 is asked for: a parameter of type `Dictionary<string, T>`,
 `IDictionary<string, T>`, `IReadOnlyDictionary<string, T>` or the
 non-generic `IDictionary` gets **a new `Dictionary<string, T>`** with its
@@ -791,7 +791,7 @@ for `object`, a Rexx string is a `string` and any other Rexx object a
 `rexx.Run<Dictionary<string, int>>(...)` (and `RexxConvert.To`, `Send<T>`,
 `Call<T>`) turns a StringTable result into one.
 
-`tests/bothways.rex` 32 (was 20), `tests/HostTests` 189 (was 186);
+`tests/bothways.rex` 36 (was 20), `tests/HostTests` 190 (was 186);
 everything else unchanged and passing on .NET 10 and .NET 8; `smoke/` too.
 Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
 
@@ -809,12 +809,17 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
   makes that candidate fail, as any argument that does not convert: "no
   ... accepts (a StringTable (whose values do not all convert))". From a
   host: `InvalidCastException`.
-- **Only a StringTable.** A Directory, or any other Rexx object, is not a
-  dictionary (an error where only a dictionary fits; `InvalidCastException`
-  from a host). Whether a Directory should be copied too is open; adding it
-  would be one more class in the same check (`FromStringTable` /
-  `RexxConvert.To`), with the note that keys set with `d~name` are
-  uppercase.
+- **A Directory too, provisionally** (the same day: the open question
+  answered the convenient way, since Rexx code habitually uses Directories
+  as maps; to take out if the answer is no: `Conv.IsMap`). Its keys are as
+  stored: `d["Mixed"]` keeps its case, `d~name = v` stores `NAME`. Its
+  entries are its `supplier`'s, as ooRexx sees them: a `setMethod` entry
+  appears with its method's result (`CALC` → 42; the method runs), an
+  `UNKNOWN` method does not. Subclasses of either class count. A Directory
+  is still a `RexxObject` everywhere else (an overload taking one wins).
+- **Nothing else** is a dictionary: an Array, a Stem, a Table, an instance
+  of another class (an error where only a dictionary fits;
+  `InvalidCastException` from a host).
 - Not done: nested conversion (a StringTable whose values are
   StringTables, to `Dictionary<string, Dictionary<string, T>>`: the inner
   ones go as `RexxObject`s and fail to convert).

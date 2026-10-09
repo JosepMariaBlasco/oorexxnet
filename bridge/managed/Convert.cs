@@ -78,7 +78,7 @@ public static class Conv
                 return FromHandler(r, under ?? to, out value);
             case 'X':
             case 'G':
-                if (DictionaryOf(under ?? to) is Type vt) return FromStringTable(r, vt, out value);
+                if (DictionaryOf(under ?? to) is Type vt) return FromMap(r, vt, out value);
                 return FromRexx(r, under ?? to, out value);
         }
         return Fail;
@@ -241,22 +241,29 @@ public static class Conv
         return a[0] == typeof(string) ? a[1] : null;
     }
 
-    // A StringTable to a dictionary: a copy (a new Dictionary<string, T>, the
-    // values converted as for an argument of type T). Only a StringTable: a
-    // Directory, or any other Rexx object, goes by reference (a RexxObject).
-    static int FromStringTable(Rec r, Type vt, out object? value)
+    // A StringTable or a Directory to a dictionary: a copy (a new
+    // Dictionary<string, T>, the values converted as for an argument of type
+    // T). Any other Rexx object is no dictionary.
+    static int FromMap(Rec r, Type vt, out object? value)
     {
         value = null;
         var o = Adopt(r);
-        r.IsStringTable ??= o.Interpreter.FindClass("StringTable") is RexxClass st && o.Is(st);
-        if (r.IsStringTable != true) return Fail;
+        r.IsMap ??= IsMap(o);
+        if (r.IsMap != true) return Fail;
         r.Pairs ??= o.Supplier();
         try { value = DictionaryCopy(r.Pairs, vt); }
         catch (InvalidCastException) { return Fail; }
         return 20;
     }
 
-    // A new Dictionary<string, vt> with a StringTable's pairs, the values
+    // A StringTable or a Directory (or an instance of a subclass): what
+    // becomes a dictionary with string keys.
+    internal static bool IsMap(RexxObject o) =>
+        (o.Interpreter.FindClass("StringTable") is RexxClass st && o.Is(st)) ||
+        (o.Interpreter.FindClass("Directory") is RexxClass d && o.Is(d));
+
+    // A new Dictionary<string, vt> with a StringTable's or Directory's pairs
+    // (its supplier's: a Directory's setMethod entries with their results), the values
     // converted as Rexx results (InvalidCastException: one does not convert).
     internal static IDictionary DictionaryCopy(IReadOnlyList<KeyValuePair<object?, object?>> pairs, Type vt)
     {
@@ -367,7 +374,7 @@ public static class Conv
     {
         'S' => r.Text, 'N' => ".nil", 'O' => Types.Display(Handles.Get(r.Id) is StaticOf so ? so.Type : Handles.Get(r.Id).GetType()),
         'A' => "an Array", 'T' => r.Text + " " + Describe(r.Inner!), 'R' => "a NetRef", 'H' => "a NetHandler",
-        'X' or 'G' => r.IsStringTable == true ? "a StringTable (whose values do not all convert)" : "a Rexx object",
+        'X' or 'G' => r.IsMap == true ? "a StringTable or Directory (whose values do not all convert)" : "a Rexx object",
         _ => r.Tag.ToString(),
     };
 

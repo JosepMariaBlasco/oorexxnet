@@ -160,8 +160,8 @@ is converted to its parameter's type.
 - A `.NetObject` → the object; a `.NetTyped` → its forced type.
 - A Rexx `Array` → when the parameter is an array, `List<T>` or
   `IEnumerable<T>`: a new one, items converted (a copy); a `StringTable` →
-  `Dictionary<string, T>` likewise (built 09/10/2026: see below; a
-  `Directory`: open).
+  `Dictionary<string, T>` likewise, and a `Directory` too (built 09/10/2026:
+  see below).
 - A `.NetHandler` → a delegate of the parameter's type.
 - Any other Rexx object → a `RexxObject` (the .NET side's proxy for Rexx
   objects, `dynamic`: decision 7), so .NET can keep and use it. *(Built in
@@ -177,9 +177,10 @@ is converted to its parameter's type.
   Directory → always a `RexxObject`. **Open**: a
   Directory to a parameter that requires a dictionary — a conversion error,
   or a copy for convenience (people habitually use Directories)? **Δ** from
-  `.JSObject`, which copies both to a plain object.)* **The StringTable part
-  is built** (09/10/2026; `rexx-from-net-design.md`, "StringTable →
-  `Dictionary`: built"); the Directory is still a `RexxObject`.
+  `.JSObject`, which copies both to a plain object.)* **Built** (09/10/2026;
+  `rexx-from-net-design.md`, "StringTable → `Dictionary`: built"): the
+  StringTable, and **the Directory too, provisionally** (the convenient
+  answer to the open question: easy to take out if the answer is no).
 
 **Δ** `.JSObject` sends every Rexx string as a string and asks for
 `.js~num()`; JavaScript has no parameter types to go by, .NET has them.
