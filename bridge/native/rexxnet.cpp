@@ -313,6 +313,18 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     return true;
 }
 
+// A message's arguments, as a record A: an omitted argument (o~m(, 2)) goes
+// as N, "not given" (COM: an optional parameter left out; .NET: null),
+// where an Array as a value refuses omitted items.
+static bool encodeArgs(RexxThreadContext *c, RexxArrayObject args, std::string &out, Refs *refs)
+{
+    std::string items;
+    size_t last = c->ArraySize(args);
+    for (size_t i = 1; i <= last; i++) if (!encode(c, c->ArrayAt(args, i), items, refs)) return false;
+    record(out, 'A', items);
+    return true;
+}
+
 static size_t parseRecord(const unsigned char *p, size_t len, size_t at, char &tag, std::string &payload)
 {
     tag = (char)p[at++];
@@ -519,7 +531,7 @@ RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
         record(req, 'S', n);
         record(req, 'S', "0");
         Refs refs;
-        if (!encode(c, args, req, &refs)) return NULLOBJECT;
+        if (!encodeArgs(c, args, req, &refs)) return NULLOBJECT;
         return request(c, req, &refs, context->GetSelf());
     }
     return request(c, req, nullptr, context->GetSelf());

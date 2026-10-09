@@ -28,6 +28,12 @@ stay true.
 They need the .NET Desktop Runtime (see the guide, "Which .NET on Windows").
 With the argument `auto` the interactive ones finish by themselves.
 
+## Office (`office/`, Windows with Office)
+
+Excel, Word and PowerPoint, each program written twice, with `.OLEObject`
+and through the bridge (`.net~createObject`): see `office/README.md`.
+`rexx samples\check-samples.rex [build-dir] office` runs them too.
+
 ## .NET running Rexx
 
 - `csharp/hello/` — a C# program using the NuGet package `Rexx.Net`: Rexx

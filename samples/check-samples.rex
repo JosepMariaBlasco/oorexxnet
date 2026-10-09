@@ -1,9 +1,10 @@
 /* check-samples.rex: runs every sample and reports which end with an error.
 
-       rexx samples/check-samples.rex [build-dir]
+       rexx samples/check-samples.rex [build-dir] [office]
 
    The samples in samples/rexx run on every platform; those in
-   samples/windows only on Windows. Each runs with the argument "auto", which
+   samples/windows only on Windows, and those in samples/office (Excel,
+   Word, PowerPoint: Office must be installed) when "office" is given. Each runs with the argument "auto", which
    makes the interactive ones (windows, dialogs) finish by themselves; a
    sample passes when its exit status is 0. The output is shown. build-dir:
    the bridge's build, as for docs/check-guide.rex. Linux, macOS and Windows. */
@@ -16,6 +17,9 @@ windows = platform~abbrev("WIN")
 mac = platform~pos("DARWIN") > 0 | platform~pos("MAC") > 0
 
 parse arg out
+office = .false                                             -- [build-dir] office: the Office samples too
+if out~words > 0 then office = out~word(out~words)~caselessEquals("office")
+if office then out = out~subWord(1, out~words - 1)
 out = out~strip~strip("B", '"')
 if out == "" then out = defaultBuild() || sep || "rexxnet"
 if \.file~new(out || sep || "Rexx.Net.dll")~exists then do
@@ -37,6 +41,7 @@ else libvar = "LD_LIBRARY_PATH='"out"' "
 
 dirs = .array~of("rexx")
 if windows then dirs~append("windows")
+if windows & office then dirs~append("office")              -- (Office must be installed)
 count = 0; fails = 0
 do d over dirs
   files = .array~new
