@@ -322,6 +322,7 @@ public static unsafe class Bridge
 
     // A message to a COM object; o~add_Name(h), o~remove_Name(h) and o~Name
     // (a .NetEvent, for +=) for its events (ComEvents.cs).
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     static void ComSend(Rec target, object o, string name, List<Rec> args, Writer w)
     {
         if (args.Count == 1)

@@ -25,6 +25,7 @@ static class Com
 {
     /// A COM object to reach through IDispatch: one with no interop type
     /// (objects of interop assemblies' types go through reflection).
+    [System.Runtime.Versioning.SupportedOSPlatformGuard("windows")]
     internal static bool Is(object? o) =>
         o != null && OperatingSystem.IsWindows() && Marshal.IsComObject(o) && o.GetType().FullName == "System.__ComObject";
 

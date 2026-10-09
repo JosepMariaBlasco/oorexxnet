@@ -37,6 +37,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using ComTypes = System.Runtime.InteropServices.ComTypes;
 
 namespace Rexx.Net;
@@ -81,7 +82,7 @@ interface IDispatchInfo
 
 /// The sink of one source interface of one COM object. Public for COM only.
 [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
-[EditorBrowsable(EditorBrowsableState.Never)]
+[EditorBrowsable(EditorBrowsableState.Never), SupportedOSPlatform("windows")]
 public sealed class ComEventSink : IComEventDispatch, ICustomQueryInterface
 {
     static readonly Guid IID_IDispatch = new("00020400-0000-0000-C000-000000000046");
@@ -170,6 +171,7 @@ static class ComEvents
 
     static readonly ConditionalWeakTable<object, State> states = new();
 
+    [SupportedOSPlatform("windows")]
     static State StateOf(object o)
     {
         lock (states)
@@ -181,13 +183,16 @@ static class ComEvents
     }
 
     /// The event called name (caselessly) of a COM object, or null.
+    [SupportedOSPlatform("windows")]
     internal static Info? Find(object o, string name) =>
         StateOf(o).Events!.TryGetValue(name, out var e) ? e : null;
 
     /// The names of a COM object's events, as its type library gives them.
+    [SupportedOSPlatform("windows")]
     internal static IEnumerable<string> Names(object o) => StateOf(o).Names;
 
     /// o~Name += h (op "add"), o~Name -= h (op "remove").
+    [SupportedOSPlatform("windows")]
     internal static void Change(object o, string name, string op, RexxHandler h)
     {
         var ev = Find(o, name) ?? throw new NoMemberException(name, $"the COM object has no event {name}");
@@ -221,6 +226,7 @@ static class ComEvents
     }
 
     /// Disconnects every sink of a COM object (.net~releaseObject).
+    [SupportedOSPlatform("windows")]
     internal static void Disconnect(object o)
     {
         lock (states)
@@ -231,6 +237,7 @@ static class ComEvents
         }
     }
 
+    [SupportedOSPlatform("windows")]
     static void Unadvise(ComEventSink sink)
     {
         try { sink.Point?.Unadvise(sink.Cookie); } catch (COMException) { }   // the server may be gone
@@ -244,6 +251,7 @@ static class ComEvents
     const int FUNCFLAG_FRESTRICTED = 1;
     const short TYPEFLAG_FDUAL = 0x40;
 
+    [SupportedOSPlatform("windows")]
     static void Load(object o, State s)
     {
         s.Events = new Dictionary<string, Info>(StringComparer.OrdinalIgnoreCase);
@@ -253,6 +261,7 @@ static class ComEvents
     }
 
     /// The source dispinterfaces of a COM object: (IID, type information).
+    [SupportedOSPlatform("windows")]
     static List<(Guid, ComTypes.ITypeInfo)> Sources(object o)
     {
         var list = new List<(Guid, ComTypes.ITypeInfo)>();
@@ -362,6 +371,7 @@ static class ComEvents
 
     /// An Invoke's arguments, in the event's order, and the VARIANT of each
     /// (where a ComRef's new value goes).
+    [SupportedOSPlatform("windows")]
     internal static (object?[], IntPtr[]) Arguments(IntPtr dispParams)
     {
         var dp = Marshal.PtrToStructure<ComTypes.DISPPARAMS>(dispParams);
@@ -404,6 +414,7 @@ static class ComEvents
     [DllImport("oleaut32.dll")] static extern int VariantClear(IntPtr v);
 
     /// A ComRef's new value into the VARIANT of a parameter passed by reference.
+    [SupportedOSPlatform("windows")]
     internal static void WriteBack(IntPtr slot, object? value)
     {
         ushort vt = (ushort)Marshal.ReadInt16(slot);
