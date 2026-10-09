@@ -9,4 +9,31 @@
     <AssemblyName>Rexx.Net</AssemblyName>
     <RootNamespace>Rexx.Net</RootNamespace>
   </PropertyGroup>
+  <!-- The NuGet package (bridge/pack.sh): this assembly, net.cls and CLR.CLS
+       inside it, and rexxnet for each platform given in RexxNetNatives
+       (<rid>/native/<file>, into runtimes/), for Rexx code using .net -->
+  <PropertyGroup>
+    <PackageId>Rexx.Net</PackageId>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <Authors>Josep Maria Blasco</Authors>
+    <Description>A bidirectional bridge between ooRexx and .NET: run Rexx code from any .NET application and use Rexx objects as .NET objects; with the native part for the platform, Rexx code uses .NET objects too (.net, net.cls). Needs an installed ooRexx 5.</Description>
+    <PackageTags>rexx;oorexx;scripting;interop;bridge</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/JosepMariaBlasco/oorexxnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/JosepMariaBlasco/oorexxnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../nuget/README.md" Pack="true" PackagePath="/" Condition="Exists('../nuget/README.md')" />
+    <None Include="$(RexxNetNatives)/**" Pack="true" PackagePath="runtimes/" Condition="'$(RexxNetNatives)' != ''" />
+  </ItemGroup>
+  <!-- net.cls and CLR.CLS, built in: a .NET application hosting ooRexx needs
+       no file for them (RexxInterpreter.SetUpNet) -->
+  <ItemGroup>
+    <EmbeddedResource Include="../rexx/net.cls" LogicalName="net.cls" />
+    <EmbeddedResource Include="../rexx/CLR.CLS" LogicalName="CLR.CLS" />
+  </ItemGroup>
 </Project>

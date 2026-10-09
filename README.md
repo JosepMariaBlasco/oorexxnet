@@ -54,10 +54,14 @@ both directions feature by feature, every example run and checked
     BSF4ooRexx's `CLR.CLS` run unchanged (see `notes/clr-compat.md`).
   - `build.sh`, `tests/run.sh` — build, and run every test suite (Windows:
     `build.ps1`, `tests/run.ps1`).
+  - `pack.sh` — the NuGet package `Rexx.Net` (`nuget/README.md` is its
+    page); `package-windows.ps1` — a zip of Windows binaries
+    (`dist/windows/`: its README and `check.rex`).
   - `tests/` — `phase1.rex`, `phase2.rex`, `phase3.rex` (ooRexx → .NET),
     `bothways.rex` (ooRexx as the host, .NET calling back), `clr.rex` (the
     `CLR.CLS` package), `HostTests/` (.NET → ooRexx); `clr-samples.sh` runs
     `CLR.CLS`'s own portable samples.
+- `samples/powershell/hello.ps1` — PowerShell 7 hosting ooRexx.
 - `smoke/` — the smallest possible proofs of each mechanism (`smoke/run.sh`,
   `smoke/hostapi/run.sh`).
 - `notes/` — the design: `netobject-design.md` (ooRexx → .NET),
@@ -118,6 +122,19 @@ From Rexx, `rexxnet.dll` is found through the `PATH`. The guide's examples:
 CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
 `bridge\tests\clr-samples-windows.ps1`, interactive. The smoke tests and
 `clr-samples.sh` are Linux and macOS only.
+
+## Packaging
+
+- **NuGet** (`bridge/pack.sh [--native RID=FILE ...] [DEST]`): the package
+  `Rexx.Net`, for .NET applications that run Rexx code. The assembly
+  carries `net.cls` and `CLR.CLS` inside it, so the Rexx code it runs can
+  `::requires "net.cls"` without any file; the native library `rexxnet`
+  (needed only for `.net` in that Rexx code) goes in `runtimes/<rid>/native/`
+  for this platform and for any other given (a `rexxnet.dll` from
+  `build.ps1`, say). An installed ooRexx 5 is a prerequisite.
+- **Windows binaries** (`powershell -ExecutionPolicy Bypass -File
+  bridge\package-windows.ps1`): a zip with everything a Rexx programmer
+  needs to try the bridge without building it.
 
 ## Related work
 

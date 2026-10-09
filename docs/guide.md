@@ -427,8 +427,12 @@ ABC 3
 
 ## 9. .NET → ooRexx
 
-A .NET program runs Rexx through `Rexx.Net.dll` (reference it from your
-project; it finds `librexx` itself). `RexxInterpreter.Create()` starts an
+A .NET program runs Rexx through `Rexx.Net.dll`: reference the NuGet
+package `Rexx.Net` (made by `bridge/pack.sh`) or the assembly from a build.
+It finds `librexx` itself; ooRexx 5 must be installed. The Rexx code it runs
+can use .NET too: `net.cls` and `CLR.CLS` are built into the assembly, so
+`::requires "net.cls"` needs no file, and the native library `rexxnet` comes
+with the package (or is found next to `Rexx.Net.dll`). `RexxInterpreter.Create()` starts an
 interpreter instance; `Run` runs Rexx code as a routine (`use arg`, `return`),
 `Run<T>` converts the result; `Compile` keeps a routine to call many times;
 `LoadPackage` / `FindClass` reach Rexx classes, whose objects are

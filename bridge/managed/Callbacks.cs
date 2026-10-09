@@ -51,6 +51,9 @@ public static unsafe class Callbacks
     static delegate* unmanaged<int, int, byte*, int, int*, byte*> native;   // rexxnet's callback
     static delegate* unmanaged<byte*, void> nativeFree;
 
+    /// rexxnet has handed its callback over (the bridge's native half is running).
+    internal static bool Started => native != null;
+
     internal static void Init(IntPtr callback, IntPtr free)
     {
         native = (delegate* unmanaged<int, int, byte*, int, int*, byte*>)callback;

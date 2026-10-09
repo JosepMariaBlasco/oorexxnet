@@ -321,6 +321,12 @@ internal readonly unsafe struct Ctx
             return ((delegate* unmanaged<nint, byte*, byte*, nuint, nint>)F(ThreadInterface.LoadPackageFromData))(P, pn, ps, (nuint)s.Length);
     }
 
+    public bool RegisterLibrary(string name, nint packageEntry)
+    {
+        var n = Native.Z(name);
+        fixed (byte* pn = n) return ((delegate* unmanaged<nint, byte*, nint, nint>)F(ThreadInterface.RegisterLibrary))(P, pn, packageEntry) != 0;
+    }
+
     public nint FindClass(string name)
     {
         var n = Native.Z(name);

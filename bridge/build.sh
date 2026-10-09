@@ -17,7 +17,7 @@ mkdir -p "$OUT"
 test -f "$REXX_INCLUDE/oorexxapi.h" || { echo "no oorexxapi.h in $REXX_INCLUDE (set REXX_HOME or REXX_INCLUDE)" >&2; exit 1; }
 test -f "$HOSTPK/nethost.h" || { echo "no .NET host pack (nethost.h) under $DOTNET_ROOT/packs (set DOTNET_ROOT)" >&2; exit 1; }
 rm -f "$OUT/Rexx.Net.dll"                 # a failed build must not leave the old one passing
-cp -r "$HERE/managed" "$WORK/managed"
+cp -r "$HERE/managed" "$HERE/rexx" "$WORK/"          # (rexx: net.cls and CLR.CLS are built into Rexx.Net)
 "$DOTNET" build "$WORK/managed" -c Release -o "$OUT" -nologo -v q 2>&1 | grep -E "error|warning CS" || true
 test -f "$OUT/Rexx.Net.dll"
 native_lib "$OUT/librexxnet.$SOEXT" "$HERE/native/rexxnet.cpp"

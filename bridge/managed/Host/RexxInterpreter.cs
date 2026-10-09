@@ -44,6 +44,11 @@ public sealed class RexxOptions
     public System.IO.TextWriter? Output { get; set; }
     public System.IO.TextWriter? Error { get; set; }
     public System.IO.TextReader? Input { get; set; }
+    /// Rexx code may use .NET from the start: net.cls and CLR.CLS (built into
+    /// Rexx.Net) and the native library rexxnet are registered with ooRexx
+    /// when the instance is created, so ::requires "net.cls" needs no file.
+    /// False: only when a .NET object first goes to Rexx.
+    public bool Net { get; set; } = true;
 }
 
 /// An argument left out (arg(n, "O") is true in Rexx).
@@ -136,6 +141,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             r.stringClass = c.Global(sc);
             c.ReleaseLocal(sc);
             instances[ip] = r;
+            if (options?.Net ?? true) r.SetUpNet(c);
             if (options?.Output != null) r.Output = options.Output;
             if (options?.Error != null) r.Error = options.Error;
             if (options?.Input != null) r.Input = options.Input;

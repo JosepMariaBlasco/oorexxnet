@@ -196,6 +196,7 @@ public sealed unsafe partial class RexxInterpreter
     void EnsureNet(Ctx c)
     {
         if (Bridge.NetObjectClass != 0) return;
+        SetUpNet(c);
         lock (netGate)
         {
             if (Bridge.NetObjectClass != 0) return;
@@ -223,6 +224,85 @@ public sealed unsafe partial class RexxInterpreter
             c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4); c.ReleaseLocal(pkg);
         }
     }
+
+    // ------------------------------------------------------ .net from the start
+
+    static bool netSetUp;
+    static readonly List<nint> builtIn = new();          // net.cls and CLR.CLS: global references
+
+    /// Host mode, once per process (RexxOptions.Net, or the first .NET object
+    /// going to Rexx): the native half, rexxnet, is looked for as the
+    /// application's own native library (a NuGet package's
+    /// runtimes/<rid>/native), then in REXXNET_DIR or next to Rexx.Net.dll;
+    /// it gets the managed entry points directly (RexxNetRegister: no hostfxr,
+    /// no runtimeconfig), and ooRexx gets it as the library "rexxnet"
+    /// (RegisterLibrary: no search). net.cls and CLR.CLS, built into this
+    /// assembly, are then loaded under their names (LoadPackageFromData), so
+    /// that ::requires "net.cls" finds them without a file, ahead of any copy
+    /// on disk (ooRexx looks for a loaded name first). Nothing is done when
+    /// rexxnet is running already (ooRexx is the host, or Rexx code got there
+    /// first): net.cls is then the one Rexx found. Without rexxnet, nothing
+    /// either: .NET objects cannot go to Rexx (EnsureNet says so).
+    void SetUpNet(Ctx c)
+    {
+        lock (netGate)
+        {
+            if (netSetUp) return;
+            netSetUp = true;
+            if (Callbacks.Started || Bridge.NetObjectClass != 0) return;
+            nint lib = LoadRexxNet();
+            if (lib == 0 ||
+                !NativeLibrary.TryGetExport(lib, "RexxNetRegister", out nint register) ||
+                !NativeLibrary.TryGetExport(lib, "RexxGetPackage", out nint getPackage)) return;
+            ((delegate* unmanaged<nint, nint, nint, nint, nint, void>)register)(
+                (nint)(delegate* unmanaged<nint, byte*, int, int*, byte*>)&Bridge.Request,
+                (nint)(delegate* unmanaged<byte*, void>)&Bridge.Free,
+                (nint)(delegate* unmanaged<int, void>)&Bridge.Release,
+                (nint)(delegate* unmanaged<nint, nint, void>)&Bridge.Init,
+                (nint)(delegate* unmanaged<nint, nint, nint, nint, void>)&Bridge.Classes);
+            if (!Callbacks.Started) return;          // rexxnet had started a runtime of its own first
+            c.RegisterLibrary("rexxnet", ((delegate* unmanaged<nint>)getPackage)());
+            nint net = 0;
+            foreach (var name in new[] { "net.cls", "CLR.CLS" })
+            {
+                using var s = typeof(Bridge).Assembly.GetManifestResourceStream(name);
+                if (s == null) continue;
+                nint p = c.LoadPackageFromData(name, new StreamReader(s).ReadToEnd());
+                if (c.CheckCondition())
+                {
+                    var e = RexxException.FromPending(this, c);           // (cleared)
+                    if (p != 0) c.ReleaseLocal(p);
+                    throw new InvalidOperationException($"the built-in {name} could not be loaded: {e.Message}", e);
+                }
+                if (p == 0) continue;
+                // kept for the process: ooRexx forgets a package loaded from
+                // data when nothing refers to it (a collection, as when another
+                // instance terminates), and ::requires would then look for a file
+                builtIn.Add(c.Global(p));
+                if (name == "net.cls") net = p; else c.ReleaseLocal(p);
+            }
+            if (net == 0) return;
+            nint k1 = c.FindPackageClass(net, "NETOBJECT"), k2 = c.FindPackageClass(net, "NETTYPE"),
+                 k3 = c.FindPackageClass(net, "NETARRAY"), k4 = c.FindPackageClass(net, "NETENUM");
+            if (k1 != 0 && k2 != 0 && k3 != 0 && k4 != 0)
+                Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4));
+            c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4); c.ReleaseLocal(net);
+        }
+    }
+
+    /// rexxnet, loaded: as the application's native library, else from
+    /// BridgeDirectory(); 0 if not found.
+    static nint LoadRexxNet()
+    {
+        if (NativeLibrary.TryLoad("rexxnet", typeof(Bridge).Assembly, null, out nint h)) return h;
+        string? dir = BridgeDirectory();
+        if (dir == null) return 0;
+        string path = Path.Combine(dir, NativeName);
+        return File.Exists(path) && NativeLibrary.TryLoad(path, out h) ? h : 0;
+    }
+
+    static string NativeName =>
+        OperatingSystem.IsWindows() ? "rexxnet.dll" : OperatingSystem.IsMacOS() ? "librexxnet.dylib" : "librexxnet.so";
 
     static string? BridgeDirectory()
     {

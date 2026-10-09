@@ -61,6 +61,7 @@ try {
     $dll = Join-Path $Out 'Rexx.Net.dll'
     if (Test-Path $dll) { Remove-Item $dll }      # a failed build must not leave the old one passing
     Copy-Item -Recurse (Join-Path $here 'managed') (Join-Path $work 'managed') -ErrorAction Stop
+    Copy-Item -Recurse (Join-Path $here 'rexx') (Join-Path $work 'rexx') -ErrorAction Stop   # (built into Rexx.Net)
     & $dotnet build (Join-Path $work 'managed') -c Release -o $Out -nologo -v q
     if ($LASTEXITCODE -or -not (Test-Path $dll)) { throw 'the managed build failed' }
 

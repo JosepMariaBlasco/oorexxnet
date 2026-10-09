@@ -308,7 +308,9 @@ Rexx objects sends Rexx `==` (open point 6).
 
 - **NuGet `Rexx.Net`**: one managed assembly (the hosting API + the managed
   half of `.net`). Target `net8.0`, runs on later runtimes. Prerequisite: an
-  installed ooRexx 5.
+  installed ooRexx 5. **Δ** It also carries `rexxnet` for each platform
+  it was packed with, and `net.cls` / `CLR.CLS` inside the assembly (see
+  "Phase D: built").
 - **The ooRexx extension package** (`net.cls`, `rexxnet`, `Rexx.Net.dll` +
   runtimeconfig) ships the same assembly. A .NET application that hosts Rexx
   and uses `.net` needs only its NuGet reference plus `rexxnet` and `net.cls`
@@ -341,8 +343,8 @@ Rexx objects sends Rexx `==` (open point 6).
   their objects, Rexx objects passed from Rexx to .NET methods as
   `RexxObject` (`rexxnet` gives the managed side its thread context with each
   request, and the instance when the CLR starts), the 98.900 round trip.
-- **D. Packaging and Windows**: NuGet, `librexx` lookup on Windows, a
-  PowerShell sample.
+- **D. Packaging and Windows** *(built: see "Phase D: built")*: NuGet,
+  `librexx` lookup on Windows, a PowerShell sample.
 
 ## Verified (08/10/2026, `smoke/hostapi/`, ooRexx 5.3.0 r13254, .NET 8)
 
@@ -831,4 +833,86 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
 - Not done: nested conversion (a StringTable whose values are
   StringTables, to `Dictionary<string, Dictionary<string, T>>`: the inner
   ones go as `RexxObject`s and fail to convert).
+
+## Phase D: built (09/10/2026)
+
+**The NuGet package `Rexx.Net`** (`bridge/pack.sh`; metadata in
+`managed/Rexx.Net.csproj`, its page `bridge/nuget/README.md`):
+`lib/net8.0/Rexx.Net.dll` (with its `.snupkg`), and
+`runtimes/<rid>/native/` with `rexxnet` for this platform (built by the
+script) and for any other given (`--native win-x64=rexxnet.dll`). Version
+`0.1.0-preview.<date>` unless `--version`. Not published: it is a local
+`.nupkg` until there is a decision to publish it. Tested here from a local
+feed: a new console application with a `PackageReference`, run as built
+(`runtimes/linux-x64/native/`) and published for `linux-x64` (the library
+next to the application), with no `REXXNET_DIR` and no `REXX_PATH`.
+
+**Δ Not managed only.** The plan was a managed-only package, with `rexxnet`
+and `net.cls` to be installed "where ooRexx finds them" for Rexx code that
+uses `.net`. That is what a package should spare its users, so:
+
+- **`net.cls` and `CLR.CLS` are built into the assembly** (embedded
+  resources). At an instance's creation (`RexxOptions.Net`, true by default;
+  false: when a .NET object first goes to Rexx), once per process, they are
+  loaded under their names with `LoadPackageFromData`. ooRexx looks for a
+  loaded name before searching the disk (verified: a package loaded from
+  data as `x.cls` satisfies a later `::requires "x.cls"` from any file, and
+  wins over an `x.cls` in the current directory; a package loaded by path
+  does not satisfy a `::requires` by name). So `::requires "net.cls"` needs
+  no file, and the copy used is the one that matches the assembly. Cost:
+  ~10 ms, the first instance only.
+- **ooRexx forgets a package loaded from data when nothing refers to it**:
+  after another instance terminated (its end runs a collection), `::requires
+  CLR.CLS` looked for a file again (`net.cls` survived: the bridge keeps
+  global references to its classes). The bridge now keeps a global
+  reference to both packages for the process. (ooRexx behaviour, perhaps
+  intended for packages that can be loaded again from a file; one loaded
+  from data cannot be.)
+- **`rexxnet` gets the managed entry points directly.** New export
+  `RexxNetRegister(request, free, release, init, classes)`: the managed side,
+  already running, hands over `Bridge.Request` and the rest, so `rexxnet`
+  does not look for the runtime through `hostfxr` (which needed
+  `Rexx.Net.runtimeconfig.json` next to the library: in a package the
+  library lives in `runtimes/<rid>/native/`, apart from the assembly). It
+  also makes NativeAOT-style hosts possible (the registration designed under
+  "One process, both ways"). If `rexxnet` started a runtime first (ooRexx as
+  the host, or Rexx code got there before), it changes nothing.
+- **`rexxnet` is registered with ooRexx** as the library `rexxnet`
+  (`RegisterLibrary`, with the table from its `RexxGetPackage`): `net.cls`'s
+  `::requires "rexxnet" LIBRARY` needs no library search path.
+- **Where `rexxnet` is looked for**: as the application's own native library
+  (`NativeLibrary.TryLoad("rexxnet", assembly)`: the package's
+  `runtimes/<rid>/native/` through the application's `deps.json`), then
+  `REXXNET_DIR`, then next to `Rexx.Net.dll`. Not found: everything works
+  except `.net` (a .NET object going to Rexx says so, as before).
+- **Guest mode unchanged**: in `rexx prog.rex`, `rexxnet` starts the runtime
+  and `net.cls` is the one Rexx found on disk; an instance created from .NET
+  there does not load the built-in copies (two `NetObject` classes would
+  follow).
+
+`tests/HostTests` 196 (was 190: `PhaseD.cs`, the built-in packages' names,
+a program file's `::requires` from a temporary directory, another
+instance's end, `Net = false` afterwards); every other suite, the guide,
+`clr-samples.sh` and `smoke/` unchanged and passing on Linux, .NET 10.
+
+**A name's case.** The built-in packages are `net.cls` and `CLR.CLS`, as
+the files are; ooRexx compares loaded names exactly, so `::requires NET.CLS`
+(unquoted: uppercase) is not satisfied by them and goes to the disk, as
+before. The guide always writes `"net.cls"`; CLR.CLS programs write
+`CLR.CLS` unquoted, which matches.
+
+**`librexx` on Windows**: already found through the `PATH` (where the ooRexx
+installer puts it) or the installation of the `rexx.exe` on the `PATH`;
+`tests/run.ps1` runs `HostTests` there (Windows 11, .NET 10).
+
+**PowerShell** (`samples/powershell/hello.ps1`; PowerShell 7.4 or later,
+.NET 8+; Windows PowerShell 5.1 runs on .NET Framework and cannot load
+`Rexx.Net`): `Add-Type -Path Rexx.Net.dll`, then Rexx code, its output
+taken with a `StringWriter`, a .NET `List` passed to Rexx code that fills
+it through `.net`, a Rexx Directory used through `Send`. Run here with
+`pwsh` 7.6 (a .NET tool). A Rexx string is a `RexxString`, which
+PowerShell's `+` does not turn into a string: `.ToString()`. A Rexx
+collection stays one object when assigned (`RexxObject` is enumerable, but
+PowerShell does not unroll a method's result into a variable). In the
+Windows binary package as `hello.ps1`.
 

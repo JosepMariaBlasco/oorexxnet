@@ -202,6 +202,8 @@ static partial class Program
         PhaseB();
         // phase C: both ways in one process (PhaseC.cs)
         PhaseC();
+        // phase D: .net from the start (PhaseD.cs)
+        PhaseD(rexx);
 
         rexx.Dispose();
         Throws<ObjectDisposedException>("disposed interpreter", () => rexx.Run("return 1"));

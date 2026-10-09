@@ -72,6 +72,18 @@ run unchanged. Baginski's 15 (speech) uses System.Speech, which was part of
 and the bridge finds it next to itself.
 
 
+From PowerShell
+---------------
+
+PowerShell 7.4 or later (not Windows PowerShell 5.1, which runs on .NET
+Framework) can host ooRexx through Rexx.Net.dll:
+
+    pwsh C:\rexxnet\hello.ps1
+
+runs Rexx code, takes its output, passes a .NET List to Rexx and uses a Rexx
+Directory: see the script.
+
+
 Notes
 -----
 
@@ -81,7 +93,7 @@ Notes
   REXXNET_APARTMENT=MTA leaves the threads alone.
 - Files: rexxnet.dll (the native library ooRexx loads), Rexx.Net.dll (the
   .NET side) with its .runtimeconfig.json files, .deps.json and .pdb,
-  net.cls, CLR.CLS, System.Speech.dll, check.rex, guide.md,
+  net.cls, CLR.CLS, System.Speech.dll, check.rex, hello.ps1, guide.md,
   clr-compat.md, this file.
 - A prototype. Problems and comments are very welcome:
   https://github.com/JosepMariaBlasco/oorexxnet/issues

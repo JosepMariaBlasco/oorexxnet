@@ -168,6 +168,26 @@ static void loadClr()
     mInit((void *)rexxCallback, (void *)nativeFree);
 }
 
+// Host mode (a .NET application hosting ooRexx through Rexx.Net): the managed
+// side, already running, hands its entry points over before any Rexx code
+// uses .net, so the runtime is not looked for through hostfxr (no
+// runtimeconfig next to this library needed: in a NuGet package it lives in
+// runtimes/<rid>/native/). If the runtime was started here first, nothing
+// changes (it is the same runtime).
+#ifdef _WIN32
+#define REXXNET_EXPORT extern "C" __declspec(dllexport)
+#else
+#define REXXNET_EXPORT extern "C" __attribute__((visibility("default")))
+#endif
+REXXNET_EXPORT void RexxNetRegister(void *request, void *freeFn, void *release, void *init, void *classes)
+{
+    std::call_once(clrOnce, [=] {
+        mRequest = (request_fn)request; mFree = (free_fn)freeFn; mRelease = (release_fn)release;
+        mClasses = (classes_fn)classes;
+        ((init_fn)init)((void *)rexxCallback, (void *)nativeFree);
+    });
+}
+
 // ---------------------------------------------------------------- the classes
 
 // net.cls's classes, found once from a context inside net.cls.

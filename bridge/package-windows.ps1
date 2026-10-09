@@ -1,7 +1,8 @@
 # Packages the bridge for Windows as a zip of binaries, for people who want to
 # try it without building it: build.ps1's output, System.Speech.dll (from
 # nuget.org: CLR.CLS's speech sample), bridge\dist\windows (README.txt,
-# check.rex), docs\guide.md and notes\clr-compat.md, in one folder rexxnet\.
+# check.rex), docs\guide.md, notes\clr-compat.md and the PowerShell sample
+# (hello.ps1), in one folder rexxnet\.
 # The package is checked before it is zipped: check.rex run from outside the
 # folder, finding rexxnet.dll through the PATH and net.cls through REXX_PATH.
 #
@@ -43,7 +44,8 @@ try {
     [IO.File]::WriteAllText((Join-Path $dir 'README.txt'), ($readme -replace "`r?`n", "`r`n"))
     Copy-Item (Join-Path $PSScriptRoot 'dist\windows\check.rex'),
               (Join-Path $repo 'docs\guide.md'),
-              (Join-Path $repo 'notes\clr-compat.md') $dir -ErrorAction Stop
+              (Join-Path $repo 'notes\clr-compat.md'),
+              (Join-Path $repo 'samples\powershell\hello.ps1') $dir -ErrorAction Stop
 
     # The check, as a user would run it: from elsewhere, through the variables
     # (a copy of check.rex outside the folder, so that net.cls is not found
