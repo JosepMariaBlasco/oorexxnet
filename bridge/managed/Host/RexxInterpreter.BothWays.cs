@@ -278,6 +278,7 @@ public sealed unsafe partial class RexxInterpreter
                 // kept for the process: ooRexx forgets a package loaded from
                 // data when nothing refers to it (a collection, as when another
                 // instance terminates), and ::requires would then look for a file
+                // (ooRexx bug, unreported: patches/oorexx/package-from-data-cache.diff)
                 builtIn.Add(c.Global(p));
                 if (name == "net.cls") net = p; else c.ReleaseLocal(p);
             }

@@ -75,3 +75,27 @@ purpose (`static` instead of `static thread_local`), the main thread is
 still fine and the process aborts as soon as another thread runs Rexx code
 (`terminate called after throwing an instance of 'ActivityException'`), so
 that particular mistake would also stop the rest of the suite.
+
+## `package-from-data-cache.diff` (09/10/2026, against trunk r13268)
+
+Not reported yet when written (`sf-bug-report-datapackage.md` is the report,
+ready to paste). Two files: `interpreter/package/PackageManager.cpp` and
+`.hpp`.
+
+**Problem.** A package loaded with `LoadPackageFromData(name, ...)` satisfies
+a later `::REQUIRES name` only until the next garbage collection: the
+requires cache (`loadedRequires`) holds every package through a
+`WeakReference`, which is right for a file (read again when needed) and
+wrong for in-store data (it cannot be). After a collection, `::REQUIRES`
+fails with 43.901.
+
+**Fix.** `addToRequiresCache(name, package, weak = true)`; `loadRequires()`
+from data passes `false` and stores the package itself;
+`checkRequiresCache()` returns an entry that is not a `WeakReference` as it
+is. File and macrospace packages unchanged.
+
+**Tested**: `datapackage-repro.cpp` gives BUG on r13268 and FIXED with the
+patch; ooRexx's test suite (test/trunk r13268, native API tests included):
+24143 tests, the same 9 environment-related failures with and without it.
+The bridge works around it (a global reference to its built-in packages:
+`RexxInterpreter.BothWays.cs`, `SetUpNet`).

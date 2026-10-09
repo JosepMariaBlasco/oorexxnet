@@ -868,9 +868,10 @@ uses `.net`. That is what a package should spare its users, so:
   after another instance terminated (its end runs a collection), `::requires
   CLR.CLS` looked for a file again (`net.cls` survived: the bridge keeps
   global references to its classes). The bridge now keeps a global
-  reference to both packages for the process. (ooRexx behaviour, perhaps
-  intended for packages that can be loaded again from a file; one loaded
-  from data cannot be.)
+  reference to both packages for the process. (The requires cache holds
+  packages through WeakReferences, right for files, which are read again,
+  wrong for data: an ooRexx bug, with a reproducer and a patch in
+  `patches/oorexx/`, `package-from-data-cache.diff`.)
 - **`rexxnet` gets the managed entry points directly.** New export
   `RexxNetRegister(request, free, release, init, classes)`: the managed side,
   already running, hands over `Bridge.Request` and the rest, so `rexxnet`
