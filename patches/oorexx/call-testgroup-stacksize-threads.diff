@@ -1,0 +1,63 @@
+Index: ooRexx/base/keyword/CALL.testGroup
+===================================================================
+--- ooRexx/base/keyword/CALL.testGroup	(revision 13267)
++++ ooRexx/base/keyword/CALL.testGroup	(working copy)
+@@ -200,7 +200,27 @@
+   syntax:
+   self~assertTrue(n >= 5000, "maximum recursion depth expected to be at least 5000, found" n)
+ 
++-- deep recursion must end in SYNTAX 11.1 (Control stack full), after a depth
++-- of at least 5000, on the main thread and on any other thread: the stack
++-- limit is computed per thread ([bugs:#2106])
++::method test_stacksize_main_thread
++  -- the test framework runs the tests on the process's main thread
++  self~checkStackFull(stackFull())
+ 
++::method test_stacksize_started_thread
++  self~checkStackFull(.StackProbe~new~start("STACKFULL")~result)
++
++::method test_stacksize_after_reply
++  probe = .StackProbe~new
++  probe~afterReply      -- returns at once; the recursion goes on in a new thread
++  self~checkStackFull(probe~result)   -- RESULT is guarded: it waits for AFTERREPLY
++
++::method checkStackFull private
++  parse arg code n
++  self~assertSame("11.1", code)
++  self~assertTrue(n >= 5000, "maximum recursion depth expected to be at least 5000, found" n)
++
++
+ ::method "test_1"
+    -- Create our external functions. There are 3 of them.
+    path = .ooRexxUnit.dir || .ooRexxUnit.directory.separator
+@@ -965,3 +985,30 @@
+ 
+ called.rex~delete
+ my.dir~delete
++
++
++-- for the test_stacksize_* tests: recurse until the control stack is full;
++-- returns the condition's code and the depth reached
++::routine stackFull
++  depth = .directory~new
++  signal on syntax
++  call stackRecurse depth, 1
++  return "no error" depth~n
++syntax:
++  return condition("O")~code depth~n
++
++::routine stackRecurse
++  use arg depth, n
++  depth~n = n
++  call stackRecurse depth, n + 1
++
++::class StackProbe
++::method stackFull
++  return stackFull()
++::method afterReply
++  expose result
++  reply
++  result = stackFull()
++::method result
++  expose result
++  return result
