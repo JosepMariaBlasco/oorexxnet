@@ -1,0 +1,139 @@
+# Builds and tests the bridge on Linux, macOS and Windows, then makes the
+# NuGet package with the native library of all three, and the Windows binary
+# zip. ooRexx comes from its portable builds on SourceForge, pinned to one
+# revision: the bridge needs at least r13267 (ooRexx bug #2106, fixed there),
+# and a newer one is taken deliberately, after checking it.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  OOREXX_REV: "13267"
+  OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  unix:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-24.04
+            oorexx: ubuntu2404.x86_64
+            native: librexxnet.so
+          - name: osx-arm64
+            os: macos-14
+            oorexx: macos.arm64.x86_64
+            native: librexxnet.dylib
+    runs-on: ${{ matrix.os }}
+    env:
+      REXXNET_BUILD: ${{ github.workspace }}/../build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+        run: |
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/oorexx.zip" \
+            "$OOREXX_URL/oorexx-5.3.0-$OOREXX_REV.${{ matrix.oorexx }}-portable-release.zip"
+          unzip -q "$RUNNER_TEMP/oorexx.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.${{ matrix.oorexx }}-portable-release/bin" >> "$GITHUB_PATH"
+      - run: rexx -v
+      - name: Test suites
+        run: bridge/tests/run.sh
+      - name: The guide's examples
+        run: rexx docs/check-guide.rex
+      - name: Smoke tests
+        if: runner.os == 'Linux'
+        run: smoke/run.sh && smoke/hostapi/run.sh
+      - name: PowerShell sample
+        shell: pwsh
+        run: ./samples/powershell/hello.ps1 "$env:REXXNET_BUILD/rexxnet"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.name }}
+          path: ${{ env.REXXNET_BUILD }}/rexxnet/${{ matrix.native }}
+
+  windows:
+    name: win-x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'oorexx.zip'
+          Invoke-WebRequest -UseBasicParsing -OutFile $zip `
+            "$env:OOREXX_URL/oorexx-5.3.0-$env:OOREXX_REV.windows.x86_64-portable-release.zip"
+          Expand-Archive $zip $env:RUNNER_TEMP
+          Join-Path $env:RUNNER_TEMP "oorexx-5.3.0-$env:OOREXX_REV.windows.x86_64-portable-release\bin" |
+            Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - run: rexx -v
+      - name: Test suites
+        shell: pwsh
+        run: |
+          bridge\tests\run.ps1 -Out "$env:RUNNER_TEMP\build\rexxnet"
+          exit $LASTEXITCODE
+      - name: The guide's examples
+        run: rexx docs\check-guide.rex "${{ runner.temp }}\build\rexxnet"
+      - name: PowerShell sample
+        shell: pwsh
+        run: .\samples\powershell\hello.ps1 "$env:RUNNER_TEMP\build\rexxnet"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-win-x64
+          path: ${{ runner.temp }}\build\rexxnet\rexxnet.dll
+      - name: Windows binary zip
+        shell: pwsh
+        run: |
+          bridge\package-windows.ps1 -Dest "$env:RUNNER_TEMP\zip"
+          if (-not (Get-ChildItem "$env:RUNNER_TEMP\zip\*.zip")) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: ${{ runner.temp }}\zip\*.zip
+
+  nuget:
+    needs: [unix, windows]
+    runs-on: ubuntu-24.04
+    env:
+      REXXNET_BUILD: ${{ github.workspace }}/../build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+        run: |
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/oorexx.zip" \
+            "$OOREXX_URL/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release.zip"
+          unzip -q "$RUNNER_TEMP/oorexx.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: natives
+      - name: Pack
+        run: |
+          bridge/pack.sh --native win-x64=natives/native-win-x64/rexxnet.dll \
+                         --native osx-arm64=natives/native-osx-arm64/librexxnet.dylib nupkg
+          unzip -l nupkg/Rexx.Net.*[0-9].nupkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget
+          path: nupkg/*

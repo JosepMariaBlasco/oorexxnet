@@ -5,7 +5,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File bridge\build.ps1 [-Out DIR]
 #
-# Needs: ooRexx 5, 64-bit, with its api\ folder (rexx.exe on the PATH, or
+# Needs: ooRexx 5, 64-bit, with its headers (api\, or a portable ooRexx's include\; rexx.exe on the PATH, or
 # REXX_HOME); a .NET 8 SDK or later (dotnet on the PATH, or DOTNET_ROOT);
 # Visual Studio or its Build Tools with the C++ workload (cl.exe on the PATH,
 # else found with vswhere). Windows PowerShell 5.1 or PowerShell 7.
@@ -24,9 +24,12 @@ if (-not $rexxHome) {
     if (-not $cmd) { throw 'ooRexx not found: put rexx.exe on the PATH, or set REXX_HOME' }
     $rexxHome = Split-Path $cmd.Source
 }
+# the headers: api\ in an installation, ..\include\ in a portable ooRexx
+# (rexx.exe in its bin\)
 $api = Join-Path $rexxHome 'api'
+if (-not (Test-Path (Join-Path $api 'oorexxapi.h'))) { $api = Join-Path (Split-Path $rexxHome) 'include' }
 if (-not (Test-Path (Join-Path $api 'oorexxapi.h'))) {
-    throw "no oorexxapi.h in $api (ooRexx's api\ folder: set REXX_HOME to its installation)"
+    throw "no oorexxapi.h in $rexxHome\api or its ..\include (set REXX_HOME to ooRexx's installation)"
 }
 
 # .NET: DOTNET_ROOT, else the dotnet.exe on the PATH, else its usual place;
