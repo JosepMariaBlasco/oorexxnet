@@ -44,7 +44,10 @@ call ok "an omitted argument (optional)",  fso~FileExists(file), 1
 ts = fso~OpenTextFile(file, 8)                            -- ForAppending
 ts~WriteLine("hello")
 ts~Close
-call ok "a file written through COM",      fso~OpenTextFile(file)~ReadAll~strip("T", "0a"x)~strip("T", "0d"x), "hello"
+ts = fso~OpenTextFile(file)
+text = ts~ReadAll
+ts~Close
+call ok "a file written through COM",      text~strip("T", "0a"x)~strip("T", "0d"x), "hello"
 fso~DeleteFile(file)
 call ok "... and deleted",                 fso~FileExists(file), 0
 n = 0
