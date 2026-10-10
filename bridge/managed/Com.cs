@@ -125,45 +125,51 @@ static class Com
 
     static bool Numeric(Rec r, object? converted) => r.Tag == 'S' && !r.Logical && converted is int or double;
 
+    // Any failure reading the type information (servers leave parts of it
+    // unimplemented: Word's GetIDsOfNames is E_NOTIMPL) means "not known":
+    // the arguments go as they are.
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     static short[]? Declared(object o, string name, int invkind)
     {
-        System.Runtime.InteropServices.ComTypes.ITypeInfo? ti = null;
         try
         {
-            if (o is IDispatchInfo d && d.GetTypeInfo(0, 0x0409, out var t) == 0) ti = t;
+            if (o is not IDispatchInfo d || d.GetTypeInfo(0, 0x0409, out var ti) != 0 || ti == null) return null;
+            ti.GetTypeAttr(out var pa);
+            System.Runtime.InteropServices.ComTypes.TYPEATTR attr;
+            try { attr = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.TYPEATTR>(pa); }
+            finally { ti.ReleaseTypeAttr(pa); }
+            return declared.GetOrAdd((attr.guid, name.ToUpperInvariant(), invkind), _ => Read(ti, name, invkind, attr.cFuncs));
         }
-        catch (Exception e) when (e is COMException || e is InvalidCastException) { }
-        if (ti == null) return null;
-        ti.GetTypeAttr(out var pa);
-        System.Runtime.InteropServices.ComTypes.TYPEATTR attr;
-        try { attr = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.TYPEATTR>(pa); }
-        finally { ti.ReleaseTypeAttr(pa); }
-        return declared.GetOrAdd((attr.guid, name.ToUpperInvariant(), invkind), _ => Read(ti, name, invkind, attr.cFuncs));
+        catch (Exception) { return null; }
     }
 
-    // The parameters' VARTYPEs of the member's FUNCDESC of that kind (null: none found)
+    // The parameters' VARTYPEs of the member of that name and kind (null: none
+    // found), its name compared caselessly with each function's (GetNames).
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     static short[]? Read(System.Runtime.InteropServices.ComTypes.ITypeInfo ti, string name, int invkind, int funcs)
     {
-        var ids = new int[1];
-        try { ti.GetIDsOfNames(new[] { name }, 1, ids); }
-        catch (COMException) { return null; }
-        int size = Marshal.SizeOf<System.Runtime.InteropServices.ComTypes.ELEMDESC>();
-        for (int f = 0; f < funcs; f++)
+        try
         {
-            ti.GetFuncDesc(f, out var pf);
-            try
+            int size = Marshal.SizeOf<System.Runtime.InteropServices.ComTypes.ELEMDESC>();
+            var names = new string[1];
+            for (int f = 0; f < funcs; f++)
             {
-                var fd = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.FUNCDESC>(pf);
-                if (fd.memid != ids[0] || ((int)fd.invkind & invkind) == 0) continue;
-                var vts = new short[fd.cParams];
-                for (int k = 0; k < fd.cParams; k++)
-                    vts[k] = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.ELEMDESC>(fd.lprgelemdescParam + k * size).tdesc.vt;
-                return vts;
+                ti.GetFuncDesc(f, out var pf);
+                try
+                {
+                    var fd = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.FUNCDESC>(pf);
+                    if (((int)fd.invkind & invkind) == 0) continue;
+                    ti.GetNames(fd.memid, names, 1, out int got);
+                    if (got < 1 || !string.Equals(names[0], name, StringComparison.OrdinalIgnoreCase)) continue;
+                    var vts = new short[fd.cParams];
+                    for (int k = 0; k < fd.cParams; k++)
+                        vts[k] = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.ELEMDESC>(fd.lprgelemdescParam + k * size).tdesc.vt;
+                    return vts;
+                }
+                finally { ti.ReleaseFuncDesc(pf); }
             }
-            finally { ti.ReleaseFuncDesc(pf); }
         }
+        catch (Exception) { }
         return null;
     }
 
