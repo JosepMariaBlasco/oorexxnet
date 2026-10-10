@@ -1,0 +1,85 @@
+# Builds ooRexx (trunk, from SVN) on Windows and checks patches/oorexx/
+# ole-events.diff, a fix to .OLEObject's event methods: first unpatched (the
+# reproducers show the bugs; a failure there is expected), then patched
+# (patches/oorexx/ole-events-test.rex must pass). ADODB.Recordset, present on
+# every Windows, raises the events. Runs when those files change, or by hand.
+name: oorexx-ole-patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'patches/oorexx/ole-events*'
+      - '.github/workflows/oorexx-ole-patch.yml'
+  workflow_dispatch:
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: ooRexx trunk from SVN
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq subversion
+          svn export -q https://svn.code.sf.net/p/oorexx/code-0/main/trunk oorexx
+          svn info https://svn.code.sf.net/p/oorexx/code-0/main/trunk | grep "Last Changed Rev" | tee oorexx/REVISION.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oorexx-source
+          path: oorexx
+
+  windows:
+    needs: source
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: oorexx-source
+          path: oorexx
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Build ooRexx (unpatched)
+        shell: pwsh
+        run: |
+          Get-Content oorexx\REVISION.txt
+          cmake -G Ninja -S oorexx -B build -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build build
+          if ($LASTEXITCODE) { exit 1 }
+          $rexx = Get-ChildItem build -Recurse -Filter rexx.exe | Select-Object -First 1
+          "REXXBIN=$($rexx.DirectoryName)" | Out-File $env:GITHUB_ENV -Append
+          Get-ChildItem $rexx.DirectoryName | Select-Object Name | Format-Wide -Column 6
+      - name: Unpatched (the bugs; failures expected)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $env:PATH = "$env:REXXBIN;$env:PATH"
+          rexx -v
+          foreach ($m in 'none', 'one', 'args') {
+            rexx patches\oorexx\ole-events-crash.rex $m
+            "${m}: exit code $LASTEXITCODE"
+          }
+          rexx patches\oorexx\ole-events-repro.rex
+          rexx patches\oorexx\ole-events-test.rex
+          "test: exit code $LASTEXITCODE"
+          exit 0
+      - name: Apply ole-events.diff and rebuild
+        shell: pwsh
+        run: |
+          git apply --directory=oorexx --unsafe-paths patches/oorexx/ole-events.diff
+          if ($LASTEXITCODE) { exit 1 }
+          cmake --build build
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Patched (must pass)
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:REXXBIN;$env:PATH"
+          foreach ($m in 'none', 'one', 'args') {
+            rexx patches\oorexx\ole-events-crash.rex $m
+            "${m}: exit code $LASTEXITCODE"
+            if ($LASTEXITCODE) { exit 1 }
+          }
+          rexx patches\oorexx\ole-events-repro.rex
+          rexx patches\oorexx\ole-events-test.rex
+          if ($LASTEXITCODE) { exit 1 }
