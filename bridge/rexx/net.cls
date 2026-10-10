@@ -148,7 +148,7 @@
 ::method netDisplay unguarded        -- the type's name, for makeString
   expose netdisplay
   return netdisplay
-::method makeString unguarded        -- a NetObject (System.Text.StringBuilder #12), a NetType (System.Math), a NetArray (System.Int32[] #3)
+::method makeString unguarded        -- a NetObject (System.Text.StringBuilder #12), a NetType (System.Math) (a NetArray: its elements, below)
   expose netid netdisplay                -- (say and concatenation use makeString; STRING is free for .NET)
   if self~isA(.NetType) then return "a NetType ("netdisplay")"
   select                               -- NetObject, NetArray, or a Rexx subclass's name
@@ -263,6 +263,10 @@ syntax: raise propagate
   signal on syntax
   return NetRequest("arrayDim", self, arg(1, "A"))
 syntax: raise propagate
+::method makeString unguarded        -- as Array's: makeString([format [, separator]]), its elements (say and || use it)
+  forward to (self~makeArray)
+::method toString unguarded          -- as Array's
+  forward to (self~makeArray)
 
 /** A .NET enum value, as an object (see the header): its string is its name. */
 ::class NetEnum public subclass NetObject
@@ -381,10 +385,10 @@ syntax: raise propagate
   use strict arg name
   return NetRequest("load", name)
 syntax: raise propagate
-::method createObject unguarded      -- .net~createObject(progID): a new COM object (Windows), reached through IDispatch
-  signal on syntax
-  use strict arg progID
-  return NetRequest("comCreate", progID)
+::method createObject unguarded      -- .net~createObject(progID [, language]): a new COM object (Windows), reached through IDispatch
+  signal on syntax                     -- language: "user" (the user's, as .OLEObject) or a culture name; default English (US)
+  use strict arg progID, language = ""
+  return NetRequest("comCreate", progID, language)
 syntax: raise propagate
 ::method releaseObject unguarded     -- .net~releaseObject(o): releases a COM object now (lets its server end)
   signal on syntax

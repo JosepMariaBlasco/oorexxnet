@@ -84,6 +84,18 @@ x = .net~createObject("No.Such.ProgID")
 noClass:
 call ok "an unknown ProgID: 98.900",       condition("O")~code, "98.900"
 
+-- the language of the calls: English (US) by default; "user" or a culture name
+u = .net~createObject("Scripting.Dictionary", "user")
+u~Add("k", 1.5)
+call ok "createObject(progID, 'user')",    u~Item("k"), 1.5
+fs = .net~createObject("Scripting.FileSystemObject", "es-ES")
+call ok "createObject(progID, 'es-ES'), and what it returns", fs~GetSpecialFolder(2)~Name~length > 0, 1
+signal on syntax name noLanguage
+x = .net~createObject("Scripting.Dictionary", "xx-nowhere")
+noLanguage:
+signal off syntax
+call ok "an unknown language: 98.900",     condition("O")~code, "98.900"
+
 -- events: ADODB.Recordset (a disconnected one, in memory)
 rs = .net~createObject("ADODB.Recordset")
 rs~CursorLocation = 3                                     -- adUseClient

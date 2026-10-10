@@ -42,7 +42,11 @@ public static class Collections
             w.Add('A', a.ToArray());
             return;
         }
-        foreach (var x in Enumerable(o)) Conv.ToRexx(a, x);
+        foreach (var x in Enumerable(o))
+        {
+            if (OperatingSystem.IsWindows()) Com.Inherit(o, x);    // DO OVER a COM collection: its language
+            Conv.ToRexx(a, x);
+        }
         w.Add('A', a.ToArray());
     }
 

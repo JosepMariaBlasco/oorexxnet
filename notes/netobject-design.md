@@ -592,6 +592,14 @@ it for Java arrays and has for years, and the two bridges should feel alike;
 and a .NET array is a fixed-size, typed block, close to a Rexx Array, where
 a JavaScript array is an ordinary object whose indexes are property names.
 
+**`makeString` and `toString`** (10/10/2026, asked for by Rony: his
+`BSF_ARRAY_REFERENCE` has none, from a time when Array's own `makeString`
+was unsettled; he may add it to BSF4ooRexx): as an Array's,
+`makeString([format [, separator]])` of the elements in storage order
+(`"L"` with `.endOfLine` by default, `"C"`), forwarded to `makeArray`. So
+`say` and concatenation show the elements, as for a Rexx Array; the old
+`a NetArray (System.Byte[] #3)` form is gone (`~netDisplay` gives the type).
+
 `tests/phase2.rex` (106 tests, was 76) and `tests/HostTests` (184, was 183);
 phases 1 and 3, bothways, `smoke/run.sh` and `smoke/hostapi/run.sh` pass
 unchanged (.NET 10, ooRexx r13267). Changes: `Collections.cs`, `Bridge.cs`,
@@ -898,6 +906,13 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
   make omitted arguments possible, **Δ** a message's argument list may now
   have omitted items (`rexxnet`, `encodeArgs`): for a .NET method they are
   `null`, as `.nil`. An Array as a value still refuses them.
+- **`.net~createObject(progID, language)`** (10/10/2026, asked for by Rony,
+  so that `.OLEObject` programs with formulas in the user's language run
+  unchanged): `"user"` makes the calls in the user's language
+  (`CultureInfo.CurrentCulture`; `.OLEObject` sends `LOCALE_USER_DEFAULT`),
+  a culture name in that one. Kept per object (a `ConditionalWeakTable`) and
+  inherited by the COM objects it returns: results, `DO OVER` items, and the
+  COM arguments of its events.
 - **The language of each call** (`IDispatch::Invoke`'s LCID): English (US),
   as VBA. The invariant culture's LCID, the first choice, made Excel refuse
   every call (`TYPE_E_INVDATAREAD`, "Old format or invalid type library";

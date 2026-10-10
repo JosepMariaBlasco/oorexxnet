@@ -11,6 +11,7 @@
 //   ns       S prefix, S name                          -> P namespace | O type
 //   nsname   S full name                               -> P
 //   type     A [S name | O open generic, type args...]  -> O type
+//   comCreate S progID [, S language]                  -> O (a COM object)
 //   load     S name or path                            -> S the assembly's full name
 //   typeOf   O                                         -> S
 //   typeObject O                                       -> O (its System.Type)
@@ -151,7 +152,7 @@ public static unsafe class Bridge
             case "nsname": w.Add('P', Types.NamespaceName(r[1].Text)); break;
             case "type": Conv.AddObject(w, StaticOf.For(MakeType(r[1].Items))); break;
             case "load": w.Add('S', Types.Load(r[1].Text).FullName ?? ""); break;
-            case "comCreate": Conv.AddObject(w, Com.Create(r[1].Text)); break;
+            case "comCreate": Conv.AddObject(w, Com.Create(r[1].Text, r.Count > 2 ? r[2].Text : "")); break;
             case "comRelease": Com.Release(Handles.Get(r[1].Id)); w.Add('V', ""); break;
             case "typeOf": w.Add('S', Types.Display(TypeOf(r[1]))); break;
             case "typeObject": Conv.AddObject(w, TypeOf(r[1])); break;

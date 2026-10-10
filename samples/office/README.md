@@ -23,6 +23,10 @@ let Office's process end at once.
 bridge `=SUM(D2:D4)` works on any Windows, through `.OLEObject` on a
 Spanish Windows it must be `=SUMA(D2:D4)` (so `excel-ole.rex` writes
 `=D2+D3+D4`). And Excel refuses a call whose language it does not know.
+A program written for `.OLEObject` with formulas in the user's language
+keeps working through the bridge with
+`.net~createObject("Excel.Application", "user")`: its calls, and those to
+the objects it returns, then carry the user's language, as `.OLEObject`'s.
 
 **Events** are where the two differ most. `.OLEObject` created
 `"WITHEVENTS"` calls its own methods named after the events (a subclass of

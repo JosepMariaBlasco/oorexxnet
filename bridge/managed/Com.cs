@@ -12,7 +12,10 @@
 // (.net~box("string", "007") forces a string); .nil, and an omitted argument,
 // as "not given" (Type.Missing: COM's optional parameters); .NET objects as
 // themselves. Results as any .NET result (another COM object: a .NetObject).
-// Every call is made in English (US): see English below.
+// Every call is made in English (US), as VBA's (see English below), unless
+// the object was created with another language (.net~createObject(progID,
+// "user"): the user's, as .OLEObject; or a culture name): the objects it
+// returns, and its events' COM arguments, then inherit that language.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -36,6 +39,28 @@ static class Com
     // and reads Formula and its kin in the caller's language: with English,
     // =SUM(...) on any Windows, as Microsoft's documentation writes them.
     static readonly CultureInfo English = CultureInfo.GetCultureInfo("en-US");
+
+    // The language of the objects created with one (and of the COM objects
+    // they return); every other object's is English.
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, CultureInfo> languages = new();
+
+    internal static CultureInfo LanguageOf(object o) => languages.TryGetValue(o, out var c) ? c : English;
+
+    /// A COM object that o returned (or an event of o's source gave) speaks o's language.
+    internal static void Inherit(object from, object? to)
+    {
+        if (to == null || !Is(to) || !languages.TryGetValue(from, out var c)) return;
+        languages.TryAdd(to, c);
+    }
+
+    /// The language a name gives: "" English (US); "user" the user's (as .OLEObject); else a culture name.
+    static CultureInfo Language(string name)
+    {
+        if (name.Trim().Length == 0) return English;
+        if (name.Trim().Equals("user", StringComparison.OrdinalIgnoreCase)) return CultureInfo.CurrentCulture;
+        try { return CultureInfo.GetCultureInfo(name.Trim()); }
+        catch (CultureNotFoundException) { throw new BridgeException($"\"{name}\" is no language: \"user\" or a culture name (\"es-ES\") is needed"); }
+    }
     const int DISP_E_UNKNOWNNAME = unchecked((int)0x80020006);
     const int DISP_E_MEMBERNOTFOUND = unchecked((int)0x80020003);
 
@@ -58,12 +83,15 @@ static class Com
         Invoke(o, "[DISPID=0]", BindingFlags.SetProperty, a);
     }
 
-    /// .net~createObject(progID): a new COM object (Excel.Application...)
-    internal static object Create(string progId)
+    /// .net~createObject(progID [, language]): a new COM object (Excel.Application...)
+    internal static object Create(string progId, string language = "")
     {
         if (!OperatingSystem.IsWindows()) throw new BridgeException("COM objects exist on Windows only");
+        var culture = Language(language);
         var t = Type.GetTypeFromProgID(progId, false) ?? throw new BridgeException($"no COM class \"{progId}\" is registered");
-        return Activator.CreateInstance(t) ?? throw new BridgeException($"\"{progId}\" could not be created");
+        var o = Activator.CreateInstance(t) ?? throw new BridgeException($"\"{progId}\" could not be created");
+        if (culture != English) languages.AddOrUpdate(o, culture);
+        return o;
     }
 
     /// .net~releaseObject(o): releases a COM object now (its server, Excel
@@ -80,7 +108,9 @@ static class Com
     {
         try
         {
-            return o.GetType().InvokeMember(name, how, null, o, args, English);
+            var r = o.GetType().InvokeMember(name, how, null, o, args, LanguageOf(o));
+            Inherit(o, r);
+            return r;
         }
         catch (Exception e) when (e is MissingMemberException ||
                                   e is COMException { HResult: DISP_E_UNKNOWNNAME or DISP_E_MEMBERNOTFOUND })

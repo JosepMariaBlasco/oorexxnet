@@ -207,14 +207,15 @@ send messages to; it comes back to Rexx as itself.
 
 **A .NET array is a Rexx Array**, from 1 in every dimension (as BSF4ooRexx
 does for Java arrays): `a[i]`, `a[i, j] = v`, `at`, `put`, `putStrict`,
-`items`, `size`, `dimension`, `makeArray`, `supplier`. It is still the .NET
+`items`, `size`, `dimension`, `makeArray`, `supplier`, and `makeString` /
+`toString` as an Array's (so `say` shows its elements). It is still the .NET
 array, by reference, so its .NET members work too.
 
 ```rexx
 bytes = .net~System~Text~Encoding~UTF8~GetBytes("abc")
 say bytes[1] bytes~items bytes~dimension bytes~Length
 bytes[1] = 65
-say .net~System~Text~Encoding~UTF8~GetString(bytes)
+say .net~System~Text~Encoding~UTF8~GetString(bytes) bytes~makeString("L", ",")
 grid = .net~System~Array~CreateInstance(.net~type("int"), 2, 3)
 grid[2, 3] = 7
 do with index i item v over grid
@@ -225,7 +226,7 @@ end
 
 ```text
 97 3 1 3
-Abc
+Abc 65,98,99
 2,3 = 7
 ```
 
@@ -572,7 +573,10 @@ syntax as any `.NetObject`: messages by name, caseless; `o~Name = v`;
 `o[i]` for the default member; DO OVER a COM collection. A Rexx number goes
 as a number (`.net~box("string", "007")` keeps a string), an omitted
 argument as "not given". Each call is made in English (US), as VBA's: Excel
-reads `=SUM(...)` on any Windows. `.net~releaseObject(o)` releases it at
+reads `=SUM(...)` on any Windows. `.net~createObject(progID, "user")` makes
+the calls in the user's language instead, as `.OLEObject` does (a Spanish
+Windows: `=SUMA(...)`), and a culture name (`"es-ES"`) in that one; the
+objects it returns keep that language. `.net~releaseObject(o)` releases it at
 once (Excel's process can end).
 
 Its events are .NET events: `o~Name += h`, `o~Name -= h`,

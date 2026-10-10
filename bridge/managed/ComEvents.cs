@@ -91,6 +91,8 @@ public sealed class ComEventSink : IComEventDispatch, ICustomQueryInterface
     internal int Cookie;
     readonly Dictionary<int, List<RexxHandler>> handlers = new();
 
+    internal WeakReference<object>? Source;              // the object whose events these are
+
     internal ComEventSink(Guid iid) => Iid = iid;
 
     internal int Count { get { lock (handlers) return handlers.Values.Sum(l => l.Count); } }
@@ -142,6 +144,8 @@ public sealed class ComEventSink : IComEventDispatch, ICustomQueryInterface
         try
         {
             var (args, slots) = ComEvents.Arguments(dispParams);
+            if (Source != null && Source.TryGetTarget(out var src))
+                foreach (var a in args) Com.Inherit(src, a);     // the source's language
             object? r = null;
             foreach (var h in hs)
             {
@@ -205,7 +209,7 @@ static class ComEvents
             {
                 if (sink == null)
                 {
-                    sink = new ComEventSink(ev.Iid);
+                    sink = new ComEventSink(ev.Iid) { Source = new WeakReference<object>(o) };
                     var cpc = o as ComTypes.IConnectionPointContainer
                               ?? throw new BridgeException("the COM object gives no events (it is no IConnectionPointContainer)");
                     var iid = ev.Iid;

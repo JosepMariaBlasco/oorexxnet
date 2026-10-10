@@ -20,7 +20,15 @@ call err "missing key",         "x = .local~d2['zz']", "KeyNotFoundException"
 -- arrays as Rexx Arrays (from 1 in every dimension: BSF_ARRAY_REFERENCE's protocol)
 bytes = .net~System~Text~Encoding~ASCII~GetBytes("abc")
 call ok "an array is a .NetArray", bytes~isA(.NetArray) bytes~isA(.NetObject), "1 1"
-call ok "makeString",           bytes~makeString~word(2), "NetArray"
+call ok "makeString: its elements, as Array's", bytes~makeString("L", ","), "97,98,99"
+call ok "makeString's default: lines", bytes~makeString, .array~of(97, 98, 99)~makeString
+call ok "makeString('C')",      bytes~makeString("C"), "979899"
+call ok "toString",             bytes~toString(, "+"), "97+98+99"
+call ok "say and || use it",    "[" || .net~box("string", "a,b")~Split(",")~makeString("L", " ") || "]", "[a b]"
+call ok "netDisplay: the type", bytes~netDisplay, "System.Byte[]"
+m = .net~System~Array~CreateInstance(.net~typeObject(.net~type("int")), 2, 2)
+m[1, 2] = 5; m[2, 1] = 7
+call ok "makeString of a 2-D array", m~makeString("L", ","), "0,5,7,0"
 call ok "byte[] element (from 1)", bytes[1] bytes[3], "97 99"
 bytes[2] = 120
 call ok "byte[] set",           .net~System~Text~Encoding~ASCII~GetString(bytes), "axc"
