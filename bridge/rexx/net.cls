@@ -854,6 +854,7 @@ syntax:
   use strict arg id
   self~init:super
   runner=.net~handler(self, "RUN")                        -- run, called by .NET on its thread
+  self~objectName=self~makeString                         -- (what an Array's makeString shows)
 
 ::attribute id                get unguarded               -- the UI thread's .NET thread id; 0: the loop
 
@@ -877,8 +878,6 @@ syntax:
   expose id
   if id = 0 then return "a NetEventThread (the loop)"
   return "a NetEventThread (UI thread" id")"
-::method string                   unguarded
-  return self~makeString
 
 
 /** A message to be run on the event thread (BSF4ooRexx's GUIMessage, modelled after ooRexx's
