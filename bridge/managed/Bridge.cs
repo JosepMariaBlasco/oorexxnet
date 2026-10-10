@@ -28,8 +28,12 @@
 //   event    O target, S name, S add|remove, handler    -> V: o~Name += h, o~Name -= h
 //   events   O                                         -> A of S: the names of its events (.NET or COM)
 //   nextEvent S seconds (-1: no limit), S generation (-1: none) -> A [S handler id, A args] | N
-//   eventPost H handler                                -> V: call it later on the event thread (EventThread.cs)
-//   eventThread                                        -> S "1|0 ui|loop": on the event thread? which kind
+//   eventPost H handler [S where]                      -> V: call it later on an event thread (EventThread.cs):
+//                                                         where a UI thread's id (0, absent: the default) or "loop"
+//   eventThread                                        -> S "1|0 ui|loop uiId 1|0": on an event thread? the
+//                                                         default's kind; this thread's UI id (or 0); the loop's?
+//   eventThreads                                       -> S the UI threads' ids, in the order seen
+//   eventThreadOf O object                             -> S the UI thread it belongs to (its id), or 0
 //   loopGeneration                                     -> S (for .net~eventLoop)
 //   stopLoops                                          -> V (.net~stopEventLoop)
 //   releaseHandler S id                                -> V
@@ -205,8 +209,10 @@ public static unsafe class Bridge
                 w.Add('A', a.ToArray());
                 break;
             }
-            case "eventPost": EventThread.Post(Callbacks.HandlerOf(r[1])); w.Add('V', ""); break;
-            case "eventThread": w.Add('S', (EventThread.IsEventThread ? "1" : "0") + (EventThread.HasUi ? " ui" : " loop")); break;
+            case "eventPost": EventThread.Post(Callbacks.HandlerOf(r[1]), r.Count > 2 ? r[2].Text : "0"); w.Add('V', ""); break;
+            case "eventThread": w.Add('S', EventThread.Describe()); break;
+            case "eventThreads": w.Add('S', EventThread.Ids()); break;
+            case "eventThreadOf": w.Add('S', EventThread.Of(r[1].Tag == 'O' ? Handles.Get(r[1].Id) : null).ToString()); break;
             case "nextEvent": Callbacks.NextEvent(double.Parse(r[1].Text, System.Globalization.CultureInfo.InvariantCulture), int.Parse(r[2].Text), w); break;
             case "loopGeneration": w.Add('S', Callbacks.Generation.ToString()); break;
             case "stopLoops": Callbacks.StopLoops(); w.Add('V', ""); break;

@@ -599,29 +599,50 @@ syntax: raise propagate
 /** The event thread (BSF4ooRexx's AbstractGUIThread, from BSF.CLS, by Rony G. Flatscher, made
     general: notes/netobject-design.md, "The event thread"). An event thread runs a program's events
     (a window's, say) and must be the one to touch what belongs to it. Rexx code on another thread
-    sends it messages with the class methods runLater, runLaterPush, runLaterLatest and
-    runLaterLatestPush: each queues a GUIMessage, returned at once, and the queue is run later on the
-    event thread, in order, each message as target~messageName(arguments). The GUIMessage tells when
-    it has run (completed), its result (result waits for it) or its error (hasError,
-    errorCondition: an error is kept there, not raised). isEventThread: is this the event thread?
-    Subclasses give isEventThread, invokeOnEventThread (have run called later on the event thread)
-    and setup; BSF4ooRexx's are FxGUIThread and AwtGUIThread, this package's NetEventThread.
+    sends it messages with runLater, runLaterPush, runLaterLatest and runLaterLatestPush: each
+    queues a GUIMessage, returned at once, and the queue is run later on the event thread, in order,
+    each message as target~messageName(arguments). The GUIMessage tells when it has run
+    (completed), its result (result waits for it) or its error (hasError, errorCondition: an error
+    is kept there, not raised). isEventThread: is this an event thread?
+
+    There may be several event threads (.NET: each window belongs to the thread that made it), so
+    each is an instance with its own queue: runLater... as instance methods send to that one. The
+    class methods are BSF4ooRexx's: they send to the event thread of the message's target
+    (eventThreadFor, a subclass's: its UI thread if it has one, else the default).
+    Subclasses give eventThreadFor and isEventThread (class), isEventThread and
+    invokeOnEventThread (instance: have run called later on its thread); BSF4ooRexx's are
+    FxGUIThread and AwtGUIThread, this package's NetEventThread.
 
        .NetEventThread~runLater(label, "TEXT=", "I", "Done")       -- label~Text = "Done", later
        m = .NetEventThread~runLater(form, "CONTROLS")              -- m~result: when it has run
+       et = .NetEventThread~current                                -- (on an event thread) this one
+       et~runLater(obj, "UPDATE")                                  -- later on that thread
 */
 ::class AbstractEventThread public
-::method init abstract                                    -- no instances: its class methods are all
+::method eventThreadFor           class abstract          -- the event thread that serves a target
+::method isEventThread            class abstract          -- is the current thread an event thread?
 
-::attribute msgQueue              guarded class abstract  -- the queued GUIMessages
-::attribute waitingToRun          guarded class abstract  -- run has been asked for and not run yet
+::method runLater                 class                   -- sent to the target's event thread
+  forward to (self~eventThreadFor(arg(1)))
+::method runLaterPush             class
+  forward to (self~eventThreadFor(arg(1)))
+::method runLaterLatest           class
+  forward to (self~eventThreadFor(arg(1)))
+::method runLaterLatestPush       class
+  forward to (self~eventThreadFor(arg(1)))
 
-::method setup                    guarded class private abstract
-::method isEventThread            guarded class abstract  -- is the current thread the event thread?
-::method invokeOnEventThread      guarded class private abstract   -- have run called later on the event thread
+::method init
+  expose msgQueue waitingToRun
+  msgQueue=.queue~new
+  waitingToRun=.false
+::attribute msgQueue          get guarded                 -- the queued GUIMessages
+::attribute waitingToRun          guarded                 -- run has been asked for and not run yet
+
+::method isEventThread            abstract                -- is the current thread this event thread?
+::method invokeOnEventThread      private abstract        -- have run called later on its thread
 
 /** Sends the message of a GUIMessage, keeping its result or its error in it. */
-::method process                  guarded class private
+::method process                  guarded private
   use strict arg guiMsg
   signal on syntax                                        -- an error stays in the GUIMessage
   if guiMsg~hasArguments then
@@ -642,7 +663,7 @@ syntax:
   return
 
 /** A GUIMessage from runLater's arguments: target, messageName [, "I", arg...] or [, "A", array]. */
-::method createGUIMessage         guarded class private
+::method createGUIMessage         guarded private
   use strict arg args
   signal on syntax
   target     =args[1]
@@ -666,22 +687,21 @@ syntax:
 syntax:
   raise propagate
 
-/** Called later on the event thread: runs the queued messages. */
-::method run                      guarded class
-  msgQueue=self~msgQueue
+/** Called later on its thread: runs the queued messages. */
+::method run                      guarded
+  expose msgQueue waitingToRun
   if self~isEventThread then
   do
      do while msgQueue~items>0
         self~process(msgQueue~pull)
      end
-     self~waitingToRun=.false
+     waitingToRun=.false
   end
 
-/** Queues a message for the event thread; returns its GUIMessage. */
-::method runLater                 guarded class
+/** Queues a message for this event thread; returns its GUIMessage. */
+::method runLater                 guarded
   use strict arg target, messageName, ...
   signal on syntax
-  if self~msgQueue=.nil then self~setup
   guiMsg=self~createGuiMessage(arg(1,"array"))
   self~msgQueue~queue(guiMsg)
   self~askToRun
@@ -690,10 +710,9 @@ syntax:
   raise propagate
 
 /** As runLater, but the message goes before those already queued. */
-::method runLaterPush             guarded class
+::method runLaterPush             guarded
   use strict arg target, messageName, ...
   signal on syntax
-  if self~msgQueue=.nil then self~setup
   guiMsg=self~createGuiMessage(arg(1,"array"))
   self~msgQueue~push(guiMsg)
   self~askToRun
@@ -702,10 +721,9 @@ syntax:
   raise propagate
 
 /** As runLater, removing first the queued messages with the same target and message name. */
-::method runLaterLatest           guarded class
+::method runLaterLatest           guarded
   use strict arg target, messageName, ...
   signal on syntax
-  if self~msgQueue=.nil then self~setup
   forward message "REMOVEMESSAGE" continue
   guiMsg=result
   self~msgQueue~queue(guiMsg)
@@ -715,10 +733,9 @@ syntax:
   raise propagate
 
 /** As runLaterLatest, but the message goes before those already queued. */
-::method runLaterLatestPush       guarded class
+::method runLaterLatestPush       guarded
   use strict arg target, messageName, ...
   signal on syntax
-  if self~msgQueue=.nil then self~setup
   forward message "REMOVEMESSAGE" continue
   guiMsg=result
   self~msgQueue~push(guiMsg)
@@ -728,10 +745,9 @@ syntax:
   raise propagate
 
 /** Removes the queued messages with this target and message name; returns a new GUIMessage. */
-::method removeMessage            guarded class private
+::method removeMessage            guarded private
   use strict arg target, messageName, ...
   signal on syntax
-  if self~msgQueue=.nil then self~setup
   msgQueue=self~msgQueue
   do idx=msgQueue~items to 1 by -1                        -- (positions: from the end, as items go)
      tmpItem=msgQueue~at(idx)
@@ -742,41 +758,114 @@ syntax:
 syntax:
   raise propagate
 
-/** Has run called on the event thread, unless that is pending already. */
-::method askToRun                 guarded class private
-  if self~waitingToRun=.false then
+/** Has run called on its thread, unless that is pending already. */
+::method askToRun                 guarded private
+  expose waitingToRun
+  if waitingToRun=.false then
   do
-     self~waitingToRun=.true
+     waitingToRun=.true
      self~invokeOnEventThread
   end
 
 
-/** The event thread of .NET: a user interface's thread (Windows Forms, WPF...: the first thread
-    whose Rexx code runs with its SynchronizationContext installed), where messages run through
-    that context's Post; or, with no user interface, the Rexx thread that waits in .net~nextEvent
-    or .net~eventLoop, where they run as a queued call. kind: "ui" or "loop". */
+/** The event threads of .NET. A user interface's thread (Windows Forms, WPF...: a thread whose Rexx
+    code has run with its SynchronizationContext installed) is one, where messages run through that
+    context's Post; there may be several, each window's being the thread that made it. With no user
+    interface, the event thread is the Rexx thread that waits in .net~nextEvent or .net~eventLoop
+    (the "loop"), where they run as a queued call. Class methods:
+      default          the first UI thread's event thread, else the loop's
+      current          the current thread's, or .nil if it is none (an event thread asks "which am I?")
+      threads          the UI threads' event threads, in the order seen (an Array)
+      eventThreadFor   a target's: its UI thread's if known (a Windows Forms control once its window
+                       exists, a WPF object), else the default; runLater... use it
+      isEventThread    is the current thread an event thread (a UI thread; with none, the loop's)?
+      kind             "ui" if a user interface exists, else "loop"
+    Instances: id (the UI thread's .NET thread id, 0 for the loop), kind, isEventThread (is the
+    current thread this one?), and runLater, runLaterPush, runLaterLatest, runLaterLatestPush. */
 ::class NetEventThread public subclass AbstractEventThread
-::method init                     guarded class
-  expose msgQueue
-  msgQueue=.nil
-::attribute msgQueue          get guarded class
-::attribute waitingToRun          guarded class
+::method init                     class
+  expose threads loop
+  threads=.directory~new                                  -- UI thread id -> its NetEventThread
+  loop=.nil
 
-::method setup                    guarded class private
-  expose msgQueue runner waitingToRun
-  msgQueue=.queue~new
-  runner=.net~handler(self, "RUN")                        -- run, called by .NET on the event thread
-  waitingToRun=.false
+/** The event thread for an id (0: the loop's), made once. */
+::method instanceFor              class private
+  expose threads loop
+  use strict arg id
+  if id = 0 then
+  do
+     if loop == .nil then loop=self~new(0)
+     return loop
+  end
+  t=threads[id]
+  if t == .nil then
+  do
+     t=self~new(id)
+     threads[id]=t
+  end
+  return t
 
-::method isEventThread            guarded class
+::method default                  class
+  ids=NetRequest("eventThreads")
+  if ids == "" then return self~instanceFor(0)
+  return self~instanceFor(ids~word(1))
+
+::method current                  class
+  parse value NetRequest("eventThread") with . . ui isLoop .
+  if ui \= 0 then return self~instanceFor(ui)
+  if isLoop = 1 then return self~instanceFor(0)
+  return .nil
+
+::method threads                  class
+  a=.array~new
+  do id over NetRequest("eventThreads")~subWords
+     a~append(self~instanceFor(id))
+  end
+  return a
+
+::method eventThreadFor           class
+  use arg target=.nil
+  if target~isA(.NetObject) then
+  do
+     id=NetRequest("eventThreadOf", target)
+     if id \= 0 then return self~instanceFor(id)
+  end
+  return self~default
+
+::method isEventThread            class
   return NetRequest("eventThread")~word(1) == 1
 
-::method kind                     unguarded class         -- "ui" (a user interface's thread) or "loop"
+::method kind                     class                   -- "ui" (a user interface exists) or "loop"
   return NetRequest("eventThread")~word(2)
 
-::method invokeOnEventThread      guarded class private
-  expose runner
-  call NetRequest "eventPost", runner
+::method init
+  expose id runner
+  use strict arg id
+  self~init:super
+  runner=.net~handler(self, "RUN")                        -- run, called by .NET on its thread
+
+::attribute id                get unguarded               -- the UI thread's .NET thread id; 0: the loop
+
+::method kind                     unguarded
+  expose id
+  if id = 0 then return "loop"
+  return "ui"
+
+::method isEventThread            unguarded               -- is the current thread this one?
+  expose id
+  parse value NetRequest("eventThread") with . . ui isLoop .
+  if id = 0 then return isLoop = 1
+  return ui = id
+
+::method invokeOnEventThread      private
+  expose id runner
+  if id = 0 then call NetRequest "eventPost", runner, "loop"
+  else call NetRequest "eventPost", runner, id
+
+::method makeString               unguarded
+  expose id
+  if id = 0 then return "a NetEventThread (the loop)"
+  return "a NetEventThread (UI thread" id")"
 
 
 /** A message to be run on the event thread (BSF4ooRexx's GUIMessage, modelled after ooRexx's

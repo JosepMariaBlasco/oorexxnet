@@ -48,8 +48,21 @@ badArgs:
 signal off syntax
 call ok "a wrong indicator: 93.915",        condition("O")~code, "93.915"
 
--- Windows: a Windows Forms window's thread is the event thread
-if .rexxInfo~platform~upper~abbrev("WIN") then call windowsForms w
+-- event threads as objects: with no user interface, the loop's
+d = .NetEventThread~default
+call ok "default: the loop's",              d~kind d~id d~makeString, "loop 0 a NetEventThread (the loop)"
+call ok "no UI threads",                    .NetEventThread~threads~items, 0
+call ok "current: this thread serves the loop", .NetEventThread~current == d, 1
+call ok "eventThreadFor a Rexx object: the default", .NetEventThread~eventThreadFor(w) == d, 1
+m = d~runLater(w, "ADD", "I", 20, 22)                   -- an instance's runLater
+.net~nextEvent(5)~dispatch
+call ok "instance runLater",                m~result d~isEventThread, "42 1"
+
+-- Windows: a Windows Forms window's thread is the event thread; two more, each its own
+if .rexxInfo~platform~upper~abbrev("WIN") then do
+  call windowsForms w
+  call twoWindows
+end
 
 if .fails = 0 then say "event thread: all" .count "tests passed"
 else say "event thread:" .fails "of" .count "tests FAILED"
@@ -70,7 +83,55 @@ windowsForms: procedure
   call ok "Windows Forms: the GUIMessages",  w~updates, "1 1"
   return
 
+/* Two more UI threads, each a Rexx thread running a window: messages go to the right one */
+twoWindows: procedure
+  a = .Window~new; a~start("A")
+  b = .Window~new; b~start("B")
+  do 200 until a~shown & b~shown                         -- their windows exist
+    call SysSleep 0.05
+  end
+  ea = .NetEventThread~eventThreadFor(a~form)
+  eb = .NetEventThread~eventThreadFor(b~form)
+  call ok "two UI threads: eventThreadFor a control", (ea~id = a~threadId) (eb~id = b~threadId) (ea~id \= eb~id), "1 1 1"
+  call ok "... among the threads",           .NetEventThread~threads~items >= 3, 1
+  ma = ea~runLater(a, "SEEN")
+  mb = eb~runLater(b, "SEEN")
+  call ok "... each message on its thread",  (ma~result = a~threadId) (mb~result = b~threadId), "1 1"
+  t = .NetEventThread~runLater(b~form, "TEXT=", "I", "B2")   -- the class method: to the target's thread
+  call ok "... the class method too",       eb~runLater(b~form, "TEXT")~result, "B2"
+  ca = .NetEventThread~runLater(a~form, "CLOSE")
+  cb = .NetEventThread~runLater(b~form, "CLOSE")
+  x = ca~result; x = cb~result
+  do 100 until a~closed & b~closed
+    call SysSleep 0.05
+  end
+  call ok "... and both closed",             a~closed b~closed, "1 1"
+  return
+
 ::requires "net.cls"
+
+::class Window                                           -- a window on a Rexx thread of its own
+::attribute form
+::attribute threadId
+::attribute closed
+::method init
+  self~closed = .false; self~form = .nil
+::method start unguarded
+  use arg title
+  reply                                                  -- the rest on a new thread
+  forms = .net~System~Windows~Forms
+  f = forms~Form~new
+  f~Text = title
+  self~threadId = .NetEventThread~current~id             -- this thread is a UI thread now
+  self~form = f
+  forms~Application~Run(f)                               -- returns when the window closes
+  self~closed = .true
+::method shown unguarded
+  f = self~form
+  if f == .nil then return .false
+  return f~IsHandleCreated
+::method seen unguarded                                  -- run by runLater: on which event thread?
+  return .NetEventThread~current~id
 
 ::class Worker
 ::attribute log
