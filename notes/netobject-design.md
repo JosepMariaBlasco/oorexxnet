@@ -1199,7 +1199,7 @@ as explicit implementations); `net.cls` (`.net~extend`, `.net~detach`,
 `NetObject~init`'s construction, the private methods);
 `native/rexxnet.cpp` (record `p`).
 
-Tests: `tests/extend.rex` 46 (49 on Windows: a `Form` whose `OnLoad`,
+Tests: `tests/extend.rex` 47 (50 on Windows: a `Form` whose `OnLoad`,
 `OnPaint`, `OnShown` are Rexx methods), with `TestLib/Extend.cs` (an
 abstract class with a virtual call in its constructor and protected members
 of every kind; interfaces) and framework classes: `Collection<T>`

@@ -67,8 +67,9 @@ u~Add("hello"); u~Insert(0, "World")
 call ok "Collection<T>.InsertItem",  u[0] u[1] u~Count u~inserts, "WORLD HELLO 2 2"
 .net~extend(.Shout, "System.IO.TextWriter")
 w = .Shout~new
-w~Write("abc"); w~WriteLine(12)
-call ok "TextWriter.Write(char)",    w~text~c2x, "4142433132" || "0A"
+w~Write("abc"); w~Write(12)
+call ok "TextWriter.Write(char)",    w~text, "ABC12"
+call ok "TextWriter's protected CoreNewLine", w~NewLine~c2x, "0A"
 l = .net~type("System.Collections.Generic.List<System.String>")~new
 do x over "ccc a bb dddd"~makeArray(" "); l~Add(x); end
 l~Sort(.ByLength~new)
@@ -104,7 +105,7 @@ windowsForm: procedure
   .net~System~Windows~Forms~Application~Run(f)     -- OnShown paints it, then closes it
   call ok "Windows Forms: OnLoad, OnPaint, OnShown", f~seen, "load paint shown"
   call ok "Windows Forms: a protected property set", f~buffered, 1
-  call ok "Windows Forms: its Text",       f~Text, "extended"
+  call ok "Windows Forms: its Text, in OnLoad", f~title, "extended"
   return
 
 ::requires "net.cls"
@@ -207,11 +208,13 @@ windowsForm: procedure
   self~Text = title
   self~DoubleBuffered = .true                     -- protected
 ::method seen;     expose seen; return seen~strip
+::method title;    expose title; return title
 ::method buffered; return self~DoubleBuffered
 ::method OnLoad
-  expose seen
+  expose seen title
   use arg e
   seen = seen "load"
+  title = self~Text
   self~base.OnLoad(e)
 ::method OnPaint
   expose seen
