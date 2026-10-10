@@ -920,6 +920,12 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
   language of the macro": with English, `=SUM(...)` works on any Windows.
   `.OLEObject` gives the user's language: on a Spanish Windows it needs
   `=SUMA(...)` (found running `samples/office` there).
+- **A busy server** (10/10/2026, found by Rony: Excel closing, its "save
+  changes?" dialog open) rejects calls (`RPC_E_CALL_REJECTED`,
+  `RPC_E_SERVERCALL_RETRYLATER`): the call is made again after a pause
+  growing from 10 ms to 500 ms, for up to 10 s in all, as VBA's message
+  filter and `.OLEObject` do (`.OLEObject`'s retries add up to ~0.7 s);
+  then the error goes to Rexx (98.900).
 - **`.net~releaseObject(o)`**: `Marshal.FinalReleaseComObject`, so that a
   server such as Excel can end at once, not at .NET's next collection. The
   proxy remains, unusable (98.900).

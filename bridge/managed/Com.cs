@@ -104,7 +104,36 @@ static class Com
         Marshal.FinalReleaseComObject(o);
     }
 
+    // A server busy with something else (Excel showing a dialog, or closing)
+    // rejects calls: RPC_E_CALL_REJECTED, RPC_E_SERVERCALL_RETRYLATER. As
+    // VBA (through its message filter) and .OLEObject do, the call is made
+    // again after a pause, longer each time, for up to Busy in all; then the
+    // error goes to Rexx.
+    const int RPC_E_CALL_REJECTED = unchecked((int)0x80010001);
+    const int RPC_E_SERVERCALL_RETRYLATER = unchecked((int)0x8001010A);
+    static readonly TimeSpan Busy = TimeSpan.FromSeconds(10);
+
+    static bool Rejected(Exception e)
+    {
+        for (Exception? x = e; x != null; x = x.InnerException)
+            if (x is COMException { HResult: RPC_E_CALL_REJECTED or RPC_E_SERVERCALL_RETRYLATER }) return true;
+        return false;
+    }
+
     static object? Invoke(object o, string name, BindingFlags how, object?[] args)
+    {
+        var until = DateTime.UtcNow + Busy;
+        for (int pause = 10; ; pause = Math.Min(pause * 2, 500))
+        {
+            try { return Call(o, name, how, args); }
+            catch (Exception e) when (Rejected(e) && DateTime.UtcNow < until)
+            {
+                System.Threading.Thread.Sleep(pause);
+            }
+        }
+    }
+
+    static object? Call(object o, string name, BindingFlags how, object?[] args)
     {
         try
         {
