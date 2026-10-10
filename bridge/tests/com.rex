@@ -41,6 +41,10 @@ types = ""
 do i = 1 to values~items; types = types probe~TypeOf(v, "Item", "k"i); end
 call ok "VARIANT types", types~strip, -
   "Int32 Double Double Int32 Int32 Boolean Int32 String String Object[,] Object[]"
+call ok "an Array's items as arguments too", probe~ItemTypes(v, "Item", "k11") probe~ItemTypes(v, "Item", "k10"), -
+  "Int32 Int32 Int32 Int32 Int32 Int32 Int32 Int32"
+v~Add("mixed", .array~of(.array~of("x", 1.5, .false)))
+call ok "... nested Arrays",               probe~InnerItemTypes(v, "Item", "mixed"), "String Double Boolean"
 g = v~Item("k10")
 call ok "a 2-D Rexx Array: a 2-D SAFEARRAY", g~dimension(1) g~dimension(2) g[1, 3] g[2, 1], "2 3 13 21"
 

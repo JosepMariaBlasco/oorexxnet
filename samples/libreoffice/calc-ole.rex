@@ -17,7 +17,8 @@ data = .array~of(.array~of("Fruit", "Kilos", "Price"),  -
                  .array~of("Pears",     7,     1.85),  -
                  .array~of("Figs",      3,     4.10))
 sheet~getCellRangeByName("A1:C4")~setDataArray(data)       -- rows of values: one call
-say "B3:" sheet~getCellByPosition(1, 2)~getValue            -- (column, row), from 0
+b3 = sheet~getCellByPosition(1, 2)~getValue                -- (column, row), from 0
+say "B3:" b3                                                -- a number, not the text "7"
 sheet~getCellRangeByName("D1")~setString("Total")
 do r = 2 to 4
   sheet~getCellRangeByName("D"r)~setFormula("=B"r"*C"r)
@@ -36,6 +37,7 @@ doc~storeAsURL("file:///" || changestr("\", file, "/"), .array~of(property(sm, "
 say "Saved" file
 doc~close(.true)
 if \desktop~getComponents~createEnumeration~hasMoreElements then desktop~terminate   -- not if you have documents open
+exit b3 \= 7                                                -- (for check-samples.rex)
 
 ::routine property                                           -- a com.sun.star.beans.PropertyValue
   use arg sm, name, value

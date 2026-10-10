@@ -76,4 +76,22 @@ public static class ComProbe
             null, com, new[] { arg });
         return r?.GetType().Name ?? "null";
     }
+
+    /// The same for the items of an array the COM object gives back.
+    public static string ItemTypes(object com, string member, object arg)
+    {
+        var r = (Array)com.GetType().InvokeMember(member,
+            System.Reflection.BindingFlags.InvokeMethod | System.Reflection.BindingFlags.GetProperty,
+            null, com, new[] { arg })!;
+        return string.Join(" ", r.Cast<object?>().Select(x => x?.GetType().Name ?? "null"));
+    }
+
+    /// The same for the items of the first item, itself an array (nested arrays).
+    public static string InnerItemTypes(object com, string member, object arg)
+    {
+        var r = (Array)com.GetType().InvokeMember(member,
+            System.Reflection.BindingFlags.InvokeMethod | System.Reflection.BindingFlags.GetProperty,
+            null, com, new[] { arg })!;
+        return string.Join(" ", ((Array)r.GetValue(0)!).Cast<object?>().Select(x => x?.GetType().Name ?? "null"));
+    }
 }

@@ -10,8 +10,9 @@
 // Arguments, as .OLEObject sends them: .true and .false as booleans
 // (VT_BOOL; the strings "1" and "0" as numbers); a Rexx string that is a Rexx
 // number as a number: an int (VT_I4) if whole and within 32 bits, else a
-// double (VT_R8; COM servers, as VBA, rarely take VT_I8); a multidimensional
-// Rexx Array as a SAFEARRAY of its rank; any other string as a string
+// double (VT_R8; COM servers, as VBA, rarely take VT_I8); a Rexx Array as a
+// SAFEARRAY of its rank, its items converted the same way (Calc's
+// setDataArray keeps a string "7" as text); any other string as a string
 // (.net~box("string", "007") forces a string); .nil, and an omitted argument,
 // as "not given" (Type.Missing: COM's optional parameters); .NET objects as
 // themselves. Results as any .NET result (another COM object: a .NetObject).
@@ -22,6 +23,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -165,10 +167,26 @@ static class Com
         {
             case 'N': return Type.Missing;
             case 'S': return r.Logical ? r.Text == "1" : Number(r.Text);
+            case 'A': return r.Dims == null ? r.Items.Select(Arg).ToArray() : Grid(r);   // items as arguments too
         }
         if (Conv.TryConvert(r, typeof(object), out var v) == Conv.Fail)
             throw new BridgeException($"\"{Conv.Describe(r)}\" cannot go to a COM object");
         return v;
+    }
+
+    /// A multidimensional Rexx Array: object[,...], its items as arguments
+    /// (Rexx's order: the first index fastest).
+    static Array Grid(Rec r)
+    {
+        var dims = r.Dims!;
+        var arr = Array.CreateInstance(typeof(object), dims);
+        var idx = new int[dims.Length];
+        for (int k = 0; k < r.Items.Count; k++)
+        {
+            for (int d = 0, q = k; d < dims.Length; d++) { idx[d] = q % dims[d]; q /= dims[d]; }
+            arr.SetValue(Arg(r.Items[k]), idx);
+        }
+        return arr;
     }
 
     /// A Rexx number as an int (whole, within 32 bits) or a double; any

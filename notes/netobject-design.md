@@ -1059,8 +1059,11 @@ trunk, `orexxole.cpp`) chooses when the type information says `VARIANT`:
   and within 32 bits, else `double` (`VT_R8`). `.OLEObject` truncates a
   whole number beyond 32 bits to `LONG`; a `double` keeps it exactly up to
   2^53. No `VT_I8`: few servers take it (VBA's `Long` is 32 bits).
-- A multidimensional Rexx Array: a `SAFEARRAY` of its rank, through the
-  next point.
+- A Rexx Array: a `SAFEARRAY` of its rank (multidimensional: the next
+  point), **its items converted the same way**, nested Arrays too. (At
+  first only top-level arguments were: LibreOffice Calc's `setDataArray`
+  then kept 12 and 7 as the texts "12" and "7"; Excel's `Range.Value`
+  hides it, parsing strings as typed.)
 
 **A multidimensional Rexx Array to .NET** was flattened to a one-dimensional
 `object[]` in Rexx's linear order (the first index varies fastest:
