@@ -141,6 +141,9 @@
  * (Cancel). COM delivers events from another process to a Rexx thread only
  * while it waits in .NET: .net~nextEvent(seconds), .net~eventLoop, or a call
  * to the COM object. .net~events(o) lists an object's events (.NET or COM).
+ * .net~getConstant(o, name) is a constant of o's type library (as
+ * .OLEObject's getConstant: xlHAlignRight, olFolderInbox; caseless; .nil if
+ * there is none); .net~getConstant(o), all of them (a StringTable).
  */
 .environment~net = .NetGlobal~new("")
 
@@ -502,6 +505,17 @@ syntax: raise propagate
   signal on syntax                     -- language: "user" (the user's, as .OLEObject) or a culture name; default English (US)
   use strict arg progID, language = ""
   return NetRequest("comCreate", progID, language)
+syntax: raise propagate
+::method getConstant unguarded       -- .net~getConstant(comObject [, name]): a constant of its type library (.nil: none), or all of them (a StringTable)
+  signal on syntax
+  use strict arg o, name = .nil
+  if name \== .nil then return NetRequest("comConstant", o, name)
+  r = NetRequest("comConstant", o)
+  all = .StringTable~new
+  do i = 1 to r[1]~items
+    all[r[1][i]] = r[2][i]
+  end
+  return all
 syntax: raise propagate
 ::method releaseObject unguarded     -- .net~releaseObject(o): releases a COM object now (lets its server end)
   signal on syntax

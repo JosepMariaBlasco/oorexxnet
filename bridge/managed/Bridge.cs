@@ -12,6 +12,8 @@
 //   nsname   S full name                               -> P
 //   type     A [S name | O open generic, type args...]  -> O type
 //   comCreate S progID [, S language]                  -> O (a COM object)
+//   comConstant O [, S name]                           -> a constant of its type library (N: none), or
+//                                                         A [A names, A values]: all (ComConstants.cs)
 //   load     S name or path                            -> S the assembly's full name
 //   typeOf   O                                         -> S
 //   typeObject O                                       -> O (its System.Type)
@@ -163,6 +165,10 @@ public static unsafe class Bridge
             case "load": w.Add('S', Types.Load(r[1].Text).FullName ?? ""); break;
             case "comCreate": Conv.AddObject(w, Com.Create(r[1].Text, r.Count > 2 ? r[2].Text : "")); break;
             case "comRelease": Com.Release(Handles.Get(r[1].Id)); w.Add('V', ""); break;
+            case "comConstant":
+                if (!OperatingSystem.IsWindows()) throw new BridgeException(".net~getConstant: COM objects exist on Windows only");
+                ComConstants.Get(Handles.Get(r[1].Id), r.Count > 2 ? r[2].Text : null, w);
+                break;
             case "typeOf": w.Add('S', Extend.Display(TypeOf(r[1]))); break;
             case "typeObject": Conv.AddObject(w, TypeOf(r[1])); break;
             case "isInstance":

@@ -195,6 +195,16 @@ rs~WillMove += h
 .net~releaseObject(rs)                                    -- disconnects its sinks too
 call ok "releaseObject with handlers",     ev~moves, 6
 
+-- the constants of a COM object's type library (.OLEObject's getConstant)
+call ok "getConstant",                     .net~getConstant(fso, "ForAppending"), 8
+call ok "getConstant: caseless",           .net~getConstant(fso, "temporaryfolder"), 2
+call ok "getConstant: used as an argument", fso~FolderExists(fso~GetSpecialFolder(.net~getConstant(fso, "TemporaryFolder"))~Path), 1
+call ok "getConstant: none of that name",  .net~getConstant(fso, "NoSuchConstant"), .nil
+all = .net~getConstant(fso)
+call ok "getConstant(o): a StringTable",   all~isA(.StringTable) all["ForReading"] all["TextCompare"], "1 1 1"
+call ok "getConstant: same library, another object", .net~getConstant(.net~createObject("Scripting.Dictionary"), "BinaryCompare"), 0
+call err "getConstant: not a COM object",  ".net~getConstant(.net~System~Text~StringBuilder~new, 'x')", "not a COM object"
+
 if .fails = 0 then say "COM objects: all" .count "tests passed"
 else say "COM objects:" .fails "of" .count "tests FAILED"
 exit .fails > 0
@@ -228,3 +238,17 @@ exit .fails > 0
   if got == want then return
   .local~fails += 1
   say "FAIL" name": got ["got"], want ["want"]"
+
+::routine err                     -- the code must raise an error whose message contains fragment
+  use arg name, code, fragment
+  .local~count += 1
+  signal on syntax
+  interpret code
+  .local~fails += 1
+  say "FAIL" name": no error"
+  return
+syntax:
+  msg = condition("O")~message
+  if msg~pos(fragment) > 0 then return
+  .local~fails += 1
+  say "FAIL" name": message ["msg"], want ["fragment"]"
