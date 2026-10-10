@@ -1,0 +1,2 @@
+# patches apply to files with LF endings: keep them as they are on Windows too
+*.diff -text
