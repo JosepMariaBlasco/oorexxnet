@@ -11,7 +11,10 @@
    adReason is 12 (adRsnMoveFirst), adStatus 1 (adStatusOK). Returning 4
    (adStatusCancel) should cancel the move: MoveNext then fails with an
    "operation cancelled" error and the record does not change.            */
+parse version v; say v
 rs = .WatchedRecordset~new("ADODB.Recordset", "WITHEVENTS")
+rs~watch = .false; rs~cancel = .false
+say "0. Created; adding two records"
 rs~CursorLocation = 3                                     -- adUseClient
 rs~Fields~Append("name", 200, 20)                         -- adVarChar
 rs~Open
@@ -39,9 +42,6 @@ syntax:
 ::class WatchedRecordset subclass OLEObject
 ::attribute watch
 ::attribute cancel
-::method init
-  forward class (super) continue
-  self~watch = .false; self~cancel = .false
 ::method willMove
   if self~watch then do
     say "   WillMove got" arg() "arguments (expected: 12, 1, an OLEObject):"
