@@ -69,7 +69,7 @@ call ok "Collection<T>.InsertItem",  u[0] u[1] u~Count u~inserts, "WORLD HELLO 2
 w = .Shout~new
 w~Write("abc"); w~Write(12)
 call ok "TextWriter.Write(char)",    w~text, "ABC12"
-call ok "TextWriter's protected CoreNewLine", w~NewLine~c2x, "0A"
+call ok "TextWriter's protected CoreNewLine", w~newlineChars, "0A"
 l = .net~type("System.Collections.Generic.List<System.String>")~new
 do x over "ccc a bb dddd"~makeArray(" "); l~Add(x); end
 l~Sort(.ByLength~new)
@@ -186,6 +186,7 @@ windowsForm: procedure
   self~CoreNewLine = .net~type("System.Char[]")~new(1)   -- protected field
   self~CoreNewLine[1] = "0a"x
 ::method text;     expose text; return text
+::method newlineChars; return self~CoreNewLine~makeString("L", "")~c2x
 ::method Encoding; return .net~System~Text~Encoding~UTF8
 ::method Write
   expose text
