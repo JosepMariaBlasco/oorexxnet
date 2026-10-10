@@ -11,6 +11,7 @@ as `.OLEObject~new` does, and the rest of the program does not change.
 |---|---|---|
 | Writer: a heading, a paragraph, a table, saved as .odt | `writer-ole.rex` | `writer-net.rex` |
 | Calc: a table, formulas, formatting, saved as .ods | `calc-ole.rex` | `calc-net.rex` |
+| Impress: a title slide, a list on two levels, a drawn shape, saved as .odp | `impress-ole.rex` | `impress-net.rex` |
 
 `diff calc-ole.rex calc-net.rex` shows everything that differs.
 

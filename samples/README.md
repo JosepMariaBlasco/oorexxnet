@@ -40,9 +40,17 @@ and through the bridge (`.net~createObject`): see `office/README.md`.
 
 ## LibreOffice (`libreoffice/`, Windows with LibreOffice)
 
-Writer and Calc, the same way, through LibreOffice's automation bridge
-(`com.sun.star.ServiceManager`): see `libreoffice/README.md`.
+Writer, Calc and Impress, the same way, through LibreOffice's automation
+bridge (`com.sun.star.ServiceManager`): see `libreoffice/README.md`.
 `rexx samples\check-samples.rex [build-dir] libreoffice` runs them too.
+
+## ooRexx's OLE samples (`oorexx-ole/`, Windows)
+
+The OLE samples that come with ooRexx for Windows (`samples\ole\apps`:
+Access, Excel, Outlook, PowerPoint, Word; OpenOffice / LibreOffice), with
+the same names, through the bridge: see `oorexx-ole/README.md` (they keep
+ooRexx's licence, the CPL). `check-samples.rex` runs the AOO ones with
+`libreoffice` and the MS ones with `office`.
 
 ## .NET running Rexx
 

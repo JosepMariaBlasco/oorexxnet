@@ -1,6 +1,7 @@
-# The LibreOffice samples (samples/libreoffice: Writer and Calc, each with
-# .OLEObject and through the bridge) on a Windows runner with LibreOffice
-# installed, which the build workflow's runners do not have. Runs when those
+# The LibreOffice samples (samples/libreoffice: Writer, Calc and Impress,
+# each with .OLEObject and through the bridge; samples/oorexx-ole/AOO_*:
+# ooRexx's own OLE samples, .NET versions) on a Windows runner with
+# LibreOffice installed, which the build workflow's runners do not have. Runs when those
 # samples or the bridge's COM code change, or by hand.
 name: libreoffice
 
@@ -9,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'samples/libreoffice/**'
+      - 'samples/oorexx-ole/AOO_*'
       - 'samples/check-samples.rex'
       - 'bridge/managed/Com*.cs'
       - '.github/workflows/libreoffice.yml'
