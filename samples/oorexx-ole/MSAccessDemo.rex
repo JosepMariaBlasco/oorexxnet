@@ -74,6 +74,7 @@ accessApp~closeCurrentDatabase   -- close database
 call compressAndRepair accessApp, dbFileName -- compress database
 
 say ".rexxInfo~architecture:" pp(.rexxInfo~architecture) "(bitness)"
+if auto then accessApp~quit       -- (.NET version) unattended: Access closes too
 .net~releaseObject(accessApp)    -- (.NET version) now, not when .NET's GC gets to it
 exit
 

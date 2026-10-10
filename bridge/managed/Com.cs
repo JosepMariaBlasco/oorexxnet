@@ -9,7 +9,8 @@
 // o~name = v is a property write. o[i] is its default member (DISPID 0).
 // Arguments, as .OLEObject sends them: .true and .false as booleans
 // (VT_BOOL; the strings "1" and "0" as numbers); a Rexx string that is a Rexx
-// number as a number: an int (VT_I4) if whole and within 32 bits, else a
+// number as a number (but as itself where the member's type information
+// declares a string: Strings, below): an int (VT_I4) if whole and within 32 bits, else a
 // double (VT_R8; COM servers, as VBA, rarely take VT_I8); a Rexx Array as a
 // SAFEARRAY of its rank, its items converted the same way (Calc's
 // setDataArray keeps a string "7" as text); any other string as a string
@@ -73,6 +74,7 @@ static class Com
     internal static void Send(object o, string name, List<Rec> args, Writer w)
     {
         var a = Args(args);
+        Strings(o, name, INVOKE_FUNC | INVOKE_PROPERTYGET, args, a);
         if (!args.Any(r => r.Tag == 'R')) { Conv.ToRexx(w, Invoke(o, name, Get, a)); return; }
         // .NetRef arguments go by reference (VT_BYREF: an ADO Execute's
         // RecordsAffected, as .OLEObject's .OLEVariant): the answer is R, the
@@ -86,8 +88,84 @@ static class Com
         w.Add('R', inner.ToArray());
     }
 
-    internal static void Set(object o, string name, Rec value) =>
-        Invoke(o, name, BindingFlags.SetProperty, new[] { Arg(value) });
+    internal static void Set(object o, string name, Rec value)
+    {
+        var a = new[] { Arg(value) };
+        Strings(o, name, INVOKE_PROPERTYPUT, new List<Rec> { value }, a, last: true);
+        Invoke(o, name, BindingFlags.SetProperty, a);
+    }
+
+    // ------------------------------------------------- declared string parameters
+
+    // A Rexx number goes as a number (Number, below), but where the member's
+    // type information declares a string parameter (BSTR) it goes as the
+    // Rexx string itself, as .OLEObject converts arguments to the declared
+    // types: Word's Selection.TypeText(2000) refuses an int (most servers
+    // convert, Word does not). The declared types are read once per
+    // interface and name.
+    const int INVOKE_FUNC = 1, INVOKE_PROPERTYGET = 2, INVOKE_PROPERTYPUT = 4;
+    const short VT_BSTR = 8;
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<(Guid, string, int), short[]?> declared = new();
+
+    // last: the arguments are the last parameters (a property put's value)
+    static void Strings(object o, string name, int invkind, List<Rec> recs, object?[] a, bool last = false)
+    {
+        bool any = false;
+        for (int i = 0; i < a.Length && !any; i++) any = Numeric(recs[i], a[i]);
+        if (!any || !OperatingSystem.IsWindows()) return;
+        var vts = Declared(o, name, invkind);
+        if (vts == null) return;
+        int shift = last ? vts.Length - a.Length : 0;
+        for (int i = 0; i < a.Length; i++)
+        {
+            int k = i + shift;
+            if (k >= 0 && k < vts.Length && vts[k] == VT_BSTR && Numeric(recs[i], a[i])) a[i] = recs[i].Text;
+        }
+    }
+
+    static bool Numeric(Rec r, object? converted) => r.Tag == 'S' && !r.Logical && converted is int or double;
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    static short[]? Declared(object o, string name, int invkind)
+    {
+        System.Runtime.InteropServices.ComTypes.ITypeInfo? ti = null;
+        try
+        {
+            if (o is IDispatchInfo d && d.GetTypeInfo(0, 0x0409, out var t) == 0) ti = t;
+        }
+        catch (Exception e) when (e is COMException || e is InvalidCastException) { }
+        if (ti == null) return null;
+        ti.GetTypeAttr(out var pa);
+        System.Runtime.InteropServices.ComTypes.TYPEATTR attr;
+        try { attr = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.TYPEATTR>(pa); }
+        finally { ti.ReleaseTypeAttr(pa); }
+        return declared.GetOrAdd((attr.guid, name.ToUpperInvariant(), invkind), _ => Read(ti, name, invkind, attr.cFuncs));
+    }
+
+    // The parameters' VARTYPEs of the member's FUNCDESC of that kind (null: none found)
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    static short[]? Read(System.Runtime.InteropServices.ComTypes.ITypeInfo ti, string name, int invkind, int funcs)
+    {
+        var ids = new int[1];
+        try { ti.GetIDsOfNames(new[] { name }, 1, ids); }
+        catch (COMException) { return null; }
+        int size = Marshal.SizeOf<System.Runtime.InteropServices.ComTypes.ELEMDESC>();
+        for (int f = 0; f < funcs; f++)
+        {
+            ti.GetFuncDesc(f, out var pf);
+            try
+            {
+                var fd = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.FUNCDESC>(pf);
+                if (fd.memid != ids[0] || ((int)fd.invkind & invkind) == 0) continue;
+                var vts = new short[fd.cParams];
+                for (int k = 0; k < fd.cParams; k++)
+                    vts[k] = Marshal.PtrToStructure<System.Runtime.InteropServices.ComTypes.ELEMDESC>(fd.lprgelemdescParam + k * size).tdesc.vt;
+                return vts;
+            }
+            finally { ti.ReleaseFuncDesc(pf); }
+        }
+        return null;
+    }
 
     /// o[i...]: the default member (DISPID 0), read
     internal static void Index(object o, List<Rec> idx, Writer w) =>

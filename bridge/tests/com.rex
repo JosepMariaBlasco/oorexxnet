@@ -195,6 +195,9 @@ rs~WillMove += h
 .net~releaseObject(rs)                                    -- disconnects its sinks too
 call ok "releaseObject with handlers",     ev~moves, 6
 
+-- a Rexx number for a parameter declared a string goes as the string (as .OLEObject)
+call ok "a number for a string parameter",  fso~BuildPath(12, "034"), "12\034"
+
 -- the constants of a COM object's type library (.OLEObject's getConstant)
 call ok "getConstant",                     .net~getConstant(fso, "ForAppending"), 8
 call ok "getConstant: caseless",           .net~getConstant(fso, "temporaryfolder"), 2
