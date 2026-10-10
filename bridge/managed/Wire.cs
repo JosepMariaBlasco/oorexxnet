@@ -1,6 +1,9 @@
 // Records exchanged with the native side: <tag><length>:<bytes>, the length in
 // bytes of the UTF-8 payload (JDOR's format, as .JSObject). Request records:
 //   S string   N nil (.nil)   O handle id   A list (payload: records)
+//   L .true or .false themselves: "1" or "0", read as an S marked Logical
+//   M a multidimensional Rexx Array: "d1,d2,...\t" + its items' records, in
+//     Rexx's order (the first index fastest); read as an A with Dims
 //   T typed: payload "kind\t" + one record (kind: a type name, "#id" of a
 //     type handle, or "null")
 //   R a .NetRef (ref / out argument): payload one record, its value
@@ -32,6 +35,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Rexx.Net;
@@ -42,6 +46,8 @@ public sealed class Rec
     public char Tag;
     public string Text = "";
     public List<Rec> Items = new();
+    public int[]? Dims;
+    public bool Logical;                // S from .true or .false themselves (L)                 // A from a multidimensional Rexx Array (M): its dimensions; Items in Rexx's order
     public Rec? Inner;                  // T, R: the value
     internal RexxObject? Adopted;       // X, G: its proxy, made once (overloads try a record many times)
     internal bool? IsMap;               // X, G: a StringTable or a Directory? asked once
@@ -75,6 +81,15 @@ public static class Wire
             switch (tag)
             {
                 case 'A': r.Items = Parse(payload); break;
+                case 'L': r.Tag = 'S'; r.Logical = true; r.Text = Encoding.UTF8.GetString(payload); break;
+                case 'M':                                   // "d1,d2,...\t" items: an A with dimensions
+                {
+                    int tab = payload.IndexOf((byte)'\t');
+                    r.Tag = 'A';
+                    r.Dims = Encoding.UTF8.GetString(payload.Slice(0, tab)).Split(',').Select(int.Parse).ToArray();
+                    r.Items = Parse(payload.Slice(tab + 1));
+                    break;
+                }
                 case 'R': r.Inner = Parse(payload)[0]; break;
                 case 'T':
                 {

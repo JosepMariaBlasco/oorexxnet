@@ -71,7 +71,7 @@ public static class Conv
             case 'T':
                 return FromTyped(r, under ?? to, out value);
             case 'A':
-                return FromArray(r.Items, to, out value);
+                return r.Dims == null ? FromArray(r.Items, to, out value) : FromMultiArray(r, to, out value);
             case 'S':
                 return FromString(r.Text, under ?? to, out value);
             case 'H':
@@ -173,6 +173,33 @@ public static class Conv
             value = list;
         }
         return cost + (items.Count == 0 ? extra : 0);
+    }
+
+    // A multidimensional Rexx Array: a rectangular .NET array of the same rank
+    // (T[,] for a parameter of that type, object[,] for object or Array),
+    // a[i, j] at [i - 1, j - 1]. Nothing else: a list would lose the shape.
+    static int FromMultiArray(Rec r, Type to, out object? value)
+    {
+        value = null;
+        var dims = r.Dims!;
+        Type elem;
+        int extra;
+        if (to.IsArray && to.GetArrayRank() == dims.Length) { elem = to.GetElementType()!; extra = 1; }
+        else if (to == typeof(object) || to == typeof(Array)) { elem = typeof(object); extra = 3; }
+        else return Fail;
+        var arr = Array.CreateInstance(elem, dims);
+        var idx = new int[dims.Length];
+        int cost = 0;
+        for (int k = 0; k < r.Items.Count; k++)
+        {
+            int c = TryConvert(r.Items[k], elem, out var v);
+            if (c == Fail) return Fail;
+            cost += c + extra;
+            for (int d = 0, q = k; d < dims.Length; d++) { idx[d] = q % dims[d]; q /= dims[d]; }   // the first index fastest
+            arr.SetValue(v, idx);
+        }
+        value = arr;
+        return cost + (r.Items.Count == 0 ? extra : 0);
     }
 
     // A .NetHandler: a delegate of the parameter's type. C# chooses among
@@ -373,7 +400,7 @@ public static class Conv
     public static string Describe(Rec r) => r.Tag switch
     {
         'S' => r.Text, 'N' => ".nil", 'O' => Types.Display(Handles.Get(r.Id) is StaticOf so ? so.Type : Handles.Get(r.Id).GetType()),
-        'A' => "an Array", 'T' => r.Text + " " + Describe(r.Inner!), 'R' => "a NetRef", 'H' => "a NetHandler",
+        'A' => r.Dims == null ? "an Array" : $"a {r.Dims.Length}-dimensional Array", 'T' => r.Text + " " + Describe(r.Inner!), 'R' => "a NetRef", 'H' => "a NetHandler",
         'X' or 'G' => r.IsMap == true ? "a StringTable or Directory (whose values do not all convert)" : "a Rexx object",
         _ => r.Tag.ToString(),
     };

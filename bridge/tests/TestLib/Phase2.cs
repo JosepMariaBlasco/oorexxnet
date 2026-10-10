@@ -28,6 +28,9 @@ public static class Coll
     public static int[][] Jagged() => new[] { new[] { 1, 2 }, new[] { 4, 5, 6 } };
     public static string TypesOf(object?[] a) => string.Join(" ", a.Select(x => x?.GetType().Name ?? "null"));
     public static int SumAll(int[,] g) { int n = 0; foreach (var x in g) n += x; return n; }
+    public static string Shape(Array a) =>                    // type, lengths, a[0, last] and a[last, 0]
+        $"{a.GetType().Name} {string.Join("x", Enumerable.Range(0, a.Rank).Select(a.GetLength))} " +
+        (a.Rank == 2 ? $"{a.GetValue(0, a.GetLength(1) - 1)} {a.GetValue(a.GetLength(0) - 1, 0)}" : "");
     public static IReadOnlyDictionary<string, int> ReadOnly() => new RoDict(new() { ["x"] = 1, ["y"] = 2 });
     public static IList<string> Hidden2() => new List<string> { "p", "q" }.AsReadOnly();
 }

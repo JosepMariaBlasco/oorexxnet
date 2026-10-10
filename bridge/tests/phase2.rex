@@ -79,6 +79,16 @@ call ok "items counts every element", s~items, 3
 jag = coll~Jagged
 call ok "jagged: an array of arrays", jag[2]~isA(.NetArray) jag[2][3], "1 6"
 call ok "an array back to .NET is itself", coll~SumAll(g), 31
+r2 = .array~new(2, 3)
+do i = 1 to 2; do j = 1 to 3; r2[i, j] = i * 10 + j; end; end
+call ok "a 2-D Rexx Array to int[,]", coll~SumAll(r2), 2 * (11 + 12 + 13) + 30
+call ok "... a[i, j] at [i - 1, j - 1]", coll~Shape(r2), "Object[,] 2x3 13 21"
+call ok "... back as a NetArray", .net~System~Collections~ArrayList~new~~Add(r2)~Item(0)[2, 3], 23
+.local~r2 = r2
+r3 = .array~new(2, 2, 2); r3~fill(1)
+call ok "a 3-D Rexx Array",     coll~Shape(r3), "Object[,,] 2x2x2 "
+call err "a 2-D Rexx Array is no list", "x = .net~type('System.Collections.Generic.List<int>')~new(.local~r2)", "accepts (a 2-dimensional Array)"
+call err "a 2-D Rexx Array is no int[]", "x = .net~RexxNetTests~Probe~Arr(.local~r2)", "accepts (a 2-dimensional Array)"
 sb = .net~System~Text~StringBuilder~new("abc")
 call ok "StringBuilder[1] (Chars)", sb[1], "b"
 sb[0] = "X"

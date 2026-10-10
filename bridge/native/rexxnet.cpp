@@ -295,9 +295,25 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
             return false;
         }
         for (size_t i = 1; i <= last; i++) if (!encode(c, c->ArrayAt(a, i), items, refs, adopt)) return false;
-        record(out, 'A', items);
+        size_t dims = c->ArrayDimension(a);
+        if (dims <= 1) { record(out, 'A', items); return true; }
+        // A multidimensional Array: M "d1,d2,...\t" and its items in Rexx's
+        // linear order (the first index varies fastest), for a T[,] in .NET
+        std::string head;
+        for (size_t d = 1; d <= dims; d++)
+        {
+            wholenumber_t n = 0;
+            c->ObjectToWholeNumber(c->SendMessage1(o, "DIMENSION", c->WholeNumberToObject((wholenumber_t)d)), &n);
+            if (d > 1) head += ',';
+            head += std::to_string(n);
+        }
+        record(out, 'M', head + '\t' + items);
         return true;
     }
+    // .true and .false themselves (not the strings "1" and "0"): L, read as
+    // an S "1" / "0" that remembers it was a logical (COM: VT_BOOL, as
+    // .OLEObject sends them)
+    if (o == c->True() || o == c->False()) { record(out, 'L', o == c->True() ? "1" : "0"); return true; }
     if (c->IsInstanceOf(o, cls.string))
     {
         size_t len = c->StringLength((RexxStringObject)c->ObjectToString(o));

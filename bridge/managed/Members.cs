@@ -137,7 +137,8 @@ public static class Members
             case 'A':
             {
                 var ts = r.Items.Select(TypeOf).Where(t => t != null).Distinct().ToList();
-                return (ts.Count == 1 ? ts[0]! : typeof(object)).MakeArrayType();
+                var et = ts.Count == 1 ? ts[0]! : typeof(object);
+                return r.Dims == null ? et.MakeArrayType() : et.MakeArrayType(r.Dims.Length);
             }
         }
         return null;

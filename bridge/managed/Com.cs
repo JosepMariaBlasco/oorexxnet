@@ -7,8 +7,11 @@
 // (Type.InvokeMember), caselessly, as a method call or a property read
 // (DISPATCH_METHOD | DISPATCH_PROPERTYGET: COM servers take either), and
 // o~name = v is a property write. o[i] is its default member (DISPID 0).
-// Arguments: a Rexx string that is a Rexx number goes as a number (int,
-// long or double), as .OLEObject sends it; any other string as a string
+// Arguments, as .OLEObject sends them: .true and .false as booleans
+// (VT_BOOL; the strings "1" and "0" as numbers); a Rexx string that is a Rexx
+// number as a number: an int (VT_I4) if whole and within 32 bits, else a
+// double (VT_R8; COM servers, as VBA, rarely take VT_I8); a multidimensional
+// Rexx Array as a SAFEARRAY of its rank; any other string as a string
 // (.net~box("string", "007") forces a string); .nil, and an omitted argument,
 // as "not given" (Type.Missing: COM's optional parameters); .NET objects as
 // themselves. Results as any .NET result (another COM object: a .NetObject).
@@ -161,23 +164,48 @@ static class Com
         switch (r.Tag)
         {
             case 'N': return Type.Missing;
-            case 'S': return Number(r.Text);
+            case 'S': return r.Logical ? r.Text == "1" : Number(r.Text);
         }
         if (Conv.TryConvert(r, typeof(object), out var v) == Conv.Fail)
             throw new BridgeException($"\"{Conv.Describe(r)}\" cannot go to a COM object");
         return v;
     }
 
-    /// A Rexx number as an int, a long or a double; any other string as itself.
+    /// A Rexx number as an int (whole, within 32 bits) or a double; any
+    /// other string as itself. Rexx's syntax: blanks around, a sign (blanks
+    /// may follow it), digits with at most one '.', an exponent (E, a sign,
+    /// digits); "NaN" or "Infinity" are strings.
     internal static object Number(string s)
     {
-        var t = s.Trim();
-        if (t.Length == 0 || t.Length > 40) return s;
-        if (long.TryParse(t, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long l))
-            return l >= int.MinValue && l <= int.MaxValue ? (object)(int)l : l;   // (object): else ?: makes both long
-        // a Rexx number: digits with at most one '.', an optional exponent
-        if (double.TryParse(t, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent,
-                            CultureInfo.InvariantCulture, out double d))
+        var t = s.Trim(' ', '\t');
+        if (t.Length == 0 || t.Length > 400) return s;
+        int i = 0;
+        string sign = "";
+        if (t[0] == '+' || t[0] == '-') { sign = t[0] == '-' ? "-" : ""; i = 1; while (i < t.Length && (t[i] == ' ' || t[i] == '\t')) i++; }
+        int start = i, digits = 0, dots = 0;
+        for (; i < t.Length; i++)
+        {
+            if (t[i] >= '0' && t[i] <= '9') digits++;
+            else if (t[i] == '.') { if (++dots > 1) return s; }
+            else break;
+        }
+        if (digits == 0) return s;
+        string mantissa = t.Substring(start, i - start), exponent = "";
+        if (i < t.Length)
+        {
+            if (t[i] != 'e' && t[i] != 'E') return s;
+            int e = ++i;
+            if (i < t.Length && (t[i] == '+' || t[i] == '-')) i++;
+            int ed = i;
+            while (i < t.Length && t[i] >= '0' && t[i] <= '9') i++;
+            if (i == ed || i != t.Length) return s;
+            exponent = "E" + t.Substring(e);
+        }
+        var n = sign + mantissa + exponent;
+        if (decimal.TryParse(n, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal m) &&
+            m == decimal.Truncate(m) && m >= int.MinValue && m <= int.MaxValue)
+            return (int)m;
+        if (double.TryParse(n, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) && double.IsFinite(d))
             return d;
         return s;
     }

@@ -1036,3 +1036,42 @@ Tests: `tests/eventthread.rex` (12 everywhere: the loop; 15 on Windows, also a
 Windows Forms window updated and closed from another Rexx thread); guide
 section 6.
 
+
+## COM arguments as .OLEObject sends them; multidimensional Arrays (10/10/2026)
+
+**The bug.** `Com.Number` returned `fits ? (int)l : l`: C#'s conditional
+operator gives both branches one type, `long`, so every Rexx number reached
+COM as `VT_I8`. Excel, ADO and PowerPoint coerce it; Word's
+`Document.SaveAs2(file, 16)` answers `DISP_E_TYPEMISMATCH`. Found with
+`tests/windows/word-saveas-probe.cs` (C# makes the call 13 ways, all
+succeed) and `tests/windows/word-saveas-bisect.rex` (through the bridge:
+`.net~box("int", 16)` succeeded where `16` failed).
+
+**What a COM object now receives**, as `.OLEObject`'s `Rexx2Variant` (ooRexx
+trunk, `orexxole.cpp`) chooses when the type information says `VARIANT`:
+
+- `.true` and `.false` themselves: `VT_BOOL`. The native side records them
+  as `L` ("1" / "0"), read as an `S` marked `Logical`: everywhere else they
+  are the strings they were; `Com.Arg` makes them `bool`. The strings "1"
+  and "0" stay numbers.
+- A Rexx number, by Rexx's syntax (blanks after the sign, an exponent; not
+  .NET's "NaN" or "Infinity", which stay strings): `int` (`VT_I4`) if whole
+  and within 32 bits, else `double` (`VT_R8`). `.OLEObject` truncates a
+  whole number beyond 32 bits to `LONG`; a `double` keeps it exactly up to
+  2^53. No `VT_I8`: few servers take it (VBA's `Long` is 32 bits).
+- A multidimensional Rexx Array: a `SAFEARRAY` of its rank, through the
+  next point.
+
+**A multidimensional Rexx Array to .NET** was flattened to a one-dimensional
+`object[]` in Rexx's linear order (the first index varies fastest:
+`[1,1] [2,1] [1,2]...`), silently. Now the native side records it as `M`
+("d1,d2,...\t" and the items), read as an `A` with `Dims`; it converts to
+a .NET array of the same rank (a `T[,]` parameter, or `object[,]` for
+`object` / `Array`), `a[i, j]` at `[i - 1, j - 1]`, and to nothing else (a
+list would lose the shape: "no ... accepts (a 2-dimensional Array)").
+Excel's `range~Value = grid` gets a 2-D `SAFEARRAY`.
+
+Tests: `HostTests` (`Com.Number`'s types: 10), `phase2.rex` (6: 2-D and
+3-D Arrays, `int[,]`, the refusals), `com.rex` (2: the VARIANT types a
+`Scripting.Dictionary` keeps, read back by TestLib's `ComProbe`); guide
+sections 4 and 12.

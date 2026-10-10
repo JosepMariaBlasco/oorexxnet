@@ -233,6 +233,25 @@ Abc 65,98,99
 A wrong index raises the error a Rexx Array raises (93.907 for `a[0]`); one
 past the end is .NET's `IndexOutOfRangeException` (a .NET array cannot grow).
 
+**A Rexx Array to .NET**: a one-dimensional one goes to an array, a `List`
+or an `IEnumerable` parameter; a multidimensional one to a .NET array of the
+same rank (`int[,]` for such a parameter, else `object[,]`), `a[i, j]` at
+`[i - 1, j - 1]`. An Array with omitted items cannot go.
+
+```rexx
+grid = .array~new(2, 3)
+do i = 1 to 2; do j = 1 to 3; grid[i, j] = i * 10 + j; end; end
+list = .net~System~Collections~ArrayList~new
+list~Add(grid)
+g = list~Item(0)                                    -- the .NET array, as a Rexx Array again
+say .net~typeOf(g) g~Rank g~GetLength(1) g[2, 3]
+::requires "net.cls"
+```
+
+```text
+System.Object[,] 2 3 23
+```
+
 **Lists and other collections stay as .NET documents them**: `o[i]` is the
 indexer, 0-based for a list, a key for a dictionary. `DO OVER` works on
 anything enumerable; `DO WITH INDEX ... ITEM` gives a dictionary's keys and
@@ -605,9 +624,12 @@ an error rather than `.nil`.
 `Scripting` objects...). With no .NET interop type, it is reached through
 `IDispatch`, late-bound, as `.OLEObject` reaches it, and with the same Rexx
 syntax as any `.NetObject`: messages by name, caseless; `o~Name = v`;
-`o[i]` for the default member; DO OVER a COM collection. A Rexx number goes
-as a number (`.net~box("string", "007")` keeps a string), an omitted
-argument as "not given". Each call is made in English (US), as VBA's: Excel
+`o[i]` for the default member; DO OVER a COM collection. Arguments go as
+`.OLEObject` sends them: `.true` and `.false` as booleans; a Rexx number as
+a number, an `int` if whole and within 32 bits, else a `double`
+(`.net~box("string", "007")` keeps a string); a multidimensional Array as a
+`SAFEARRAY` of its rank (Excel: `range~Value = grid`); an omitted argument
+as "not given". Each call is made in English (US), as VBA's: Excel
 reads `=SUM(...)` on any Windows. `.net~createObject(progID, "user")` makes
 the calls in the user's language instead, as `.OLEObject` does (a Spanish
 Windows: `=SUMA(...)`), and a culture name (`"es-ES"`) in that one; the

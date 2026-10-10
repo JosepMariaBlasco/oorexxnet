@@ -201,14 +201,19 @@ static partial class Program
         dead.Dispose();
         Throws<ObjectDisposedException>("disposed object", () => dead.Send("balance"));
 
-        // A Rexx number to a COM object (Com.Number): an int when it fits (VT_I4;
-        // Word's Document.SaveAs2 refuses a VT_I8 FileFormat), else a long or a double
+        // A Rexx number to a COM object (Com.Number): an int when whole and it fits
+        // (VT_I4; Word's Document.SaveAs2 refuses a VT_I8 FileFormat), else a double
         var number = typeof(RexxInterpreter).Assembly.GetType("Rexx.Net.Com")!
             .GetMethod("Number", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
         string ComArg(string s) => number.Invoke(null, new object[] { s })!.GetType().Name;
         Ok("COM argument 16",        ComArg("16"), "Int32");
         Ok("COM argument -7",        ComArg(" -7 "), "Int32");
-        Ok("COM argument 2**40",     ComArg("1099511627776"), "Int64");
+        Ok("COM argument 2**40",     ComArg("1099511627776"), "Double");
+        Ok("COM argument - 7",       ComArg("- 7"), "Int32");
+        Ok("COM argument 1E3, 2.0",  ComArg("1E3") + " " + ComArg("2.0"), "Int32 Int32");
+        Ok("COM argument 1.5E-3",    ComArg("1.5E-3"), "Double");
+        Ok("COM argument NaN",       ComArg("NaN") + " " + ComArg("Infinity") + " " + ComArg("1E999"), "String String String");
+        Ok("COM argument 1e, 1.2.3", ComArg("1e") + " " + ComArg("1.2.3") + " " + ComArg(".") + " " + ComArg("0x10"), "String String String String");
         Ok("COM argument 0.5",       ComArg("0.5"), "Double");
         Ok("COM argument abc",       ComArg("abc"), "String");
 

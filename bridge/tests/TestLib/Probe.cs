@@ -63,3 +63,17 @@ public class Machine
     public string Send(string x) => "sent " + x;
     public string Copy() => "copied";
 }
+
+/// What a COM object gives back, as .NET sees the VARIANT (Int32 for VT_I4,
+/// Double for VT_R8, Boolean for VT_BOOL, Object[,] for a 2-D SAFEARRAY...):
+/// what the bridge sent it, for tests/com.rex (Scripting.Dictionary keeps it).
+public static class ComProbe
+{
+    public static string TypeOf(object com, string member, object arg)
+    {
+        var r = com.GetType().InvokeMember(member,
+            System.Reflection.BindingFlags.InvokeMethod | System.Reflection.BindingFlags.GetProperty,
+            null, com, new[] { arg });
+        return r?.GetType().Name ?? "null";
+    }
+}

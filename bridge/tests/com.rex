@@ -4,6 +4,7 @@
    Scripting.FileSystemObject, WScript.Shell; and COM events
    (managed/ComEvents.cs) with ADODB.Recordset, whose events come
    synchronously, during the call that causes them. */
+parse arg testlib
 .local~fails = 0; .local~count = 0
 if \.rexxInfo~platform~upper~abbrev("WIN") then do
   say "COM objects: skipped (Windows only)"
@@ -26,6 +27,22 @@ d~Add("n", "007")
 call ok "... unboxed, 007 is a number",    d~Item("n"), 7
 keys = d~Keys
 call ok "an array result: a Rexx Array",   keys~items keys[1], "4 a"
+
+-- what the COM object receives (.OLEObject's choices): VARIANT types, as
+-- .NET reads them back from a Scripting.Dictionary (TestLib's ComProbe)
+x = .net~load(testlib)
+probe = .net~RexxNetTests~ComProbe
+v = .net~createObject("Scripting.Dictionary")
+grid = .array~new(2, 3)
+do i = 1 to 2; do j = 1 to 3; grid[i, j] = i * 10 + j; end; end
+values = .array~of(16, 3000000000, 0.5, "- 7", "1E3", .true, 1, "abc", "NaN", grid, .array~of(1, 2))
+do i = 1 to values~items; v~Add("k"i, values[i]); end
+types = ""
+do i = 1 to values~items; types = types probe~TypeOf(v, "Item", "k"i); end
+call ok "VARIANT types", types~strip, -
+  "Int32 Double Double Int32 Int32 Boolean Int32 String String Object[,] Object[]"
+g = v~Item("k10")
+call ok "a 2-D Rexx Array: a 2-D SAFEARRAY", g~dimension(1) g~dimension(2) g[1, 3] g[2, 1], "2 3 13 21"
 
 -- the default member: o[i], o[i] = v
 call ok "o[key]: the default member",      d["b"], "two"
