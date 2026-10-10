@@ -5,7 +5,9 @@
 // call several ways and prints what each gives, and what SaveAs2's type
 // information says of its parameters.
 //
-// Windows with Word and the .NET 10 SDK:  dotnet run word-saveas-probe.cs
+// Windows with Word and the .NET 10 SDK:  dotnet run word-saveas-probe.cs [sta]
+// ("sta": on a single-threaded apartment's thread, as the bridge's Rexx
+// threads are; else on the main thread, in the MTA)
 // Word stays hidden; every file goes to the temporary folder and is deleted.
 //
 // The bridge calls COM objects with Type.InvokeMember (BindingFlags
@@ -19,50 +21,64 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Threading;
 
 const BindingFlags Bridge = BindingFlags.InvokeMethod | BindingFlags.GetProperty;
 var english = CultureInfo.GetCultureInfo("en-US");
 string dir = Path.GetTempPath();
 int n = 0;
 
-Console.WriteLine($".NET {Environment.Version}, {RuntimeInformation.OSDescription}, user culture {CultureInfo.CurrentCulture.Name}");
-var type = Type.GetTypeFromProgID("Word.Application") ?? throw new Exception("Word is not installed");
-object word = Activator.CreateInstance(type)!;
-try
+if (args.Length > 0 && args[0].Equals("sta", StringComparison.OrdinalIgnoreCase))
 {
-    Console.WriteLine($"Word {Get(word, "Version")}, build {Get(word, "Build")}");
-    object docs = Get(word, "Documents")!;
-    object doc = docs.GetType().InvokeMember("Add", Bridge, null, docs, null, english)!;
-    object range = doc.GetType().InvokeMember("Range", Bridge, null, doc, null, english)!;
-    range.GetType().InvokeMember("Text", BindingFlags.SetProperty, null, range, new object[] { "SaveAs2 probe" }, english);
-
-    TypeInfo(doc, "SaveAs2");
-    TypeInfo(doc, "SaveAs");
-
-    Console.WriteLine();
-    Try("bridge: (file, 16) by value, int, en-US", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, null, english));
-    Try("(file, 16) by value, InvokeMethod only", f => Call(doc, "SaveAs2", BindingFlags.InvokeMethod, new object[] { f, 16 }, null, english));
-    Try("(file, 16) by value, user culture", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, null, CultureInfo.CurrentCulture));
-    Try("(file, (short) 16) by value", f => Call(doc, "SaveAs2", Bridge, new object[] { f, (short)16 }, null, english));
-    Try("(file, 16) both by reference", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, new[] { true, true }, english));
-    Try("(file, 16) file by reference only", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, new[] { true, false }, english));
-    Try("(file, 16) format by reference only", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, new[] { false, true }, english));
-    Try("named FileName, FileFormat, by value", f => doc.GetType().InvokeMember("SaveAs2", Bridge, null, doc,
-                                                       new object[] { f, 16 }, null, english, new[] { "FileName", "FileFormat" }));
-    Try("(file) alone, by value", f => Call(doc, "SaveAs2", Bridge, new object[] { f }, null, english));
-    Try("(file) alone, by reference", f => Call(doc, "SaveAs2", Bridge, new object[] { f }, new[] { true }, english));
-    Try("C# dynamic: doc.SaveAs2(file, 16)", f => { dynamic d = doc; d.SaveAs2(f, 16); });
-    Try("C# dynamic: doc.SaveAs2(file)", f => { dynamic d = doc; d.SaveAs2(f); });
-    Try("SaveAs (not 2), (file, 16) by value", f => Call(doc, "SaveAs", Bridge, new object[] { f, 16 }, null, english));
-
-    doc.GetType().InvokeMember("Close", Bridge, null, doc, new object[] { 0 }, english);   // wdDoNotSaveChanges
+    var t = new Thread(Probe);
+    t.SetApartmentState(ApartmentState.STA);
+    t.Start();
+    t.Join();
 }
-finally
-{
-    try { word.GetType().InvokeMember("Quit", Bridge, null, word, new object[] { 0 }, english); }
-    catch (Exception e) { Console.WriteLine("Quit: " + e.Message); }
-}
+else Probe();
 return;
+
+void Probe()
+{
+    Console.WriteLine($".NET {Environment.Version}, {RuntimeInformation.OSDescription}, user culture {CultureInfo.CurrentCulture.Name}, " +
+                      $"{Thread.CurrentThread.GetApartmentState()}");
+    var type = Type.GetTypeFromProgID("Word.Application") ?? throw new Exception("Word is not installed");
+    object word = Activator.CreateInstance(type)!;
+    try
+    {
+        Console.WriteLine($"Word {Get(word, "Version")}, build {Get(word, "Build")}");
+        object docs = Get(word, "Documents")!;
+        object doc = docs.GetType().InvokeMember("Add", Bridge, null, docs, null, english)!;
+        object range = doc.GetType().InvokeMember("Range", Bridge, null, doc, null, english)!;
+        range.GetType().InvokeMember("Text", BindingFlags.SetProperty, null, range, new object[] { "SaveAs2 probe" }, english);
+
+        TypeInfo(doc, "SaveAs2");
+        TypeInfo(doc, "SaveAs");
+
+        Console.WriteLine();
+        Try("bridge: (file, 16) by value, int, en-US", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, null, english));
+        Try("(file, 16) by value, InvokeMethod only", f => Call(doc, "SaveAs2", BindingFlags.InvokeMethod, new object[] { f, 16 }, null, english));
+        Try("(file, 16) by value, user culture", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, null, CultureInfo.CurrentCulture));
+        Try("(file, (short) 16) by value", f => Call(doc, "SaveAs2", Bridge, new object[] { f, (short)16 }, null, english));
+        Try("(file, 16) both by reference", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, new[] { true, true }, english));
+        Try("(file, 16) file by reference only", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, new[] { true, false }, english));
+        Try("(file, 16) format by reference only", f => Call(doc, "SaveAs2", Bridge, new object[] { f, 16 }, new[] { false, true }, english));
+        Try("named FileName, FileFormat, by value", f => doc.GetType().InvokeMember("SaveAs2", Bridge, null, doc,
+                                                           new object[] { f, 16 }, null, english, new[] { "FileName", "FileFormat" }));
+        Try("(file) alone, by value", f => Call(doc, "SaveAs2", Bridge, new object[] { f }, null, english));
+        Try("(file) alone, by reference", f => Call(doc, "SaveAs2", Bridge, new object[] { f }, new[] { true }, english));
+        Try("C# dynamic: doc.SaveAs2(file, 16)", f => { dynamic d = doc; d.SaveAs2(f, 16); });
+        Try("C# dynamic: doc.SaveAs2(file)", f => { dynamic d = doc; d.SaveAs2(f); });
+        Try("SaveAs (not 2), (file, 16) by value", f => Call(doc, "SaveAs", Bridge, new object[] { f, 16 }, null, english));
+
+        doc.GetType().InvokeMember("Close", Bridge, null, doc, new object[] { 0 }, english);   // wdDoNotSaveChanges
+    }
+    finally
+    {
+        try { word.GetType().InvokeMember("Quit", Bridge, null, word, new object[] { 0 }, english); }
+        catch (Exception e) { Console.WriteLine("Quit: " + e.Message); }
+    }
+}
 
 object? Get(object o, string name) => o.GetType().InvokeMember(name, Bridge, null, o, null, english);
 
