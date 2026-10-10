@@ -174,6 +174,7 @@ static class ComEvents
         public readonly Dictionary<Guid, ComEventSink> Sinks = new();
     }
 
+    [SupportedOSPlatform("windows")]
     static readonly ConditionalWeakTable<object, State> states = new();
 
     [SupportedOSPlatform("windows")]

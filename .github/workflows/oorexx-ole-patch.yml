@@ -22,7 +22,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq subversion
           svn export -q https://svn.code.sf.net/p/oorexx/code-0/main/trunk oorexx
           svn info https://svn.code.sf.net/p/oorexx/code-0/main/trunk | grep "Last Changed Rev" | tee oorexx/REVISION.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: oorexx-source
           path: oorexx
@@ -31,14 +31,25 @@ jobs:
     needs: source
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           name: oorexx-source
           path: oorexx
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+      # MSVC's x64 environment: what vcvars64.bat changes, kept for the next
+      # steps (ilammy/msvc-dev-cmd did this, but runs on the deprecated Node 20)
+      - name: MSVC x64 environment
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                  -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $before = @{}
+          Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$' -and $before[$matches[1]] -ne $matches[2]) {
+              "$($matches[1])=$($matches[2])" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
       - name: Build ooRexx (unpatched)
         shell: pwsh
         run: |
@@ -84,7 +95,7 @@ jobs:
           rexx patches\oorexx\ole-events-test.rex
           if ($LASTEXITCODE) { exit 1 }
       - name: The patched orexxole.dll (to try with Excel, Word...)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: orexxole-patched
           path: |

@@ -902,8 +902,8 @@ instance's end, `Net = false` afterwards); every other suite, the guide,
 
 **Every platform's `rexxnet`, by CI** (`.github/workflows/build.yml`, the same
 day): each push builds and tests on Linux x64, macOS arm64 and Windows x64
-(ooRexx from its portable builds, pinned to r13267, the first with #2106
-fixed; .NET 8 and 10), and a last job runs `pack.sh` with the other two
+(ooRexx from its portable builds, pinned by `OOREXX_REV`: r13267, the first
+with #2106 fixed, later r13268; .NET 8 and 10), and a last job runs `pack.sh` with the other two
 natives: the package has `runtimes/linux-x64`, `osx-arm64` and `win-x64`.
 The Windows binary zip is made there too. Both are the run's artifacts.
 

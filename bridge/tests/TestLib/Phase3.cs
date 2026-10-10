@@ -23,7 +23,9 @@ public class Button
     public event EventHandler<ValueEventArgs>? ValueChanged;
     public event EventHandler<CancelEventArgs>? Closing;
     public static event EventHandler? Shared;
+#pragma warning disable CS0067   // never raised: the tests only check that it is refused
     public event RefDelegate? WithRef;
+#pragma warning restore CS0067
 
     public int ClickSubscribers => Click?.GetInvocationList().Length ?? 0;
     public event EventHandler? Thing;

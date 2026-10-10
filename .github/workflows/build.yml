@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13267"
+  OOREXX_REV: "13268"
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
@@ -43,8 +43,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - run: echo "REXXNET_BUILD=$RUNNER_TEMP/build" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -70,7 +70,7 @@ jobs:
         run: rexx samples/check-samples.rex
       - name: C# sample (the package on nuget.org)
         run: dotnet run --project samples/csharp/hello
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-${{ matrix.name }}
           path: ${{ env.REXXNET_BUILD }}/rexxnet/${{ matrix.native }}
@@ -79,8 +79,8 @@ jobs:
     name: win-x64
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
@@ -111,7 +111,7 @@ jobs:
         run: rexx samples\check-samples.rex "${{ runner.temp }}\build\rexxnet"
       - name: C# sample (the package on nuget.org)
         run: dotnet run --project samples\csharp\hello
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: native-win-x64
           path: ${{ runner.temp }}\build\rexxnet\rexxnet.dll
@@ -120,7 +120,7 @@ jobs:
         run: |
           bridge\package-windows.ps1 -Dest "$env:RUNNER_TEMP\zip"
           if (-not (Get-ChildItem "$env:RUNNER_TEMP\zip\*.zip")) { exit 1 }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-binaries
           path: ${{ runner.temp }}\zip\*.zip
@@ -130,8 +130,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - run: echo "REXXNET_BUILD=$RUNNER_TEMP/build" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
       - name: ooRexx r${{ env.OOREXX_REV }} (portable)
@@ -140,7 +140,7 @@ jobs:
             "$OOREXX_URL/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release.zip"
           unzip -q "$RUNNER_TEMP/oorexx.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release/bin" >> "$GITHUB_PATH"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: native-*
           path: natives
@@ -151,7 +151,7 @@ jobs:
           bridge/pack.sh "${V[@]}" --native win-x64=natives/native-win-x64/rexxnet.dll \
                          --native osx-arm64=natives/native-osx-arm64/librexxnet.dylib nupkg
           unzip -l nupkg/Rexx.Net.*[0-9].nupkg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: nuget
           path: nupkg/*
@@ -164,14 +164,14 @@ jobs:
       contents: write                       # the GitHub release
       id-token: write                       # nuget.org's trusted publishing (OIDC)
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: nuget
           path: nupkg
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: windows-binaries
           path: zip
