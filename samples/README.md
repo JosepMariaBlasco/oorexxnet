@@ -34,6 +34,12 @@ Excel, Word and PowerPoint, each program written twice, with `.OLEObject`
 and through the bridge (`.net~createObject`): see `office/README.md`.
 `rexx samples\check-samples.rex [build-dir] office` runs them too.
 
+## LibreOffice (`libreoffice/`, Windows with LibreOffice)
+
+Writer and Calc, the same way, through LibreOffice's automation bridge
+(`com.sun.star.ServiceManager`): see `libreoffice/README.md`.
+`rexx samples\check-samples.rex [build-dir] libreoffice` runs them too.
+
 ## .NET running Rexx
 
 - `csharp/hello/` — a C# program using the NuGet package `Rexx.Net`: Rexx

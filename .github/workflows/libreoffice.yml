@@ -1,0 +1,56 @@
+# The LibreOffice samples (samples/libreoffice: Writer and Calc, each with
+# .OLEObject and through the bridge) on a Windows runner with LibreOffice
+# installed, which the build workflow's runners do not have. Runs when those
+# samples or the bridge's COM code change, or by hand.
+name: libreoffice
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'samples/libreoffice/**'
+      - 'samples/check-samples.rex'
+      - 'bridge/managed/Com*.cs'
+      - '.github/workflows/libreoffice.yml'
+  workflow_dispatch:
+
+env:
+  OOREXX_REV: "13268"
+  OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30                   # LibreOffice's installation takes a few minutes
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'oorexx.zip'
+          curl.exe -sSfL --retry 3 -o $zip "$env:OOREXX_URL/oorexx-5.3.0-$env:OOREXX_REV.windows.x86_64-portable-release.zip"
+          if ($LASTEXITCODE) { exit 1 }
+          Expand-Archive $zip $env:RUNNER_TEMP
+          Join-Path $env:RUNNER_TEMP "oorexx-5.3.0-$env:OOREXX_REV.windows.x86_64-portable-release\bin" |
+            Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - name: LibreOffice
+        shell: pwsh
+        run: |
+          choco install libreoffice-fresh -y --no-progress
+          if ($LASTEXITCODE) { exit 1 }
+          Get-ChildItem 'C:\Program Files\LibreOffice\program\soffice.exe' | Select-Object FullName
+          (Get-Item 'C:\Program Files\LibreOffice\program\soffice.exe').VersionInfo.ProductVersion
+      - name: The bridge
+        shell: pwsh
+        run: |
+          bridge\build.ps1 -Out "$env:RUNNER_TEMP\build\rexxnet"
+          exit $LASTEXITCODE
+      - name: Samples, LibreOffice's included
+        run: rexx samples\check-samples.rex "${{ runner.temp }}\build\rexxnet" libreoffice

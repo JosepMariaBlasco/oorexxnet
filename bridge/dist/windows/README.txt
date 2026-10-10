@@ -124,6 +124,10 @@ samples\office\README.md. For example:
     rexx C:\rexxnet\samples\office\excel-net.rex
     rexx C:\rexxnet\samples\office\excel-ole.rex
 
+samples\libreoffice (LibreOffice must be installed): the same for LibreOffice
+Writer and Calc, through its automation bridge; see
+samples\libreoffice\README.md.
+
 
 From PowerShell
 ---------------

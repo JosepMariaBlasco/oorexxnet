@@ -47,15 +47,16 @@ try {
               (Join-Path $repo 'notes\clr-compat.md'),
               (Join-Path $repo 'samples\powershell\hello.ps1') $dir -ErrorAction Stop
 
-    # the samples: Rexx (every platform), Windows ones, and Office (the
-    # Rosetta stone: each program with .OLEObject and through the bridge)
-    foreach ($d in 'rexx', 'windows', 'office') {
+    # the samples: Rexx (every platform), Windows ones, Office and LibreOffice
+    # (the Rosetta stones: each program with .OLEObject and through the bridge)
+    foreach ($d in 'rexx', 'windows', 'office', 'libreoffice') {
         $to = Join-Path $dir "samples\$d"
         New-Item -ItemType Directory -Force $to | Out-Null
         Copy-Item (Join-Path $repo "samples\$d\*.rex") $to -ErrorAction Stop
     }
     Copy-Item (Join-Path $repo 'samples\README.md') (Join-Path $dir 'samples') -ErrorAction Stop
     Copy-Item (Join-Path $repo 'samples\office\README.md') (Join-Path $dir 'samples\office') -ErrorAction Stop
+    Copy-Item (Join-Path $repo 'samples\libreoffice\README.md') (Join-Path $dir 'samples\libreoffice') -ErrorAction Stop
 
     # The check, as a user would run it: from elsewhere, through the variables
     # (a copy of check.rex outside the folder, so that net.cls is not found

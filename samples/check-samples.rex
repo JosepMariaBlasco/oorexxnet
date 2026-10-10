@@ -1,13 +1,16 @@
 /* check-samples.rex: runs every sample and reports which end with an error.
 
-       rexx samples/check-samples.rex [build-dir] [office]
+       rexx samples/check-samples.rex [build-dir] [office] [libreoffice]
 
    The samples in samples/rexx run on every platform; those in
-   samples/windows only on Windows, and those in samples/office (Excel,
-   Word, PowerPoint: Office must be installed) when "office" is given. Each runs with the argument "auto", which
-   makes the interactive ones (windows, dialogs) finish by themselves; a
-   sample passes when its exit status is 0. The output is shown. build-dir:
-   the bridge's build, as for docs/check-guide.rex. Linux, macOS and Windows. */
+   samples/windows only on Windows, those in samples/office (Excel, Word,
+   PowerPoint: Office must be installed) when "office" is given, and those
+   in samples/libreoffice (Writer, Calc through COM: LibreOffice must be
+   installed) when "libreoffice" is given. Each runs with the argument
+   "auto", which makes the interactive ones (windows, dialogs) finish by
+   themselves; a sample passes when its exit status is 0. The output is
+   shown. build-dir: the bridge's build, as for docs/check-guide.rex.
+   Linux, macOS and Windows.                                                */
 
 parse source . . me
 here = filespec("location", me)
@@ -17,9 +20,14 @@ windows = platform~abbrev("WIN")
 mac = platform~pos("DARWIN") > 0 | platform~pos("MAC") > 0
 
 parse arg out
-office = .false                                             -- [build-dir] office: the Office samples too
-if out~words > 0 then office = out~word(out~words)~caselessEquals("office")
-if office then out = out~subWord(1, out~words - 1)
+office = .false; libre = .false                             -- [build-dir] [office] [libreoffice]
+do while out~words > 0
+  last = out~word(out~words)
+  if last~caselessEquals("office") then office = .true
+  else if last~caselessEquals("libreoffice") then libre = .true
+  else leave
+  out = out~subWord(1, out~words - 1)
+end
 out = out~strip~strip("B", '"')
 if out == "" then out = defaultBuild() || sep || "rexxnet"
 if \.file~new(out || sep || "Rexx.Net.dll")~exists then do
@@ -42,6 +50,7 @@ else libvar = "LD_LIBRARY_PATH='"out"' "
 dirs = .array~of("rexx")
 if windows then dirs~append("windows")
 if windows & office then dirs~append("office")              -- (Office must be installed)
+if windows & libre then dirs~append("libreoffice")          -- (LibreOffice must be installed)
 count = 0; fails = 0
 do d over dirs
   files = .array~new
