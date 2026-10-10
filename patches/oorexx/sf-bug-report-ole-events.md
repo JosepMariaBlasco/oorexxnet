@@ -8,7 +8,7 @@ Tracker: <https://sourceforge.net/p/oorexx/bugs/new/>
 | **Milestone** | 5.3.0 |
 | **Priority** | 7 |
 | **Labels** | windows, ole |
-| **Attachments** | `ole-events-crash.rex`, `ole-events-repro.rex` |
+| **Attachments** | `ole-events.diff`, `ole-events-test.rex`, `ole-events-crash.rex`, `ole-events-repro.rex` |
 
 ## Description (Markdown, paste as is)
 
@@ -53,4 +53,11 @@ WillMove got 3 arguments:
 
 `OLEObjectEvent::Invoke` converts `pDispParams->rgvarg[i]` into argument `i + 1`. COM passes positional arguments in reverse order (`rgvarg[0]` is the last one), and named arguments (`cNamedArgs`, `rgdispidNamedArgs`) first, so argument `k` (from 0) is `rgvarg[cArgs - 1 - k]` when there are no named ones. The same loop looks for out parameters with `pList->pusOptFlags[i]`, in declaration order, and writes into `rgvarg[i]`, in reverse order: with more than one parameter it picks the wrong argument (with ADO's three, the middle one, by chance the right one). Excel's events did arrive in order in our tests, perhaps because Excel passes them as named arguments.
 
-A patch for both can follow if wanted.
+### The patch
+
+`ole-events.diff` (against trunk r13268, `events.cpp` only):
+
+- Each parameter's `VARIANT` is found in the event's order: named arguments at their positions (`rgdispidNamedArgs`), then the positional ones from the end of `rgvarg`. The arguments, and the out parameters' flags (`pusOptFlags`, declaration order), use that same order.
+- A value for an out parameter is converted into a temporary `VARIANT` of the target's type and stored through the parameter's pointer (`V_BYREF`): scalars copied, a `BSTR` or an interface replacing (and freeing) the old one, a `VARIANT` replacing the old one. The caller's `VARIANT` itself is not touched. A value that cannot be converted leaves the parameter unchanged.
+
+`ole-events-test.rex` checks it with ADO: the arguments in order; returning `adStatusOK` (no crash); returning `adStatusCancel` cancels `MoveNext`; and `MoveComplete(adReason, pError, adStatus*, pRecordset)`, whose out parameter is the third of four, returning `adStatusUnwantedEvent` stops further `MoveComplete` events. Built with Visual Studio 2022 (x64) from trunk r13268: unpatched, `ole-events-crash.rex one` crashes and the arguments come reversed; patched, the three modes finish and the test passes (5 of 5).
