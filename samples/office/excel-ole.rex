@@ -12,11 +12,14 @@ data = .array~of(.array~of("Fruit", "Kilos", "Price"),  -
                  .array~of("Apples",   12,     1.20),  -
                  .array~of("Pears",     7,     1.85),  -
                  .array~of("Figs",      3,     4.10))
+grid = .array~new(data~items, 3)                            -- a 2-D Array: one call fills the range
 do r = 1 to data~items
   do c = 1 to 3
-    sheet~Cells~Item(r, c)~Value = data[r][c]                -- (VBA: Cells(r, c))
+    grid[r, c] = data[r][c]
   end
 end
+sheet~Range("A1:C4")~Value = grid
+say "B3:" sheet~Cells~Item(3, 2)~Value                       -- (VBA: Cells(3, 2))
 sheet~Range("D1")~Value = "Total"
 sheet~Range("D2:D4")~Formula = "=B2*C2"                     -- relative: D3 is =B3*C3...
 sheet~Range("C6")~Value = "Sum"
