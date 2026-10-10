@@ -4,35 +4,53 @@ Tracker: <https://sourceforge.net/p/oorexx/bugs/new/>
 
 | Field | Value |
 |---|---|
-| **Title** | OLEObject events: the event method gets its arguments in reverse order, and out parameters are not given back |
+| **Title** | OLEObject events: returning a value for an out parameter crashes the interpreter; arguments arrive in reverse order |
 | **Milestone** | 5.3.0 |
-| **Priority** | 5 |
+| **Priority** | 7 |
 | **Labels** | windows, ole |
-| **Attachments** | `ole-events-repro.rex` |
+| **Attachments** | `ole-events-crash.rex`, `ole-events-repro.rex` |
 
 ## Description (Markdown, paste as is)
 
-An `.OLEObject` created with `"WITHEVENTS"` calls its methods named after the events, but with the event's arguments **in reverse order** when the event source passes them positionally, as COM sources usually do. The attached program shows it with `ADODB.Recordset` (present on every Windows; its events come synchronously, during the call that raises them).
-
-ADO declares `WillMove([in] adReason, [in, out] adStatus*, [in] pRecordset)`. On `MoveFirst` the method should get `12, 1, <the Recordset>`; it gets them the other way round:
+Two problems in the event methods of an `.OLEObject` created with `"WITHEVENTS"`, both in `OLEObjectEvent::Invoke` (`extensions/platform/windows/ole/events.cpp`). The attached programs show them with `ADODB.Recordset`, present on every Windows, whose events come synchronously, during the call that raises them. ADO declares
 
 ```
-1. The order of the arguments (MoveFirst)
-   WillMove got 3 arguments (expected: 12, 1, an OLEObject):
-     arg 1: an OLEObject
-     arg 2: 1
-     arg 3: 12
+WillMove([in] EventReasonEnum adReason, [in, out] EventStatusEnum* adStatus, [in] _Recordset* pRecordset)
 ```
 
-(Seen with ooRexx 5.3.0 r13267, 64-bit, Windows 11.)
+Seen with ooRexx 5.3.0 r13267 and r13268, 64-bit, Windows 11.
 
-**Where.** `extensions/platform/windows/ole/events.cpp`, `OLEObjectEvent::Invoke`, converts `pDispParams->rgvarg[i]` into argument `i + 1`. COM passes positional arguments in reverse order (`rgvarg[0]` is the last one), and named arguments (`cNamedArgs`, `rgdispidNamedArgs`) first, so argument `k` (from 0) is `rgvarg[cArgs - 1 - k]` when there are no named ones. The same loop then looks for out parameters with `pList->pusOptFlags[i]`, which is in declaration order, and writes the method's return value into `rgvarg[i]`, which is in reverse order: with more than one parameter, the value goes into the wrong argument.
+### 1. Returning a value for an out parameter crashes the interpreter
 
-**Out parameters.** Related, and less clear to us: returning a value for an out parameter does not reach the event's source.
+`ole-events-crash.rex MODE` adds two records with a `WillMove` method that returns nothing (`none`), returns 1 (`one`: `adStatusOK`, a valid value for `adStatus`), or only reads its arguments (`args`):
 
-- In the attached program, part 2 returns 4 (`adStatusCancel`) for `adStatus`. The `MoveNext` should then fail as cancelled; on our machine the program ended there without any further output.
-- With Excel, `WorkbookBeforeClose(Wb, Cancel)` on an `.OLEObject` of `Excel.Application`: returning `.true` does not stop the workbook from closing. Excel's arguments did arrive in order there; perhaps Excel passes them as named arguments.
+```
+for %m in (none one args) do @rexx ole-events-crash.rex %m & echo %m: exit code %errorlevel%
 
-The second point may be a separate problem; we report it here because it is the same code path.
+none: done, 5 WillMove calls
+none: exit code 0
+one: exit code -1073741819
+args: done, 5 WillMove calls
+args: exit code 0
+```
 
-A patch for the order (positional and named arguments, and the out parameters' positions) can follow if wanted.
+(-1073741819 is 0xC0000005, an access violation. Run it with `cmd /v:on` and `!errorlevel!` inside a FOR.)
+
+The method's return value goes to the out parameter through `Rexx2Variant(context, rxResult, &pDispParams->rgvarg[i], pDispParams->rgvarg[i].vt, -1)`. There `rgvarg[i]` is `VT_BYREF | VT_I4`, pointing to the caller's storage. `Rexx2Variant` strips `VT_BYREF` and, for a number, ends in `VariantChangeType(pVariant, &sVariant, 0, VT_I4)`, which overwrites the caller's `VARIANT` itself with a `VT_I4` by value. The pointer is replaced by the value (1), the caller's storage never changes, and the caller then dereferences what it still takes for its pointer. (`rexx2vt_bool`, `VT_R8` and `VT_R4` do write through the pointer, but the `VariantInit(pVariant)` before them, and every other type, have the same problem.) A value for an out parameter should be converted into a temporary `VARIANT` and then stored through `V_BYREF(&rgvarg[i])` according to its `VT`, leaving `rgvarg[i]` as it was.
+
+This is also why, with Excel, returning `.true` from `WorkbookBeforeClose(Wb, Cancel)` does not stop the workbook from closing.
+
+### 2. The arguments arrive in reverse order
+
+`ole-events-repro.rex` prints `WillMove`'s arguments on `MoveFirst`. Expected `12, 1, <the Recordset>`; got:
+
+```
+WillMove got 3 arguments:
+  arg 1: an OLEObject (RecordCount 2)
+  arg 2: 1
+  arg 3: 12
+```
+
+`OLEObjectEvent::Invoke` converts `pDispParams->rgvarg[i]` into argument `i + 1`. COM passes positional arguments in reverse order (`rgvarg[0]` is the last one), and named arguments (`cNamedArgs`, `rgdispidNamedArgs`) first, so argument `k` (from 0) is `rgvarg[cArgs - 1 - k]` when there are no named ones. The same loop looks for out parameters with `pList->pusOptFlags[i]`, in declaration order, and writes into `rgvarg[i]`, in reverse order: with more than one parameter it picks the wrong argument (with ADO's three, the middle one, by chance the right one). Excel's events did arrive in order in our tests, perhaps because Excel passes them as named arguments.
+
+A patch for both can follow if wanted.
