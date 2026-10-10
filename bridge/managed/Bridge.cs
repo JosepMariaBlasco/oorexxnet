@@ -38,6 +38,8 @@
 //   stopLoops                                          -> V (.net~stopEventLoop)
 //   releaseHandler S id                                -> V
 //   queued                                             -> S calls waiting in the queue
+//   extend, extAlloc, extInit, extMember, extBase, extDetach: Rexx classes
+//            extending .NET classes (Extend.cs)
 // A send whose member is an event (o~Click) answers e "id\tkind\tdisplay\tname"
 // (the target's handle, for a .NetEvent). An exception whose chain holds a
 // RexxException from a Rexx callback answers C "conditionId\tmessage":
@@ -161,7 +163,7 @@ public static unsafe class Bridge
             case "load": w.Add('S', Types.Load(r[1].Text).FullName ?? ""); break;
             case "comCreate": Conv.AddObject(w, Com.Create(r[1].Text, r.Count > 2 ? r[2].Text : "")); break;
             case "comRelease": Com.Release(Handles.Get(r[1].Id)); w.Add('V', ""); break;
-            case "typeOf": w.Add('S', Types.Display(TypeOf(r[1]))); break;
+            case "typeOf": w.Add('S', Extend.Display(TypeOf(r[1]))); break;
             case "typeObject": Conv.AddObject(w, TypeOf(r[1])); break;
             case "isInstance":
             {
@@ -218,6 +220,12 @@ public static unsafe class Bridge
             case "stopLoops": Callbacks.StopLoops(); w.Add('V', ""); break;
             case "releaseHandler": Callbacks.Release(int.Parse(r[1].Text)); w.Add('V', ""); break;
             case "queued": w.Add('S', Callbacks.QueuedCount.ToString()); break;
+            case "extend": Extend.Make(r[1].Text, r[2].Items, r[3].Items, w); break;
+            case "extAlloc": Extend.Alloc(r[1], r[2], w); break;
+            case "extInit": Extend.Init(r[1], r[2].Items, w); break;
+            case "extMember": Extend.Member(r[1], r[2].Text, r[3].Items, w); break;
+            case "extBase": Extend.Base(r[1], r[2].Text, r[3].Items, w); break;
+            case "extDetach": Extend.Detach(r[1]); w.Add('V', ""); break;
             default: throw new BridgeException("unknown operation " + op);
         }
     }
@@ -408,6 +416,7 @@ public static unsafe class Bridge
             throw new BridgeException($"{Types.Display(t)} is an open generic type: give its type arguments, " +
                                       "e.g. .net~type(\"System.Collections.Generic.List<int>\")");
         if (t.IsAbstract) throw new BridgeException($"{Types.Display(t)} is {(t.IsInterface ? "an interface" : "abstract")}: it cannot be created");
+        if (Extend.IsExtended(t)) throw new BridgeException($"{Extend.Display(t)}: create it with the Rexx class's NEW");
         object? o;
         var ctors = t.GetConstructors();
         if (args.Count == 0 && t.IsValueType && !ctors.Any(c => c.GetParameters().Length == 0))

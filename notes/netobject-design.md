@@ -301,8 +301,8 @@ free there.
    members, as a C# subclass may. Rexx code never reaches the protected
    members of an arbitrary .NET object (no equivalent of Java's
    `setAccessible(true)`): proxies see public members only. Protected access
-   comes with Rexx classes extending .NET classes (not started; see "Unknown
-   members: built").
+   comes with Rexx classes extending .NET classes (*built*: see "Rexx classes
+   extending .NET classes: built").
 
 ## Phase 1: built (08/10/2026)
 
@@ -726,8 +726,8 @@ programmer knows.
   SYNTAX 97.1 is what comes. A .NET object returned by .NET later is a plain
   `.NetObject` again (the subclass is a view chosen by Rexx code, not a
   property of the .NET object). A Rexx class that *extends* a .NET class (so
-  that .NET calls its overrides) is a different, larger feature, not
-  started.
+  that .NET calls its overrides) is a different feature: see "Rexx classes
+  extending .NET classes: built".
 
 ## Enums as objects: built (09/10/2026)
 
@@ -1114,3 +1114,95 @@ threads, `eventThreadFor` a control, messages run on each, the class method
 routed, both closed). Samples: `rexx/08-event-thread.rex` (no windows),
 `windows/forms-progress.rex`, `windows/forms-two-threads.rex`. Guide
 section 6.
+
+## Rexx classes extending .NET classes: built (10/10/2026)
+
+Open point 7 settled that only a Rexx class extending a .NET class may call
+and override that class's protected members, as a C# subclass. This is that
+class. **None of the sister bridges has it** (`.JSObject`: nothing of the
+kind; ooRexx/Python writes the subclass in Python, forwarding to a Rexx
+object; ooRexx/Lua has no classes), so nothing here departs from a shared
+convention.
+
+**Rexx surface.** `.net~extend(.MyClass, base [, interfaces...])`, once per
+class (the class's `ACTIVATE` class method is the natural place), with
+`MyClass` a subclass of `NetObject`; `base` a type name or `.NetType`, a
+class or an interface (then the base is `System.Object`). It answers the
+new type as a `.NetType`, shown as `MYCLASS extending base`.
+
+- **Overrides.** Every virtual or abstract member of the base, public or
+  protected, not sealed, and every member of the interfaces (and of the
+  interfaces they extend) that `MyClass` has a method for, counting its
+  superclasses below `NetObject`, as the class is when `extend` runs. A
+  property's getter is the method `NAME`, its setter `"NAME="`, as Rexx
+  sends `o~Name` and `o~Name = v`. Overloads share the Rexx method (it gets
+  the arguments). `INIT`, `UNINIT`, `UNKNOWN` never override anything.
+- **The call.** The override is the callbacks' synchronous path
+  (`Callbacks.Call`): the thread .NET calls from is attached (nested on a
+  Rexx thread inside .NET), the result converted to the member's return
+  type, a Rexx error a `RexxException` (raised again as it was if it comes
+  back to Rexx; reported on `.error` where no Rexx code waits). Each object
+  has a `.NetHandler` whose object is the instance and whose message is
+  `NET.OVERRIDE`, which forwards to the method: one mechanism, already
+  tested from every kind of thread. Cost: about 6 µs a call, as a handler
+  (`List.Sort` with an `IComparer<int>`, warm).
+- **Not overridden, and so the base's:** members with no Rexx method.
+  **Abstract** members with no method throw `NotImplementedException`
+  ("MYCLASS does not define AREA, which the abstract ... needs"). Members
+  with `ref`, `out`, pointer or span parameters, generic methods and events
+  of interfaces are not supported yet (an abstract one throws saying so).
+- **Construction.** `.MyClass~new(args...)`: `NetObject~init` sees an
+  extended class (its own or a superclass's extension) and constructs; the
+  constructor is chosen by the arguments among the base's public and
+  protected ones (the new type has each, public). The object is made
+  uninitialized, its peer registered, the Rexx proxy given its handle, and
+  only then the constructor run on it: a base constructor that calls a
+  virtual member (WinForms does) reaches the Rexx method, and that method
+  can use the object. `MyClass`'s own `INIT` sets what its overrides need
+  and then calls `self~init:super(args...)`. A failed constructor leaves no
+  finalizer to run on a half-made object. `.net~new(type)` on the new type
+  is refused (it would have no Rexx object); .NET code that creates one
+  itself gets an object with no peer: the base's behaviour.
+- **Identity.** An extended instance going to Rexx is answered as `p`
+  (its handler's id), and rexxnet gives the Rexx object itself: `==`, its
+  class, its state; no new proxy and no new handle.
+- **Protected members.** Only the object's own methods reach them: for each
+  protected member name of the base (methods, properties, fields: `NAME`,
+  and `NAME=` if it can be set) `extend` defines a **private** Rexx method
+  on the class, which ooRexx itself lets only the object's own methods call
+  (`self~Items`); from outside, the private method is not found, the
+  message goes to `UNKNOWN`, which sees public members only: 97.1, as if
+  the member did not exist (C#'s "inaccessible"). The lookup behind them
+  (`extMember`) sees public and protected members together, so a name with
+  both (`Dispose()` public, `Dispose(bool)` protected) keeps working. A
+  name the class itself defines wins (its method, not the member).
+  `readonly` fields have no `NAME=`.
+- **base.** `self~base.Name(args)` (`"BASE.NAME="` for a setter): for each
+  overridden member with a base implementation, `extend` defines a private
+  `BASE.NAME` method, which calls a private trampoline of the new type
+  that calls the base's implementation non-virtually (`call`, not
+  `callvirt`). It is C#'s `base.Name(args)`. `self~Name:super` cannot be
+  it: it would reach `UNKNOWN`, and .NET's virtual call would come back to
+  the Rexx method.
+- **Lifetime.** The .NET object holds its Rexx object (the handler's
+  global reference) and the Rexx object holds its .NET object (the handle):
+  both live until `.net~detach(o)`, which ends the link: the overrides run
+  the base's implementations again (abstract ones throw), the instance
+  comes back from .NET as a plain `.NetObject`, and `o` can be collected.
+  As handlers, which are pinned until `~release`.
+
+Implementation: `managed/Extend.cs` (Reflection.Emit: a dynamic assembly
+`Rexx.Net.Extended`, one type per class; overrides call
+`Extend.Dispatch(this, slot, args)`, which answers a sentinel when there is
+no peer, and then the override calls the base or throws; interface members
+as explicit implementations); `net.cls` (`.net~extend`, `.net~detach`,
+`NetObject~init`'s construction, the private methods);
+`native/rexxnet.cpp` (record `p`).
+
+Tests: `tests/extend.rex` 46 (49 on Windows: a `Form` whose `OnLoad`,
+`OnPaint`, `OnShown` are Rexx methods), with `TestLib/Extend.cs` (an
+abstract class with a virtual call in its constructor and protected members
+of every kind; interfaces) and framework classes: `Collection<T>`
+(`InsertItem`, `Items`), `TextWriter` (abstract `Encoding`, `Write(char)`,
+the protected field `CoreNewLine`), `IComparer<T>` (`List.Sort`). Guide
+section 8; sample `windows/forms-extend.rex`.

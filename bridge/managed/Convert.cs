@@ -430,8 +430,9 @@ public static class Conv
 
     public static void AddObject(Writer w, object o)
     {
+        if (Extend.PeerOf(o) is RexxHandler peer) { w.Add('p', peer.Id.ToString()); return; }   // its Rexx object itself
         int id = Handles.Add(o);
-        if (o is StaticOf so) w.Add('O', $"{id}\tt\t{Types.Display(so.Type)}");
-        else w.Add('O', $"{id}\t{(o is Array ? 'a' : o is Enum ? 'e' : 'o')}\t{Types.Display(o.GetType())}");
+        if (o is StaticOf so) w.Add('O', $"{id}\tt\t{Extend.Display(so.Type)}");
+        else w.Add('O', $"{id}\t{(o is Array ? 'a' : o is Enum ? 'e' : 'o')}\t{Extend.Display(o.GetType())}");
     }
 }

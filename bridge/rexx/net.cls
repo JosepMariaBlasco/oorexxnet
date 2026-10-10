@@ -76,8 +76,27 @@
  * to .NET as that object). Its methods and its UNKNOWN come first, as in
  * any Rexx class; FORWARD CLASS (SUPER) in its UNKNOWN reaches .NET, and a
  * name that nothing handles is 97.1. (A subclass's own INIT must call
- * self~init:super(o).) A Rexx
- * error in Rexx code that the .NET code called, which that code lets
+ * self~init:super(o).)
+ *
+ * Rexx classes extending .NET classes: .net~extend(.MyClass, base [,
+ * interfaces...]) (once; usually in MyClass's ACTIVATE class method) makes
+ * a .NET type deriving from base (a type name or .NetType; an interface:
+ * System.Object) and implementing the interfaces, and gives it as a
+ * .NetType. Each virtual or abstract member of base, public or protected,
+ * and each interface member that MyClass (or a superclass below NetObject)
+ * has a method for is overridden: .NET calls the method, synchronously, as
+ * it calls a handler (a property's getter: NAME, its setter: "NAME=").
+ * .MyClass~new(args...) makes the .NET object with the constructor that
+ * fits args (MyClass's own INIT calls self~init:super(args...): set what
+ * the overrides need first, a base constructor may call them); it comes
+ * back from .NET as itself. Only the object's own methods reach the base's
+ * protected members (self~Name, self~Name = v: private methods), and
+ * self~base.Name(args) calls the base implementation of an overridden
+ * member. An abstract member with no method throws NotImplementedException.
+ * .net~detach(o) ends the link: .NET's calls go to the base's
+ * implementations again, and o can be collected.
+ *
+ * Errors: a Rexx error in Rexx code that the .NET code called, which that code lets
  * through, is raised again here as it was.
  *
  * Callbacks and events: .net~handler(object, message [, options]) is a
@@ -131,6 +150,12 @@
 ::class NetObject public
 ::method init                        -- (handle, display) from the bridge; or (a .NetObject): see below
   expose netid netdisplay
+  type = .net~extendedType(self~class)
+  if type \== .nil then do             -- a Rexx class extending a .NET class: ~new(args) constructs it
+    signal on syntax
+    self~construct(type, arg(1, "A"))
+    return
+  end
   use strict arg id, display = .nil
   if id~isA(.NetObject) then do        -- .MyClass~new(o): an instance of a Rexx subclass for o's .NET object
     if arg() > 1 then raise syntax 93.902 array(1)
@@ -142,6 +167,23 @@
     netid = id
     netdisplay = display
   end
+  return
+syntax: raise propagate
+::method construct private          -- .MyClass~new(args), MyClass extending a .NET class
+  expose netid netdisplay
+  use arg type, args
+  signal on syntax
+  h = .NetHandler~new(self, "NET.OVERRIDE")
+  parse value NetRequest("extAlloc", type, h) with netid "09"x netdisplay
+  .net~extendedPeer(self, h)
+  call NetRequest "extInit", self, args  -- its virtual members already reach this object
+  return
+syntax:
+  if var("NETID") then .net~detach(self)
+  raise propagate
+::method "NET.OVERRIDE" unguarded    -- an overridden .NET member called: the Rexx method (.net~extend)
+  use arg name
+  forward to (self) message (name) arguments (arg(2, "A"))
 ::method netId unguarded             -- the handle, for the bridge
   expose netid
   return netid
@@ -356,6 +398,77 @@ syntax: raise propagate
 
 /** .net: the root namespace and the bridge's helpers. */
 ::class NetGlobal public subclass NetNamespace
+::method init
+  expose extended peers
+  extended = .IdentityTable~new        -- Rexx class -> the .NetType made for it (.net~extend)
+  peers = .IdentityTable~new           -- instance -> its peer .NetHandler (until .net~detach)
+  forward class (super)
+::method extend unguarded            -- .net~extend(class, base type or interface [, interfaces...]): see the header
+  expose extended
+  signal on syntax
+  if arg() < 2 then raise syntax 93.903 array(2)
+  use arg cls
+  if \cls~isA(.Class) then raise syntax 98.900 array(".net~extend: the first argument must be a Rexx class, found" cls)
+  if \cls~isSubclassOf(.NetObject) then raise syntax 98.900 array(".net~extend:" cls~id "must be a subclass of NetObject")
+  if extended~hasIndex(cls) then raise syntax 98.900 array(".net~extend:" cls~id "already extends" extended[cls])
+  types = arg(2, "A")
+  do t over types
+    if \t~isA(.NetType) & \t~isA(.String) then raise syntax 98.900 array(".net~extend: a type must be a .NetType or a name, found" t)
+  end
+  names = .Array~new                   -- the Rexx class's own methods (and its superclasses' below NetObject)
+  c = cls
+  do while c \== .NetObject
+    s = c~methods(c)
+    do while s~available; names~append(s~index); s~next; end
+    c = c~superClass
+  end
+  r = NetRequest("extend", cls~id, types, names)
+  -- private methods (only the object's own methods reach them, as a C#
+  -- subclass reaches its base's protected members): the protected members,
+  -- and base.Name for each overridden member with a base implementation
+  do name over r[2]
+    if names~hasItem(name) | wordPos(name, "INIT UNINIT UNKNOWN") > 0 then iterate   -- the class's own win
+    self~forwarder(cls, name, "extMember", name)
+  end
+  do name over r[3]
+    self~forwarder(cls, "BASE."name, "extBase", name)
+  end
+  extended[cls] = r[1]
+  return r[1]
+syntax: raise propagate
+::method forwarder private
+  use arg cls, name, op, member
+  q = "'"
+  code = .Array~of('call NetRequest "'op'", self,' q || member~changeStr(q, q||q) || q', arg(1, "A")', -
+                   'if var("RESULT") then return result')
+  m = .Method~new(name, code, .context~package)
+  m~setPrivate
+  m~setUnguarded
+  cls~define(name, m)
+::method extendedType unguarded      -- the .NetType a Rexx class (or its nearest superclass) extends, or .nil
+  expose extended
+  use strict arg cls
+  c = cls
+  do while c \== .NetObject & c \== .Object
+    t = extended[c]
+    if t \== .nil then return t
+    c = c~superClass
+  end
+  return .nil
+::method extendedPeer unguarded       -- (instance, handler), from NetObject~init: remembered until .net~detach
+  expose peers
+  use strict arg o, h
+  peers[o] = h
+::method detach unguarded            -- .net~detach(o): o's .NET object no longer calls o's methods (see the header)
+  expose peers
+  signal on syntax
+  use strict arg o
+  h = peers~remove(o)
+  if h == .nil then return
+  call NetRequest "extDetach", o
+  h~release
+  return
+syntax: raise propagate
 ::method makeString unguarded
   return "the .NET root namespace (.net)"
 ::method string unguarded            -- .net~string(x): x forced to System.String

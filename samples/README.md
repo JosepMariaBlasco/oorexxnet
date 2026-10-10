@@ -23,6 +23,7 @@ stay true.
 |---|---|
 | `forms-hello.rex` | a Windows Forms window: label, text box, button, a Click handler in Rexx |
 | `forms-paint.rex` | drawing with `System.Drawing` in the Paint event; repainting on resize |
+| `forms-extend.rex` | a Rexx class extending `Form` (`.net~extend`): `OnPaint`, `OnResize`, `ProcessDialogKey`, `OnFormClosed` as Rexx methods, `base.` calls, a protected property |
 | `forms-progress.rex` | a progress bar updated from another Rexx thread with `runLaterLatest`; `GUIMessage`s: a result, an error |
 | `forms-two-threads.rex` | two windows on two UI threads, each served by its own Rexx object; `runLater` routed to each, `GUIMessage`s |
 | `dialogs.rex` | `MessageBox` with buttons and icons; the open-file dialog |

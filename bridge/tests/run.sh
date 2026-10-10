@@ -14,7 +14,7 @@ cp -r "$HERE/TestLib" "$WORK/"
 cd "$OUT"
 # the library path relative, as documented (the bridge makes its own path absolute)
 rc=0
-for t in phase1 phase2 phase3 bothways clr eventthread; do
+for t in phase1 phase2 phase3 bothways clr eventthread extend; do
   timeout 300 env "$LIBVAR=." rexx "$HERE/$t.rex" "$WORK/out/TestLib.dll" || rc=1
 done
 # .NET -> ooRexx: a .NET application hosting ooRexx (librexx found by Rexx.Net itself)

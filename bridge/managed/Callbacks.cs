@@ -116,7 +116,7 @@ public static unsafe class Callbacks
         }
     }
 
-    static readonly MethodInfo callMethod = typeof(Callbacks).GetMethod(nameof(Call))!;
+    static readonly MethodInfo callMethod = typeof(Callbacks).GetMethod(nameof(Call), new[] { typeof(RexxHandler), typeof(object[]), typeof(Type) })!;
 
     // (p1, ..., pn) => (R)Callbacks.Call(h, new object[] { p1, ..., pn }, typeof(R))
     static Delegate Build(RexxHandler h, Type d)
@@ -139,7 +139,12 @@ public static unsafe class Callbacks
     /// The body of every handler delegate. Public for the compiled
     /// expressions only.
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static object? Call(RexxHandler h, object?[] args, Type ret)
+    public static object? Call(RexxHandler h, object?[] args, Type ret) => Call(h, args, ret, null);
+
+    /// The same, for an override of a Rexx class extending a .NET class
+    /// (Extend.cs): what names the method, in errors about its result.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static object? Call(RexxHandler h, object?[] args, Type ret, string? what)
     {
         if (h.Released) return Default(ret);
         if (h.Queued) { Enqueue(h, args); return Default(ret); }
@@ -166,11 +171,13 @@ public static unsafe class Callbacks
             case 'V':
                 if (ret == typeof(void) || ret == typeof(object)) return null;
                 if (ret == typeof(Task)) return Task.CompletedTask;
-                throw new InvalidOperationException($"the Rexx handler returned nothing; its delegate needs a {Types.Display(ret)}");
+                throw new InvalidOperationException(what != null ? $"{what} returned nothing; it must return a {Types.Display(ret)}"
+                                                                 : $"the Rexx handler returned nothing; its delegate needs a {Types.Display(ret)}");
         }
         if (ret == typeof(void)) return null;
         if (Conv.TryConvert(r, ret, out var v) == Conv.Fail)
-            throw new InvalidCastException($"the Rexx handler returned \"{Conv.Describe(r)}\"; its delegate needs a {Types.Display(ret)}");
+            throw new InvalidCastException(what != null ? $"{what} returned \"{Conv.Describe(r)}\"; it must return a {Types.Display(ret)}"
+                                                         : $"the Rexx handler returned \"{Conv.Describe(r)}\"; its delegate needs a {Types.Display(ret)}");
         return v;
     }
 

@@ -515,6 +515,80 @@ ABC 3
 1
 ```
 
+### Rexx classes extending .NET classes
+
+That subclass is a view chosen by Rexx code: .NET does not know about it. To
+have .NET call your methods, as it calls a C# subclass's overrides, extend
+the .NET class: `.net~extend(.MyClass, base [, interfaces...])`, once, makes
+a .NET type deriving from `base` (a class, or an interface: then
+`System.Object`) and implementing the interfaces. Every virtual or abstract
+member, public or protected, that your class has a method for is overridden:
+.NET calls the method, on the thread it calls from, as it calls a handler
+(section 6). A property's getter is the method `Name`, its setter `"NAME="`.
+`.MyClass~new(args...)` makes the .NET object with the base constructor that
+takes `args` (your `INIT`, if any, calls `self~init:super(args...)`; set what
+your overrides need before it: the base constructor may call them already).
+
+As in C#, the object's own methods, and only they, reach the base's
+protected members (`self~Items`, `self~Label = "x"`), and
+`self~base.Name(args)` calls the base's implementation of a member you
+override (C#'s `base.Name(args)`):
+
+```rexx
+c = .Shouting~new
+c~Add("hello"); c~Insert(0, "world")
+say c[0] c[1] c~Count c~stored
+say .net~typeOf(c)
+::requires "net.cls"
+::class Shouting subclass NetObject
+::method activate class          -- when the class is created
+  .net~extend(self, "System.Collections.ObjectModel.Collection<System.String>")
+::method InsertItem              -- protected virtual void InsertItem(int index, string item)
+  use arg index, item
+  self~base.InsertItem(index, item~upper)
+::method stored                  -- Items: a protected property
+  return self~Items~Count "items"
+```
+
+```text
+WORLD HELLO 2 2 items
+SHOUTING extending System.Collections.ObjectModel.Collection<System.String>
+```
+
+An interface alone is enough for .NET code that wants one, and the object
+comes back from .NET as itself:
+
+```rexx
+.net~extend(.ByLength, "System.Collections.Generic.IComparer<System.String>")
+list = .net~type("System.Collections.Generic.List<System.String>")~new
+do w over "ccc a bb dddd"~makeArray(" "); list~Add(w); end
+cmp = .ByLength~new
+list~Sort(cmp)
+say list~ToArray~makeString("L", " ")
+held = .net~type("System.Collections.Generic.List<System.Object>")~new
+held~Add(cmp)
+say (held[0] == cmp) held[0]~class~id
+::requires "net.cls"
+::class ByLength subclass NetObject
+::method Compare
+  use arg a, b
+  return sign(a~length - b~length)
+```
+
+```text
+a bb ccc dddd
+1 BYLENGTH
+```
+
+An abstract member with no method throws `NotImplementedException` when .NET
+calls it; an override's Rexx error is a `RexxException` in .NET, and raised
+again as it was if it comes back to Rexx. The .NET object and your object
+keep each other alive: `.net~detach(o)` ends the link (.NET's calls then go
+to the base's implementations, and `o` can be collected). Not yet: events
+declared by interfaces, `ref` / `out` parameters, generic methods; methods
+added to the class after `.net~extend`. On Windows, a `Form` whose
+`OnPaint`, `OnLoad`... are Rexx methods is `samples/windows/forms-extend.rex`.
+
 ## 9. .NET → ooRexx
 
 A .NET program runs Rexx through `Rexx.Net.dll`: reference the NuGet

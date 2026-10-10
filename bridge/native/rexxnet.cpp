@@ -18,7 +18,9 @@
 // thread to the interpreter (AttachThread nests on a Rexx thread already
 // inside .NET), sends the handler's message and answers the result. A Rexx
 // condition goes back as E and is kept here: if it comes back out of .NET
-// (C), it is raised again as it was.
+// (C), it is raised again as it was. An instance of a Rexx class extending a
+// .NET class (.net~extend) comes back as p "handler id": the Rexx object it
+// belongs to (its peer handler's target), not a new proxy.
 //
 // Both ways in one process (phase C): every request carries the calling
 // thread's context, so .NET code called from here calls Rexx back nested on
@@ -402,6 +404,12 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             return (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
         case 'K':                                   // a condition already raised by the managed side
             return NULLOBJECT;
+        case 'p':                                   // an instance of a Rexx class extending a .NET class: its Rexx object
+        {
+            std::lock_guard<std::mutex> g(tablesLock);
+            auto it = handlers.find(atoi(payload.c_str()));
+            return it == handlers.end() ? c->Nil() : it->second.target;
+        }
         case 'e':                                   // a .NetEvent: its owner and name
         {
             RexxObjectPtr owner = newProxy(c, proxyClass(field(payload, 1)), field(payload, 0), field(payload, 2));
