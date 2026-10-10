@@ -641,8 +641,9 @@ syntax: raise propagate
 ::method isEventThread            abstract                -- is the current thread this event thread?
 ::method invokeOnEventThread      private abstract        -- have run called later on its thread
 
-/** Sends the message of a GUIMessage, keeping its result or its error in it. */
-::method process                  guarded private
+/** Sends the message of a GUIMessage, keeping its result or its error in it (unguarded: other
+    threads go on queueing meanwhile). */
+::method process                  unguarded private
   use strict arg guiMsg
   signal on syntax                                        -- an error stays in the GUIMessage
   if guiMsg~hasArguments then
@@ -687,16 +688,26 @@ syntax:
 syntax:
   raise propagate
 
-/** Called later on its thread: runs the queued messages. */
-::method run                      guarded
-  expose msgQueue waitingToRun
-  if self~isEventThread then
-  do
-     do while msgQueue~items>0
-        self~process(msgQueue~pull)
-     end
-     waitingToRun=.false
+/** Called later on its thread: runs the queued messages, those queued meanwhile too. Each is taken
+    from the queue under the guard and run without it, so that other threads can queue (and
+    runLaterLatest replace) while one runs. (BSF.CLS ran the whole queue under the guard.) */
+::method run                      unguarded
+  if \self~isEventThread then return
+  do forever
+     guiMsg=self~nextMessage
+     if guiMsg == .nil then leave
+     self~process(guiMsg)
   end
+
+/** The next queued message, or .nil (and run may be asked for again). */
+::method nextMessage              guarded private
+  expose msgQueue waitingToRun
+  if msgQueue~items=0 then
+  do
+     waitingToRun=.false
+     return .nil
+  end
+  return msgQueue~pull
 
 /** Queues a message for this event thread; returns its GUIMessage. */
 ::method runLater                 guarded
@@ -866,6 +877,8 @@ syntax:
   expose id
   if id = 0 then return "a NetEventThread (the loop)"
   return "a NetEventThread (UI thread" id")"
+::method string                   unguarded
+  return self~makeString
 
 
 /** A message to be run on the event thread (BSF4ooRexx's GUIMessage, modelled after ooRexx's

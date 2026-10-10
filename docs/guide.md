@@ -426,16 +426,27 @@ both. The `.GUIMessage` tells `completed`, `hasResult`, `hasError` (with
 `errorCondition`: an error stays there), and `result` waits for it.
 `isEventThread` tells whether this is the event thread.
 
-The event thread is a user interface's thread (Windows Forms, WPF: the
-first one where Rexx code runs with the window's synchronization context),
-or, without a user interface, the Rexx thread in `.net~nextEvent` /
-`.net~eventLoop`, which runs the queue as one more queued call:
+An event thread is a user interface's thread (Windows Forms, WPF: one
+where Rexx code has run with the window's synchronization context), or,
+without a user interface, the Rexx thread in `.net~nextEvent` /
+`.net~eventLoop`, which runs the queue as one more queued call. A program
+may have several UI threads, each window's being the thread that made it:
+each is a `.NetEventThread` object with its own queue. The class methods
+send a message to the event thread of its target (a Windows Forms control
+once its window exists, a WPF object: its window's thread; anything else:
+the default, the first UI thread or else the loop's).
+`.NetEventThread~eventThreadFor(control)` gives that object, whose own
+`runLater...` send there any message; `~current` is the current thread's
+(`.nil` if it is none), `~threads` all the UI threads'. While a message
+runs, other threads go on queueing (and `runLaterLatest` replacing).
+`samples/rexx/08-event-thread.rex` (no windows),
+`samples/windows/forms-progress.rex` and `forms-two-threads.rex` show them.
 
 ```rexx
 m = .NetEventThread~runLater(.Adder~new, "ADD", "I", 2, 3)
 say m~completed .NetEventThread~kind
 .net~nextEvent(5)~dispatch              -- this thread is the event thread here
-say m~completed m~result
+say m~completed m~result .NetEventThread~current
 ::requires "net.cls"
 ::class Adder
 ::method add
@@ -445,7 +456,7 @@ say m~completed m~result
 
 ```text
 0 loop
-1 5
+1 5 a NetEventThread (the loop)
 ```
 
 ## 7. Errors

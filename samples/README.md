@@ -15,6 +15,7 @@ stay true.
 | `05-json.rex` | `System.Text.Json`: parse and walk a document; serialize a dictionary |
 | `06-events.rex` | a timer's events queued and run by `.net~eventLoop`; a file watcher's, with `.net~nextEvent` |
 | `07-tasks.rex` | `~await`; Rexx methods on .NET's thread pool through `Task.Run` |
+| `08-event-thread.rex` | the event thread with no windows: `runLater`, `runLaterLatest` and their `GUIMessage`s from another Rexx thread |
 
 ## Windows (`windows/`)
 
@@ -22,6 +23,8 @@ stay true.
 |---|---|
 | `forms-hello.rex` | a Windows Forms window: label, text box, button, a Click handler in Rexx |
 | `forms-paint.rex` | drawing with `System.Drawing` in the Paint event; repainting on resize |
+| `forms-progress.rex` | a progress bar updated from another Rexx thread with `runLaterLatest`; `GUIMessage`s: a result, an error |
+| `forms-two-threads.rex` | two windows on two UI threads, each served by its own Rexx object; `runLater` routed to each, `GUIMessage`s |
 | `dialogs.rex` | `MessageBox` with buttons and icons; the open-file dialog |
 | `windows-info.rex` | the registry, special folders, drives, the clipboard, system sounds |
 

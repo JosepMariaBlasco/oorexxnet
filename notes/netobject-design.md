@@ -1078,3 +1078,39 @@ Tests: `HostTests` (`Com.Number`'s types: 10), `phase2.rex` (6: 2-D and
 3-D Arrays, `int[,]`, the refusals), `com.rex` (2: the VARIANT types a
 `Scripting.Dictionary` keeps, read back by TestLib's `ComProbe`); guide
 sections 4 and 12.
+
+## Several event threads (10/10/2026)
+
+Asked for after preview.4: a .NET program may have several UI threads (each
+window belongs to the thread that made it), and dispatching must happen on
+the right one; and "which event thread am I?".
+
+- **EventThread.cs** keeps every UI thread seen (managed id, native id,
+  its `SynchronizationContext`), in order; the first is the default. It
+  posts to a given one (`eventPost` H, where: an id, 0, or "loop") and finds
+  the UI thread of an object (`eventThreadOf`): a WPF `DispatcherObject`'s
+  `Dispatcher.Thread`; a Windows Forms control, once its window exists,
+  by `GetWindowThreadProcessId` of its handle against the native ids (the
+  handle read through the internal `HandleInternal`, which does not check
+  the calling thread; `IsHandleCreated` first: reading `Handle` would make
+  the window on the calling thread). Anything else: 0, the default.
+- **net.cls**: `AbstractEventThread`'s queue machinery moves from class
+  methods to instances. One `.NetEventThread` per UI thread (id: its .NET
+  thread id) and one for the loop (id 0), made once. Instance `runLater...`
+  send to that thread. The class methods keep BSF4ooRexx's names and
+  arguments and forward to `eventThreadFor(target)`: the target's UI
+  thread's if known, else `default` (the first UI thread's, else the
+  loop's). Also `current` (the current thread's, or `.nil`), `threads`.
+- **The guard**: BSF.CLS's `run` ran the whole queue holding the (class)
+  guard, so a `runLater` from another thread waited until the event thread
+  had finished: producer and event thread went in lockstep and
+  `runLaterLatest` never replaced anything. Now `run` takes each message
+  under the guard (`nextMessage`) and runs it without (`process`
+  unguarded): queueing goes on meanwhile. `samples/rexx/08-event-thread.rex`
+  shows it (40 reports sent, about 10 run).
+
+Tests: `tests/eventthread.rex` 17 (25 on Windows: two windows on two Rexx
+threads, `eventThreadFor` a control, messages run on each, the class method
+routed, both closed). Samples: `rexx/08-event-thread.rex` (no windows),
+`windows/forms-progress.rex`, `windows/forms-two-threads.rex`. Guide
+section 6.
