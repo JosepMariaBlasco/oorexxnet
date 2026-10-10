@@ -177,8 +177,11 @@ static partial class Program
             try { rexx.Run("do forever; nop; end"); }
             catch (RexxException e) { halted = e.Code; }        // an untrapped HALT ends as Error 4.1
         });
-        looping.Start(); Thread.Sleep(300); rexx.Halt();
-        Ok("Halt",                   looping.Join(5000) ? halted : "still running", "4.1");
+        // Halt stops the Rexx code running when it is called: the loop may not
+        // have started yet (a slow runner), so halt again until it has ended
+        looping.Start();
+        for (int i = 0; i < 100 && !looping.Join(100); i++) rexx.Halt();
+        Ok("Halt",                   looping.IsAlive ? "still running" : halted, "4.1");
 
         // lifetime: proxies released by Dispose and by the finalizer
         int before = rexx.ObjectCount;

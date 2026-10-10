@@ -41,6 +41,7 @@ jobs:
             oorexx: macos.arm64.x86_64
             native: librexxnet.dylib
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20                   # a hang fails here, not after 6 hours
     steps:
       - run: echo "REXXNET_BUILD=$RUNNER_TEMP/build" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
@@ -78,6 +79,7 @@ jobs:
   windows:
     name: win-x64
     runs-on: windows-2022
+    timeout-minutes: 20                   # a hang fails here, not after 6 hours
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -128,6 +130,7 @@ jobs:
   nuget:
     needs: [unix, windows]
     runs-on: ubuntu-24.04
+    timeout-minutes: 20                   # a hang fails here, not after 6 hours
     steps:
       - run: echo "REXXNET_BUILD=$RUNNER_TEMP/build" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
@@ -160,6 +163,7 @@ jobs:
     if: github.ref_type == 'tag'
     needs: [nuget, windows]
     runs-on: ubuntu-24.04
+    timeout-minutes: 20                   # a hang fails here, not after 6 hours
     permissions:
       contents: write                       # the GitHub release
       id-token: write                       # nuget.org's trusted publishing (OIDC)

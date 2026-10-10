@@ -16,6 +16,7 @@ on:
 jobs:
   source:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20                   # a hang fails here, not after 6 hours
     steps:
       - name: ooRexx trunk from SVN
         run: |
@@ -30,6 +31,7 @@ jobs:
   windows:
     needs: source
     runs-on: windows-2022
+    timeout-minutes: 20                   # a hang fails here, not after 6 hours
     steps:
       - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7
