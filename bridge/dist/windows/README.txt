@@ -116,6 +116,14 @@ samples\README.md. With the two variables set:
 
     rexx C:\rexxnet\samples\windows\forms-hello.rex
 
+samples\office (Office must be installed): the Office Rosetta stone. Excel,
+Word, PowerPoint, and Excel's events, each written twice: with ooRexx's
+.OLEObject (*-ole.rex) and through the bridge (*-net.rex); see
+samples\office\README.md. For example:
+
+    rexx C:\rexxnet\samples\office\excel-net.rex
+    rexx C:\rexxnet\samples\office\excel-ole.rex
+
 
 From PowerShell
 ---------------

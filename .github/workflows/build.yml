@@ -191,5 +191,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac
+          cat > notes.md <<'NOTES'
+          **To use .NET from Rexx on Windows, download `rexxnet-windows-x64-….zip`** (below, under Assets): unzip it (say into `C:\rexxnet`), add that folder to `PATH` and `REXX_PATH`, and read its `README.txt`. Its `samples` folder has the samples: `rexx` (every platform), `windows`, and `office` (Excel, Word, PowerPoint and Excel's events, each written with `.OLEObject` and through the bridge).
+
+          The `.nupkg` is the NuGet package, for .NET programs (C#, PowerShell...) that run Rexx code: a .NET project gets it with `dotnet add package Rexx.Net --prerelease`. Rexx programs do not need it. The `.snupkg` holds its debugging symbols.
+
+          NOTES
+          sed -i 's/^          //' notes.md
           gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" "${pre[@]}" \
-            --title "$GITHUB_REF_NAME" --generate-notes nupkg/* zip/*.zip
+            --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes nupkg/* zip/*.zip
