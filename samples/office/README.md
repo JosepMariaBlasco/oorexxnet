@@ -34,6 +34,13 @@ reference arrives as a `Rexx.Net.ComRef` (`cancel~Value = .true`). While
 waiting for Excel's events, the `.OLEObject` version sleeps (`SysSleep`),
 the bridge's waits in .NET (`.net~nextEvent(1)`).
 
+On ooRexx 5.x (r13267), `.OLEObject` does not give `Cancel` back to Excel:
+the workbook closes anyway, and `excel-events-ole.rex` says so. With
+`ADODB.Recordset`, `.OLEObject` also passes an event's arguments in reverse
+order (`bridge/tests/windows/ole-event-out.rex` shows both); Excel's come in
+order. The bridge gives the arguments in their order and `Cancel` back
+(`excel-events-net.rex`, `bridge/tests/com.rex`).
+
 They need Windows with Office installed; the .NET versions, the bridge (its
 folder on the `PATH` and `REXX_PATH`, as for the other samples). Each saves
 its file in the temporary folder and closes Office again. With the
