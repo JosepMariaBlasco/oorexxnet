@@ -198,6 +198,17 @@ static partial class Program
         dead.Dispose();
         Throws<ObjectDisposedException>("disposed object", () => dead.Send("balance"));
 
+        // A Rexx number to a COM object (Com.Number): an int when it fits (VT_I4;
+        // Word's Document.SaveAs2 refuses a VT_I8 FileFormat), else a long or a double
+        var number = typeof(RexxInterpreter).Assembly.GetType("Rexx.Net.Com")!
+            .GetMethod("Number", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        string ComArg(string s) => number.Invoke(null, new object[] { s })!.GetType().Name;
+        Ok("COM argument 16",        ComArg("16"), "Int32");
+        Ok("COM argument -7",        ComArg(" -7 "), "Int32");
+        Ok("COM argument 2**40",     ComArg("1099511627776"), "Int64");
+        Ok("COM argument 0.5",       ComArg("0.5"), "Double");
+        Ok("COM argument abc",       ComArg("abc"), "String");
+
         // phase B: commands, I/O, cancellation (PhaseB.cs), on an instance of its own
         PhaseB();
         // phase C: both ways in one process (PhaseC.cs)

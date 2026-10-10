@@ -174,7 +174,7 @@ static class Com
         var t = s.Trim();
         if (t.Length == 0 || t.Length > 40) return s;
         if (long.TryParse(t, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long l))
-            return l >= int.MinValue && l <= int.MaxValue ? (int)l : l;
+            return l >= int.MinValue && l <= int.MaxValue ? (object)(int)l : l;   // (object): else ?: makes both long
         // a Rexx number: digits with at most one '.', an optional exponent
         if (double.TryParse(t, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent,
                             CultureInfo.InvariantCulture, out double d))
