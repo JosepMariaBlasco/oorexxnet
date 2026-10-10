@@ -234,10 +234,12 @@ static partial class Program
             ("an exception", () => { try { same.Send("fail"); } catch (RexxException) { } }),
             ("a command and a say (phase B)", () => command.Call()) })
         {
+            // measured warm, the best of three rounds each (a shared machine is noisy)
+            double Best() => Math.Min(Rate(act, 3000), Math.Min(Rate(act, 3000), Rate(act, 3000)));
             Rate(act, 1000);
-            double first = Rate(act, 3000);
+            double first = Best();
             for (int i = 0; i < 15000; i++) act();
-            double last = Rate(act, 3000);
+            double last = Best();
             if (Environment.GetEnvironmentVariable("HOSTTESTS_RATES") != null)
                 Console.WriteLine($"     {what}: {first * 1000:F1} -> {last * 1000:F1} µs per call");
             Ok($"no local references left: {what}", last < first * 4, true);
