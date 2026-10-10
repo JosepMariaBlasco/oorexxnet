@@ -18,7 +18,7 @@ Two problems in the event methods of an `.OLEObject` created with `"WITHEVENTS"`
 WillMove([in] EventReasonEnum adReason, [in, out] EventStatusEnum* adStatus, [in] _Recordset* pRecordset)
 ```
 
-Seen with ooRexx 5.3.0 r13267 and r13268, 64-bit, Windows 11.
+Seen with ooRexx 5.3.0 trunk (`REXX-ooRexx_5.3.0(MT)_64-bit 6.06 9 Oct 2026`), Windows 11.
 
 ### 1. Returning a value for an out parameter crashes the interpreter
 
@@ -36,13 +36,13 @@ args: exit code 0
 
 (-1073741819 is 0xC0000005, an access violation. Run it with `cmd /v:on` and `!errorlevel!` inside a FOR.)
 
-The method's return value goes to the out parameter through `Rexx2Variant(context, rxResult, &pDispParams->rgvarg[i], pDispParams->rgvarg[i].vt, -1)`. There `rgvarg[i]` is `VT_BYREF | VT_I4`, pointing to the caller's storage. `Rexx2Variant` strips `VT_BYREF` and, for a number, ends in `VariantChangeType(pVariant, &sVariant, 0, VT_I4)`, which overwrites the caller's `VARIANT` itself with a `VT_I4` by value. The pointer is replaced by the value (1), the caller's storage never changes, and the caller then dereferences what it still takes for its pointer. (`rexx2vt_bool`, `VT_R8` and `VT_R4` do write through the pointer, but the `VariantInit(pVariant)` before them, and every other type, have the same problem.) A value for an out parameter should be converted into a temporary `VARIANT` and then stored through `V_BYREF(&rgvarg[i])` according to its `VT`, leaving `rgvarg[i]` as it was.
+The method's return value goes to the out parameter through `Rexx2Variant(context, rxResult, &pDispParams->rgvarg[i], pDispParams->rgvarg[i].vt, -1)`. There `rgvarg[i]` is `VT_BYREF | VT_I4`, pointing to the caller's storage. `Rexx2Variant` strips `VT_BYREF` and, for a number, ends in `VariantChangeType(pVariant, &sVariant, 0, VT_I4)`, which overwrites the caller's `VARIANT` itself with a `VT_I4` by value. The pointer is replaced by the value (1), the caller's storage never changes, and the caller then dereferences what it still takes for its pointer. (`VT_BOOL`, `VT_R8` and `VT_R4` are written through the pointer; the other types go through `VariantChangeType` like this.) A value for an out parameter should be converted into a temporary `VARIANT` and then stored through `V_BYREF(&rgvarg[i])` according to its `VT`, leaving `rgvarg[i]` as it was.
 
-This is also why, with Excel, returning `.true` from `WorkbookBeforeClose(Wb, Cancel)` does not stop the workbook from closing.
+Related, not explained yet: with Excel, returning `.true` from `WorkbookBeforeClose(Wb, Cancel)` (a `VT_BOOL`) does not stop the workbook from closing either.
 
 ### 2. The arguments arrive in reverse order
 
-`ole-events-repro.rex` prints `WillMove`'s arguments on `MoveFirst`. Expected `12, 1, <the Recordset>`; got:
+`ole-events-repro.rex` prints `WillMove`'s arguments on `MoveFirst`. Expected `12, 1, <the Recordset>`; got (from an earlier version of the program, which also printed the Recordset's RecordCount):
 
 ```
 WillMove got 3 arguments:
