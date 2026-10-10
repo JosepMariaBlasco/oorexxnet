@@ -83,3 +83,10 @@ jobs:
           rexx patches\oorexx\ole-events-repro.rex
           rexx patches\oorexx\ole-events-test.rex
           if ($LASTEXITCODE) { exit 1 }
+      - name: The patched orexxole.dll (to try with Excel, Word...)
+        uses: actions/upload-artifact@v4
+        with:
+          name: orexxole-patched
+          path: |
+            ${{ env.REXXBIN }}/orexxole.dll
+            oorexx/REVISION.txt

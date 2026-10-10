@@ -34,6 +34,7 @@ rs~MoveNext
 call ok "returning adStatusCancel: cancelled", "moved to" rs~Fields~Item("name")~Value, "an error"
 cancelled:
 signal off syntax
+call ok "returning adStatusCancel: MoveNext fails", condition("C"), "SYNTAX"
 call ok "returning adStatusCancel: not moved", rs~Fields~Item("name")~Value, "two"
 
 rs~mode = "unwanted"                                      -- MoveComplete returns 5 once
