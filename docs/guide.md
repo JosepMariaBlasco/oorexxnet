@@ -394,6 +394,41 @@ the delegate returns at once; a Rexx thread takes them with
 `.net~stopEventLoop`. `"latest"` keeps only the newest waiting call of a
 handler.
 
+### The event thread: `.NetEventThread`
+
+A window belongs to the thread that made it, which runs its events; other
+threads must not touch it directly. `.NetEventThread` (BSF4ooRexx's
+`FxGUIThread` / `AwtGUIThread`, for .NET) sends messages to that thread:
+`runLater(target, message [, "I", arg...] | [, "A", array])` queues it and
+returns a `.GUIMessage` at once; the event thread runs the queue later, in
+order. `runLaterPush` puts the message first; `runLaterLatest` replaces the
+queued ones with the same target and message; `runLaterLatestPush` does
+both. The `.GUIMessage` tells `completed`, `hasResult`, `hasError` (with
+`errorCondition`: an error stays there), and `result` waits for it.
+`isEventThread` tells whether this is the event thread.
+
+The event thread is a user interface's thread (Windows Forms, WPF: the
+first one where Rexx code runs with the window's synchronization context),
+or, without a user interface, the Rexx thread in `.net~nextEvent` /
+`.net~eventLoop`, which runs the queue as one more queued call:
+
+```rexx
+m = .NetEventThread~runLater(.Adder~new, "ADD", "I", 2, 3)
+say m~completed .NetEventThread~kind
+.net~nextEvent(5)~dispatch              -- this thread is the event thread here
+say m~completed m~result
+::requires "net.cls"
+::class Adder
+::method add
+  use arg a, b
+  return a + b
+```
+
+```text
+0 loop
+1 5
+```
+
 ## 7. Errors
 
 An exception thrown by .NET code is **SYNTAX 98.900** ".NET error: Type:

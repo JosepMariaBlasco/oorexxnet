@@ -201,6 +201,9 @@ public static unsafe class Callbacks
     static readonly LinkedList<Pending> queue = new();
     static int generation;
 
+    /// A call of the handler, with no arguments, into the queue (whatever its options).
+    internal static void Post(RexxHandler h) => Enqueue(h, Array.Empty<object?>());
+
     static void Enqueue(RexxHandler h, object?[] args)
     {
         lock (queueGate)
@@ -219,6 +222,7 @@ public static unsafe class Callbacks
     public static void NextEvent(double seconds, int gen, Writer w)
     {
         Pending? p = null;
+        EventThread.LoopHere();                             // this thread serves the queue
         var deadline = seconds < 0 ? DateTime.MaxValue : DateTime.UtcNow.AddSeconds(seconds);
         lock (queueGate)
         {

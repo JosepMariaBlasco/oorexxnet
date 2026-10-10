@@ -28,6 +28,8 @@
 //   event    O target, S name, S add|remove, handler    -> V: o~Name += h, o~Name -= h
 //   events   O                                         -> A of S: the names of its events (.NET or COM)
 //   nextEvent S seconds (-1: no limit), S generation (-1: none) -> A [S handler id, A args] | N
+//   eventPost H handler                                -> V: call it later on the event thread (EventThread.cs)
+//   eventThread                                        -> S "1|0 ui|loop": on the event thread? which kind
 //   loopGeneration                                     -> S (for .net~eventLoop)
 //   stopLoops                                          -> V (.net~stopEventLoop)
 //   releaseHandler S id                                -> V
@@ -60,8 +62,9 @@ public static unsafe class Bridge
         var rexx = RexxInterpreter.ForContext(threadContext);
         rexx.PushFrame(threadContext);
         depth++;
+        EventThread.Notice();                               // a UI thread? (EventThread.cs)
         try { answer = Handle(new ReadOnlySpan<byte>(req, len)); }
-        finally { depth--; rexx.PopFrame(threadContext); }
+        finally { depth--; rexx.PopFrame(threadContext); EventThread.Notice(); }
         var p = (byte*)NativeMemory.Alloc((nuint)Math.Max(answer.Length, 1));
         answer.CopyTo(new Span<byte>(p, answer.Length));
         *outLen = answer.Length;
@@ -202,6 +205,8 @@ public static unsafe class Bridge
                 w.Add('A', a.ToArray());
                 break;
             }
+            case "eventPost": EventThread.Post(Callbacks.HandlerOf(r[1])); w.Add('V', ""); break;
+            case "eventThread": w.Add('S', (EventThread.IsEventThread ? "1" : "0") + (EventThread.HasUi ? " ui" : " loop")); break;
             case "nextEvent": Callbacks.NextEvent(double.Parse(r[1].Text, System.Globalization.CultureInfo.InvariantCulture), int.Parse(r[2].Text), w); break;
             case "loopGeneration": w.Add('S', Callbacks.Generation.ToString()); break;
             case "stopLoops": Callbacks.StopLoops(); w.Add('V', ""); break;

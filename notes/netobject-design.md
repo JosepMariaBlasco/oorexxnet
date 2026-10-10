@@ -988,3 +988,45 @@ queued, an error in a handler, `.net~events`. `samples/office/
 excel-events-{ole,net}.rex`: `SheetChange` and `WorkbookBeforeClose`
 (`Cancel`), both ways.
 
+## The event thread: built (10/10/2026)
+
+Asked for by Rony (09/10): not the questions we sent, but BSF4ooRexx's
+model, from `BSF.CLS`: `AbstractGUIThread` (made general as
+**`AbstractEventThread`**, with `isEventThread` for `isGuiThread`) and
+**`GUIMessage`**, both public in `net.cls`, and the concrete
+**`.NetEventThread`** (BSF4ooRexx's are `FxGUIThread` and `AwtGUIThread`).
+The Rexx code is BSF.CLS's, nearly line for line: a class-level queue of
+`GUIMessage`s; `runLater`, `runLaterPush`, `runLaterLatest`,
+`runLaterLatestPush` (target, message name, then `"I"` and the arguments or
+`"A"` and an Array); `run`, called later on the event thread, sends each
+message inside `signal on syntax` (an error goes into the `GUIMessage`:
+`hasError`, `errorCondition`; nothing is raised or reported);
+`GUIMessage~result` waits (`guard on when completed | hasError`).
+Differences: `removeMessage` walks the queue from its end (BSF.CLS's walk
+skips the item after one it deletes); the common "ask for a run" part is a
+private `askToRun`.
+
+**Which thread** (`managed/EventThread.cs`): .NET has no single GUI thread;
+each window belongs to the thread that made it, which runs its events
+through a `SynchronizationContext` (Windows Forms installs one with the
+first control made on a thread; WPF's dispatcher, and others, too). The
+bridge notes the first thread where a request runs with a non-default
+`SynchronizationContext`: that is the event thread, and "later on the event
+thread" is its context's `Post` (JavaFX's `Platform.runLater`, Swing's
+`invokeLater`), which calls `.NetEventThread`'s `run` through a
+`.net~handler`. **Without a user interface** (decided, to be put to Rony),
+the event thread is the Rexx thread that waits in `.net~nextEvent` /
+`.net~eventLoop`: `run` is posted to that queue as one more call, so the
+same code works in a program with no window. `.NetEventThread~kind`:
+`"ui"` or `"loop"`.
+
+Open, for Rony: the fallback to the event loop; the names
+(`.NetEventThread`, `AbstractEventThread`, `GUIMessage` kept for code from
+BSF4ooRexx); a program with several UI threads (only the first is known).
+Waiting on a `GUIMessage~result` on the event thread for a message not yet
+run blocks it, as in BSF4ooRexx.
+
+Tests: `tests/eventthread.rex` (12 everywhere: the loop; 15 on Windows, also a
+Windows Forms window updated and closed from another Rexx thread); guide
+section 6.
+

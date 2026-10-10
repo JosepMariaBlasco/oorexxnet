@@ -595,6 +595,233 @@ syntax: raise propagate
   expose handler arguments
   return "a NetCall ("handler~target"~"handler~message", "arguments~items "arguments)"
 
+/* ================================================================================================= */
+/** The event thread (BSF4ooRexx's AbstractGUIThread, from BSF.CLS, by Rony G. Flatscher, made
+    general: notes/netobject-design.md, "The event thread"). An event thread runs a program's events
+    (a window's, say) and must be the one to touch what belongs to it. Rexx code on another thread
+    sends it messages with the class methods runLater, runLaterPush, runLaterLatest and
+    runLaterLatestPush: each queues a GUIMessage, returned at once, and the queue is run later on the
+    event thread, in order, each message as target~messageName(arguments). The GUIMessage tells when
+    it has run (completed), its result (result waits for it) or its error (hasError,
+    errorCondition: an error is kept there, not raised). isEventThread: is this the event thread?
+    Subclasses give isEventThread, invokeOnEventThread (have run called later on the event thread)
+    and setup; BSF4ooRexx's are FxGUIThread and AwtGUIThread, this package's NetEventThread.
+
+       .NetEventThread~runLater(label, "TEXT=", "I", "Done")       -- label~Text = "Done", later
+       m = .NetEventThread~runLater(form, "CONTROLS")              -- m~result: when it has run
+*/
+::class AbstractEventThread public
+::method init abstract                                    -- no instances: its class methods are all
+
+::attribute msgQueue              guarded class abstract  -- the queued GUIMessages
+::attribute waitingToRun          guarded class abstract  -- run has been asked for and not run yet
+
+::method setup                    guarded class private abstract
+::method isEventThread            guarded class abstract  -- is the current thread the event thread?
+::method invokeOnEventThread      guarded class private abstract   -- have run called later on the event thread
+
+/** Sends the message of a GUIMessage, keeping its result or its error in it. */
+::method process                  guarded class private
+  use strict arg guiMsg
+  signal on syntax                                        -- an error stays in the GUIMessage
+  if guiMsg~hasArguments then
+     .message~new(guiMsg~target, guiMsg~messageName, "Array", guiMsg~arguments)~send
+  else
+     .message~new(guiMsg~target, guiMsg~messageName)~send
+  if var("RESULT") then
+  do
+     guiMsg~result=result
+     guiMsg~hasResult=.true
+  end
+  guiMsg~completed=.true
+  return
+syntax:
+  guiMsg~errorCondition=condition("o")
+  guiMsg~hasError=.true
+  guiMsg~completed=.true
+  return
+
+/** A GUIMessage from runLater's arguments: target, messageName [, "I", arg...] or [, "A", array]. */
+::method createGUIMessage         guarded class private
+  use strict arg args
+  signal on syntax
+  target     =args[1]
+  messageName=args[2]
+  if args~items>2 then
+  do
+     argType=args[3]~left(1)~upper                        -- "Individual" or "Array"
+     select
+        when argType="I" then msgArgs=args~section(4)
+        when argType="A" then
+             do
+                if args~items>4 then raise syntax 93.902 array (4)
+                if \args[4]~isA(.array) then raise syntax 93.948 array (4, "Array")
+                msgArgs=args[4]
+             end
+        otherwise raise syntax 93.915 array ("IA", args[3])
+     end
+     return .GUIMessage~new(target, messageName, msgArgs)
+  end
+  return .GUIMessage~new(target, messageName)
+syntax:
+  raise propagate
+
+/** Called later on the event thread: runs the queued messages. */
+::method run                      guarded class
+  msgQueue=self~msgQueue
+  if self~isEventThread then
+  do
+     do while msgQueue~items>0
+        self~process(msgQueue~pull)
+     end
+     self~waitingToRun=.false
+  end
+
+/** Queues a message for the event thread; returns its GUIMessage. */
+::method runLater                 guarded class
+  use strict arg target, messageName, ...
+  signal on syntax
+  if self~msgQueue=.nil then self~setup
+  guiMsg=self~createGuiMessage(arg(1,"array"))
+  self~msgQueue~queue(guiMsg)
+  self~askToRun
+  return guiMsg
+syntax:
+  raise propagate
+
+/** As runLater, but the message goes before those already queued. */
+::method runLaterPush             guarded class
+  use strict arg target, messageName, ...
+  signal on syntax
+  if self~msgQueue=.nil then self~setup
+  guiMsg=self~createGuiMessage(arg(1,"array"))
+  self~msgQueue~push(guiMsg)
+  self~askToRun
+  return guiMsg
+syntax:
+  raise propagate
+
+/** As runLater, removing first the queued messages with the same target and message name. */
+::method runLaterLatest           guarded class
+  use strict arg target, messageName, ...
+  signal on syntax
+  if self~msgQueue=.nil then self~setup
+  forward message "REMOVEMESSAGE" continue
+  guiMsg=result
+  self~msgQueue~queue(guiMsg)
+  self~askToRun
+  return guiMsg
+syntax:
+  raise propagate
+
+/** As runLaterLatest, but the message goes before those already queued. */
+::method runLaterLatestPush       guarded class
+  use strict arg target, messageName, ...
+  signal on syntax
+  if self~msgQueue=.nil then self~setup
+  forward message "REMOVEMESSAGE" continue
+  guiMsg=result
+  self~msgQueue~push(guiMsg)
+  self~askToRun
+  return guiMsg
+syntax:
+  raise propagate
+
+/** Removes the queued messages with this target and message name; returns a new GUIMessage. */
+::method removeMessage            guarded class private
+  use strict arg target, messageName, ...
+  signal on syntax
+  if self~msgQueue=.nil then self~setup
+  msgQueue=self~msgQueue
+  do idx=msgQueue~items to 1 by -1                        -- (positions: from the end, as items go)
+     tmpItem=msgQueue~at(idx)
+     if tmpItem~target=target, tmpItem~messageName~caselessEquals(messageName) then
+        msgQueue~remove(idx)
+  end
+  return self~createGuiMessage(arg(1,"array"))
+syntax:
+  raise propagate
+
+/** Has run called on the event thread, unless that is pending already. */
+::method askToRun                 guarded class private
+  if self~waitingToRun=.false then
+  do
+     self~waitingToRun=.true
+     self~invokeOnEventThread
+  end
+
+
+/** The event thread of .NET: a user interface's thread (Windows Forms, WPF...: the first thread
+    whose Rexx code runs with its SynchronizationContext installed), where messages run through
+    that context's Post; or, with no user interface, the Rexx thread that waits in .net~nextEvent
+    or .net~eventLoop, where they run as a queued call. kind: "ui" or "loop". */
+::class NetEventThread public subclass AbstractEventThread
+::method init                     guarded class
+  expose msgQueue
+  msgQueue=.nil
+::attribute msgQueue          get guarded class
+::attribute waitingToRun          guarded class
+
+::method setup                    guarded class private
+  expose msgQueue runner waitingToRun
+  msgQueue=.queue~new
+  runner=.net~handler(self, "RUN")                        -- run, called by .NET on the event thread
+  waitingToRun=.false
+
+::method isEventThread            guarded class
+  return NetRequest("eventThread")~word(1) == 1
+
+::method kind                     unguarded class         -- "ui" (a user interface's thread) or "loop"
+  return NetRequest("eventThread")~word(2)
+
+::method invokeOnEventThread      guarded class private
+  expose runner
+  call NetRequest "eventPost", runner
+
+
+/** A message to be run on the event thread (BSF4ooRexx's GUIMessage, modelled after ooRexx's
+    Message): runLater... return one. */
+::class GUIMessage public
+::method init                     guarded
+  expose completed hasResult target messageName arguments hasArguments hasError errorCondition result
+  use strict arg target, messageName, args=.nil
+  if \messageName~isA(.string) then raise syntax 93.948 array (2, "String")
+  hasArguments=(arg()=3)
+  arguments=.nil
+  if hasArguments then
+  do
+     if \args~isA(.array) then raise syntax 93.948 array (3, "Array")
+     arguments=args
+  end
+  completed=.false
+  hasResult=.false
+  result   =.nil
+  hasError =.false
+  errorCondition=.nil
+
+::attribute hasError              guarded                 -- an error happened: see errorCondition
+::attribute errorCondition        guarded                 -- the error's condition object, or .nil
+::attribute hasResult             guarded                 -- it returned a result
+::attribute completed             guarded                 -- it has run (with or without an error)
+::attribute target            get guarded
+::attribute messageName       get guarded
+::attribute hasArguments          guarded
+::attribute arguments         get guarded
+
+/** Its result: waits until it has run (do not wait on the event thread itself for a message not run yet). */
+::attribute result            get guarded
+  expose completed result hasError
+  guard on when completed=.true | hasError=.true
+  return result
+
+::attribute result            set guarded
+  expose result
+  use strict arg result
+
+::method makeString
+  expose target messageName completed
+  return "a GUIMessage ("target"~"messageName", "word("waiting completed", completed + 1)")"
+
 /** prefix~name: a namespace or a type, remembered once found (.net~System~Math~Max in a loop asks .NET once). */
 ::routine NetNamespaceMember
   use arg prefix, name
