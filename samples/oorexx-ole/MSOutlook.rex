@@ -49,7 +49,8 @@
 /*
  .NET version (ooRexx/.NET, https://github.com/JosepMariaBlasco/oorexxnet):
  - .net~createObject in place of .OLEObject~new;
- - with the argument "auto" nothing waits for the user (for unattended runs);
+ - with the argument "auto" nothing waits for the user (for unattended runs),
+   and only the first three senders are shown;
  - .net~releaseObject where the program ends with the application, and
    ::requires "net.cls" at the end.
 */
@@ -70,6 +71,7 @@
   InboxItems = Inbox~Items
   MailCount = InboxItems~Count                      -- count items in Inbox
   say "You have" MailCount "Mail(s) in your Inbox:"
+  if auto then MailCount = min(MailCount, 3)        -- (.NET version) unattended: the first three only
   -- may require to allow access to email information
   Do ItemNumber = 1 to MailCount                    -- go through each item
     Item = Inbox~Items(ItemNumber)

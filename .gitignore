@@ -4,3 +4,6 @@ obj/
 *.user
 # local builds
 build/
+
+# samples/oorexx-ole/MSAccessDemo.rex: its database (in the current directory)
+ooRexxDemo.mdb*
