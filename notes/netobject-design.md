@@ -1206,3 +1206,31 @@ of every kind; interfaces) and framework classes: `Collection<T>`
 (`InsertItem`, `Items`), `TextWriter` (abstract `Encoding`, `Write(char)`,
 the protected field `CoreNewLine`), `IComparer<T>` (`List.Sort`). Guide
 section 8; sample `windows/forms-extend.rex`.
+
+## COM constants and by-reference arguments; ooRexx's OLE samples (10/10/2026)
+
+Asked for: the OLE samples that come with ooRexx for Windows
+(`samples\ole\apps`), through the bridge. Two things they use that the
+bridge did not have:
+
+- **Constants.** `.OLEObject`'s `o~getConstant(name)` (7 of the 16 use it).
+  Here **`.net~getConstant(o [, name])`**, on `.net` as every helper (open
+  point 4: messages to `o` all go to the COM object). It reads the type
+  library that holds `o`'s IDispatch type information: the members of its
+  enums and the constants of its modules (`VAR_CONST`), once per library
+  (guid, version, lcid). Caseless; `.nil` if there is none; with no name,
+  all of them as a `StringTable`. Only that one library: DAO's `dbText`
+  comes with a DAO object (`CurrentDb`), not with `Access.Application`.
+  `managed/ComConstants.cs`; `tests/com.rex` (Scripting's `ForAppending`,
+  `TemporaryFolder`...).
+- **By reference.** `.OLEObject` sends an `.OLEVariant` by reference (ADO's
+  `Execute(sql, recordsAffected)`). Here a **`.NetRef`**, as for .NET's
+  `ref` / `out`: a call with any is made with a `ParameterModifier` marking
+  them (VT_BYREF), and answers R, the result and their new values, as a
+  .NET call with `.NetRef`s does.
+
+The samples are in `samples/oorexx-ole/`, with their names and their CPL
+header (the rest of the repository is Apache 2.0); what changes is listed
+at the top of each and in its README. 15 of the 16: `MSAccessDemo_32bit_only`
+needs the Jet engine, which exists for 32-bit processes only. The AOO ones
+run in the `libreoffice` workflow; the MS ones need Office.

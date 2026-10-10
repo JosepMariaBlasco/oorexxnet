@@ -14,8 +14,9 @@
 // SAFEARRAY of its rank, its items converted the same way (Calc's
 // setDataArray keeps a string "7" as text); any other string as a string
 // (.net~box("string", "007") forces a string); .nil, and an omitted argument,
-// as "not given" (Type.Missing: COM's optional parameters); .NET objects as
-// themselves. Results as any .NET result (another COM object: a .NetObject).
+// as "not given" (Type.Missing: COM's optional parameters); a .NetRef by
+// reference (its value converted the same way; afterwards it holds what the
+// COM object left there); .NET objects as themselves. Results as any .NET result (another COM object: a .NetObject).
 // Every call is made in English (US), as VBA's (see English below), unless
 // the object was created with another language (.net~createObject(progID,
 // "user"): the user's, as .OLEObject; or a culture name): the objects it
@@ -69,8 +70,21 @@ static class Com
     const int DISP_E_UNKNOWNNAME = unchecked((int)0x80020006);
     const int DISP_E_MEMBERNOTFOUND = unchecked((int)0x80020003);
 
-    internal static void Send(object o, string name, List<Rec> args, Writer w) =>
-        Conv.ToRexx(w, Invoke(o, name, Get, Args(args)));
+    internal static void Send(object o, string name, List<Rec> args, Writer w)
+    {
+        var a = Args(args);
+        if (!args.Any(r => r.Tag == 'R')) { Conv.ToRexx(w, Invoke(o, name, Get, a)); return; }
+        // .NetRef arguments go by reference (VT_BYREF: an ADO Execute's
+        // RecordsAffected, as .OLEObject's .OLEVariant): the answer is R, the
+        // result and then each one's new value
+        var byRef = new ParameterModifier(a.Length);
+        for (int i = 0; i < a.Length; i++) byRef[i] = args[i].Tag == 'R';
+        var result = Invoke(o, name, Get, a, new[] { byRef });
+        var inner = new Writer();
+        Conv.ToRexx(inner, result);
+        for (int i = 0; i < a.Length; i++) if (args[i].Tag == 'R') Conv.ToRexx(inner, a[i]);
+        w.Add('R', inner.ToArray());
+    }
 
     internal static void Set(object o, string name, Rec value) =>
         Invoke(o, name, BindingFlags.SetProperty, new[] { Arg(value) });
@@ -125,12 +139,12 @@ static class Com
         return false;
     }
 
-    static object? Invoke(object o, string name, BindingFlags how, object?[] args)
+    static object? Invoke(object o, string name, BindingFlags how, object?[] args, ParameterModifier[]? byRef = null)
     {
         var until = DateTime.UtcNow + Busy;
         for (int pause = 10; ; pause = Math.Min(pause * 2, 500))
         {
-            try { return Call(o, name, how, args); }
+            try { return Call(o, name, how, args, byRef); }
             catch (Exception e) when (Rejected(e) && DateTime.UtcNow < until)
             {
                 System.Threading.Thread.Sleep(pause);
@@ -138,11 +152,11 @@ static class Com
         }
     }
 
-    static object? Call(object o, string name, BindingFlags how, object?[] args)
+    static object? Call(object o, string name, BindingFlags how, object?[] args, ParameterModifier[]? byRef)
     {
         try
         {
-            var r = o.GetType().InvokeMember(name, how, null, o, args, LanguageOf(o));
+            var r = o.GetType().InvokeMember(name, how, null, o, args, byRef, LanguageOf(o), null);
             Inherit(o, r);
             return r;
         }
@@ -166,6 +180,7 @@ static class Com
         switch (r.Tag)
         {
             case 'N': return Type.Missing;
+            case 'R': return r.Inner == null || r.Inner.Tag == 'N' ? null : Arg(r.Inner);   // (by reference: Send)
             case 'S': return r.Logical ? r.Text == "1" : Number(r.Text);
             case 'A': return r.Dims == null ? r.Items.Select(Arg).ToArray() : Grid(r);   // items as arguments too
         }

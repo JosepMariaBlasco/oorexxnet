@@ -721,6 +721,14 @@ Windows: `=SUMA(...)`), and a culture name (`"es-ES"`) in that one; the
 objects it returns keep that language. `.net~releaseObject(o)` releases it at
 once (Excel's process can end).
 
+`.net~getConstant(o, name)` is a constant of the type library `o` comes
+from, as `.OLEObject`'s `o~getConstant(name)`: `.net~getConstant(excel,
+"xlHAlignRight")`, caseless, `.nil` if there is none; `.net~getConstant(o)`
+gives them all, a `StringTable`. (Each library has its own: DAO's `dbText`
+comes with a DAO object, not with `Access.Application`.) A `.NetRef` goes by
+reference, as an `.OLEVariant` does: `n = .net~ref(0);
+conn~Execute(sql, n); say n~value` (ADO's records affected).
+
 Its events are .NET events: `o~Name += h`, `o~Name -= h`,
 `.net~addHandler(o, "Name", h)`, `o~add_Name(h)`; `.net~events(o)` lists
 them. The method gets the event's parameters; one passed by reference
@@ -751,4 +759,5 @@ COM delivers the events of another process (Excel) to a Rexx thread while
 that thread waits in .NET: during a call to the COM object (as above), in
 `.net~nextEvent(seconds)` or `.net~eventLoop`. `samples/office/` has
 Excel, Word and PowerPoint programs written twice, with `.OLEObject` and
-through the bridge, events included.
+through the bridge, events included; `samples/oorexx-ole/`, the OLE samples
+that come with ooRexx for Windows, through the bridge.
