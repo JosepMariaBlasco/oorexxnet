@@ -64,6 +64,9 @@ windowsForms: procedure
   w~startUpdater(form)                     -- another thread: runLater(form, "TEXT=", ...), then Close
   forms~Application~Run(form)              -- this thread is the window's; returns when it closes
   call ok "Windows Forms: run on its thread", w~formText w~formOnEventThread, "from another thread 1"
+  do 100 while w~updates == "UPDATES"      -- (the other thread notes them once Close has run)
+    call SysSleep 0.05
+  end
   call ok "Windows Forms: the GUIMessages",  w~updates, "1 1"
   return
 
@@ -77,7 +80,7 @@ windowsForms: procedure
 ::attribute formOnEventThread
 ::attribute updates
 ::method init
-  self~log = ""; self~waited = .nil
+  self~log = ""; self~waited = .nil; self~updates = "UPDATES"
 ::method add unguarded
   use arg a, b
   self~onEventThread = .NetEventThread~isEventThread
@@ -116,7 +119,7 @@ windowsForms: procedure
   a = .NetEventThread~runLater(form, "TEXT=", "I", "from another thread")
   b = .NetEventThread~runLater(self, "RECORD", "I", form)
   c = .NetEventThread~runLater(form, "CLOSE")
-  call SysSleep 0.5
+  x = c~result                                           -- waits until the window has run it
   self~updates = a~completed b~completed
 
 ::routine ok
