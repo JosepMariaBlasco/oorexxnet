@@ -22,6 +22,8 @@ table (details below, and in the guide, section 12):
 | `.OLEObject~new(progID, , .true)` (undocumented: the running one) | `.net~getActiveObject(progID)` (an error if none runs) |
 | `o~method(args)`, `o~property`, `o~property = v`, `o[i]`, `DO x OVER o` | the same |
 | `o~getConstant(name)` | `.net~getConstant(o, name)`; all of them: `.net~getConstant(o)` (a StringTable) |
+| `o~getKnownMethods`, `o~getKnownEvents` | `.net~getKnownMethods(o)`, `.net~getKnownEvents(o)` (the same stems) |
+| `o~progid`, `o~clsid` | `.net~getKnownMethods(o)`'s `!PROGID`, `!CLSID` |
 | `.OLEVariant~new(v)` for an argument by reference, `~!varValue_` | `.net~ref(v)`, `~value` |
 | a string that must stay a string (`"007"`) | `.net~box("string", "007")` |
 | `"WITHEVENTS"`, `o~addEventMethod(name, m)`, `o~connectEvents` | `o~Name += .net~handler(object, message)` (`-=` to disconnect) |
@@ -100,9 +102,19 @@ a user, groups, the domain, the schema; `adsi7` and `adsi8` create and
 remove fifteen local users and a group (by hand only, as an administrator:
 `auto` skips them).
 
+From `samples\ole\methinfo` and `samples\ole\oleinfo`, a COM object's
+type information, through `.net~getKnownMethods(o)` and
+`.net~getKnownEvents(o)` (the same stems as `.OLEObject`'s): `methinfo/`
+prints an object's methods and properties with their signatures
+(`rexx main.rex`, then a ProgID); `oleinfo/` documents an object as an
+HTML page (`rexx createOleInfo.rex Excel.Application`; `rexx
+createOleInfo.rex WScript.Shell 1 0`: the compact form, not opened in the
+browser), writes its constants as a Rexx program (`getOleConstants.rex`),
+and lists the ProgIDs in the registry (`listProgIds.rex`).
+
 Not here: the Lotus samples (Lotus 1-2-3, Notes, Word Pro: discontinued) and
-the Internet Explorer ones (IE is gone from Windows 11); `methinfo` and
-`oleinfo` (a COM object's methods from its type information) are to come.
+the Internet Explorer ones (IE is gone from Windows 11; `oleinfo/test.rex`
+leaves out its IE part).
 
 Not here as such: `MSAccessDemo_32bit_only.rex`. It needs the Jet engine
 (`Microsoft.Jet.OLEDB.4.0`, `JRO.JetEngine`), which exists for 32-bit

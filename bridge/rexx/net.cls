@@ -537,6 +537,16 @@ syntax: raise propagate
   use strict arg progID, language = ""
   return NetRequest("comActive", progID, language)
 syntax: raise propagate
+::method getKnownMethods unguarded   -- .net~getKnownMethods(comObject): .OLEObject's o~getKnownMethods, the same stem (.nil: no type information)
+  signal on syntax
+  use strict arg o
+  return NetComStem(NetRequest("comMethods", o), .true)
+syntax: raise propagate
+::method getKnownEvents unguarded    -- .net~getKnownEvents(comObject): .OLEObject's o~getKnownEvents, the same stem (.nil: no events)
+  signal on syntax
+  use strict arg o
+  return NetComStem(NetRequest("comEvents", o), .false)
+syntax: raise propagate
 ::method getConstant unguarded       -- .net~getConstant(comObject [, name]): a constant of its type library (.nil: none), or all of them (a StringTable)
   signal on syntax
   use strict arg o, name = .nil
@@ -1125,3 +1135,32 @@ syntax: raise propagate
 ::method string
   expose kind value
   return "a" kind "(" || value~string || ")"
+
+/* getKnownMethods / getKnownEvents: the records as .OLEObject's stem */
+::routine NetComStem
+  use arg r, methods
+  if r == .nil then return .nil
+  m. = .stem~new
+  if methods then do                   -- the type library, the coclass; CLSID and ProgID (the bridge's)
+    tails = .array~of("!LIBNAME", "!LIBDOC", "!COCLASSNAME", "!COCLASSDOC", "!CLSID", "!PROGID")
+    do k = 1 to tails~items
+      if r[k] \== .nil then m.[tails[k]] = r[k]
+    end
+    r = r[7]
+  end
+  m.0 = r~items
+  do i = 1 to r~items
+    e = r[i]
+    m.i.!NAME = e[1]
+    if methods then do
+      m.i.!MEMID = e[2]; m.i.!RETTYPE = e[3]; m.i.!INVKIND = e[4]
+      if e[5] \== .nil then m.i.!DOC = e[5]
+    end
+    else m.i.!DOC = e[5]
+    ps = e[6]
+    m.i.!PARAMS.0 = ps~items
+    do j = 1 to ps~items
+      m.i.!PARAMS.j.!NAME = ps[j][1]; m.i.!PARAMS.j.!TYPE = ps[j][2]; m.i.!PARAMS.j.!FLAGS = ps[j][3]
+    end
+  end
+  return m.

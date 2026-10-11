@@ -54,7 +54,7 @@ dirs = .array~of("rexx")
 if windows then dirs~append("windows")
 if windows & office then dirs~append("office")              -- (Office must be installed)
 if windows & libre then dirs~append("libreoffice")          -- (LibreOffice must be installed)
-if windows then dirs~appendAll(.array~of("oorexx-ole", "oorexx-ole/wmi", "oorexx-ole/adsi"))   -- (MS*: Office, AOO_*: LibreOffice)
+if windows then dirs~appendAll(.array~of("oorexx-ole", "oorexx-ole/wmi", "oorexx-ole/adsi", "oorexx-ole/methinfo"))   -- (MS*: Office, AOO_*: LibreOffice)
 count = 0; fails = 0
 do d over dirs
   files = .array~new

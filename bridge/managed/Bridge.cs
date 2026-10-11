@@ -14,6 +14,7 @@
 //   comCreate S progID [, S language]                  -> O (a COM object)
 //   comGet    S moniker [, S language]                 -> O (the object a moniker names)
 //   comActive S progID [, S language]                  -> O (its running instance)
+//   comMethods O / comEvents O                         -> type information (ComInfo.cs)
 //   comConstant O [, S name]                           -> a constant of its type library (N: none), or
 //                                                         A [A names, A values]: all (ComConstants.cs)
 //   load     S name or path                            -> S the assembly's full name
@@ -169,6 +170,8 @@ public static unsafe class Bridge
             case "comGet": Conv.AddObject(w, Com.GetObject(r[1].Text, r.Count > 2 ? r[2].Text : "")); break;
             case "comActive": Conv.AddObject(w, Com.GetActive(r[1].Text, r.Count > 2 ? r[2].Text : "")); break;
             case "comRelease": Com.Release(Handles.Get(r[1].Id)); w.Add('V', ""); break;
+            case "comMethods": if (!OperatingSystem.IsWindows()) throw new BridgeException("COM objects exist on Windows only"); ComInfo.Methods(Handles.Get(r[1].Id), w); break;
+            case "comEvents": if (!OperatingSystem.IsWindows()) throw new BridgeException("COM objects exist on Windows only"); ComInfo.Events(Handles.Get(r[1].Id), w); break;
             case "comConstant":
                 if (!OperatingSystem.IsWindows()) throw new BridgeException(".net~getConstant: COM objects exist on Windows only");
                 ComConstants.Get(Handles.Get(r[1].Id), r.Count > 2 ? r[2].Text : null, w);

@@ -228,6 +228,20 @@ call err "getObject: an unknown moniker",  ".net~getObject('nosuchmoniker:xyz')"
 call err "getActiveObject: none running",  ".net~getActiveObject('Scripting.Dictionary')", "no running"
 call err "getActiveObject: not registered", ".net~getActiveObject('No.Such.Class')", "no COM class"
 
+-- type information, as .OLEObject's getKnownMethods / getKnownEvents (the same stems)
+m. = .net~getKnownMethods(.net~createObject("Scripting.Dictionary"))
+found = ""
+do i = 1 to m.0
+  if m.i.!NAME = "Add" then found = m.i.!INVKIND m.i.!PARAMS.0 m.i.!PARAMS.1.!NAME m.i.!PARAMS.2.!NAME m.i.!PARAMS.1.!FLAGS
+end
+call ok "getKnownMethods: Dictionary's Add", found, "1 2 Key Item [in]"
+call ok "... its return types",            m.1.!RETTYPE~abbrev("VT_"), 1
+ev. = .net~getKnownEvents(.net~createObject("ADODB.Recordset"))
+names = ""
+do i = 1 to ev.0; names = names ev.i.!NAME; end
+call ok "getKnownEvents: a Recordset's",   wordPos("WillMove", names) > 0 & wordPos("MoveComplete", names) > 0, 1
+call err "getKnownMethods: not a COM object", ".net~getKnownMethods(.net~System~Text~StringBuilder~new)", "not a COM object"
+
 if .fails = 0 then say "COM objects: all" .count "tests passed"
 else say "COM objects:" .fails "of" .count "tests FAILED"
 exit .fails > 0

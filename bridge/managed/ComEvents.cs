@@ -268,7 +268,7 @@ static class ComEvents
 
     /// The source dispinterfaces of a COM object: (IID, type information).
     [SupportedOSPlatform("windows")]
-    static List<(Guid, ComTypes.ITypeInfo)> Sources(object o)
+    internal static List<(Guid, ComTypes.ITypeInfo)> Sources(object o)
     {
         var list = new List<(Guid, ComTypes.ITypeInfo)>();
         try
@@ -360,7 +360,7 @@ static class ComEvents
         return result;
     }
 
-    static ComTypes.TYPEATTR Attr(ComTypes.ITypeInfo ti)
+    internal static ComTypes.TYPEATTR Attr(ComTypes.ITypeInfo ti)
     {
         ti.GetTypeAttr(out var p);
         try { return Marshal.PtrToStructure<ComTypes.TYPEATTR>(p); }

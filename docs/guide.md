@@ -841,6 +841,8 @@ OLE samples converted this way):
 | `.OLEObject~new(progID, , .true)` (undocumented: the running one) | `.net~getActiveObject(progID)` (an error if none runs) |
 | `o~method(args)`, `o~property`, `o~property = v`, `o[i]`, `DO x OVER o` | the same |
 | `o~getConstant(name)` | `.net~getConstant(o, name)`; all of them: `.net~getConstant(o)` (a StringTable) |
+| `o~getKnownMethods`, `o~getKnownEvents` | `.net~getKnownMethods(o)`, `.net~getKnownEvents(o)` (the same stems) |
+| `o~progid`, `o~clsid` | `.net~getKnownMethods(o)`'s `!PROGID`, `!CLSID` |
 | `.OLEVariant~new(v)` for an argument by reference, `~!varValue_` | `.net~ref(v)`, `~value` |
 | a string that must stay a string (`"007"`) | `.net~box("string", "007")` |
 | `"WITHEVENTS"`, `o~addEventMethod(name, m)`, `o~connectEvents` | `o~Name += .net~handler(object, message)` (`-=` to disconnect) |
