@@ -21,6 +21,8 @@ book = .net~getObject(file)
 say "getObject:" book~Name "A1 =" book~Worksheets~Item(1)~Range("A1")~Value
 app = book~Application                                     -- an Excel started for the file
 book~Close(.false)                                          -- (not one the user opened) ends now:
+say "  (that Excel: window" app~Hwnd"," word("hidden visible", app~Visible + 1)"," -
+    word("program's user's", app~UserControl + 1)", with" app~Workbooks~Count "other workbook(s))"
 if app~Workbooks~Count = 0 & \app~UserControl then app~Quit  -- else getActiveObject could find it
 .net~releaseObject(book)
 .net~System~IO~File~Delete(file)
@@ -30,7 +32,8 @@ if app~Workbooks~Count = 0 & \app~UserControl then app~Quit  -- else getActiveOb
 signal on syntax name noExcel
 running = .net~getActiveObject("Excel.Application")
 signal off syntax
-say "getActiveObject: Excel" running~Version "with" running~Workbooks~Count "workbook(s)"
+say "getActiveObject: Excel" running~Version "with" running~Workbooks~Count "workbook(s)" -
+    "(window" running~Hwnd"," word("hidden visible", running~Visible + 1)"," word("program's user's", running~UserControl + 1)")"
 do b over running~Workbooks
   say "  " b~Name
 end
