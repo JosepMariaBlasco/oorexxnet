@@ -1149,8 +1149,16 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
 - **Not overridden, and so the base's:** members with no Rexx method.
   **Abstract** members with no method throw `NotImplementedException`
   ("MYCLASS does not define AREA, which the abstract ... needs"). Members
-  with `ref`, `out`, pointer or span parameters and generic methods are not
-  supported yet (an abstract one throws saying so).
+  with pointer or span parameters and generic methods are not supported
+  yet (an abstract one throws saying so).
+- **Parameters by reference** (`ref`, `out`; 11/10/2026). The override
+  passes each as a `Rexx.Net.ComRef` (the class COM events use for the
+  same thing) holding its value (an `out` parameter's: none); after the
+  Rexx method, what its `Value` holds goes back to the parameter, converted
+  to its type as any argument ("42" for an `int`; nothing: the type's
+  default). `base.Name` and the protected members take `.NetRef`s for the
+  base's own `ref` / `out` parameters, and answer their new values, as any
+  .NET call. tests/extend.rex 54.
 - **Interfaces' events** (11/10/2026). Each is an event of the new type, as
   C#'s field-like events: a private field with the handlers, `add` /
   `remove` combining into it atomically (`Interlocked.CompareExchange`,
@@ -1209,7 +1217,7 @@ as explicit implementations); `net.cls` (`.net~extend`, `.net~detach`,
 `NetObject~init`'s construction, the private methods);
 `native/rexxnet.cpp` (record `p`).
 
-Tests: `tests/extend.rex` 47, 51 with interfaces' events (54 on Windows: a `Form` whose `OnLoad`,
+Tests: `tests/extend.rex` 47; 51 with interfaces' events, 54 with `ref` / `out` (57 on Windows: a `Form` whose `OnLoad`,
 `OnPaint`, `OnShown` are Rexx methods), with `TestLib/Extend.cs` (an
 abstract class with a virtual call in its constructor and protected members
 of every kind; interfaces) and framework classes: `Collection<T>`

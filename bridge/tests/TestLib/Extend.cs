@@ -41,8 +41,24 @@ public interface ICounter : IValue
     int Next();
 }
 
+/// Parameters by reference, to override and implement.
+public interface IFinder
+{
+    bool TryFind(string key, out int value);
+    void Twice(ref int n);
+}
+
+public class Parser
+{
+    public virtual bool TryParse(string s, out int n) { n = int.TryParse(s, out var v) ? v : -1; return n >= 0; }
+}
+
 public static class ExtendProbe
 {
+    public static string Find(IFinder f, string key) => f.TryFind(key, out var v) ? $"found {v}" : $"none {v}";
+    public static int Twice(IFinder f, int n) { f.Twice(ref n); return n; }
+    public static string Parse(Parser p, string s) => $"{p.TryParse(s, out var n)} {n}";
+
     /// The property names an INotifyPropertyChanged reports, as they come.
     public static List<string> Watch(System.ComponentModel.INotifyPropertyChanged o)
     {

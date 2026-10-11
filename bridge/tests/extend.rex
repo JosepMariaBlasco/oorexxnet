@@ -76,6 +76,14 @@ person~Name = "Erich"
 call ok "-= removes the Rexx handler",      listener~heard seen~Count, "Name(1) 4"
 call err "raise.Name from outside",          ".Person~new~raise.PropertyChanged(.nil, .nil)", 'does not understand message "RAISE.PROPERTYCHANGED"'
 
+-- parameters by reference (ref / out): a Rexx.Net.ComRef, whose Value goes back
+.net~extend(.Finder, "RexxNetTests.IFinder")
+f = .Finder~new
+call ok "out parameter",                    probe~Find(f, "seven") "/" probe~Find(f, "eight"), "found 7 / none 0"
+call ok "ref parameter",                    probe~Twice(f, 21), 42
+.net~extend(.Parser2, "RexxNetTests.Parser")
+call ok "out, and base. with a .NetRef",    probe~Parse(.Parser2~new, "12") "/" probe~Parse(.Parser2~new, "twelve"), "True 12 / True 12"
+
 -- framework classes: Collection<T> (protected virtual + base.), TextWriter
 -- (abstract, protected field), IComparer<T> (List.Sort)
 .net~extend(.Upper, "System.Collections.ObjectModel.Collection<System.String>")
@@ -200,6 +208,25 @@ windowsForm: procedure
   use arg sender, e
   heard = e~PropertyName"("sender~isA(.Person)")"
 ::method heard; expose heard; return heard
+
+::class Finder subclass NetObject
+::method TryFind
+  use arg key, value                          -- value: a ComRef
+  if key \== "seven" then return .false
+  value~Value = 7
+  return .true
+::method Twice
+  use arg n
+  n~Value = n~Value * 2
+
+::class Parser2 subclass NetObject
+::method TryParse
+  use arg s, n
+  if s == "twelve" then s = 12
+  r = .net~ref
+  ok = self~base.TryParse(s, r)               -- the base's out parameter: a .NetRef
+  n~Value = r~value
+  return ok
 
 ::class Upper subclass NetObject
 ::method inserts unguarded

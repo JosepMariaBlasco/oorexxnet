@@ -158,7 +158,7 @@ public static class Extend
                 bool mine = rn != null && rexxNames.Contains(rn);
                 if (!mine && !m.IsAbstract) continue;
                 var ps = m.GetParameters().Select(p => p.ParameterType).ToArray();
-                bool ok = !ps.Any(Unsupported) && !Unsupported(m.ReturnType);
+                bool ok = !ps.Any(UnsupportedParameter) && !Unsupported(m.ReturnType);
                 var attrs = (m.IsPublic ? MethodAttributes.Public : MethodAttributes.Family) |
                             MethodAttributes.Virtual | MethodAttributes.HideBySig | MethodAttributes.ReuseSlot;
                 if (m.IsSpecialName) attrs |= MethodAttributes.SpecialName;
@@ -167,7 +167,7 @@ public static class Extend
                 MethodInfo? baseCall = m.IsAbstract ? null : m;
                 if (mine && ok)
                 {
-                    Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), ps, m.ReturnType, baseCall,
+                    Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), m.GetParameters(), m.ReturnType, baseCall,
                          $"{Types.Display(baseType)}.{m.Name}: no Rexx peer to call");
                     if (baseCall != null)
                     {
@@ -177,7 +177,7 @@ public static class Extend
                     }
                 }
                 else Throw(mb.GetILGenerator(), mine
-                    ? $"{what}: ref, out, pointer or span parameters are not supported"
+                    ? $"{what}: pointer, span or generic parameters, or a result by reference, are not supported"
                     : $"{rexxClass} does not define {rn ?? m.Name}, which the abstract {Types.Display(baseType)}.{m.Name} needs");
             }
 
@@ -218,17 +218,17 @@ public static class Extend
                     bool mine = rn != null && rexxNames.Contains(rn) && !evt;
                     if (!mine && !m.IsAbstract) continue;           // a default implementation: kept
                     var ps = m.GetParameters().Select(p => p.ParameterType).ToArray();
-                    bool ok = !ps.Any(Unsupported) && !Unsupported(m.ReturnType);
+                    bool ok = !ps.Any(UnsupportedParameter) && !Unsupported(m.ReturnType);
                     var mb = tb.DefineMethod(i.FullName + "." + m.Name,
                         MethodAttributes.Private | MethodAttributes.Virtual | MethodAttributes.Final |
                         MethodAttributes.HideBySig | MethodAttributes.NewSlot, m.ReturnType, ps);
                     tb.DefineMethodOverride(mb, m);
                     string what = $"{rexxClass}~{rn ?? m.Name} ({Types.Display(i)}.{m.Name})";
                     if (mine && ok)
-                        Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), ps, m.ReturnType, null,
+                        Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), m.GetParameters(), m.ReturnType, null,
                              $"{Types.Display(i)}.{m.Name}: no Rexx peer to call");
                     else Throw(mb.GetILGenerator(), evt ? $"{Types.Display(i)}.{m.Name}: this event's accessors are not supported"
-                        : mine ? $"{what}: ref, out, pointer or span parameters are not supported"
+                        : mine ? $"{what}: pointer, span or generic parameters, or a result by reference, are not supported"
                         : $"{rexxClass} does not define {rn ?? m.Name}, which {Types.Display(i)} needs");
                 }
 
@@ -253,6 +253,9 @@ public static class Extend
     static string Clean(string s) => new string(s.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
 
     static bool Unsupported(Type t) => t.IsByRef || t.IsPointer || t.IsByRefLike || t.IsGenericParameter;
+
+    // A parameter: by reference too (ref / out: a ComRef for the Rexx method), but no pointer, span or generic parameter
+    static bool UnsupportedParameter(Type t) => t.IsByRef ? Unsupported(t.GetElementType()!) : Unsupported(t);
 
     static int NewSlot(string name, Type ret, string what)
     {
@@ -285,9 +288,31 @@ public static class Extend
     // object r = Extend.Dispatch(this, slot, new object[] { args... });
     // if (r != Extend.NoPeer) return (R)r;
     // return base.M(args...);    or    throw new NotImplementedException(...)
-    static void Body(ILGenerator il, int slot, Type[] ps, Type ret, MethodInfo? baseCall, string noPeerMessage)
+    // object r = Extend.Dispatch(this, slot, new object[] { args... });
+    // if (r != Extend.NoPeer) { (ref / out parameters: their ComRefs' values back) return (R)r; }
+    // return base.M(args...);    or    throw new NotImplementedException(...)
+    // A parameter by reference goes as a ComRef holding its value (an out
+    // parameter's: none); what the Rexx method leaves in its Value goes back.
+    static void Body(ILGenerator il, int slot, ParameterInfo[] pars, Type ret, MethodInfo? baseCall, string noPeerMessage)
     {
+        var ps = pars.Select(p => p.ParameterType).ToArray();
         var r = il.DeclareLocal(typeof(object));
+        var refs = new LocalBuilder?[ps.Length];
+        for (int i = 0; i < ps.Length; i++)
+        {
+            if (!ps[i].IsByRef) continue;
+            var et = ps[i].GetElementType()!;
+            refs[i] = il.DeclareLocal(typeof(ComRef));
+            if (pars[i].IsOut && !pars[i].IsIn) il.Emit(OpCodes.Ldnull);
+            else
+            {
+                il.Emit(OpCodes.Ldarg, (short)(i + 1));
+                il.Emit(OpCodes.Ldobj, et);
+                if (et.IsValueType) il.Emit(OpCodes.Box, et);
+            }
+            il.Emit(OpCodes.Call, newRef);
+            il.Emit(OpCodes.Stloc, refs[i]!);
+        }
         var fallback = il.DefineLabel();
         il.Emit(OpCodes.Ldarg_0);
         il.Emit(OpCodes.Ldc_I4, slot);
@@ -297,8 +322,12 @@ public static class Extend
         {
             il.Emit(OpCodes.Dup);
             il.Emit(OpCodes.Ldc_I4, i);
-            il.Emit(OpCodes.Ldarg, (short)(i + 1));
-            if (ps[i].IsValueType) il.Emit(OpCodes.Box, ps[i]);
+            if (refs[i] != null) il.Emit(OpCodes.Ldloc, refs[i]!);
+            else
+            {
+                il.Emit(OpCodes.Ldarg, (short)(i + 1));
+                if (ps[i].IsValueType) il.Emit(OpCodes.Box, ps[i]);
+            }
             il.Emit(OpCodes.Stelem_Ref);
         }
         il.Emit(OpCodes.Call, dispatch);
@@ -306,6 +335,18 @@ public static class Extend
         il.Emit(OpCodes.Ldloc, r);
         il.Emit(OpCodes.Ldsfld, noPeer);
         il.Emit(OpCodes.Beq, fallback);
+        for (int i = 0; i < ps.Length; i++)
+        {
+            if (refs[i] == null) continue;
+            var et = ps[i].GetElementType()!;
+            il.Emit(OpCodes.Ldarg, (short)(i + 1));
+            il.Emit(OpCodes.Ldloc, refs[i]!);
+            il.Emit(OpCodes.Ldtoken, et);
+            il.Emit(OpCodes.Call, typeFromHandle);
+            il.Emit(OpCodes.Call, fromRef);
+            il.Emit(OpCodes.Unbox_Any, et);
+            il.Emit(OpCodes.Stobj, et);
+        }
         if (ret != typeof(void))
         {
             il.Emit(OpCodes.Ldloc, r);
@@ -326,6 +367,28 @@ public static class Extend
             il.Emit(OpCodes.Newobj, typeof(NotImplementedException).GetConstructor(new[] { typeof(string) })!);
             il.Emit(OpCodes.Throw);
         }
+    }
+
+    static readonly MethodInfo newRef = typeof(Extend).GetMethod(nameof(NewRef))!;
+    static readonly MethodInfo fromRef = typeof(Extend).GetMethod(nameof(FromRef))!;
+    static readonly MethodInfo typeFromHandle = typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle))!;
+
+    /// A parameter by reference, for the Rexx method. Public for the emitted code only.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ComRef NewRef(object? value) => new ComRef(value);
+
+    /// What the Rexx method left in a ComRef, as the parameter's type (a Rexx
+    /// string converted as any argument: "42" for an int). Public for the emitted code only.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static object? FromRef(ComRef r, Type t)
+    {
+        var v = r.Value;
+        if (v == null) return t.IsValueType ? Activator.CreateInstance(t) : null;
+        if (t.IsInstanceOfType(v)) return v;
+        if (v is string s && Conv.TryConvert(new Rec { Tag = 'S', Text = s }, t, out var c) != Conv.Fail) return c;
+        if (v is IConvertible && typeof(IConvertible).IsAssignableFrom(t))
+            return System.Convert.ChangeType(v, t, System.Globalization.CultureInfo.InvariantCulture);
+        throw new InvalidCastException($"a parameter by reference of type {Types.Display(t)} cannot take \"{v}\"");
     }
 
     static readonly MethodInfo combine = typeof(Extend).GetMethod(nameof(AddHandler))!;
@@ -491,7 +554,17 @@ public static class Extend
                         .ToList();
         if (methods.Count == 0) throw new BridgeException($"{n} of {display} is not a method: it takes no arguments");
         var (mi, conv) = Members.Choose(methods, args, $"{display}.{n}");
-        Conv.ToRexx(w, mi.Invoke(mi.IsStatic ? null : o, conv), mi.ReturnType);
+        Answer(w, mi.Invoke(mi.IsStatic ? null : o, conv), mi.ReturnType, args, conv);
+    }
+
+    // The result; with .NetRef arguments R, the result and then their new values (as Bridge.Send)
+    static void Answer(Writer w, object? result, Type ret, List<Rec> args, object?[] conv)
+    {
+        if (!args.Any(a => a.Tag == 'R')) { Conv.ToRexx(w, result, ret); return; }
+        var inner = new Writer();
+        Conv.ToRexx(inner, result, ret);
+        for (int i = 0; i < args.Count; i++) if (args[i].Tag == 'R') Conv.ToRexx(inner, conv[i]);
+        w.Add('R', inner.ToArray());
     }
 
     /// self~base.Name(args): the base implementation of an overridden member.
@@ -505,7 +578,7 @@ public static class Extend
             throw new BridgeException($"base.{name}: {info.RexxClass} overrides no {name} with a base implementation");
         var ms = tramps.Distinct().SelectMany(tn => t.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).Where(m => m.Name == tn)).ToList();
         var (mi, conv) = Members.Choose(ms, args, $"base.{name} of {Types.Display(t.BaseType!)}");
-        Conv.ToRexx(w, mi.Invoke(o, conv), mi.ReturnType);
+        Answer(w, mi.Invoke(o, conv), mi.ReturnType, args, conv);
     }
 
     // ------------------------------------------------------------- instances

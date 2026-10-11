@@ -93,7 +93,9 @@
  * protected members (self~Name, self~Name = v: private methods), and
  * self~base.Name(args) calls the base implementation of an overridden
  * member. An interface's event is an event of the new type (.NET code and
- * o~Name += handler subscribe to it), raised by self~raise.Name(args). An
+ * o~Name += handler subscribe to it), raised by self~raise.Name(args). A
+ * parameter by reference (ref, out) comes as a Rexx.Net.ComRef: ref~Value
+ * = x gives the caller a new value. An
  * abstract member with no method throws NotImplementedException.
  * .net~detach(o) ends the link: .NET's calls go to the base's
  * implementations again, and o can be collected.

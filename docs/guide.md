@@ -588,9 +588,10 @@ to the base's implementations, and `o` can be collected). An interface's
 event (`INotifyPropertyChanged.PropertyChanged`, what WPF's binding listens
 to) is an event of the new type: .NET code and Rexx (`o~PropertyChanged +=
 handler`) subscribe to it, and the object's own methods raise it with
-`self~raise.PropertyChanged(self, args)`. Not yet: `ref` / `out`
-parameters, generic methods; methods added to the class after
-`.net~extend`. On Windows, a `Form` whose
+`self~raise.PropertyChanged(self, args)`. A parameter by reference (`ref`,
+`out`) arrives as a `Rexx.Net.ComRef`, as in COM events: `ref~Value` is its
+value, and `ref~Value = x` gives the caller a new one. Not yet: generic
+methods; methods added to the class after `.net~extend`. On Windows, a `Form` whose
 `OnPaint`, `OnLoad`... are Rexx methods is `samples/windows/forms-extend.rex`.
 
 ## 9. .NET → ooRexx
