@@ -33,6 +33,7 @@ public static class BothWays
     public static int Grow(Dictionary<string, int> d) { d["new"] = 1; return d.Count; }
     public static StringBuilder Builder(Dictionary<string, StringBuilder> d) => d["sb"];
     public static string Which(RexxObject o) => "reference";
+    public static int Fill(RexxObject a) { a.Send("APPEND", "x"); return a.Send<int>("ITEMS"); }
     public static string Which(Dictionary<string, int> d) => "copy";
     public static string Cases(Dictionary<string, int> d) => string.Join(",", d.Keys.OrderBy(k => k, StringComparer.Ordinal));
     public static int LengthInRexx(string s) =>

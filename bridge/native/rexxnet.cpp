@@ -298,7 +298,14 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
         }
         for (size_t i = 1; i <= last; i++) if (!encode(c, c->ArrayAt(a, i), items, refs, adopt)) return false;
         size_t dims = c->ArrayDimension(a);
-        if (dims <= 1) { record(out, 'A', items); return true; }
+        if (dims <= 1)
+        {
+            // P: the Array's own pointer, valid while the request runs (as X's),
+            // for a RexxObject parameter, which gets the Array itself, not a copy
+            if (!adopt) record(items, 'P', std::to_string((uintptr_t)o));
+            record(out, 'A', items);
+            return true;
+        }
         // A multidimensional Array: M "d1,d2,...\t" and its items in Rexx's
         // linear order (the first index varies fastest), for a T[,] in .NET
         std::string head;

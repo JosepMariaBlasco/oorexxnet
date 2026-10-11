@@ -52,6 +52,8 @@ call ok "a Directory too (d~name: uppercase)", bw~Ints(dd), "Mixed=3,NAME=2"
 dm = .directory~new; dm["k"] = 1; dm~setMethod("CALC", "return 41"); dm~setMethod("UNKNOWN", "return 0")
 call ok "a Directory's setMethod entry: its result", bw~Ints(dm), "CALC=42,k=2"
 call ok "a Directory is still a RexxObject", bw~ClassOf(dd) bw~Which(dd), "Directory reference"
+a = .array~of(1, 2)
+call ok "a Rexx Array to a RexxObject: itself", bw~Fill(a) a~items a[3], "3 3 x"
 call ok "a Directory subclass",  bw~Ints(.MyDir~new~~put(5, "q")), "q=6"
 .local~arrArg = .array~of(1)
 call ok "an Array is no dictionary", message(".bw~Ints(.arrArg)")~pos("accepts") > 0, 1

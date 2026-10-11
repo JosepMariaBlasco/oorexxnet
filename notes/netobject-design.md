@@ -160,7 +160,10 @@ is converted to its parameter's type.
 - `.nil` → `null` (reference types, nullables).
 - A `.NetObject` → the object; a `.NetTyped` → its forced type.
 - A Rexx `Array` → when the parameter is an array, `List<T>` or
-  `IEnumerable<T>`: a new one, items converted (a copy); a `StringTable` →
+  `IEnumerable<T>`: a new one, items converted (a copy); a `RexxObject`
+  parameter gets the Array itself (11/10/2026: a one-dimensional Array's
+  record carries its pointer, `P`, valid during the request, as `X`'s; such
+  an overload wins over a copy, as for a StringTable); a `StringTable` →
   `Dictionary<string, T>` likewise, and a `Directory` too (built 09/10/2026:
   see below).
 - A `.NetHandler` → a delegate of the parameter's type.

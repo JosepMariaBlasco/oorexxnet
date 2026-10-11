@@ -49,6 +49,7 @@ public sealed class Rec
     public int[]? Dims;
     public bool Logical;                // S from .true or .false themselves (L)                 // A from a multidimensional Rexx Array (M): its dimensions; Items in Rexx's order
     public Rec? Inner;                  // T, R: the value
+                                        // (A: Text, the Rexx Array's pointer if it came from Rexx, else "")
     internal RexxObject? Adopted;       // X, G: its proxy, made once (overloads try a record many times)
     internal bool? IsMap;               // X, G: a StringTable or a Directory? asked once
     internal IReadOnlyList<KeyValuePair<object?, object?>>? Pairs;   // X, G: its entries, read once
@@ -80,7 +81,10 @@ public static class Wire
             var r = new Rec { Tag = tag };
             switch (tag)
             {
-                case 'A': r.Items = Parse(payload); break;
+                case 'A':                                   // its items; a last P: the Rexx Array's pointer
+                    r.Items = Parse(payload);
+                    if (r.Items.Count > 0 && r.Items[^1].Tag == 'P') { r.Text = r.Items[^1].Text; r.Items.RemoveAt(r.Items.Count - 1); }
+                    break;
                 case 'L': r.Tag = 'S'; r.Logical = true; r.Text = Encoding.UTF8.GetString(payload); break;
                 case 'M':                                   // "d1,d2,...\t" items: an A with dimensions
                 {

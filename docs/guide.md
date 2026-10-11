@@ -741,7 +741,10 @@ blue red
 
 **Both ways in one process.** .NET objects passed to Rexx are `.NetObject`s
 (`net.cls` is loaded on first need), and Rexx code can use `.net` as in a Rexx
-program; they come back to .NET as themselves. .NET code called from Rexx
+program; they come back to .NET as themselves. Rexx objects go to .NET as
+`RexxObject`s; a Rexx Array or StringTable is copied for a parameter that is
+a .NET array, list or dictionary, and goes as itself to a `RexxObject`
+parameter. .NET code called from Rexx
 reaches the interpreter that called it through `RexxInterpreter.Current`.
 The details: `notes/rexx-from-net-design.md`.
 

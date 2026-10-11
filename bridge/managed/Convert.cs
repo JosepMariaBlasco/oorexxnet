@@ -71,6 +71,13 @@ public static class Conv
             case 'T':
                 return FromTyped(r, under ?? to, out value);
             case 'A':
+                // A RexxObject parameter: the Rexx Array itself (its pointer: valid during the request)
+                if (r.Text.Length > 0 && typeof(RexxObject).IsAssignableFrom(under ?? to))
+                {
+                    r.Adopted ??= RexxInterpreter.FromRequest((nint)nuint.Parse(r.Text));
+                    value = r.Adopted;
+                    return (under ?? to).IsInstanceOfType(value) ? 0 : Fail;
+                }
                 return r.Dims == null ? FromArray(r.Items, to, out value) : FromMultiArray(r, to, out value);
             case 'S':
                 return FromString(r.Text, under ?? to, out value);

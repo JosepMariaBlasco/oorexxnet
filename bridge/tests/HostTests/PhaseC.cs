@@ -24,6 +24,12 @@ public static class HostLib
     public static string Kind(RexxObject o) => "RexxObject";
     public static string Str(RexxString s) => "[" + s.Value + "]";
     public static bool SameAsHost() => RexxInterpreter.Current == Host && Host != null;
+    // A Rexx Array to a RexxObject parameter: the Array itself (changes are seen by Rexx)
+    public static int Fill(RexxObject a) { a.Send("APPEND", "x"); return a.Send<int>("ITEMS"); }
+    public static int Sum(int[] xs) => xs.Sum();
+    public static string Which(int[] xs) => "int[]";
+    public static string Which(RexxObject o) => "RexxObject";
+
     // Two instances' handlers (TwoInstances): each called from .NET with no Rexx code waiting
     public static readonly Func<string>?[] Kept = new Func<string>?[2];
     public static void Keep(int slot, Func<string> f) => Kept[slot] = f;
@@ -143,6 +149,10 @@ static partial class Program
         Ok("C: a Rexx object made by .NET", rexx.Run<int>($"d = {H}~MakeDirectory; return d~a + d~b"), 3);
         Ok("C: a Rexx object from a call",  rexx.Run<string>($"d = .directory~new; d~x = 5; c = {H}~CallBack(d, 'COPY'); return c~x (c == d)"), "5 0");
         Ok("C: dynamic in .NET",            rexx.Run<int>($"d = .directory~new; d~a = 1; return {H}~Items(d)"), 1);
+        Ok("C: a Rexx Array to a RexxObject: itself", rexx.Run($"a = .array~of(1, 2); n = {H}~Fill(a); return n a~items a[3]"), "3 3 x");
+        Ok("C: ... to an int[]: still a copy",    rexx.Run($"return {H}~Sum(.array~of(1, 2, 3))"), "6");
+        Ok("C: ... RexxObject overload wins",     rexx.Run($"return {H}~Which(.array~of(1, 2))"), "RexxObject");
+        Ok("C: ... to object: copies, inner ones too", rexx.Run($"a = .array~of(1); n = {H}~Echo(.array~of(a)); return n[1] == a"), "0");
         Ok("C: from another .NET thread",   rexx.Run<int>($"d = .directory~new; d~a = 1; d~b = 1; return {H}~OnOtherThread(d)"), 2);
         Ok("C: a NetObject parameter",      rexx.Run<int>($"use arg sb; return {H}~Length(sb)", new StringBuilder("xyz")), 3);
 

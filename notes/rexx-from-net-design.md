@@ -682,8 +682,11 @@ case still open; item 6 changed later):
    `object`). A `RexxObject` .NET gives back is the Rexx object itself (X:
    inside a request, also held by a local reference of the request, an Array
    holding it, so that it outlives its proxy until Rexx has it); a
-   `RexxString`, its string. **Not done**: an Array still goes as a copy (so
-   it cannot reach a `RexxObject` parameter as itself), and the other
+   `RexxString`, its string. *(Built 11/10/2026: an Array reaches a
+   `RexxObject` parameter as itself — its record `A` ends with a record `P`,
+   its pointer, which the parser takes off; other parameter types still get
+   a copy. A multidimensional Array, and a callback's result, still go only
+   as a copy.)* The other
    direction's design had Directory / StringTable → `Dictionary<string, T>`,
    never built: a Directory is now a `RexxObject`. (Later: only the
    StringTable is the dictionary's equivalent; the Directory case is open,
@@ -780,8 +783,8 @@ types were already cached by name on the managed side, the cost was the
 request and the proxy. Since 09/10/2026 `net.cls` remembers them: ~2 µs; see
 `netobject-design.md`, "Name lookups remembered").
 
-**Not done (later, if wanted):** Arrays to a `RexxObject` parameter as
-themselves; Directory → `Dictionary` (StringTable and Directory →
+**Not done (later, if wanted):** (Arrays to a `RexxObject` parameter as
+themselves: built 11/10/2026, see item 2); Directory → `Dictionary` (StringTable and Directory →
 `Dictionary`: built, see below); the NativeAOT / custom-host
 registration (see "One process, both ways"). (Item 8's test, added
 11/10/2026: two instances, each with its own `.local~who`, whose handlers
