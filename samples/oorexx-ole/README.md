@@ -131,5 +131,7 @@ says so.
 Word) for the MS ones and LibreOffice (or Apache OpenOffice) for the AOO
 ones; the bridge's folder on the `PATH` and `REXX_PATH`, as for the
 other samples. `rexx samples\check-samples.rex [build-dir] office
-libreoffice` runs them all with `auto`. The CI runs the AOO ones on a
+libreoffice` runs them all with `auto` (the Outlook ones only with
+`outlook` added: with no mail account configured, Outlook opens its setup
+wizard, which no program can answer). The CI runs the AOO ones on a
 Windows runner with LibreOffice (`.github/workflows/libreoffice.yml`).

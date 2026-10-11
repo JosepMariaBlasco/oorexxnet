@@ -1,6 +1,6 @@
 /* check-samples.rex: runs every sample and reports which end with an error.
 
-       rexx samples/check-samples.rex [build-dir] [office] [libreoffice]
+       rexx samples/check-samples.rex [build-dir] [office] [libreoffice] [outlook]
 
    The samples in samples/rexx run on every platform; those in
    samples/windows only on Windows, those in samples/office (Excel, Word,
@@ -9,7 +9,8 @@
    installed) when "libreoffice" is given; in samples/oorexx-ole (ooRexx's
    OLE samples, .NET versions; on Windows, with its wmi and adsi folders)
    the AOO_* ones with "libreoffice", the MS*
-   ones with "office", the others always. Each runs with the argument
+   ones with "office" (the MSOutlook* ones only with "outlook" too: Outlook
+   with no mail account configured opens its setup wizard), the others always. Each runs with the argument
    "auto", which makes the interactive ones (windows, dialogs) finish by
    themselves; a sample passes when its exit status is 0. The output is
    shown. build-dir: the bridge's build, as for docs/check-guide.rex.
@@ -23,10 +24,11 @@ windows = platform~abbrev("WIN")
 mac = platform~pos("DARWIN") > 0 | platform~pos("MAC") > 0
 
 parse arg out
-office = .false; libre = .false                             -- [build-dir] [office] [libreoffice]
+office = .false; libre = .false; outlook = .false          -- [build-dir] [office] [libreoffice] [outlook]
 do while out~words > 0
   last = out~word(out~words)
   if last~caselessEquals("office") then office = .true
+  else if last~caselessEquals("outlook") then outlook = .true
   else if last~caselessEquals("libreoffice") then libre = .true
   else leave
   out = out~subWord(1, out~words - 1)
@@ -65,6 +67,7 @@ do d over dirs
       n = filespec("name", f)
       if n~caselessAbbrev("AOO_") & \libre then iterate
       if n~caselessAbbrev("MS") & \office then iterate
+      if n~caselessAbbrev("MSOutlook") & \outlook then iterate
     end
     count += 1
     name = d"/"filespec("name", f)
