@@ -232,6 +232,7 @@ public static unsafe class Bridge
             case "extMember": Extend.Member(r[1], r[2].Text, r[3].Items, w); break;
             case "extBase": Extend.Base(r[1], r[2].Text, r[3].Items, w); break;
             case "extDetach": Extend.Detach(r[1]); w.Add('V', ""); break;
+            case "extRaise": Extend.Raise(r[1], r[2].Text, r[3].Items, w); break;
             default: throw new BridgeException("unknown operation " + op);
         }
     }

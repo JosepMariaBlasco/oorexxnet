@@ -584,9 +584,13 @@ An abstract member with no method throws `NotImplementedException` when .NET
 calls it; an override's Rexx error is a `RexxException` in .NET, and raised
 again as it was if it comes back to Rexx. The .NET object and your object
 keep each other alive: `.net~detach(o)` ends the link (.NET's calls then go
-to the base's implementations, and `o` can be collected). Not yet: events
-declared by interfaces, `ref` / `out` parameters, generic methods; methods
-added to the class after `.net~extend`. On Windows, a `Form` whose
+to the base's implementations, and `o` can be collected). An interface's
+event (`INotifyPropertyChanged.PropertyChanged`, what WPF's binding listens
+to) is an event of the new type: .NET code and Rexx (`o~PropertyChanged +=
+handler`) subscribe to it, and the object's own methods raise it with
+`self~raise.PropertyChanged(self, args)`. Not yet: `ref` / `out`
+parameters, generic methods; methods added to the class after
+`.net~extend`. On Windows, a `Form` whose
 `OnPaint`, `OnLoad`... are Rexx methods is `samples/windows/forms-extend.rex`.
 
 ## 9. .NET → ooRexx

@@ -1149,8 +1149,18 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
 - **Not overridden, and so the base's:** members with no Rexx method.
   **Abstract** members with no method throw `NotImplementedException`
   ("MYCLASS does not define AREA, which the abstract ... needs"). Members
-  with `ref`, `out`, pointer or span parameters, generic methods and events
-  of interfaces are not supported yet (an abstract one throws saying so).
+  with `ref`, `out`, pointer or span parameters and generic methods are not
+  supported yet (an abstract one throws saying so).
+- **Interfaces' events** (11/10/2026). Each is an event of the new type, as
+  C#'s field-like events: a private field with the handlers, `add` /
+  `remove` combining into it atomically (`Interlocked.CompareExchange`,
+  `Extend.AddHandler`), **public** (explicit only for a second event of the
+  same name), so that `o~PropertyChanged += h` finds it as any .NET event.
+  The object raises it with `self~raise.Name(args)`: a private Rexx
+  method, as `base.Name`, so only the object's own methods raise it, as in
+  C#; the arguments are converted to the delegate's parameters; no
+  handlers, nothing happens. `INotifyPropertyChanged` is the case that
+  matters (WPF's binding). tests/extend.rex 51.
 - **Construction.** `.MyClass~new(args...)`: `NetObject~init` sees an
   extended class (its own or a superclass's extension) and constructs; the
   constructor is chosen by the arguments among the base's public and
@@ -1199,7 +1209,7 @@ as explicit implementations); `net.cls` (`.net~extend`, `.net~detach`,
 `NetObject~init`'s construction, the private methods);
 `native/rexxnet.cpp` (record `p`).
 
-Tests: `tests/extend.rex` 47 (50 on Windows: a `Form` whose `OnLoad`,
+Tests: `tests/extend.rex` 47, 51 with interfaces' events (54 on Windows: a `Form` whose `OnLoad`,
 `OnPaint`, `OnShown` are Rexx methods), with `TestLib/Extend.cs` (an
 abstract class with a virtual call in its constructor and protected members
 of every kind; interfaces) and framework classes: `Collection<T>`

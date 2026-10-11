@@ -43,6 +43,14 @@ public interface ICounter : IValue
 
 public static class ExtendProbe
 {
+    /// The property names an INotifyPropertyChanged reports, as they come.
+    public static List<string> Watch(System.ComponentModel.INotifyPropertyChanged o)
+    {
+        var seen = new List<string>();
+        o.PropertyChanged += (sender, e) => seen.Add($"{e.PropertyName}{(ReferenceEquals(sender, o) ? "" : "?")}");
+        return seen;
+    }
+
     public static double TotalArea(IEnumerable<Shape> shapes) => shapes.Sum(s => s.Area());
     public static object Same(object o) => o;
     public static string OnAnotherThread(Shape s) => Task.Run(() => s.Describe()).Result;

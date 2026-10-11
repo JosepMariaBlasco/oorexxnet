@@ -28,12 +28,13 @@
 //
 // Operations (Bridge.Dispatch):
 //   extend    S class name, A [S name | O type]..., A [S Rexx method names]
-//             -> A [O the new type, A protected member names, A base. names]
+//             -> A [O the new type, A protected member names, A base. names, A raise. names]
 //   extAlloc  O type, H peer handler   -> S "id\tdisplay" (not constructed yet)
 //   extInit   O object, A args         -> V (its constructor, chosen by the args)
 //   extMember O object, S name, A args -> the result ("Name=": a set)
 //   extBase   O object, S name, A args -> the result
 //   extDetach O object                 -> V
+//   extRaise  O object, S event, A args -> V (raise.Name: an interface's event raised)
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -41,6 +42,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Rexx.Net;
 
@@ -57,6 +59,7 @@ public static class Extend
     {
         public string RexxClass = "", Shown = "";
         public Dictionary<string, List<string>> Bases = new(StringComparer.OrdinalIgnoreCase);   // Rexx name -> trampolines
+        public Dictionary<string, string> Events = new(StringComparer.OrdinalIgnoreCase);        // event -> its handlers' field
     }
 
     static readonly object gate = new();
@@ -178,10 +181,38 @@ public static class Extend
                     : $"{rexxClass} does not define {rn ?? m.Name}, which the abstract {Types.Display(baseType)}.{m.Name} needs");
             }
 
+            // The interfaces' events: a field holding the handlers, and add /
+            // remove as C#'s field-like events have them (public, so that
+            // Rexx's o~Name += h finds the event too); raise.Name raises it.
+            var eventAccessors = new HashSet<MethodInfo>();
+            var publicEvents = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var i in closure)
+                foreach (var ev in i.GetEvents())
+                {
+                    if (ev.AddMethod == null || ev.RemoveMethod == null || !ev.AddMethod.IsAbstract) continue;
+                    var ht = ev.EventHandlerType!;
+                    bool open = publicEvents.Add(ev.Name);         // a second event of the same name: explicit
+                    var fb = tb.DefineField("<event>" + i.FullName + "." + ev.Name, typeof(Delegate), FieldAttributes.Private);
+                    var attrs = (open ? MethodAttributes.Public : MethodAttributes.Private) | MethodAttributes.Virtual |
+                                MethodAttributes.Final | MethodAttributes.HideBySig | MethodAttributes.NewSlot | MethodAttributes.SpecialName;
+                    string prefix = open ? "" : i.FullName + ".";
+                    var add = Accessor(tb, prefix + "add_" + ev.Name, attrs, ht, fb, combine);
+                    var remove = Accessor(tb, prefix + "remove_" + ev.Name, attrs, ht, fb, removeHandler);
+                    tb.DefineMethodOverride(add, ev.AddMethod);
+                    tb.DefineMethodOverride(remove, ev.RemoveMethod);
+                    var eb = tb.DefineEvent(prefix + ev.Name, EventAttributes.None, ht);
+                    eb.SetAddOnMethod(add);
+                    eb.SetRemoveOnMethod(remove);
+                    eventAccessors.Add(ev.AddMethod);
+                    eventAccessors.Add(ev.RemoveMethod);
+                    if (!info.Events.ContainsKey(ev.Name)) info.Events[ev.Name] = fb.Name;
+                }
+
             // The interfaces' members: explicit implementations.
             foreach (var i in closure)
                 foreach (var m in i.GetMethods(BindingFlags.Instance | BindingFlags.Public))
                 {
+                    if (eventAccessors.Contains(m)) continue;
                     var rn = RexxName(m);
                     bool evt = m.IsSpecialName && (m.Name.StartsWith("add_") || m.Name.StartsWith("remove_"));
                     bool mine = rn != null && rexxNames.Contains(rn) && !evt;
@@ -196,7 +227,7 @@ public static class Extend
                     if (mine && ok)
                         Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), ps, m.ReturnType, null,
                              $"{Types.Display(i)}.{m.Name}: no Rexx peer to call");
-                    else Throw(mb.GetILGenerator(), evt ? $"{Types.Display(i)}.{m.Name}: events of an interface are not supported yet"
+                    else Throw(mb.GetILGenerator(), evt ? $"{Types.Display(i)}.{m.Name}: this event's accessors are not supported"
                         : mine ? $"{what}: ref, out, pointer or span parameters are not supported"
                         : $"{rexxClass} does not define {rn ?? m.Name}, which {Types.Display(i)} needs");
                 }
@@ -213,6 +244,9 @@ public static class Extend
         var bases = new Writer();
         foreach (var n in info.Bases.Keys) bases.Add('S', n);
         all.Add('A', bases.ToArray());
+        var events = new Writer();
+        foreach (var n in info.Events.Keys) events.Add('S', n.ToUpperInvariant());
+        all.Add('A', events.ToArray());
         w.Add('A', all.ToArray());
     }
 
@@ -292,6 +326,59 @@ public static class Extend
             il.Emit(OpCodes.Newobj, typeof(NotImplementedException).GetConstructor(new[] { typeof(string) })!);
             il.Emit(OpCodes.Throw);
         }
+    }
+
+    static readonly MethodInfo combine = typeof(Extend).GetMethod(nameof(AddHandler))!;
+    static readonly MethodInfo removeHandler = typeof(Extend).GetMethod(nameof(RemoveHandler))!;
+
+    // add_Name / remove_Name: Extend.AddHandler(ref this.field, value)
+    static MethodBuilder Accessor(TypeBuilder tb, string name, MethodAttributes attrs, Type handlerType, FieldInfo field, MethodInfo helper)
+    {
+        var mb = tb.DefineMethod(name, attrs, typeof(void), new[] { handlerType });
+        var il = mb.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldflda, field);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Call, helper);
+        il.Emit(OpCodes.Ret);
+        return mb;
+    }
+
+    /// The bodies of the events' accessors, as C#'s field-like events
+    /// (thread-safe). Public for the emitted code only.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void AddHandler(ref Delegate? field, Delegate? value)
+    {
+        Delegate? seen = field, now;
+        do { now = seen; seen = Interlocked.CompareExchange(ref field, Delegate.Combine(now, value), now); } while (seen != now);
+    }
+
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static void RemoveHandler(ref Delegate? field, Delegate? value)
+    {
+        Delegate? seen = field, now;
+        do { now = seen; seen = Interlocked.CompareExchange(ref field, Delegate.Remove(now, value), now); } while (seen != now);
+    }
+
+    /// self~raise.Name(args): the event's handlers called, in order, with
+    /// args converted to its delegate's parameters (none: nothing happens).
+    public static void Raise(Rec target, string name, List<Rec> args, Writer w)
+    {
+        object o;
+        Info info;
+        lock (gate) { o = Instance(target); info = types[o.GetType()]; }
+        if (!info.Events.TryGetValue(name, out var fieldName))
+            throw new BridgeException($"raise.{name}: {info.RexxClass} has no event {name} of an interface");
+        var f = o.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!;
+        if (f.GetValue(o) is not Delegate d) { w.Add('V', ""); return; }
+        var inv = d.GetType().GetMethod("Invoke")!;
+        var (_, conv) = Members.Choose(new[] { inv }, args, $"raise.{name}");
+        try { d.DynamicInvoke(conv); }
+        catch (TargetInvocationException e) when (e.InnerException != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e.InnerException).Throw();
+        }
+        w.Add('V', "");
     }
 
     static void Throw(ILGenerator il, string message)

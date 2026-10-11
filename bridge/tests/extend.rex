@@ -59,6 +59,23 @@ call ok "interface property get/set and method", probe~UseValue(c), "v=10 10"
 call ok "inherited interface",       probe~Count(c), "11 12 12"
 call ok "interface from Rexx",       c~Value, 12
 
+-- an interface's event: raised by the object (self~raise.Name), heard by .NET and by Rexx
+.net~extend(.Person, "System.ComponentModel.INotifyPropertyChanged")
+person = .Person~new
+person~Name = "nobody hears"                 -- no handlers yet: nothing happens
+seen = probe~Watch(person)                    -- a .NET handler: a List<string>
+person~Name = "Rony"; person~Age = 60
+call ok "interface event, a .NET handler", seen~ToArray~makeString("L", " "), "Name Age"
+listener = .Listener~new
+h = .net~handler(listener, "CHANGED")
+person~PropertyChanged += h                   -- a public event of the new type
+person~Name = "Rick"
+call ok "interface event, a Rexx handler too", listener~heard seen~Count, "Name(1) 3"
+person~PropertyChanged -= h
+person~Name = "Erich"
+call ok "-= removes the Rexx handler",      listener~heard seen~Count, "Name(1) 4"
+call err "raise.Name from outside",          ".Person~new~raise.PropertyChanged(.nil, .nil)", 'does not understand message "RAISE.PROPERTYCHANGED"'
+
 -- framework classes: Collection<T> (protected virtual + base.), TextWriter
 -- (abstract, protected field), IComparer<T> (List.Sort)
 .net~extend(.Upper, "System.Collections.ObjectModel.Collection<System.String>")
@@ -166,6 +183,23 @@ windowsForm: procedure
 ::method "VALUE="; expose value; use arg value
 ::method Describe; expose value; use arg prefix; return prefix || value
 ::method Next;     expose value; value += 1; return value
+
+::class Person subclass NetObject
+::method "NAME="
+  expose name
+  use arg name
+  self~raise.PropertyChanged(self, .net~System~ComponentModel~PropertyChangedEventArgs~new("Name"))
+::method "AGE="
+  expose age
+  use arg age
+  self~raise.PropertyChanged(self, .net~System~ComponentModel~PropertyChangedEventArgs~new("Age"))
+
+::class Listener
+::method changed
+  expose heard
+  use arg sender, e
+  heard = e~PropertyName"("sender~isA(.Person)")"
+::method heard; expose heard; return heard
 
 ::class Upper subclass NetObject
 ::method inserts unguarded

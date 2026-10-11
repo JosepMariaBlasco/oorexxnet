@@ -92,7 +92,9 @@
  * back from .NET as itself. Only the object's own methods reach the base's
  * protected members (self~Name, self~Name = v: private methods), and
  * self~base.Name(args) calls the base implementation of an overridden
- * member. An abstract member with no method throws NotImplementedException.
+ * member. An interface's event is an event of the new type (.NET code and
+ * o~Name += handler subscribe to it), raised by self~raise.Name(args). An
+ * abstract member with no method throws NotImplementedException.
  * .net~detach(o) ends the link: .NET's calls go to the base's
  * implementations again, and o can be collected.
  *
@@ -435,6 +437,9 @@ syntax: raise propagate
   end
   do name over r[3]
     self~forwarder(cls, "BASE."name, "extBase", name)
+  end
+  do name over r[4]                    -- raise.Name: an interface's event, raised by the object
+    self~forwarder(cls, "RAISE."name, "extRaise", name)
   end
   extended[cls] = r[1]
   return r[1]
