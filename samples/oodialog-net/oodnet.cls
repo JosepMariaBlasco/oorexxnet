@@ -380,14 +380,21 @@
   call NetDialogTrace "execute: timers"
   if self~class~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
+    call NetDialogTrace "execute: runner made"
     t = .net~System~Windows~Forms~Timer~new
     t~Interval = 1200
-    t~Tick += .net~handler(runner, "TICK")
+    call NetDialogTrace "execute: timer made"
+    h = .net~handler(runner, "TICK")
+    call NetDialogTrace "execute: handler made"
+    t~Tick += h
+    call NetDialogTrace "execute: handler added"
     t~Start
+    call NetDialogTrace "execute: timer started"
     w = .net~System~Windows~Forms~Timer~new
     w~Interval = 30000
     w~Tick += .net~handler(runner, "WATCHDOG")
     w~Start
+    call NetDialogTrace "execute: watchdog started"
     runner~timers = .array~of(t, w)
     say "(auto) showing" form~Text
   end
