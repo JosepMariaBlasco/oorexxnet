@@ -41,6 +41,11 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `employe4validate.rex` | `tutorial\employe4validate.rex` | validate: OK refused while a field is empty |
 | `employe5.rex` | `tutorial\employe5.rex` | buttons connected in init; getControlData, setControlData; an Array of employees |
 | `employe6.rex` | `tutorial\employe6.rex` | an up-down's DELTAPOS to browse them (a scroll bar here); timedMessage |
+| `employe7.rex` | `tutorial\employe7.rex` | a button with an image list; a background bitmap |
+| `employe8.rex` | `tutorial\employe8.rex` | a second dialog (the list), a parent; fonts; items enabled and disabled |
+| `employe9.rex` | `tutorial\employe9.rex` | the list with tab stops |
+| `employe9menuDyn.rex` | `tutorial\employe9menuDyn.rex` | a menu bar built in code: NetMenuBar and NetPopupMenu, ooDialog's methods |
+| `employee10menuRc.rex` | `tutorial\employee10menuRc.rex` | a .rc's menu (`employe7rc.cls`); the controls through their .NET members; two groups of radio buttons |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -54,6 +59,10 @@ More of ooDialog's samples will follow, in batches.
 | An RcDialog's `.rc`: `DIALOG x, y, cx, cy`, `CAPTION`, `FONT` | `self~create(x, y, cx, cy, caption, style, , font, size)` in `init` |
 | `.MyDialog~new("file.rc", 100)`, `::class MyDialog subclass RcDialog` | `.MyDialog~new`, `::class MyDialog subclass File_100`, from `filerc.cls` (`rc2oodnet.rex -cls file.rc`: a class for each dialog of the .rc) |
 | `connect*Event` in `init`, before the controls exist | the same: made once `defineDialog` has made them |
+| `.BinaryMenuBar~new(...)`, `.PopupMenu~new(id)`, `insertPopup`, `insertItem`, `insertSeparator`, `connectCommandEvent(id, m, dlg)`, `enable(id)`, `disable(id)`, `attachTo(dlg)` | `.NetMenuBar~new`, `.NetPopupMenu~new`, the same methods (a .NET `MenuStrip`; `menuBar~item(id)` is a `ToolStripMenuItem`) |
+| `.ScriptMenuBar~new("file.rc", IDM_MENU)` | `.File_IDM_MENU~new`, from `filerc.cls` (rc2oodnet.rex -cls makes a NetMenuBar subclass of each MENU) |
+| `self~backgroundBitmap(file)`; an `.ImageList` on a button | `self~form~BackgroundImage = .net~System~Drawing~Image~FromFile(file)`; a .NET `ImageList`, `button~ImageList`, `~ImageIndex` |
+| radio buttons in group boxes (Win32 groups them by `WS_GROUP`) | the same: those inside a group box's rectangle go into it, a group of their own |
 | `self~getControlData(id)`, `setControlData(id, v)`, `addComboEntry(id, t)`, `addListEntry(id, t)` | the same |
 | The `.rc`'s controls (`LTEXT`, `EDITTEXT`, `PUSHBUTTON`, `DEFPUSHBUTTON`, `AUTORADIOBUTTON`, `AUTOCHECKBOX`, `GROUPBOX`, `LISTBOX`, `COMBOBOX`, `CONTROL ... MONTHCAL_CLASS / WC_LISTVIEW / ...`) | in `defineDialog`: `createStatic`, `createEdit`, `createPushButton` (`DEFAULT`), `createRadioButton`, `createCheckBox`, `createGroupBox`, `createListBox`, `createComboBox`, `createMonthCalendar`, `createListView`... with the same coordinates |
 | Numeric resource ids, `constDir`, `.h` files | names: any string or symbol (`IDC_EDIT`, `"box"`); `IDOK` and `IDCANCEL` are OK and Cancel |

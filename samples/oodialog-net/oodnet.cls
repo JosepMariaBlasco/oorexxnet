@@ -447,6 +447,8 @@
   c~UseCustomTabOffsets = .true
   do i = 2 to arg(); c~CustomTabOffsets~Add(.net~int32(self~px(arg(i)))); end
   return 0
+::method deleteFont                    -- (.NET frees fonts itself)
+  return 0
 ::method getData                       -- (ooDialog copies attributes and controls; here they are one)
   return 0
 ::method setData
@@ -470,8 +472,31 @@
 ::method framesToBack private
   expose frames
   if \var("FRAMES") then return
+  self~groupRadios
   do i = frames~items to 1 by -1
     frames[i]~SendToBack
+  end
+
+/* Radio buttons within a group box's rectangle go into the group box: in
+   Windows Forms the radio buttons of one container are one group (Win32
+   groups them by WS_GROUP), and the group box's are its own. */
+::method groupRadios private
+  expose frames
+  boxes = .array~new
+  do f over frames
+    if .net~isInstance(f, "System.Windows.Forms.GroupBox") then boxes~append(f)
+  end
+  if boxes~items = 0 then return
+  do c over self~form~Controls~makeArray
+    if \.net~isInstance(c, "System.Windows.Forms.RadioButton") then iterate
+    do b over boxes
+      if b~Bounds~Contains(c~Bounds) then do
+        self~form~Controls~Remove(c)
+        c~Location = .net~System~Drawing~Point~new(c~Left - b~Left, c~Top - b~Top)
+        b~Controls~Add(c)
+        leave
+      end
+    end
   end
 
 /* execute([show [, icon]]): defineDialog, initDialog, then the dialog until
@@ -591,6 +616,117 @@
   use arg id, ctl
   if id \== "" & id \== -1 then controls[id~string~upper] = ctl
 
+/* ------------------------------------------------------------------- menus */
+/* ooDialog's menu bar and popup menus, as a .NET MenuStrip: insertPopup,
+   insertItem, insertSeparator (before the item `before`, by id; at the end
+   when it is omitted or not there), connectCommandEvent(id, method, dialog),
+   enable / disable / check / uncheck (by id), attachTo(dialog). Items with
+   the ids IDOK and IDCANCEL end the dialog with its ok and cancel, as
+   ooDialog's WM_COMMAND does. A menu of a .rc: rc2oodnet.rex -cls makes it a
+   subclass of NetMenuBar.                                                  */
+::class NetMenuBar public
+::attribute strip get                  -- the MenuStrip
+::method init                          -- (ooDialog's arguments are not needed)
+  expose strip popups connected
+  strip = .net~System~Windows~Forms~MenuStrip~new
+  popups = .array~new
+  connected = .directory~new
+::method insertPopup
+  expose strip popups
+  use arg before = .nil, id = .nil, popup, text
+  popup~item~Text = text
+  call NetMenuInsert strip~Items, popup~item, self~find(before)
+  popups~append(popup)
+  return 0
+::method find                          -- the ToolStripItem with that id, or .nil
+  expose popups
+  use arg id
+  if id == .nil then return .nil
+  do p over popups
+    i = p~find(id)
+    if i \== .nil then return i
+  end
+  return .nil
+::method item                          -- the same, or an error
+  use strict arg id
+  i = self~find(id)
+  if i == .nil then raise syntax 93.900 array("this menu has no item" id)
+  return i
+::method connectCommandEvent
+  expose connected
+  use strict arg id, methodName, dialog
+  self~item(id)~Click += .net~handler(dialog, methodName)
+  connected[NetMenuKey(id)] = .true
+  return 0
+::method enable;  self~item(arg(1))~Enabled = .true;  return 0
+::method disable; self~item(arg(1))~Enabled = .false; return 0
+::method isEnabled; return self~item(arg(1))~Enabled
+::method check;   self~item(arg(1))~Checked = .true;  return 0
+::method uncheck; self~item(arg(1))~Checked = .false; return 0
+::method isChecked; return self~item(arg(1))~Checked
+::method attachTo                      -- attachTo(dialog [, pos]): on top of the dialog
+  expose strip connected
+  use arg dialog
+  if \connected~hasIndex("IDOK"), self~find("IDOK") \== .nil then self~connectCommandEvent("IDOK", "OK", dialog)
+  if \connected~hasIndex("IDCANCEL"), self~find("IDCANCEL") \== .nil then self~connectCommandEvent("IDCANCEL", "CANCEL", dialog)
+  dialog~attachMenu(strip)
+  return 0
+
+::class NetPopupMenu public
+::attribute item get                   -- the ToolStripMenuItem that holds the items
+::method init                          -- (ooDialog's id is not needed)
+  expose item ids
+  item = .net~System~Windows~Forms~ToolStripMenuItem~new
+  ids = .directory~new
+::method insertItem                    -- insertItem(before, id, text [, state]): state GRAYED, DISABLED, CHECKED
+  expose item ids
+  use arg before = .nil, id, text, state = ""
+  i = .net~System~Windows~Forms~ToolStripMenuItem~new(text)
+  state = state~upper
+  if state~wordPos("GRAYED") > 0 | state~wordPos("DISABLED") > 0 then i~Enabled = .false
+  if state~wordPos("CHECKED") > 0 then i~Checked = .true
+  call NetMenuInsert item~DropDownItems, i, self~find(before)
+  ids[NetMenuKey(id)] = i
+  return 0
+::method insertSeparator               -- insertSeparator(before, id)
+  expose item ids
+  use arg before = .nil, id = .nil
+  i = .net~System~Windows~Forms~ToolStripSeparator~new
+  call NetMenuInsert item~DropDownItems, i, self~find(before)
+  if id \== .nil then ids[NetMenuKey(id)] = i
+  return 0
+::method insertPopup                   -- a submenu: insertPopup(before, id, popup, text)
+  expose item ids subs
+  use arg before = .nil, id = .nil, popup, text
+  if \var("SUBS") then subs = .array~new
+  popup~item~Text = text
+  call NetMenuInsert item~DropDownItems, popup~item, self~find(before)
+  if id \== .nil then ids[NetMenuKey(id)] = popup~item
+  subs~append(popup)
+  return 0
+::method find
+  expose item ids subs
+  use arg id
+  if id == .nil then return .nil
+  i = ids[NetMenuKey(id)]
+  if i \== .nil then return i
+  if var("SUBS") then do p over subs
+    i = p~find(id)
+    if i \== .nil then return i
+  end
+  return .nil
+
+::routine NetMenuInsert                -- (inside) before a ToolStripItem, or at the end
+  use arg items, new, before
+  if before == .nil then items~Add(new)
+  else items~Insert(items~IndexOf(before), new)
+::routine NetMenuKey                   -- (inside) an id as a key: 1 is IDOK, 2 IDCANCEL, as dialogs' ids
+  use arg id
+  id = id~string~upper
+  if id == 1 then return "IDOK"
+  if id == 2 then return "IDCANCEL"
+  return id
+
 ::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
 ::method init
   expose dialog methodName last
@@ -604,7 +740,9 @@
     when "SmallIncrement" then delta = -1
     otherwise return
   end
-  dialog~send(methodName, bar~Value, delta)
+  pos = bar~Value                      -- (still the old one: the bar moves after its handlers)
+  dialog~send(methodName, pos, delta)
+  e~NewValue = max(bar~Minimum, min(bar~Maximum, pos + delta))   -- as an up-down's: up adds one
 ::method changed                       -- a NumericUpDown: the change
   expose dialog methodName last
   use arg box, e

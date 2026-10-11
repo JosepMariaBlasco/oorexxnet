@@ -47,10 +47,10 @@
   self~create(6, 15, 241, 141, "Employees", "", , "System", 8)
 
 ::method defineDialog                  -- the .rc's controls
-  self~createEdit(21, 42, 11, 167, 12, "",, "NAME")
+  self~createEdit(21, 42, 11, 167, 12, "", "NAME")
   self~createUpDown(11, 219, 8, 10, 17, "AUTOBUDDY")
-  self~createComboBox(22, 32, 30, 167, 56, "LIST",, "CITY")
-  self~createListBox(23, 73, 52, 156, 65, "SORT",, "PROFESSION")
+  self~createComboBox(22, 32, 30, 167, 56, "LIST", "CITY")
+  self~createListBox(23, 73, 52, 156, 65, "SORT", "PROFESSION")
   self~createRadioButton(31, 12, 71, 28, 12, "", "&Male", "MALE")
   self~createRadioButton(32, 12, 84, 39, 12, "", "&Female", "FEMALE")
   self~createCheckBox(41, 12, 99, 37, 12, "", "M&arried", "MARRIED")

@@ -47,11 +47,12 @@ do while s~lines > 0
 end
 s~close
 
-/* the dialogs' header lines */
-dialogs = .array~new
+/* the dialogs' and menus' header lines */
+dialogs = .array~new; menus = .array~new
 do i = 1 to lines~items
   w2 = lines[i]~word(2)~upper
   if w2 == "DIALOG" | w2 == "DIALOGEX" then dialogs~append(i)
+  if w2 == "MENU" | w2 == "MENUEX" then menus~append(i)
 end
 
 if \toCls then do
@@ -102,8 +103,17 @@ do i over dialogs
   o~lineout("")
   do j = 3 to body~items; o~lineout(body[j]); end
 end
+do i over menus                        -- a menu: a NetMenuBar that builds itself
+  cls = base~left(1)~upper || base~substr(2)"_"lines[i]~word(1)
+  o~lineout("")
+  o~lineout("::class" quote(cls) "subclass NetMenuBar public   -- the .rc's" lines[i]~word(1) "MENU")
+  o~lineout("::method init")
+  o~lineout("  forward class (super) continue")
+  do l over menu(lines, i); o~lineout(l); end
+end
 o~close
-say "wrote" outFile":" dialogs~items "dialog" || (dialogs~items = 1)~?("", "s")
+say "wrote" outFile":" dialogs~items "dialog" || (dialogs~items = 1)~?("", "s") || -
+    (menus~items > 0)~?("," menus~items "menu" || (menus~items = 1)~?("", "s"), "")
 exit 0
 
 /* the dialog whose header is lines[found]: its create line, "", then its
@@ -143,6 +153,54 @@ dialog: procedure
     i += 1
   end
   return out~makeString("L", "0a"x)
+
+/* the menu whose header is lines[found]: NetPopupMenu / NetMenuBar calls,
+   each popup built, then inserted at the end of its parent (as the .rc's
+   order) */
+menu: procedure
+  use arg lines, found
+  out = .array~new; stack = .array~new; n = 0
+  i = found + 1
+  do while i <= lines~items             -- to the menu's opening { (or BEGIN)
+    u = lines[i]~word(1)~upper; i += 1
+    if u == "{" | u == "BEGIN" then leave
+  end
+  do while i <= lines~items
+    l = lines[i]; u = l~word(1)~upper; i += 1
+    select
+      when l == "" | u == "{" | u == "BEGIN" then nop
+      when u == "POPUP" then do
+        n += 1
+        out~append("  p"n "= .NetPopupMenu~new")
+        stack~append(.array~of("p"n, splitArgs(l~subWord(2))[1]))
+      end
+      when u == "}" | u == "END" then do
+        if stack~items = 0 then leave   -- the menu's end
+        top = stack[stack~last]
+        stack~delete(stack~last)
+        if stack~items = 0 then parent = "self"     -- (~? would evaluate both)
+        else parent = stack[stack~items][1]
+        out~append("  "parent"~insertPopup(, ," top[1]"," top[2]")")
+      end
+      when u == "MENUITEM" & stack~items = 0 then out~append("  -- (by hand: an item on the bar)" l)
+      when u == "MENUITEM" then do
+        target = stack[stack~items][1]
+        if l~word(2)~upper == "SEPARATOR" then out~append("  "target"~insertSeparator")
+        else do
+          a = splitArgs(l~subWord(2))
+          state = ""
+          do k = 3 to a~items
+            f = a[k]~upper
+            if wordPos(f, "GRAYED INACTIVE") > 0 then state = state "GRAYED"
+            if f == "CHECKED" then state = state "CHECKED"
+          end
+          out~append("  "target"~insertItem(," rexxId(a[2])"," a[1] || (state == "")~?("", "," quote(state~strip))")")
+        end
+      end
+      otherwise out~append("  -- (by hand)" l)
+    end
+  end
+  return out
 
 /* one control statement as a create* call */
 control: procedure
@@ -210,8 +268,7 @@ control: procedure
 call: procedure
   use arg method, id, geo, style, text = .nil, attr = .nil
   s = method"("rexxId(id)"," geo[3]"," geo[4]"," geo[5]"," geo[6]"," quote(style)
-  if text \== .nil then s = s"," text
-  else if attr \== .nil then s = s","
+  if text \== .nil then s = s"," text   -- (createEdit, createListBox, createComboBox have no text: the attribute is 7th)
   if attr \== .nil then s = s"," quote(attr)
   return "self~"s")"
 
