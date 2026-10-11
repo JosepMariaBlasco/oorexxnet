@@ -67,11 +67,14 @@
   F~Application~EnableVisualStyles
   if .NetDialog~auto then call NetDialogThrow   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
-  form~Font = D~Font~new(fontName, .net~single(fontSize))
-  -- dialog base units, as Windows computes them for a dialog's font
-  size = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", form~Font)
-  bx = size~Width / 52
-  by = form~Font~Height
+  form~Font = NetDialogFont(fontName, fontSize)
+  -- dialog base units, as Windows computes them for a dialog's font (GdiGetCharDimensions):
+  -- the average width of a..z A..Z, rounded as integers, and the font's tmHeight
+  flags = F~TextFormatFlags~NoPadding
+  big = D~Size~new(32000, 32000)
+  ext = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", form~Font, big, flags)~Width
+  bx = (ext % 26 + 1) % 2
+  by = F~TextRenderer~MeasureText("A", form~Font, big, flags)~Height
   form~Text = title
   form~ClientSize = D~Size~new(self~px(cx), self~py(cy))
   style = style~upper
@@ -1120,6 +1123,20 @@ syntax:
     otherwise nop
   end
   return id
+
+/* (inside) a dialog's font as Windows makes it: "MS Shell Dlg 2" and "MS
+   Shell Dlg" are names Windows maps (to Tahoma and Microsoft Sans Serif),
+   which GDI+ does not know; "System" is a bitmap font GDI+ cannot use: the
+   nearest TrueType one, bold, of its size (16 pixels high, 7 wide) */
+::routine NetDialogFont
+  use arg name, size
+  D = .net~System~Drawing
+  select case name~upper
+    when "MS SHELL DLG 2" then return D~Font~new("Tahoma", .net~single(size))
+    when "MS SHELL DLG" then return D~Font~new("Microsoft Sans Serif", .net~single(size))
+    when "SYSTEM" then return D~Font~new("Microsoft Sans Serif", .net~single(13), "Bold", "Pixel")   -- (13 em: 16 high)
+    otherwise return D~Font~new(name, .net~single(size))
+  end
 
 ::routine NetDialogTrace               -- (inside) unattended: where it is
   if .NetDialog~auto then say "(auto)" arg(1)
