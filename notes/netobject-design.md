@@ -1398,3 +1398,26 @@ porting table is in that folder's README). Decisions and traps found:
   silently, and the cost (numeric keys need `.net~string`) is rare and
   fails the same way it used to. The sibling bridges have no overloads to
   choose between.
+- **The tutorial's .rc files as packages** (`rc2oodnet.rex -cls`): each
+  DIALOG a public NetDialog subclass `<File>_<id>` that creates itself in
+  INIT and its controls in DEFINEDIALOG, each MENU a NetMenuBar subclass;
+  a program's `RcDialog` subclasses that class and keeps the rest of its
+  code, so a port reads as the original. ooDialog's attribute naming kept
+  (a control's text that is a dialog method, `Fontname`, is `DATA<id>`).
+- **What an RcDialog may do in INIT** (its controls exist in ooDialog, not
+  yet here): connect*Event and data attributes are remembered and applied
+  once DEFINEDIALOG has made the controls.
+- **Win32 behaviour Windows Forms lacks, emulated**: radio buttons inside a
+  group box's rectangle go into it (one group each, as WS_GROUP makes
+  them); an up-down without a number is a scroll bar that moves as an
+  up-down (up adds one) so that DELTAPOS's position stays right; menu items
+  inserted before an item, as InsertMenuItem does; ids 1, 2, 9 are IDOK,
+  IDCANCEL, IDHELP; IDOK / IDCANCEL menu items end the dialog.
+- **Property sheets**: NetPropertySheet is a NetDialog with a TabControl;
+  any NetDialog can be a page (its controls go into a TabPage the first
+  time it is shown, as Win32 creates a page's dialog then), with ooDialog's
+  setActive, killActive, apply, wasActivated, setCurSel, getResult.
+- **Drawing stays .NET's**: an owner-drawn button is a Panel; connectDraw is
+  its Paint; the ports draw with System.Drawing (Graphics, Pen, Font) rather
+  than an emulation of ooDialog's GDI methods, which would teach nothing
+  about .NET.
