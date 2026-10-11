@@ -890,11 +890,11 @@
 ::attribute pages get
 ::attribute startPage
 ::method init
-  expose pages options result cur
+  expose pages options outcome cur      -- (not RESULT: a message instruction sets it)
   use arg pages, options = "", caption = ""
   self~init:super
   self~startPage = 1
-  result = "CLOSEDCANCEL"; cur = 0
+  outcome = "CLOSEDCANCEL"; cur = 0
   cx = 0; cy = 0
   do p over pages
     p~propSheet = self
@@ -958,20 +958,20 @@
   end
   return 0
 ::method ok unguarded
-  expose cur result
+  expose cur outcome
   if cur > 0, self~pages[cur]~killActive(self) == .false then return 0
   self~applyAll
-  result = "CLOSEDOK"
+  outcome = "CLOSEDOK"
   self~endDialog(1)
   return 0
 ::method cancel unguarded
-  expose result
-  result = "CLOSEDCANCEL"
+  expose outcome
+  outcome = "CLOSEDCANCEL"
   self~endDialog(2)
   return 0
 ::method getResult
-  expose result
-  return result
+  expose outcome
+  return outcome
 
 ::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
 ::method init
