@@ -227,7 +227,17 @@ static class Com
         if (!OperatingSystem.IsWindows()) throw new BridgeException("COM objects exist on Windows only");
         var culture = Language(language);
         var t = Type.GetTypeFromProgID(progId, false) ?? throw new BridgeException($"no COM class \"{progId}\" is registered");
-        var o = Activator.CreateInstance(t) ?? throw new BridgeException($"\"{progId}\" could not be created");
+        // A server still ending (LibreOffice just terminated by the previous
+        // program) fails the call: RPC_S_CALL_FAILED, RPC_S_SERVER_UNAVAILABLE,
+        // CO_E_SERVER_EXEC_FAILURE. Tried again, after a pause, for up to Busy.
+        object? o;
+        var until = DateTime.UtcNow + Busy;
+        for (int pause = 100; ; pause = Math.Min(pause * 2, 1000))
+        {
+            try { o = Activator.CreateInstance(t); break; }
+            catch (Exception e) when (Starting(e) && DateTime.UtcNow < until) { System.Threading.Thread.Sleep(pause); }
+        }
+        if (o == null) throw new BridgeException($"\"{progId}\" could not be created");
         if (culture != English) languages.AddOrUpdate(o, culture);
         return o;
     }
@@ -291,6 +301,13 @@ static class Com
     const int RPC_E_CALL_REJECTED = unchecked((int)0x80010001);
     const int RPC_E_SERVERCALL_RETRYLATER = unchecked((int)0x8001010A);
     static readonly TimeSpan Busy = TimeSpan.FromSeconds(10);
+
+    static bool Starting(Exception e)
+    {
+        for (Exception? x = e; x != null; x = x.InnerException)
+            if (x is COMException { HResult: unchecked((int)0x800706BE) or unchecked((int)0x800706BA) or unchecked((int)0x80080005) }) return true;
+        return false;
+    }
 
     static bool Rejected(Exception e)
     {
