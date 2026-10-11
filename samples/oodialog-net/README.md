@@ -46,6 +46,12 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `employe9.rex` | `tutorial\employe9.rex` | the list with tab stops |
 | `employe9menuDyn.rex` | `tutorial\employe9menuDyn.rex` | a menu bar built in code: NetMenuBar and NetPopupMenu, ooDialog's methods |
 | `employee10menuRc.rex` | `tutorial\employee10menuRc.rex` | a .rc's menu (`employe7rc.cls`); the controls through their .NET members; two groups of radio buttons |
+| `textScroll.rex` | `tutorial\textScroll.rex` | scrollInControl: text moving across an owner-drawn button |
+| `drawing1.rex` | `tutorial\drawing1.rex` | drawing on a control: System.Drawing's Graphics, Pen, DrawEllipse, DrawRectangle |
+| `drawing2.rex` | `tutorial\drawing2.rex` | connectDraw: drawing on each Paint; fonts, text measured and drawn |
+| `drawing3.rex` | `tutorial\drawing3.rex` | the same with the control's rectangle; centred text |
+| `drawing4.rex` | `tutorial\drawing4.rex` | a UserDialog with an owner-drawn button |
+| `drawing5.rex` | `tutorial\drawing5.rex` | a clock: the time drawn every second (a timer in place of an Alarm) |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -63,6 +69,11 @@ More of ooDialog's samples will follow, in batches.
 | `.ScriptMenuBar~new("file.rc", IDM_MENU)` | `.File_IDM_MENU~new`, from `filerc.cls` (rc2oodnet.rex -cls makes a NetMenuBar subclass of each MENU) |
 | `self~backgroundBitmap(file)`; an `.ImageList` on a button | `self~form~BackgroundImage = .net~System~Drawing~Image~FromFile(file)`; a .NET `ImageList`, `button~ImageList`, `~ImageIndex` |
 | radio buttons in group boxes (Win32 groups them by `WS_GROUP`) | the same: those inside a group box's rectangle go into it, a group of their own |
+| an owner-drawn button (`BS_OWNERDRAW`, style `OWNER`) | a `Panel` to draw on |
+| `connectDraw(id, m)`; `getControlDC`, `createPen(w, style, color)`, `drawArc`, `rectangle`, `createFontEx`, `writeDirect`, `getTextExtent` | `connectDraw(id, m)`: .NET's `Paint`, `e~Graphics`; `.net~System~Drawing~Pen~new(color, w)`, `g~DrawEllipse`, `g~DrawRectangle` (width and height, not right and bottom), a .NET `Font`, `g~DrawString`, `g~MeasureString`; ooDialog's colors 1 and 2 are dark red and dark green |
+| `redrawControl(id)`; `scrollInControl(id, text, font, size, style)` | the same |
+| ids 1, 2, 9 in a .rc | IDOK, IDCANCEL, IDHELP, as Windows takes them |
+| a control's text that is one of the dialog's methods (`Fontname`) | the data attribute `DATA<id>`, as ooDialog names it |
 | `self~getControlData(id)`, `setControlData(id, v)`, `addComboEntry(id, t)`, `addListEntry(id, t)` | the same |
 | The `.rc`'s controls (`LTEXT`, `EDITTEXT`, `PUSHBUTTON`, `DEFPUSHBUTTON`, `AUTORADIOBUTTON`, `AUTOCHECKBOX`, `GROUPBOX`, `LISTBOX`, `COMBOBOX`, `CONTROL ... MONTHCAL_CLASS / WC_LISTVIEW / ...`) | in `defineDialog`: `createStatic`, `createEdit`, `createPushButton` (`DEFAULT`), `createRadioButton`, `createCheckBox`, `createGroupBox`, `createListBox`, `createComboBox`, `createMonthCalendar`, `createListView`... with the same coordinates |
 | Numeric resource ids, `constDir`, `.h` files | names: any string or symbol (`IDC_EDIT`, `"box"`); `IDOK` and `IDCANCEL` are OK and Cancel |

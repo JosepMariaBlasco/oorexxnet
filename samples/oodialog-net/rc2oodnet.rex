@@ -208,6 +208,8 @@ control: procedure
   kw = l~word(1)~upper
   rest = l~subWord(2)
   args = splitArgs(rest)
+  if l~upper~pos("BS_OWNERDRAW") > 0, wordPos(kw, "PUSHBUTTON DEFPUSHBUTTON AUTO3STATE AUTOCHECKBOX CHECKBOX AUTORADIOBUTTON RADIOBUTTON") > 0 then
+    return call("createPushButton", args[2], args, "OWNERDRAW", args[1])   -- a surface to draw on
   select
     when wordPos(kw, "LTEXT RTEXT CTEXT") > 0 then do
       style = (kw == "RTEXT")~?("RIGHT", (kw == "CTEXT")~?("CENTER", ""))
@@ -237,6 +239,7 @@ control: procedure
         when wordPos(cls, "STATIC WC_STATIC") > 0 then return call("createStatic", id, geo, staticStyles(st), text)
         when wordPos(cls, "BUTTON WC_BUTTON") > 0 then do
           select
+            when st~pos("BS_OWNERDRAW") > 0 then return call("createPushButton", id, geo, "OWNERDRAW", text)
             when st~pos("BS_AUTORADIOBUTTON") > 0 | st~pos("BS_RADIOBUTTON") > 0 then return call("createRadioButton", id, geo, "", text, dataName(text, id))
             when st~pos("BS_AUTOCHECKBOX") > 0 | st~pos("BS_CHECKBOX") > 0 | st~pos("BS_AUTO3STATE") > 0 then return call("createCheckBox", id, geo, "", text, dataName(text, id))
             when st~pos("BS_GROUPBOX") > 0 then return call("createGroupBox", id, geo, "", text)
@@ -301,6 +304,11 @@ dataName: procedure
     c = t~subStr(i, 1)
     if c~datatype("A") then n = n || c
   end
+  -- a name that is one of the dialog's methods is not used (ooDialog's rule;
+  -- these are those of its methods a control's text is likely to be)
+  reserved = "FONTNAME FONTSIZE TITLE HWND OK CANCEL HELP EXECUTE VALIDATE LEAVING" -
+             "SHOW HIDE MOVE RESIZE UPDATE CENTER DRAW SIZE INIT DATA FINISHED"
+  if wordPos(n~upper, reserved) > 0 then n = ""
   if n == "" | n~left(1)~datatype("W") then do
     if id~datatype("W") then n = "DATA"id
     else n = id

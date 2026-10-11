@@ -140,7 +140,13 @@
   return 0
 ::method createPushButton
   use arg id, x, y, cx, cy, style = "", label = "", methodName
+  if style~upper~wordPos("OWNERDRAW") > 0 | style~upper~wordPos("OWNER") > 0 then do   -- a surface to draw on (connectDraw: its Paint)
+    c = self~place(id, .net~System~Windows~Forms~Panel~new, x, y, cx, cy)
+    if arg(8, "E") then self~connectButtonEvent(id, "CLICKED", methodName)
+    return 0
+  end
   c = self~place(id, .net~System~Windows~Forms~Button~new, x, y, cx, cy)
+  id = NetDialogKey(id)                -- (1, 2, 9: IDOK, IDCANCEL, IDHELP)
   c~Text = label
   c~Padding = .net~System~Windows~Forms~Padding~new(0)   -- a Win32 button's margins: "ArcCos" in one line
   style = style~upper
@@ -277,15 +283,7 @@
 ::method control
   expose controls
   use strict arg id
-  if id~dataType("W") then do          -- Windows' numbers for the standard buttons
-    select case id + 0
-      when 1 then id = "IDOK"
-      when 2 then id = "IDCANCEL"
-      when 9 then id = "IDHELP"
-      otherwise nop
-    end
-  end
-  c = controls[id~string~upper]
+  c = controls[NetDialogKey(id)]
   if c == .nil then raise syntax 93.900 array("this dialog has no control" id)
   return c
 ::method newStatic;       forward message "CONTROL"
@@ -380,6 +378,41 @@
   end
   .net~addHandler(self~control(id), netEvent, .net~handler(self, methodName))
   return 0
+
+/* owner drawing: methodName gets .NET's Paint (sender, e): e~Graphics draws
+   on the control (System.Drawing: Pen, DrawEllipse, DrawRectangle,
+   DrawString...), each time it must be drawn; redrawControl asks for it */
+::method connectDraw
+  use strict arg id, methodName
+  return self~connectEvent(id, "Paint", methodName)
+::method redrawControl
+  use arg id, erase = 1
+  c = self~control(id)
+  c~Invalidate
+  c~Update
+  return 0
+
+/* scrollInControl(id, text [, fontName [, fontSize [, fontStyle [, displaceY
+   [, step [, sleep [, color]]]]]]]): the text crosses the control from right
+   to left, step pixels every sleep milliseconds (a timer: the dialog goes on
+   meanwhile); fontStyle BOLD, ITALIC, UNDERLINE; color a .NET Color or an
+   ooDialog palette index (0 black). self~scrolling: whether it still runs. */
+::method scrollInControl
+  expose scroller
+  use arg id, text, fontName = "MS Shell Dlg 2", fontSize = 8, fontStyle = "", displaceY = 0, step = 4, sleep = 10, color = 0
+  if var("SCROLLER") then scroller~stop
+  st = ""
+  do w over fontStyle~upper~makeArray(" ")
+    if wordPos(w, "BOLD ITALIC UNDERLINE STRIKEOUT") > 0 then st = st w~left(1) || w~substr(2)~lower
+  end
+  if st == "" then st = "Regular"
+  font = .net~System~Drawing~Font~new(fontName, .net~single(fontSize), st~strip~changeStr(" ", ", "))
+  if \.net~isInstance(color, "System.Drawing.Color") then color = .net~System~Drawing~Color~Black
+  scroller = .NetDialogScroller~new(self~control(id), text, font, displaceY, step, sleep, color)
+  return 0
+::method scrolling
+  expose scroller
+  return var("SCROLLER") & scroller~running
 
 /* a Windows Forms timer calling methodName every ms milliseconds (stop it: timer~Stop) */
 ::method startTimer
@@ -567,13 +600,13 @@
 ::method applyData private              -- the data attributes set so far, into their controls
   expose data pending controls
   do attr over pending~allIndexes
-    c = controls[data[attr]~string~upper]
+    c = controls[NetDialogKey(data[attr])]
     if c \== .nil then call NetDialogSetValue c, pending[attr]
   end
 ::method snapshot private
   expose data pending controls closed
   do attr over data~allIndexes
-    c = controls[data[attr]~string~upper]
+    c = controls[NetDialogKey(data[attr])]
     if c \== .nil then pending[attr] = NetDialogValue(c)
   end
   closed = .true
@@ -588,7 +621,7 @@
   attr = set~?(name~left(name~length - 1), name)
   id = data[attr]
   if id == .nil then raise syntax 97.1 array(self, name)
-  c = controls[id~string~upper]
+  c = controls[NetDialogKey(id)]
   if set then do                       -- remembered too: applied again after initDialog (as ooDialog's setData),
     pending[attr] = args[1]            -- when a list has its items
     if c \== .nil then call NetDialogSetValue c, args[1]
@@ -614,7 +647,7 @@
 ::method register private
   expose controls
   use arg id, ctl
-  if id \== "" & id \== -1 then controls[id~string~upper] = ctl
+  if id \== "" & id \== -1 then controls[NetDialogKey(id)] = ctl
 
 /* ------------------------------------------------------------------- menus */
 /* ooDialog's menu bar and popup menus, as a .NET MenuStrip: insertPopup,
@@ -751,6 +784,38 @@
   last = v
   dialog~send(methodName, v, delta)
 
+::class NetDialogScroller              -- (inside) scrollInControl's text, moving
+::attribute running
+::method init
+  expose ctl text font y step color x timer paint
+  use arg ctl, text, font, y, step, sleep, color
+  x = ctl~ClientSize~Width
+  paint = .net~handler(self, "PAINT")
+  ctl~Paint += paint
+  timer = .net~System~Windows~Forms~Timer~new
+  timer~Interval = max(1, sleep)
+  timer~Tick += .net~handler(self, "TICK")
+  self~running = .true
+  timer~Start
+::method tick
+  expose ctl text font step x
+  if ctl~IsDisposed then return self~stop
+  x -= step
+  if x < -.net~System~Windows~Forms~TextRenderer~MeasureText(text, font)~Width then return self~stop
+  ctl~Invalidate
+::method paint
+  expose text font y color x
+  use arg sender, e
+  .net~System~Windows~Forms~TextRenderer~DrawText(e~Graphics, text, font, .net~System~Drawing~Point~new(x, y), color)
+::method stop
+  expose ctl timer paint
+  timer~Stop
+  if \ctl~IsDisposed then do
+    ctl~Paint -= paint
+    ctl~Invalidate
+  end
+  self~running = .false
+
 ::class NetDialogNoSelect              -- (inside) a read-only edit control shows its text unselected
 ::method deselect
   use arg box
@@ -789,6 +854,17 @@ syntax:
   failed = "the dialog was still open after 30 seconds"
   .error~say(failed)
   dialog~endDialog(2)
+
+::routine NetDialogKey                 -- (inside) a control's id as a key: Windows' numbers for the standard buttons as their names
+  use arg id
+  id = id~string~upper
+  if id~dataType("W") then select case id + 0
+    when 1 then return "IDOK"
+    when 2 then return "IDCANCEL"
+    when 9 then return "IDHELP"
+    otherwise nop
+  end
+  return id
 
 ::routine NetDialogTrace               -- (inside) unattended: where it is
   if .NetDialog~auto then say "(auto)" arg(1)
