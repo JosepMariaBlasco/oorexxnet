@@ -62,18 +62,14 @@
   sizeX = cx; sizeY = cy
   F = .net~System~Windows~Forms
   D = .net~System~Drawing
-  call NetDialogTrace "create: visual styles"
   F~Application~EnableVisualStyles
-  call NetDialogTrace "create: exception mode"
-  if .NetDialog~auto then call NetDialogThrow
-  call NetDialogTrace "create: the form"   -- unattended: an error in an event ends the run, no dialog about it
+  if .NetDialog~auto then call NetDialogThrow   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
   form~Font = D~Font~new(fontName, .net~single(fontSize))
   -- dialog base units, as Windows computes them for a dialog's font
   size = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", form~Font)
   bx = size~Width / 52
   by = form~Font~Height
-  call NetDialogTrace "create: dialog units" bx by
   form~Text = title
   form~ClientSize = D~Size~new(self~px(cx), self~py(cy))
   style = style~upper
@@ -373,28 +369,19 @@
 ::method execute unguarded
   expose form ending
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
-  call NetDialogTrace "execute: defineDialog"
   self~defineDialog
-  call NetDialogTrace "execute: initDialog"
   self~initDialog
-  call NetDialogTrace "execute: timers"
   if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
-    call NetDialogTrace "execute: runner made"
     t = .net~System~Windows~Forms~Timer~new
     t~Interval = 1200
-    call NetDialogTrace "execute: timer made"
     h = .net~handler(runner, "TICK")
-    call NetDialogTrace "execute: handler made"
     t~Tick += h
-    call NetDialogTrace "execute: handler added"
     t~Start
-    call NetDialogTrace "execute: timer started"
     w = .net~System~Windows~Forms~Timer~new
     w~Interval = 30000
     w~Tick += .net~handler(runner, "WATCHDOG")
     w~Start
-    call NetDialogTrace "execute: watchdog started"
     runner~timers = .array~of(t, w)
     say "(auto) showing" form~Text
   end
