@@ -1340,3 +1340,52 @@ header (the rest of the repository is Apache 2.0); what changes is listed
 at the top of each and in its README. 15 of the 16: `MSAccessDemo_32bit_only`
 needs the Jet engine, which exists for 32-bit processes only. The AOO ones
 run in the `libreoffice` workflow; the MS ones need Office.
+
+## COM: null results, servers that are ending, type information (11/10/2026)
+
+- **`VT_NULL` is `.nil`**, as with `.OLEObject`; .NET gives it as
+  `DBNull.Value`, which would otherwise reach Rexx as a `.NetObject`. WMI
+  answers `VT_NULL` for properties that have no value (`osinfo.rex` tests
+  them against `.nil`). `VT_EMPTY` was already `.nil`.
+- **`createObject` retries while a server is ending.** A local server that
+  is still shutting down after its last release (LibreOffice in the CI,
+  started again by the next sample) refuses activation with
+  `RPC_S_CALL_FAILED`, `RPC_S_SERVER_UNAVAILABLE` or `CO_E_SERVER_STOPPING`:
+  `createObject` tries again after a pause, a few times, before it raises.
+- **`.net~getKnownMethods(o)` / `getKnownEvents(o)`** (`ComInfo.cs`): the
+  same stems as `.OLEObject`'s `getKnownMethods` / `getKnownEvents`, from
+  the object's `ITypeInfo` (and its coclass's source interface for the
+  events), plus `!LIBNAME`, `!LIBDOC`, `!COCLASSNAME`, `!COCLASSDOC`, and
+  `!PROGID` / `!CLSID` for `.OLEObject`'s `progid` / `clsid` (the ProgID that
+  `createObject` was given is remembered; else the coclass is looked for in
+  the type library).
+- **Named arguments**: `.net~named(name, value)`; they go first in
+  `InvokeMember`'s array, with their names, as coreclr's IDispatch binder
+  expects; an unknown name is reported by name.
+
+## ooDialog programs on Windows Forms (11/10/2026)
+
+`samples/oodialog-net/oodnet.cls` gives a `Form` ooDialog's shape (the
+porting table is in that folder's README). Decisions and traps found:
+
+- **Dialog units** from the dialog's font as Windows computes them: the
+  average width of A-Z a-z (`TextRenderer.MeasureText` / 52) and the font's
+  height; the default font is ooDialog's, MS Shell Dlg 2, 8, so a port has
+  the original's size.
+- **Z-order.** Windows Forms paints a control with a lower index in
+  `Controls` on top; an opaque `GroupBox` made before its radio buttons, and
+  sent to the back at once, still covered them (they were added later, behind
+  it). Group boxes and frames go to the back after `defineDialog`, the first
+  made last.
+- **Class attributes in a subclass**: `self~class~auto` from a NetDialog
+  subclass reads the subclass's own class variable (an `expose` in a class
+  method belongs to the class that runs it): `.NetDialog~auto` it is.
+- **Unattended runs** (CI): `autoRun` from a Forms timer after the dialog
+  shows, a watchdog that cancels after 30 s, the routines answer their
+  defaults; an exception in an event handler is thrown, not shown in .NET's
+  dialog (`SetUnhandledExceptionMode`). `check-samples.rex` runs each
+  Windows sample under a 90-second wrapper that kills its process tree.
+- **The indexer trap**: a collection with an `int` indexer and a `string`
+  one (`ListView.Items`, `SubItems`, `Controls`) takes a Rexx string as the
+  key, by the rule that a Rexx string prefers a string parameter;
+  `.net~int32(n)` picks the other.
