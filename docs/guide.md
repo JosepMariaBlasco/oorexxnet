@@ -831,6 +831,26 @@ do os over wmi~ExecQuery("select Caption, Version from Win32_OperatingSystem")
 end
 ```
 
+**From `.OLEObject`**, at a glance (`samples/oorexx-ole` has ooRexx's own
+OLE samples converted this way):
+
+| `.OLEObject` | the .NET bridge |
+|---|---|
+| `.OLEObject~new(progID)` | `.net~createObject(progID)`, and `::requires "net.cls"` at the end |
+| `.OLEObject~GetObject(moniker)` (a file, `"winmgmts:"`) | `.net~getObject(moniker)` |
+| `.OLEObject~new(progID, , .true)` (undocumented: the running one) | `.net~getActiveObject(progID)` (an error if none runs) |
+| `o~method(args)`, `o~property`, `o~property = v`, `o[i]`, `DO x OVER o` | the same |
+| `o~getConstant(name)` | `.net~getConstant(o, name)`; all of them: `.net~getConstant(o)` (a StringTable) |
+| `.OLEVariant~new(v)` for an argument by reference, `~!varValue_` | `.net~ref(v)`, `~value` |
+| a string that must stay a string (`"007"`) | `.net~box("string", "007")` |
+| `"WITHEVENTS"`, `o~addEventMethod(name, m)`, `o~connectEvents` | `o~Name += .net~handler(object, message)` (`-=` to disconnect) |
+| an event's parameter by reference (Excel's `Cancel`) | it arrives as a `Rexx.Net.ComRef`: `ref~Value = .true` |
+| `call SysSleep 1` while events come | `.net~nextEvent(1)` (or `.net~eventLoop`) |
+| `o~dispatch(name)` (a name Rexx also has: `start`) | `.net~invoke(o, name)` |
+| — (no named arguments) | `.net~named(name, value)`, VBA's `name:=value` |
+| the user's language for every call | English (US), as VBA; the user's: `.net~createObject(progID, "user")` |
+| `drop o` (released at the next collection) | `.net~releaseObject(o)` (Excel's process can end now) |
+
 `.net~getConstant(o, name)` is a constant of the type library `o` comes
 from, as `.OLEObject`'s `o~getConstant(name)`: `.net~getConstant(excel,
 "xlHAlignRight")`, caseless, `.nil` if there is none; `.net~getConstant(o)`
