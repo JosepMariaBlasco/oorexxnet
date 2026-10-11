@@ -218,7 +218,7 @@ call ok "... its objects, DO OVER",        captions~pos("Windows") > 0, 1
 call err "getObject: an unknown moniker",  ".net~getObject('nosuchmoniker:xyz')", "no COM object for"
 -- the running instance of a class: none here (Office's are tried by hand)
 call err "getActiveObject: none running",  ".net~getActiveObject('Scripting.Dictionary')", "no running"
-call err "getActiveObject: not registered", ".net~getActiveObject('No.Such.Class')", "is not registered"
+call err "getActiveObject: not registered", ".net~getActiveObject('No.Such.Class')", "no COM class"
 
 if .fails = 0 then say "COM objects: all" .count "tests passed"
 else say "COM objects:" .fails "of" .count "tests FAILED"
