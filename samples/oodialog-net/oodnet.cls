@@ -62,14 +62,18 @@
   sizeX = cx; sizeY = cy
   F = .net~System~Windows~Forms
   D = .net~System~Drawing
+  call NetDialogTrace "create: visual styles"
   F~Application~EnableVisualStyles
-  if self~class~auto then call NetDialogThrow   -- unattended: an error in an event ends the run, no dialog about it
+  call NetDialogTrace "create: exception mode"
+  if self~class~auto then call NetDialogThrow
+  call NetDialogTrace "create: the form"   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
   form~Font = D~Font~new(fontName, .net~single(fontSize))
   -- dialog base units, as Windows computes them for a dialog's font
   size = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", form~Font)
   bx = size~Width / 52
   by = form~Font~Height
+  call NetDialogTrace "create: dialog units" bx by
   form~Text = title
   form~ClientSize = D~Size~new(self~px(cx), self~py(cy))
   style = style~upper
@@ -369,8 +373,11 @@
 ::method execute unguarded
   expose form ending
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
+  call NetDialogTrace "execute: defineDialog"
   self~defineDialog
+  call NetDialogTrace "execute: initDialog"
   self~initDialog
+  call NetDialogTrace "execute: timers"
   if self~class~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
     t = .net~System~Windows~Forms~Timer~new
@@ -510,6 +517,9 @@ syntax:
   end
   .error~say("NetDialog (auto): the dialog was still open after" seconds "seconds; the process ends")
   .net~System~Environment~Exit(3)
+
+::routine NetDialogTrace               -- (inside) unattended: where it is
+  if .NetDialog~auto then say "(auto)" arg(1)
 
 ::routine NetDialogThrow               -- (inside) once, before the first window
   signal on syntax

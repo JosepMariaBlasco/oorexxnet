@@ -73,7 +73,9 @@ do d over dirs
     count += 1
     name = d"/"filespec("name", f)
     say "=====" name
-    address system libvar'rexx "'f'" auto'
+    if windows then                                         -- a hang ends after 90 s, not the CI's 20 min
+      address system 'powershell -NoProfile -ExecutionPolicy Bypass -File "'here'run-with-timeout.ps1" -File "'f'" -Arg auto -Seconds 90'
+    else address system libvar'rexx "'f'" auto'
     if rc \= 0 then do
       fails += 1
       say "FAIL" name "(exit status" rc")"
