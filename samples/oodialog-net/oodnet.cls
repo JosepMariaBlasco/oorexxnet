@@ -112,7 +112,7 @@
   if style~wordPos("RIGHT") > 0 then c~TextAlign = "TopRight"
   if style~wordPos("CENTER") > 0 then c~TextAlign = "TopCenter"
   if style~wordPos("BORDER") > 0 | style~pos("FRAME") > 0 then c~BorderStyle = "FixedSingle"   -- (GRAYFRAME, BLACKFRAME...)
-  if style~pos("FRAME") > 0 then c~SendToBack                  -- a frame: behind what it frames
+  if style~pos("FRAME") > 0 then self~frame(c)                 -- a frame: behind what it frames
   return 0
 ::method createStaticText
   forward message "CREATESTATIC"
@@ -169,7 +169,7 @@
   use arg id, x, y, cx, cy, style = "", text = ""
   c = self~place(id, .net~System~Windows~Forms~GroupBox~new, x, y, cx, cy)
   c~Text = text
-  c~SendToBack                         -- behind the controls drawn over it
+  self~frame(c)                        -- behind the controls drawn over it
   return 0
 ::method createListBox
   use arg id, x, y, cx, cy, style = "", attributeName
@@ -437,6 +437,21 @@
 ::method title
   return self~form~Text
 
+/* Group boxes and frames go behind the other controls once they are all
+   made (a control made later would otherwise be behind an opaque GroupBox);
+   in reverse order, so that a frame made first, the outer one, is the last. */
+::method frame private
+  expose frames
+  use arg c
+  if \var("FRAMES") then frames = .array~new
+  frames~append(c)
+::method framesToBack private
+  expose frames
+  if \var("FRAMES") then return
+  do i = frames~items to 1 by -1
+    frames[i]~SendToBack
+  end
+
 /* execute([show [, icon]]): defineDialog, initDialog, then the dialog until
    it ends: 1 (OK) or 2 (Cancel); leaving runs last. Unguarded, so that the
    event methods, called while it waits, can run. */
@@ -444,6 +459,7 @@
   expose form ending
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
   self~defineDialog
+  self~framesToBack
   self~initDialog
   self~applyData
   if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog

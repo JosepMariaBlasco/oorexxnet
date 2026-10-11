@@ -73,6 +73,11 @@ More of ooDialog's samples will follow, in batches.
 `list~Items[2]` looks for the item whose key is "2". Give the number as a
 number: `list~Items[.net~int32(2)]`.
 
+**From a .rc.** `rexx rc2oodnet.rex file.rc [dialogId] [file.h]` prints the
+`create` line for `init` and a `defineDialog` with one `create*` per control
+of the .rc's dialog, at the same coordinates, with the data attribute
+names that ooDialog would give them: the start of a port of an RcDialog.
+
 A control `oodnet.cls` has no `create*` for: make it and place it with
 `self~place(id, control, x, y, cx, cy)` (private: from the dialog's own
 methods), or add it to `self~form~Controls` yourself. `self~px(n)` and
