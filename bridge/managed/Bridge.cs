@@ -466,6 +466,19 @@ public static unsafe class Bridge
 
     // CLR.CLS's type indicators (clr.box), and its long names, which may be
     // shortened down to their capitals ("STring", "BOolean", "CHAR"acter).
+    // BSF4ooRexx's box indicators, as every ooRexx bridge takes them
+    // (.JSObject's .js~box too): caseless, shortened down to their capitals.
+    // Byte is .NET's (unsigned; Java's signed byte is SByte here).
+    static readonly (string Name, int Min, Type Type)[] bsfNames =
+    {
+        ("BOolean", 2, typeof(bool)), ("BYte", 2, typeof(byte)), ("Char", 1, typeof(char)),
+        ("Double", 1, typeof(double)), ("Float", 1, typeof(float)), ("Int", 1, typeof(int)),
+        ("Long", 1, typeof(long)), ("Object", 1, typeof(object)), ("SHort", 2, typeof(short)),
+        ("STring", 2, typeof(string)),
+    };
+
+    // CLR.CLS's (clr.box): its names and indicators. Together with BSF's
+    // they agree: D / DO... Double, DE... Decimal; INT exactly Int32, INT16...
     static readonly (string Name, int Min, Type Type)[] clrNames =
     {
         ("Boolean", 2, typeof(bool)), ("Byte", 2, typeof(byte)), ("Character", 4, typeof(char)),
@@ -479,7 +492,7 @@ public static unsafe class Bridge
     {
         if (r.Tag != 'S') return TypeOf(r);
         var n = r.Text.Trim();
-        foreach (var (name, min, type) in clrNames)
+        foreach (var (name, min, type) in bsfNames.Concat(clrNames))
             if (n.Length >= min && n.Length <= name.Length && name.StartsWith(n, StringComparison.OrdinalIgnoreCase)) return type;
         return Types.Parse(n);
     }

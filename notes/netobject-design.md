@@ -62,7 +62,7 @@ the root of the namespaces, plus the bridge's helpers.
 | `.net~new(type, args...)` | `new` (also `type~new(args...)`) |
 | `.net~int16(x)`, `~int32`, `~int64`, `~byte`, `~sbyte`, `~uint16`…, `~single`, `~double`, `~decimal`, `~bool`, `~char`, `~string`, `~null` | force a type (`.NetTyped`) |
 | `.net~as(x, type)` | force any type (an enum, a nullable, an interface) |
-| `.net~box(type, x)`, `.net~unbox(o)` | a real .NET object holding x as type (a `.NetObject`; CLR.CLS's names too); its Rexx value back |
+| `.net~box(type, x)`, `.net~unbox(o)` | a real .NET object holding x as type (a `.NetObject`; BSF4ooRexx's and CLR.CLS's names too); its Rexx value back |
 | `.net~ref([value])` | a `.NetRef`, for `ref` / `out` parameters |
 | `.net~bytes(string)`, `.net~byteString(o)` | Rexx string ↔ `byte[]` |
 | `.net~handler(obj, msg [, options])` | a Rexx method as a delegate or event handler (see Callbacks) |
@@ -125,7 +125,8 @@ convention). **Δ** the opposite of `.JSObject`'s lowercase rule (DOM: `document
 `Document`); each follows its host's convention. Otherwise an error naming
 both.
 
-Unknown name: an error. **Δ** `.JSObject` gives `.nil` (as `undefined`);
+Unknown name: an error. **Δ** `.JSObject` gives `.js~undefined` when read
+(a call with arguments is an error there too);
 .NET has no such thing, and a typo should not pass silently. Since
 09/10/2026 that error is Rexx's own 97.1, as for any Rexx object (see
 "Unknown members: built").
@@ -295,6 +296,8 @@ free there.
 5. Arrays and indexers 0-based, as .NET (`.JSObject` does the same for JS).
    *Superseded for arrays*: a .NET array is now a Rexx Array from 1 in every
    dimension (see "Arrays as Rexx Arrays: built"); indexers stay 0-based.
+   `.JSObject` now does the same (11/10/2026): JS arrays and typed arrays
+   from 1, other lists (NodeList...) from 0, `DO WITH INDEX` as `o[i]`.
 6. Names: `net.cls`, library `rexxnet`, assembly `Rexx.Net`.
 7. **Protected members** (settled 09/10/2026): only a Rexx class that
    extends a .NET class may call and override that class's protected
@@ -664,7 +667,16 @@ UINT32 INT64 UINT64 SB SI ST` and the long names `Boolean Byte Character
 Decimal Double Int16 UInt16 Int32 UInt32 Int64 UInt64 SByte Single String`,
 caseless, shortened down to their capitals (`STring`, `BOolean`, `CHAR`).
 CLR.CLS's names are tried first; none of them is also a C# alias for
-another type. `.net~box(type, .nil)` is `.nil` for a reference type (as
+another type. **BSF4ooRexx's indicators** too (11/10/2026), tried before
+CLR.CLS's, so that every ooRexx bridge takes the same ones (`.JSObject`'s
+`.js~box` does): `BOolean BYte Char Double Float Int Long Object SHort
+STring`, caseless, shortened down to their capitals (`C`, `D`, `I`, `SH`).
+They agree with CLR.CLS's: `D` / `DO...` Double, `DE...` Decimal; `INT`
+exactly is Int32 (BSF's Int), `INT16` / `INT32` / `INT64` CLR.CLS's; `CHAR`
+both's Char. `BYte` stays .NET's `Byte` (unsigned; Java's signed byte is
+`SByte`): the name means the platform's type, and integers are checked
+against .NET's ranges. `Object` boxes the value as it would go to an
+`object` parameter (a Rexx string: a `String`). `.net~box(type, .nil)` is `.nil` for a reference type (as
 `clr.box`); a value that does not fit is an error ("`300` cannot be a
 `System.Byte`").
 
@@ -1151,6 +1163,12 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
   ("MYCLASS does not define AREA, which the abstract ... needs"). Members
   with pointer or span parameters, or a result by reference, are not
   supported (an abstract one throws saying so).
+- **Methods added after `extend`** (decided 11/10/2026: not done). Which
+  members are overridden is settled when `extend` runs; a method the class
+  gets later (`define`) is not called by .NET. Doing it would mean
+  overriding every virtual member and asking Rexx on each call whether the
+  class has a method now: every `ToString`, `Equals`, and WinForms' hundreds
+  of `OnXxx`, a callback each, to cover a rare case. Documented instead.
 - **Generic methods** (11/10/2026). The override is a generic method with
   the base's type parameters (names, constraints: the runtime refuses an
   override with weaker ones) and the signature in terms of them. Its body

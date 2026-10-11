@@ -121,6 +121,15 @@ call ok "box: CLR.CLS indicators", -
 call ok "box: long names, shortened", -
    .net~typeOf(.net~box("Character", "x")) .net~typeOf(.net~box("bool", 0)) .net~typeOf(.net~box("Doub", 1)), -
    "System.Char System.Boolean System.Double"
+call ok "box: BSF4ooRexx's indicators", -
+   .net~typeOf(.net~box("c", "x")) .net~typeOf(.net~box("D", 1)) .net~typeOf(.net~box("f", 1.5)) -
+   .net~typeOf(.net~box("I", 1)) .net~typeOf(.net~box("in", 1)) .net~typeOf(.net~box("L", 1)) -
+   .net~typeOf(.net~box("o", "x")) .net~typeOf(.net~box("SH", 1)) .net~typeOf(.net~box("BY", 1)), -
+   "System.Char System.Double System.Single System.Int32 System.Int32 System.Int64 System.String System.Int16 System.Byte"
+call ok "box: BSF and CLR.CLS together", -
+   .net~typeOf(.net~box("DE", 1)) .net~typeOf(.net~box("DO", 1)) .net~typeOf(.net~box("INT", 1)) -
+   .net~typeOf(.net~box("INT16", 1)) .net~typeOf(.net~box("cha", "x")) .net~typeOf(.net~box("chara", "x")), -
+   "System.Decimal System.Double System.Int32 System.Int16 System.Char System.Char"
 call ok "box: an enum",         .net~unbox(.net~box(.net~System~DayOfWeek, "Monday")), "Monday"
 call ok "box: .nil as string",  .net~box("string", .nil) == .nil, 1
 call err "box: too short",      "x = .net~box('S', 1)", 'no .NET type "S"'

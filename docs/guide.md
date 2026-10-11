@@ -168,7 +168,12 @@ say .net~System~Convert~ToString(.net~as(255, "byte"), 2)
 
 `.net~box(type, x)` goes further: it makes a .NET object holding `x` as that
 type, which you can keep and pass around; `.net~unbox(o)` gives its Rexx value
-back. (CLR.CLS's type names work too: `"INT16"`, `"BOolean"`, `"STring"`.)
+back. The type can also be one of BSF4ooRexx's indicators, as every ooRexx
+bridge takes them (`.js~box` too): `BOolean`, `BYte`, `Char`, `Double`,
+`Float`, `Int`, `Long`, `Object`, `SHort`, `STring`, caseless and shortened
+down to their capitals (`"I"`, `"d"`); `BYte` is .NET's `Byte` (unsigned:
+Java's byte is `SByte`). CLR.CLS's names work too: `"INT16"`, `"DE"`
+(`Decimal`), `"SI"` (`Single`).
 
 ```rexx
 b = .net~box("short", 5)
@@ -613,7 +618,8 @@ a lambda: System.Func<System.Int32>
 42
 ```
 
-Not yet: methods added to the class after `.net~extend`. On Windows, a `Form` whose
+The methods are looked at when `.net~extend` runs: one added to the class
+later (`define`) is not an override. On Windows, a `Form` whose
 `OnPaint`, `OnLoad`... are Rexx methods is `samples/windows/forms-extend.rex`.
 
 ## 9. .NET → ooRexx
@@ -737,9 +743,10 @@ members found together...) and the samples that run: `notes/clr-compat.md`.
 
 And from `.JSObject` (ooRexx in WebAssembly): the same shape (`.net` as
 `.js`, `.NetObject` as `.JSObject`, `.net~handler` as `.js~handler`, the
-queued event model), with the differences the design notes mark **Δ**: names
-caseless with the uppercase member winning, arrays from 1, an unknown member
-an error rather than `.nil`.
+queued event model, arrays from 1, `box` / `unbox` with BSF4ooRexx's
+indicators), with the differences the design notes mark **Δ**: names
+caseless with the uppercase member winning, an unknown member an error
+rather than `.js~undefined`.
 
 ## 12. COM objects (Windows)
 
