@@ -34,6 +34,13 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `stopWatch.rex` | `examples\stopWatch.rex` | a menu bar; a timer in place of REPLY and a loop; colours and fonts; the clipboard |
 | `columnClickListView.rex` | `controls\ListView\columnClickListView.rex` | a report list view, 200 rows; which row and column a click hit |
 | `oodStandardRoutines.rex` | `oodStandardRoutines.rex` | every public routine (askDialog, checkList, messageDialog, multiInputBox...): the original's code, unchanged |
+| `employe1.rex` | `tutorial\employe1.rex` | a UserDialog loading a .rc (`employe1rc.cls`); its data attributes after OK |
+| `employe2.rex` | `tutorial\employe2.rex` | an RcDialog: data attributes set in initDialog, combo box and list box entries |
+| `employe3.rex` | `tutorial\employe3.rex` | a button connected to a method |
+| `employe4.rex` | `tutorial\employe4.rex` | infoDialog with the dialog's data |
+| `employe4validate.rex` | `tutorial\employe4validate.rex` | validate: OK refused while a field is empty |
+| `employe5.rex` | `tutorial\employe5.rex` | buttons connected in init; getControlData, setControlData; an Array of employees |
+| `employe6.rex` | `tutorial\employe6.rex` | an up-down's DELTAPOS to browse them (a scroll bar here); timedMessage |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -45,6 +52,9 @@ More of ooDialog's samples will follow, in batches.
 | `::class MyDialog subclass UserDialog` (or `RcDialog`) | `::class MyDialog subclass NetDialog` |
 | `self~create(x, y, cx, cy, title, style, , font, size)`, `createCenter(cx, cy, ...)` | the same: dialog units, and the dialog's font (default MS Shell Dlg 2, 8: ooDialog's, so the sizes match) |
 | An RcDialog's `.rc`: `DIALOG x, y, cx, cy`, `CAPTION`, `FONT` | `self~create(x, y, cx, cy, caption, style, , font, size)` in `init` |
+| `.MyDialog~new("file.rc", 100)`, `::class MyDialog subclass RcDialog` | `.MyDialog~new`, `::class MyDialog subclass File_100`, from `filerc.cls` (`rc2oodnet.rex -cls file.rc`: a class for each dialog of the .rc) |
+| `connect*Event` in `init`, before the controls exist | the same: made once `defineDialog` has made them |
+| `self~getControlData(id)`, `setControlData(id, v)`, `addComboEntry(id, t)`, `addListEntry(id, t)` | the same |
 | The `.rc`'s controls (`LTEXT`, `EDITTEXT`, `PUSHBUTTON`, `DEFPUSHBUTTON`, `AUTORADIOBUTTON`, `AUTOCHECKBOX`, `GROUPBOX`, `LISTBOX`, `COMBOBOX`, `CONTROL ... MONTHCAL_CLASS / WC_LISTVIEW / ...`) | in `defineDialog`: `createStatic`, `createEdit`, `createPushButton` (`DEFAULT`), `createRadioButton`, `createCheckBox`, `createGroupBox`, `createListBox`, `createComboBox`, `createMonthCalendar`, `createListView`... with the same coordinates |
 | Numeric resource ids, `constDir`, `.h` files | names: any string or symbol (`IDC_EDIT`, `"box"`); `IDOK` and `IDCANCEL` are OK and Cancel |
 | `self~newEdit(id)`, `newPushButton(id)`... | the same, giving the .NET control (`TextBox`, `Button`...) |
@@ -77,6 +87,10 @@ More of ooDialog's samples will follow, in batches.
 `create` line for `init` and a `defineDialog` with one `create*` per control
 of the .rc's dialog, at the same coordinates, with the data attribute
 names that ooDialog would give them: the start of a port of an RcDialog.
+`rexx rc2oodnet.rex -cls file.rc` writes `filerc.cls`, with a class for each
+dialog (`File_100`, `File_101`...), each a NetDialog that creates itself and
+its controls: the program's RcDialog subclasses it and keeps the rest of its
+code, as the tutorial's programs here do (`employe1rc.cls`...).
 
 A control `oodnet.cls` has no `create*` for: make it and place it with
 `self~place(id, control, x, y, cx, cy)` (private: from the dialog's own

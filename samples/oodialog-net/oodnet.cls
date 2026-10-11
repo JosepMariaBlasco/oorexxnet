@@ -47,10 +47,12 @@
 ::attribute initCode                   -- as ooDialog's (0: fine)
 
 ::method init
-  expose controls data pending ending
+  expose controls data pending ending deferred defined
   controls = .directory~new            -- id (uppercased) -> control
   data = .directory~new                -- data attribute (uppercased) -> control id
   pending = .directory~new             -- data attribute values set before the control exists
+  deferred = .array~new                -- connect*Event before defineDialog: made after it
+  defined = .false
   ending = .false
   self~initCode = 0
 
@@ -177,6 +179,8 @@
   style = style~upper
   if style~wordPos("MULTI") > 0 | style~wordPos("EXTSEL") > 0 then c~SelectionMode = "MultiExtended"
   if style~wordPos("SORT") > 0 | style~wordPos("STANDARD") > 0 then c~Sorted = .true   -- (LBS_STANDARD sorts)
+  if style~wordPos("USETAB") > 0 then c~UseTabStops = .true
+  if style~wordPos("COLUMNS") > 0 then c~MultiColumn = .true
   c~IntegralHeight = .false
   if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
@@ -216,6 +220,13 @@
      bar, whose arrows give connectUpDownEvent's DELTAPOS (ooDialog's
      setRange / setPosition: ~Minimum, ~Maximum, ~Value) */
   c = self~place(id, F~VScrollBar~new, x, y, cx, cy)
+  c~LargeChange = 1
+  return 0
+::method createScrollBar                -- VERTICAL, else horizontal (ooDialog: setRange, setPosition; here ~Minimum, ~Maximum, ~Value)
+  use arg id, x, y, cx, cy, style = ""
+  F = .net~System~Windows~Forms
+  bar = (style~upper~wordPos("VERTICAL") > 0)~?(F~VScrollBar~new, F~HScrollBar~new)
+  c = self~place(id, bar, x, y, cx, cy)
   c~LargeChange = 1
   return 0
 ::method createMonthCalendar
@@ -286,6 +297,7 @@
 ::method newListBox;      forward message "CONTROL"
 ::method newComboBox;     forward message "CONTROL"
 ::method newUpDown;       forward message "CONTROL"
+::method newScrollBar;    forward message "CONTROL"
 ::method newMonthCalendar; forward message "CONTROL"
 ::method newDateTimePicker; forward message "CONTROL"
 ::method newProgressBar;  forward message "CONTROL"
@@ -328,7 +340,12 @@
    arrow, -1 for the down one (of a NumericUpDown: its ValueChanged, the
    change); its result is not used */
 ::method connectUpDownEvent
+  expose defined deferred
   use arg id, event, methodName
+  if \defined then do                  -- in INIT (an RcDialog's way): once the controls exist
+    deferred~append(.array~of("CONNECTUPDOWNEVENT", .array~of(id, event, methodName)))
+    return 0
+  end
   c = self~control(id)
   relay = .NetDialogUpDownRelay~new(self, methodName)
   if .net~isInstance(c, "System.Windows.Forms.ScrollBar") then c~Scroll += .net~handler(relay, "SCROLL")
@@ -355,7 +372,12 @@
   forward message "CONNECTLISTBOXEVENT"
 /* any .NET event of a control, by its .NET name */
 ::method connectEvent
+  expose defined deferred
   use strict arg id, netEvent, methodName
+  if \defined then do                  -- in INIT (an RcDialog's way): once the controls exist
+    deferred~append(.array~of("CONNECTEVENT", .array~of(id, netEvent, methodName)))
+    return 0
+  end
   .net~addHandler(self~control(id), netEvent, .net~handler(self, methodName))
   return 0
 
@@ -456,10 +478,12 @@
    it ends: 1 (OK) or 2 (Cancel); leaving runs last. Unguarded, so that the
    event methods, called while it waits, can run. */
 ::method execute unguarded
-  expose form ending
+  expose form ending defined deferred
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
   self~defineDialog
   self~framesToBack
+  defined = .true
+  do d over deferred; self~sendWith(d[1], d[2]); end
   self~initDialog
   self~applyData
   if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog
