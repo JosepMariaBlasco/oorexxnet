@@ -230,11 +230,26 @@
     self~register(id, c)
     return 0
   end
-  /* no buddy: Windows Forms has no up-down alone; a small vertical scroll
-     bar, whose arrows give connectUpDownEvent's DELTAPOS (ooDialog's
-     setRange / setPosition: ~Minimum, ~Maximum, ~Value) */
+  /* no number in a buddy: Windows Forms has no up-down alone; a small
+     vertical scroll bar, whose arrows give connectUpDownEvent's DELTAPOS
+     (ooDialog's setRange / setPosition: ~Minimum, ~Maximum, ~Value) */
+  buddy = .nil
+  if var("LAST") then buddy = last~ctl  -- (the control made before: place changes LAST)
   c = self~place(id, F~VScrollBar~new, x, y, cx, cy)
   c~LargeChange = 1
+  st = style~upper
+  if st~wordPos("AUTOBUDDY") > 0, (st~wordPos("ALIGNRIGHT") > 0 | st~wordPos("ALIGNLEFT") > 0), -
+     .net~isInstance(buddy, "System.Windows.Forms.TextBox") then do   -- as Win32: at the buddy's edge, the buddy narrower
+    b = buddy
+    w = c~Width
+    b~Width = b~Width - w
+    if st~wordPos("ALIGNLEFT") > 0 then do
+      c~Location = .net~System~Drawing~Point~new(b~Left, b~Top)
+      b~Left = b~Left + w
+    end
+    else c~Location = .net~System~Drawing~Point~new(b~Right, b~Top)
+    c~Height = b~Height
+  end
   return 0
 ::method createScrollBar                -- VERTICAL, else horizontal (ooDialog: setRange, setPosition; here ~Minimum, ~Maximum, ~Value)
   use arg id, x, y, cx, cy, style = ""
@@ -1192,7 +1207,7 @@ syntax:
   codes~OK = 1; codes~CANCEL = 2; codes~ABORT = 3; codes~RETRY = 4; codes~IGNORE = 5; codes~YES = 6; codes~NO = 7
   codes~TRYAGAIN = 10; codes~CONTINUE = 11
   c = codes[r~string~upper]
-  return c~?(c, 2)
+  return (c \== .nil)~?(c, 2)
 
 /* fileNameDialog([file [, hwnd [, filter [, load [, title [, defExtension [, multi [, sep]]]]]]]]):
    the file chosen (several, with multi: the folder then the names, by sep), or 0.

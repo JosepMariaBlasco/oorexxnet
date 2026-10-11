@@ -69,7 +69,7 @@
 ::method defineDialog                  -- the .rc's controls
   self~createStatic(-1, 12, 20, 30, 8, "", "Person:")
   self~createEdit(IDC_EDIT_NAME_B, 40, 20, 102, 12, "READONLY", "IDC_EDIT_NAME_B")
-  self~createUpDown(IDC_UPD, 132, 20, 10, 12, "AUTOBUDDY")
+  self~createUpDown(IDC_UPD, 132, 20, 10, 12, "AUTOBUDDY ALIGNRIGHT")
   self~createStatic(-1, 12, 37, 16, 8, "", "City:")
   self~createComboBox(IDC_CB_CITY_B, 40, 37, 102, 56, "LIST", "IDC_CB_CITY_B")
   self~createStatic(-1, 12, 58, 30, 8, "", "Position:")

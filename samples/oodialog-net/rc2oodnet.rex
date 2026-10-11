@@ -256,6 +256,8 @@ control: procedure
           if st~pos("UDS_AUTOBUDDY") > 0 then s = s "AUTOBUDDY"
           if st~pos("UDS_SETBUDDYINT") > 0 then s = s "SETBUDDYINT"
           if st~pos("UDS_WRAP") > 0 then s = s "WRAP"
+          if st~pos("UDS_ALIGNRIGHT") > 0 then s = s "ALIGNRIGHT"
+          if st~pos("UDS_ALIGNLEFT") > 0 then s = s "ALIGNLEFT"
           return call("createUpDown", id, geo, s~strip)
         end
         when wordPos(cls, "MONTHCAL_CLASS SYSMONTHCAL32") > 0 then return call("createMonthCalendar", id, geo, "")

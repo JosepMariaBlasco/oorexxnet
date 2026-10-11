@@ -48,7 +48,7 @@
 
 ::method defineDialog                  -- the .rc's controls
   self~createEdit(21, 42, 11, 167, 12, "", "NAME")
-  self~createUpDown(11, 219, 8, 10, 17, "AUTOBUDDY")
+  self~createUpDown(11, 219, 8, 10, 17, "AUTOBUDDY ALIGNRIGHT")
   self~createComboBox(22, 32, 30, 167, 56, "LIST", "CITY")
   self~createListBox(23, 73, 52, 156, 65, "SORT", "PROFESSION")
   self~createRadioButton(31, 12, 71, 26, 12, "", "&Male", "MALE")
