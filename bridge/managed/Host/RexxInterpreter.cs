@@ -49,6 +49,13 @@ public sealed class RexxOptions
     /// when the instance is created, so ::requires "net.cls" needs no file.
     /// False: only when a .NET object first goes to Rexx.
     public bool Net { get; set; } = true;
+    /// BSF4ooRexx's prefixes on the Rexx code's standard streams, so that its
+    /// lines stand out in the application's console or log: "REXXout>"
+    /// (.output), "REXXerr>" (.error), "REXXtrc>" (.traceOutput), and the
+    /// prompts "REXXin?>" (.input) and "REXXdbgIn?>" (.debugInput) before a
+    /// line is read. Not on what goes to Output / Error or comes from Input.
+    /// RexxInterpreter.StreamPrefixes changes it later.
+    public bool StreamPrefixes { get; set; } = true;
 }
 
 /// An argument left out (arg(n, "O") is true in Rexx).
@@ -152,6 +159,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             c.ReleaseLocal(sc);
             instances[ip] = r;
             if (options?.Net ?? true) r.SetUpNet(c);
+            if (options?.StreamPrefixes ?? true) r.StreamPrefixes = true;
             if (options?.Output != null) r.Output = options.Output;
             if (options?.Error != null) r.Error = options.Error;
             if (options?.Input != null) r.Input = options.Input;

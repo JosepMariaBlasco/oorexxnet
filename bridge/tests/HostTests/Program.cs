@@ -41,8 +41,9 @@ static partial class Program
         "::routine twice public; use arg x; return 2 * x\n" +
         "::routine hidden; return 'hidden'\n";
 
-    static int Main()
+    static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "prefixes-child") return PrefixesChild();
         using var rexx = RexxInterpreter.Create();
         Ok("version", rexx.Version.StartsWith("5."), true);
         Ok("language level", rexx.LanguageLevel.Length > 0, true);
@@ -249,6 +250,7 @@ static partial class Program
 
         // phase B: commands, I/O, cancellation (PhaseB.cs), on an instance of its own
         PhaseB();
+        Prefixes();
         // phase C: both ways in one process (PhaseC.cs)
         PhaseC();
         // phase D: .net from the start (PhaseD.cs)

@@ -542,6 +542,24 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    (`reply`, `~start`) is, as Rexx writes it. At an input's end, reads give
    `""` and `lines()` 0. Cost: ~7 µs a SAY inside a loop (a Rexx method, a
    command, the writer).
+   **Prefixes (BSF4ooRexx's).** The forwarders now also take `.traceOutput`
+   and `.debugInput` (five objects: output, error, trace, input, debug
+   input) and are installed at creation when `RexxOptions.StreamPrefixes`
+   (default true) is on, else the first time `Output` / `Error` / `Input`
+   / `StreamPrefixes` is set. An inactive forwarder with a prefix writes
+   `REXXout>` / `REXXerr>` / `REXXtrc>` at the start of every line (after
+   every line feed inside one too; a `charout` without one leaves the line
+   open, as BSF.OutputStream does), and an input forwarder writes its prompt
+   (`REXXin?>`, `REXXdbgIn?>`) to the output forwarder's stream before a
+   `linein`, ending that line. As in BSF.CLS (`bsf.redirectTo`, applied by
+   BSF4ooRexx's JSR-223 engine when Java hosts Rexx), `.traceOutput` and
+   `.debugInput` get destinations of their own (they monitor `.error` and
+   `.input` by default), so a trace line is `REXXtrc>`, not `REXXerr>`; a
+   program that later changes `.error`'s destination no longer takes trace
+   output with it (BSF4ooRexx the same). Nothing is prefixed into the
+   application's own `TextWriter`, and a guest instance (`rexx prog.rex`)
+   is never touched. Rexx code: `.output~current~prefix = .nil` (or a
+   string). Shared with the sibling bridges: the same five strings.
 2. **One handler signature, `Func<RexxCommand, object?>`** (and
    `Action<RexxCommand>`, RC 0), rather than a `Func<string, object?>` plus
    one with a context: two lambda-friendly overloads with different

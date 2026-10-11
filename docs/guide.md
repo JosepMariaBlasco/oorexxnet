@@ -717,6 +717,36 @@ no C# name (`"[]="`, `"||"`). In VB.NET, a Rexx object as `Object` with
 `[New]` there). `samples/csharp/tour` and `samples/vbnet/tour` show it all,
 topic by topic.
 
+**Prefixes on the console.** What the Rexx code writes to the process's own
+streams carries BSF4ooRexx's prefixes, so that it stands out in the
+application's console or log: `REXXout>` (`.output`), `REXXerr>` (`.error`),
+`REXXtrc>` (`.traceOutput`, error messages included), and the prompts
+`REXXin?>` and `REXXdbgIn?>` before a line is read from `.input` /
+`.debugInput`. What goes to `Output` / `Error` or comes from `Input` has
+none. `RexxOptions.StreamPrefixes = false`, or `rexx.StreamPrefixes` at any
+time, turns them off; Rexx code changes one with
+`.output~current~prefix = 'mine>'` (or `.nil`). A Rexx program run by
+`rexx` itself has none: its output is its own.
+
+```csharp
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.Run("say 'one'; say 'two' || '0a'x || 'lines'");
+rexx.StreamPrefixes = false;
+rexx.Run("say 'plain'");
+using var quiet = RexxInterpreter.Create(new RexxOptions { StreamPrefixes = false });
+quiet.Run("say 'quiet'");
+```
+
+```text
+REXXout>one
+REXXout>two
+REXXout>lines
+plain
+quiet
+```
+
 **Functions and values of the application.** `rexx.AddFunction(name,
 handler)` gives the Rexx code a function (`name(args)`, `CALL name args`),
 called on the Rexx thread as a command handler is. The handler gets a
