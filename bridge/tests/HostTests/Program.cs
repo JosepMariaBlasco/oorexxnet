@@ -61,6 +61,11 @@ static partial class Program
         Throws<InvalidCastException>("not logical", () => rexx.Run<bool>("return 'yes'"), "not a Rexx logical value");
         Throws<InvalidCastException>("not a number", () => rexx.Run<int>("return 'abc'"), "not a Rexx number");
         Ok(".nil -> null",           rexx.Run("return .nil") == null, true);
+        Ok("Run<int[]>: an Array copied", string.Join(",", rexx.Run<int[]>("return .array~of(1, '2', 3)")), "1,2,3");
+        Ok("Run<List<string>>",      string.Join(",", rexx.Run<List<string>>("return .array~of('a', 'b')")), "a,b");
+        Ok("Run<IReadOnlyList<double>>", rexx.Run<IReadOnlyList<double>>("return .array~new")!.Count, 0);
+        Throws<InvalidCastException>("Run<int[]>: omitted items", () => rexx.Run<int[]>("a = .array~new; a[2] = 1; return a"), "omitted");
+        Throws<InvalidCastException>("Run<int[]>: not an Array", () => rexx.Run<int[]>("return .list~of(1)"), "only a Rexx Array");
         Ok("no result -> null",      rexx.Run("return") == null, true);
         Ok("bool, double, decimal, char args", rexx.Run("use arg a, b, c, d; return a b c d", true, 0.1, 2.50m, 'x'), "1 0.1 2.50 x");
         Ok("null arg -> .nil",       rexx.Run("use arg a; return a == .nil", (object?)null), "1");

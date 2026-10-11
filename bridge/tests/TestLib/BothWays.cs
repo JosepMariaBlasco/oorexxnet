@@ -33,6 +33,9 @@ public static class BothWays
     public static int Grow(Dictionary<string, int> d) { d["new"] = 1; return d.Count; }
     public static StringBuilder Builder(Dictionary<string, StringBuilder> d) => d["sb"];
     public static string Which(RexxObject o) => "reference";
+    public static string Deep(Dictionary<string, Dictionary<string, int>> d) =>
+        string.Join(";", d.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + ":" + string.Join(",", p.Value.OrderBy(q => q.Key, StringComparer.Ordinal).Select(q => $"{q.Key}={q.Value + 1}"))));
+    public static string Lists(Dictionary<string, int[]> d) => string.Join(";", d.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + ":" + p.Value.Sum()));
     public static int Fill(RexxObject a) { a.Send("APPEND", "x"); return a.Send<int>("ITEMS"); }
     public static string Which(Dictionary<string, int> d) => "copy";
     public static string Cases(Dictionary<string, int> d) => string.Join(",", d.Keys.OrderBy(k => k, StringComparer.Ordinal));

@@ -208,6 +208,11 @@ a .NET parameter type asks for it.
 | a `.NetObject` | **the .NET object itself** (round trip; where the result is typed `RexxObject`, a proxy whose `NetValue` is the object: see "Phase C: built") |
 | any other object | a `RexxObject`, by reference (the same proxy each time: identity) |
 
+Where the result is typed (`Run<T>`, `Send<T>`, a value in a dictionary
+copy), a one-dimensional Rexx Array asked for as `T[]`, `List<T>` or an
+interface a `T[]` has is copied, items converted (11/10/2026), and a
+StringTable or Directory asked for as a dictionary with string keys too.
+
 **Δ A `RexxString`, not a `string`.** Rexx has one kind of value, and whether
 it is a number depends on its use. With plain `string`s, `int b =
 acct.Balance` fails at run time (C# has no implicit `string` → `int`). A
@@ -835,9 +840,14 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
 - **Nothing else** is a dictionary: an Array, a Stem, a Table, an instance
   of another class (an error where only a dictionary fits;
   `InvalidCastException` from a host).
-- Not done: nested conversion (a StringTable whose values are
-  StringTables, to `Dictionary<string, Dictionary<string, T>>`: the inner
-  ones go as `RexxObject`s and fail to convert).
+- Nested conversion (checked 11/10/2026): a StringTable whose values are
+  StringTables becomes a `Dictionary<string, Dictionary<string, T>>` (the
+  values are converted by `RexxConvert.To`, which copies maps too: it came
+  with it, untested until now); values that are Rexx Arrays become `T[]` /
+  `List<T>` (built then: `RexxConvert.To` copies a one-dimensional Rexx
+  Array for `T[]`, `List<T>` and the interfaces a `T[]` has; omitted items,
+  or any other Rexx object, are an `InvalidCastException`). The same rule
+  gives `Run<int[]>("return .array~of(1, 2)")`. bothways 39, host 269.
 
 ## Phase D: built (09/10/2026)
 

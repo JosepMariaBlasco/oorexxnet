@@ -290,6 +290,40 @@ public static class Conv
         return 20;
     }
 
+    // The element type of a .NET array or list a Rexx Array can become as a
+    // result or a value (T[], List<T>, and the interfaces a T[] has).
+    internal static Type? SequenceOf(Type t)
+    {
+        if (t.IsArray) return t.GetArrayRank() == 1 ? t.GetElementType() : null;
+        if (!t.IsGenericType) return null;
+        var d = t.GetGenericTypeDefinition();
+        return d == typeof(List<>) || d == typeof(IList<>) || d == typeof(ICollection<>) || d == typeof(IEnumerable<>) ||
+               d == typeof(IReadOnlyList<>) || d == typeof(IReadOnlyCollection<>) ? t.GetGenericArguments()[0] : null;
+    }
+
+    internal static bool IsRexxArray(RexxObject o) =>
+        o.Interpreter.FindClass("Array") is RexxClass a && o.Is(a) && o.Send<int>("DIMENSION") <= 1;
+
+    // A one-dimensional Rexx Array's items, converted as Rexx results, in a
+    // new T[] (a List<T> for a List<T>). Omitted items: an error, as when the
+    // Array goes to .NET as an argument.
+    internal static object ArrayCopy(RexxObject a, Type t, Type et)
+    {
+        int n = a.Send("LAST") is RexxString last ? int.Parse(last.Value) : 0;
+        if (a.Send<int>("ITEMS") != n) throw new InvalidCastException("an Array with omitted items cannot become a .NET array or list");
+        var arr = Array.CreateInstance(et, n);
+        for (int i = 1; i <= n; i++)
+        {
+            object? item;
+            try { item = RexxConvert.To(a.Send("AT", i), et); }
+            catch (Exception e) when (e is FormatException or OverflowException) { throw new InvalidCastException(e.Message, e); }
+            arr.SetValue(item, i - 1);
+        }
+        if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>))
+            return Activator.CreateInstance(t, arr)!;
+        return arr;
+    }
+
     // A StringTable or a Directory (or an instance of a subclass): what
     // becomes a dictionary with string keys.
     internal static bool IsMap(RexxObject o) =>

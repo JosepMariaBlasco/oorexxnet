@@ -434,6 +434,12 @@ public static class RexxConvert
             if (Conv.IsMap(ro)) return Conv.DictionaryCopy(ro.Supplier(), vt);
             throw new InvalidCastException($"a Rexx object ({v}) is not a {t.Name}: only a StringTable or a Directory becomes a dictionary");
         }
+        // A one-dimensional Rexx Array where a .NET array or list is asked for: a copy
+        if (v is RexxObject ra && v is not RexxString && Conv.SequenceOf(t) is Type et)
+        {
+            if (Conv.IsRexxArray(ra)) return Conv.ArrayCopy(ra, t, et);
+            throw new InvalidCastException($"a Rexx object ({v}) is not a {t.Name}: only a Rexx Array becomes a .NET array or list");
+        }
         if (under != null) t = under;
         var s = v is RexxString rs ? rs.Value : t == typeof(string) ? v.ToString() : null;
         if (s == null) throw new InvalidCastException($"a Rexx object ({v}) is not a {t.Name}");

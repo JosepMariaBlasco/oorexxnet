@@ -52,6 +52,12 @@ call ok "a Directory too (d~name: uppercase)", bw~Ints(dd), "Mixed=3,NAME=2"
 dm = .directory~new; dm["k"] = 1; dm~setMethod("CALC", "return 41"); dm~setMethod("UNKNOWN", "return 0")
 call ok "a Directory's setMethod entry: its result", bw~Ints(dm), "CALC=42,k=2"
 call ok "a Directory is still a RexxObject", bw~ClassOf(dd) bw~Which(dd), "Directory reference"
+in1 = .stringTable~new; in1~a = 1; in1~b = 2
+in2 = .stringTable~new; in2~c = 3
+st2 = .stringTable~new; st2~x = in1; st2~y = in2
+call ok "nested StringTables to Dictionary<string, Dictionary<string, int>>", bw~Deep(st2), "X:A=2,B=3;Y:C=4"
+l = .stringTable~new; l~p = .array~of(1, 2, 3); l~q = .array~of(10)
+call ok "Arrays as values to Dictionary<string, int[]>", bw~Lists(l), "P:6;Q:10"
 a = .array~of(1, 2)
 call ok "a Rexx Array to a RexxObject: itself", bw~Fill(a) a~items a[3], "3 3 x"
 call ok "a Directory subclass",  bw~Ints(.MyDir~new~~put(5, "q")), "q=6"
