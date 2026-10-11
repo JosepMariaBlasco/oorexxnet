@@ -944,8 +944,19 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
 - **`.net~releaseObject(o)`**: `Marshal.FinalReleaseComObject`, so that a
   server such as Excel can end at once, not at .NET's next collection. The
   proxy remains, unusable (98.900).
-- **Not done**: `GetObject` (a running instance: `Marshal.GetActiveObject` is not in .NET 5+);
-  named arguments; typed access through Office's interop assemblies (their
+- **Existing objects** (11/10/2026): `.net~getObject(moniker [,
+  language])`, as `.OLEObject~GetObject` (which does `MkParseDisplayName`
+  and `BindToObject`): ole32's `CoGetObject`, the same two steps, asking
+  for `IUnknown`; a file (its application opens it), `"winmgmts:"` (WMI:
+  every Windows has it, so the CI tests it), any display name.
+  `.net~getActiveObject(progID [, language])`: `CLSIDFromProgID`, then
+  oleaut32's `GetActiveObject` (the Running Object Table), which
+  `Marshal.GetActiveObject` wrapped until .NET 5 removed it; none running
+  (`MK_E_UNAVAILABLE`) is an error saying so. (`.OLEObject` has it as an
+  undocumented third argument of `new`, "try GetActiveObject first, else
+  create".) Office registers in the ROT when started by hand, not when
+  started by automation: tested by hand. tests/com.rex 60 (+5).
+- **Not done**: named arguments; typed access through Office's interop assemblies (their
   interfaces would go through reflection already: objects of interop types
   are not `__ComObject`, `Com.Is`).
 

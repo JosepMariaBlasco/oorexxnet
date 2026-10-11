@@ -513,6 +513,16 @@ syntax: raise propagate
   use strict arg progID, language = ""
   return NetRequest("comCreate", progID, language)
 syntax: raise propagate
+::method getObject unguarded         -- .net~getObject(moniker [, language]): the COM object a moniker names (a file, "winmgmts:"...), as .OLEObject~GetObject
+  signal on syntax
+  use strict arg moniker, language = ""
+  return NetRequest("comGet", moniker, language)
+syntax: raise propagate
+::method getActiveObject unguarded   -- .net~getActiveObject(progID [, language]): the running instance of a COM class (VBA's GetObject(, progID))
+  signal on syntax
+  use strict arg progID, language = ""
+  return NetRequest("comActive", progID, language)
+syntax: raise propagate
 ::method getConstant unguarded       -- .net~getConstant(comObject [, name]): a constant of its type library (.nil: none), or all of them (a StringTable)
   signal on syntax
   use strict arg o, name = .nil

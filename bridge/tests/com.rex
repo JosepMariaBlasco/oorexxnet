@@ -208,6 +208,18 @@ call ok "getConstant(o): a StringTable",   all~isA(.StringTable) all["ForReading
 call ok "getConstant: same library, another object", .net~getConstant(.net~createObject("Scripting.Dictionary"), "BinaryCompare"), 0
 call err "getConstant: not a COM object",  ".net~getConstant(.net~System~Text~StringBuilder~new, 'x')", "not a COM object"
 
+-- an object a moniker names (.OLEObject~GetObject): WMI, which every Windows has
+wmi = .net~getObject("winmgmts:\\.\root\cimv2")
+os = wmi~ExecQuery("select Caption from Win32_OperatingSystem")
+call ok "getObject: WMI through winmgmts:", os~Count, 1
+captions = ""
+do o over os; captions ||= o~Caption; end
+call ok "... its objects, DO OVER",        captions~pos("Windows") > 0, 1
+call err "getObject: an unknown moniker",  ".net~getObject('nosuchmoniker:xyz')", "no COM object for"
+-- the running instance of a class: none here (Office's are tried by hand)
+call err "getActiveObject: none running",  ".net~getActiveObject('Scripting.Dictionary')", "no running"
+call err "getActiveObject: not registered", ".net~getActiveObject('No.Such.Class')", "is not registered"
+
 if .fails = 0 then say "COM objects: all" .count "tests passed"
 else say "COM objects:" .fails "of" .count "tests FAILED"
 exit .fails > 0

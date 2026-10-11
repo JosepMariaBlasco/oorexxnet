@@ -197,6 +197,47 @@ static class Com
         return o;
     }
 
+    /// .net~getObject(moniker [, language]): the object a moniker names, as
+    /// .OLEObject~GetObject and VBA's GetObject(path) give it: a document
+    /// file (opened by its application), "winmgmts:" (WMI), any display name
+    /// (CoGetObject: MkParseDisplayName, then BindToObject).
+    internal static object GetObject(string moniker, string language = "")
+    {
+        if (!OperatingSystem.IsWindows()) throw new BridgeException("COM objects exist on Windows only");
+        var culture = Language(language);
+        var iid = IUnknown;
+        int hr = CoGetObject(moniker, 0, ref iid, out var o);
+        if (hr < 0 || o == null) throw new BridgeException($"no COM object for \"{moniker}\": {Marshal.GetExceptionForHR(hr)?.Message ?? $"HRESULT 0x{hr:X8}"}");
+        if (culture != English) languages.AddOrUpdate(o, culture);
+        return o;
+    }
+
+    /// .net~getActiveObject(progID [, language]): the running instance of a
+    /// COM class (VBA's GetObject(, "Excel.Application")), from the Running
+    /// Object Table; an error if none runs.
+    internal static object GetActive(string progId, string language = "")
+    {
+        if (!OperatingSystem.IsWindows()) throw new BridgeException("COM objects exist on Windows only");
+        var culture = Language(language);
+        int hr = CLSIDFromProgID(progId, out var clsid);
+        if (hr < 0) throw new BridgeException($"no COM class \"{progId}\" is registered");
+        hr = GetActiveObject(ref clsid, 0, out var o);
+        if (hr == MK_E_UNAVAILABLE || o == null) throw new BridgeException($"no running \"{progId}\" (none is in the Running Object Table)");
+        if (hr < 0) throw new BridgeException($"\"{progId}\": {Marshal.GetExceptionForHR(hr)?.Message ?? $"HRESULT 0x{hr:X8}"}");
+        if (culture != English) languages.AddOrUpdate(o, culture);
+        return o;
+    }
+
+    static Guid IUnknown = new("00000000-0000-0000-C000-000000000046");
+    const int MK_E_UNAVAILABLE = unchecked((int)0x800401E3);
+
+    [DllImport("ole32.dll", CharSet = CharSet.Unicode)]
+    static extern int CoGetObject(string name, nint bindOptions, ref Guid iid, [MarshalAs(UnmanagedType.IUnknown)] out object? obj);
+    [DllImport("ole32.dll", CharSet = CharSet.Unicode)]
+    static extern int CLSIDFromProgID(string progId, out Guid clsid);
+    [DllImport("oleaut32.dll")]
+    static extern int GetActiveObject(ref Guid clsid, nint reserved, [MarshalAs(UnmanagedType.IUnknown)] out object? obj);
+
     /// .net~releaseObject(o): releases a COM object now (its server, Excel
     /// say, can end once every object it handed out is released), instead
     /// of when .NET's garbage collector finalizes it. The proxy stays, unusable.

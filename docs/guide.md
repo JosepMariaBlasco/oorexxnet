@@ -811,6 +811,20 @@ Windows: `=SUMA(...)`), and a culture name (`"es-ES"`) in that one; the
 objects it returns keep that language. `.net~releaseObject(o)` releases it at
 once (Excel's process can end).
 
+An object that already exists: `.net~getObject(moniker)` is the object a
+moniker names, as `.OLEObject~GetObject` and VBA's `GetObject(path)` give
+it: a document file (opened by its application), or WMI through
+`"winmgmts:"`; `.net~getActiveObject(progID)` is the running instance of a
+class (VBA's `GetObject(, "Excel.Application")`; an Excel opened by hand),
+an error if none runs. Both take the language as `createObject` does.
+
+```rexx
+wmi = .net~getObject("winmgmts:\\.\root\cimv2")
+do os over wmi~ExecQuery("select Caption, Version from Win32_OperatingSystem")
+  say os~Caption os~Version
+end
+```
+
 `.net~getConstant(o, name)` is a constant of the type library `o` comes
 from, as `.OLEObject`'s `o~getConstant(name)`: `.net~getConstant(excel,
 "xlHAlignRight")`, caseless, `.nil` if there is none; `.net~getConstant(o)`
