@@ -52,6 +52,14 @@ the same names, through the bridge: see `oorexx-ole/README.md` (they keep
 ooRexx's licence, the CPL). `check-samples.rex` runs the AOO ones with
 `libreoffice` and the MS ones with `office`.
 
+## ooDialog's samples in pure .NET (`oodialog-net/`, Windows)
+
+ooDialog programs rewritten for Windows Forms, with no ooDialog: the same
+dialogs and behaviour, through `oodnet.cls`, a small package with
+ooDialog's shape (`NetDialog`: create, defineDialog, create* in dialog
+units, connect*Event, execute; and ooDialog's public routines). The porting
+guide, a table from ooDialog to .NET, is `oodialog-net/README.md`.
+
 ## .NET running Rexx
 
 - `csharp/tour/` and `vbnet/tour/` — a tour in C# and its twin in VB.NET,

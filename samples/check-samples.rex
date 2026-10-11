@@ -3,7 +3,7 @@
        rexx samples/check-samples.rex [build-dir] [office] [libreoffice] [outlook]
 
    The samples in samples/rexx run on every platform; those in
-   samples/windows only on Windows, those in samples/office (Excel, Word,
+   samples/windows and samples/oodialog-net only on Windows, those in samples/office (Excel, Word,
    PowerPoint: Office must be installed) when "office" is given, and those
    in samples/libreoffice (Writer, Calc through COM: LibreOffice must be
    installed) when "libreoffice" is given; in samples/oorexx-ole (ooRexx's
@@ -56,7 +56,8 @@ dirs = .array~of("rexx")
 if windows then dirs~append("windows")
 if windows & office then dirs~append("office")              -- (Office must be installed)
 if windows & libre then dirs~append("libreoffice")          -- (LibreOffice must be installed)
-if windows then dirs~appendAll(.array~of("oorexx-ole", "oorexx-ole/wmi", "oorexx-ole/adsi", "oorexx-ole/methinfo"))   -- (MS*: Office, AOO_*: LibreOffice)
+if windows then dirs~appendAll(.array~of("oorexx-ole", "oorexx-ole/wmi", "oorexx-ole/adsi", "oorexx-ole/methinfo"))
+if windows then dirs~append("oodialog-net")                -- ooDialog's samples in pure .NET   -- (MS*: Office, AOO_*: LibreOffice)
 count = 0; fails = 0
 do d over dirs
   files = .array~new
