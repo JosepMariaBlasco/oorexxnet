@@ -631,7 +631,8 @@ can use .NET too: `net.cls` and `CLR.CLS` are built into the assembly, so
 `::requires "net.cls"` needs no file, and the native library `rexxnet` comes
 with the package (or is found next to `Rexx.Net.dll`). `RexxInterpreter.Create()` starts an
 interpreter instance; `Run` runs Rexx code as a routine (`use arg`, `return`),
-`Run<T>` converts the result; `Compile` keeps a routine to call many times;
+`Run<T>` converts the result; `Compile` keeps a routine to call many times
+(`Run`, `Call` and `Send` take a `CancellationToken` to halt the Rexx code);
 `LoadPackage` / `FindClass` reach Rexx classes, whose objects are
 `RexxObject`s (`Send`, `Send<T>`, or C#'s `dynamic`). Command environments
 (`ADDRESS`), Rexx's I/O (`SAY`, `PULL`, errors) and cancellation are the
@@ -817,6 +818,9 @@ it: a document file (opened by its application), or WMI through
 `"winmgmts:"`; `.net~getActiveObject(progID)` is the running instance of a
 class (VBA's `GetObject(, "Excel.Application")`; an Excel opened by hand),
 an error if none runs. Both take the language as `createObject` does.
+`.net~named(name, value)` is a named argument, VBA's `name:=value`,
+anywhere among the others: `excel~Workbooks~Open(file,
+.net~named("ReadOnly", .true))`.
 
 ```rexx
 wmi = .net~getObject("winmgmts:\\.\root\cimv2")

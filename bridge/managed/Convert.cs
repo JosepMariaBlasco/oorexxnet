@@ -126,6 +126,8 @@ public static class Conv
     {
         value = null;
         if (r.Text == "null") return !to.IsValueType ? 0 : Fail;
+        if (r.Text.StartsWith("named:"))
+            throw new BridgeException($".net~named (the argument {r.Text.Substring(6)}): named arguments are for COM objects only");
         Type forced = r.Text.StartsWith('#') ? ((StaticOf)Handles.Get(int.Parse(r.Text.Substring(1)))).Type
                                              : Types.Parse(r.Text);
         // First the value as the forced type, then the forced type to `to`.

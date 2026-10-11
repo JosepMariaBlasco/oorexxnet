@@ -230,6 +230,16 @@ static partial class Program
                 Ok("... InnerException 4.1", (e.InnerException as RexxException)?.Code, "4.1");
             }
         }
+        // a message, cancelled (Send with a token)
+        var spinner = rexx.Run("return .spinner~new\n::class spinner\n::method spin; use arg n; do forever; n += 1; end\n" +
+                               "::method add; use arg a, b; return a + b")!;
+        using (var cts = new CancellationTokenSource(300))
+        {
+            try { spinner.Send("SPIN", cts.Token, 0); Ok("Send cancelled", "returned", "OperationCanceledException"); }
+            catch (OperationCanceledException e) { Ok("Send cancelled: OperationCanceledException", (e.InnerException as RexxException)?.Code, "4.1"); }
+        }
+        Ok("Send<T> with a token, not cancelled", spinner.Send<int>("ADD", new CancellationTokenSource().Token, 40, 2), 42);
+        Throws<OperationCanceledException>("Send: already cancelled", () => spinner.Send("ADD", new CancellationToken(true), 1, 2));
         // already cancelled: nothing runs
         rexx.Local["RAN"] = "no";
         var done = new CancellationToken(true);

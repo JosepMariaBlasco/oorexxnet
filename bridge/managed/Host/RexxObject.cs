@@ -81,6 +81,13 @@ public class RexxObject : DynamicObject, IEnumerable<object?>, IDisposable
     /// Send, the result converted (Send<int>, Send<string>...).
     public T Send<T>(string name, params object?[] args) => RexxConvert.To<T>(SendRaw(name.ToUpperInvariant(), args));
 
+    /// Send, halted if cancel is cancelled (OperationCanceledException; its
+    /// InnerException the RexxException 4.1), as Run and RexxRoutine.Call.
+    public RexxObject? Send(string name, CancellationToken cancel, params object?[] args) =>
+        (RexxObject?)Interpreter.Cancellable(cancel, () => SendRaw(name.ToUpperInvariant(), args));
+    public T Send<T>(string name, CancellationToken cancel, params object?[] args) =>
+        RexxConvert.To<T>(Interpreter.Cancellable(cancel, () => SendRaw(name.ToUpperInvariant(), args)));
+
     // ------------------------------------------- BSF4ooRexx's RexxProxy names
 
     // The methods of BSF4ooRexx's RexxProxy (Java), under the same names, as

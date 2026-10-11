@@ -513,6 +513,9 @@ syntax: raise propagate
   use strict arg progID, language = ""
   return NetRequest("comCreate", progID, language)
 syntax: raise propagate
+::method named unguarded             -- .net~named(name, value): a named argument for a COM method (VBA's name:=value), anywhere among the others
+  use strict arg name, value
+  return .NetTyped~new("named:"name, value)
 ::method getObject unguarded         -- .net~getObject(moniker [, language]): the COM object a moniker names (a file, "winmgmts:"...), as .OLEObject~GetObject
   signal on syntax
   use strict arg moniker, language = ""

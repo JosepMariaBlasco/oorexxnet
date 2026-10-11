@@ -625,7 +625,13 @@ Rexx loop (~6 µs as a `Call` from .NET); a SAY through the forwarder ~7 µs
 inside a loop; no growth over 120 000 calls (commands, `Run<int>`, SAY with
 `Output` set).
 
-**Not done (later, if wanted):** `Send` with a token; a per-run trace.
+**Later (11/10/2026):** `Send` / `Send<T>` take a `CancellationToken`
+too (`o.Send("SPIN", token, args...)`, the same `Cancellable` as `Run`;
+tests in PhaseB). **A per-run trace: decided not to do.** ooRexx has no
+per-call trace (`SetTrace` reaches every activity, late: item 7); the only
+way would be to put `trace X;` before `Run`'s source, which does nothing
+for `RunFile` or a compiled routine. The Rexx code's own `TRACE`, with
+`Error` capturing the trace output, does it already.
 (The RXOFNC and RXVALUE exits, functions and values of the application: built,
 see "Application functions and values: built".)
 

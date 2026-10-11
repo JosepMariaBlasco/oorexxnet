@@ -70,9 +70,11 @@ static class Com
     }
     const int DISP_E_UNKNOWNNAME = unchecked((int)0x80020006);
     const int DISP_E_MEMBERNOTFOUND = unchecked((int)0x80020003);
+    const int DISP_E_PARAMNOTFOUND = unchecked((int)0x80020004);
 
     internal static void Send(object o, string name, List<Rec> args, Writer w)
     {
+        if (args.Any(IsNamed)) { SendNamed(o, name, args, w); return; }
         var a = Args(args);
         Strings(o, name, INVOKE_FUNC | INVOKE_PROPERTYGET, args, a);
         if (!args.Any(r => r.Tag == 'R')) { Conv.ToRexx(w, Invoke(o, name, Get, a)); return; }
@@ -85,6 +87,38 @@ static class Com
         var inner = new Writer();
         Conv.ToRexx(inner, result);
         for (int i = 0; i < a.Length; i++) if (args[i].Tag == 'R') Conv.ToRexx(inner, a[i]);
+        w.Add('R', inner.ToArray());
+    }
+
+    // .net~named(name, value): a T record of kind "named:Name"
+    static bool IsNamed(Rec r) => r.Tag == 'T' && r.Text.StartsWith("named:");
+
+    // Named arguments (VBA's ReadOnly:=True), wherever they are among the
+    // others: InvokeMember takes them first in args, in the order of their
+    // names, then the positional ones (coreclr's IUInvokeDispMethod). A
+    // .NetRef among either goes by reference, as in Send.
+    static void SendNamed(object o, string name, List<Rec> args, Writer w)
+    {
+        var named = Enumerable.Range(0, args.Count).Where(i => IsNamed(args[i])).ToList();
+        var plain = Enumerable.Range(0, args.Count).Where(i => !IsNamed(args[i])).ToList();
+        var plainRecs = plain.Select(i => args[i]).ToList();
+        var pa = Args(plainRecs);
+        Strings(o, name, INVOKE_FUNC | INVOKE_PROPERTYGET, plainRecs, pa);
+        var order = named.Concat(plain).ToList();                    // original index of each in a
+        var recs = order.Select(i => IsNamed(args[i]) ? args[i].Inner! : args[i]).ToList();
+        var a = named.Select(i => Arg(args[i].Inner!)).Concat(pa).ToArray();
+        var names = named.Select(i => args[i].Text.Substring(6)).ToArray();
+        if (!recs.Any(r => r.Tag == 'R')) { Conv.ToRexx(w, Invoke(o, name, Get, a, null, names)); return; }
+        var byRef = new ParameterModifier(a.Length);
+        for (int k = 0; k < a.Length; k++) byRef[k] = recs[k].Tag == 'R';
+        var result = Invoke(o, name, Get, a, new[] { byRef }, names);
+        var inner = new Writer();
+        Conv.ToRexx(inner, result);
+        for (int i = 0; i < args.Count; i++)                         // new values in the arguments' order
+        {
+            int k = order.IndexOf(i);
+            if (recs[k].Tag == 'R') Conv.ToRexx(inner, a[k]);
+        }
         w.Add('R', inner.ToArray());
     }
 
@@ -264,12 +298,12 @@ static class Com
         return false;
     }
 
-    static object? Invoke(object o, string name, BindingFlags how, object?[] args, ParameterModifier[]? byRef = null)
+    static object? Invoke(object o, string name, BindingFlags how, object?[] args, ParameterModifier[]? byRef = null, string[]? names = null)
     {
         var until = DateTime.UtcNow + Busy;
         for (int pause = 10; ; pause = Math.Min(pause * 2, 500))
         {
-            try { return Call(o, name, how, args, byRef); }
+            try { return Call(o, name, how, args, byRef, names); }
             catch (Exception e) when (Rejected(e) && DateTime.UtcNow < until)
             {
                 System.Threading.Thread.Sleep(pause);
@@ -277,13 +311,18 @@ static class Com
         }
     }
 
-    static object? Call(object o, string name, BindingFlags how, object?[] args, ParameterModifier[]? byRef)
+    static object? Call(object o, string name, BindingFlags how, object?[] args, ParameterModifier[]? byRef, string[]? names)
     {
         try
         {
-            var r = o.GetType().InvokeMember(name, how, null, o, args, byRef, LanguageOf(o), null);
+            var r = o.GetType().InvokeMember(name, how, null, o, args, byRef, LanguageOf(o), names);
             Inherit(o, r);
             return r;
+        }
+        catch (COMException e) when (names is { Length: > 0 } && e.HResult is DISP_E_UNKNOWNNAME or DISP_E_PARAMNOTFOUND)
+        {
+            // GetIDsOfNames failed for the member or one of the names
+            throw new BridgeException($"the COM object has no member {name} with parameters named {string.Join(", ", names)}");
         }
         catch (Exception e) when (e is MissingMemberException ||
                                   e is COMException { HResult: DISP_E_UNKNOWNNAME or DISP_E_MEMBERNOTFOUND })

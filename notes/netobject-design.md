@@ -965,7 +965,18 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
   release it, and wait for it to leave the ROT. Verified by hand: with the
   user's Excel open, the file opens in it and `getActiveObject` gives it,
   with its workbook.
-- **Not done**: named arguments; typed access through Office's interop assemblies (their
+- **Named arguments** (11/10/2026): `.net~named(name, value)`, VBA's
+  `name:=value` (`fso~OpenTextFile(file, .net~named("Create", .true))`),
+  anywhere among the others. A `.NetTyped` of kind `named:Name` (no change
+  to rexxnet); `Com.Send` puts them first in `InvokeMember`'s arguments, in
+  the order of their names, as coreclr's `IUInvokeDispMethod` expects
+  (named ones first, the positional ones after, reversed for `Invoke`); a
+  `.NetRef` among them goes by reference. A name the member does not have
+  (`DISP_E_UNKNOWNNAME` from `GetIDsOfNames`, as for an unknown member) is
+  reported naming both. Not for .NET members (an error: a .NET method's
+  parameters could be matched by name too, but nothing has asked for it).
+  `.OLEObject` has no named arguments. tests/com.rex.
+- **Not done**: typed access through Office's interop assemblies (their
   interfaces would go through reflection already: objects of interop types
   are not `__ComObject`, `Com.Is`).
 

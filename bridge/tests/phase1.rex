@@ -132,6 +132,7 @@ call ok "box: BSF and CLR.CLS together", -
    "System.Decimal System.Double System.Int32 System.Int16 System.Char System.Char"
 call ok "box: an enum",         .net~unbox(.net~box(.net~System~DayOfWeek, "Monday")), "Monday"
 call ok "box: .nil as string",  .net~box("string", .nil) == .nil, 1
+call err "named arguments: COM only", "x = .net~System~Math~Max(.net~named('val1', 1), 2)", "named arguments are for COM objects only"
 call err "box: too short",      "x = .net~box('S', 1)", 'no .NET type "S"'
 call err "box: out of range",   "x = .net~box('byte', 300)", "cannot be a System.Byte"
 call err "ambiguous overload",  "x = .net~RexxNetTests~Probe~Ambig(1, 2)", "is ambiguous"

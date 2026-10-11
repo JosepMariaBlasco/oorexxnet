@@ -71,6 +71,14 @@ ts = fso~OpenTextFile(file)
 text = ts~ReadAll
 ts~Close
 call ok "a file written through COM",      text~strip("T", "0a"x)~strip("T", "0d"x), "hello"
+-- named arguments (VBA's name:=value): first, among, or after the positional ones
+ts = fso~OpenTextFile(file, .net~named("IOMode", 8), .net~named("Create", .true))
+ts~WriteLine("named"); ts~Close
+ts = fso~OpenTextFile(.net~named("FileName", file))
+text = ts~ReadAll; ts~Close
+call ok "named arguments",                 text~changeStr("0d"x, "")~strip("T", "0a"x)~changeStr("0a"x, " "), "hello named"
+.local~fso = fso; .local~file = file
+call err "a named argument that does not exist", "x = .fso~OpenTextFile(.file, .net~named('NoSuchParameter', 1))", "parameters named NoSuchParameter"
 fso~DeleteFile(file)
 call ok "... and deleted",                 fso~FileExists(file), 0
 n = 0
