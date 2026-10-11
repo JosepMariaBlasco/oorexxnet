@@ -535,9 +535,11 @@ takes `args` (your `INIT`, if any, calls `self~init:super(args...)`; set what
 your overrides need before it: the base constructor may call them already).
 
 As in C#, the object's own methods, and only they, reach the base's
-protected members (`self~Items`, `self~Label = "x"`), and
-`self~base.Name(args)` calls the base's implementation of a member you
-override (C#'s `base.Name(args)`):
+protected members (`self~Items`, `self~Label = "x"`). As in any Rexx class,
+`self~Name:super(args)` is the base's: the implementation of a member you
+override (C#'s `base.Name(args)`), or a protected member your class hides
+with a method of the same name. (`self~base.Name(args)` does the same for
+an overridden member.)
 
 ```rexx
 c = .Shouting~new
@@ -550,7 +552,7 @@ say .net~typeOf(c)
   .net~extend(self, "System.Collections.ObjectModel.Collection<System.String>")
 ::method InsertItem              -- protected virtual void InsertItem(int index, string item)
   use arg index, item
-  self~base.InsertItem(index, item~upper)
+  self~InsertItem:super(index, item~upper)
 ::method stored                  -- Items: a protected property
   return self~Items~Count "items"
 ```

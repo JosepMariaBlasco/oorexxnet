@@ -443,6 +443,17 @@ syntax: raise propagate
   do name over r[4]                    -- raise.Name: an interface's event, raised by the object
     self~forwarder(cls, "RAISE."name, "extRaise", name)
   end
+  -- self~Name:super, as in any Rexx class: a mixin the class inherits (after
+  -- its superclasses), whose private methods are the base's protected
+  -- members and the base implementations of what the class overrides
+  base = .Object~mixinClass(cls~id "BASE")
+  do name over r[2]
+    if \r[3]~hasItem(name) then self~forwarder(base, name, "extMember", name)
+  end
+  do name over r[3]
+    self~forwarder(base, name, "extBase", name)
+  end
+  cls~inherit(base)
   extended[cls] = r[1]
   return r[1]
 syntax: raise propagate

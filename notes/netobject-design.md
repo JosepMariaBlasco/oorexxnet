@@ -1270,9 +1270,26 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
   overridden member with a base implementation, `extend` defines a private
   `BASE.NAME` method, which calls a private trampoline of the new type
   that calls the base's implementation non-virtually (`call`, not
-  `callvirt`). It is C#'s `base.Name(args)`. `self~Name:super` cannot be
-  it: it would reach `UNKNOWN`, and .NET's virtual call would come back to
-  the Rexx method.
+  `callvirt`). It is C#'s `base.Name(args)`.
+- **`self~Name:super`** (11/10/2026, Rony: scoped messages are the ooRexx
+  way, and must work). `extend` makes a mixin class (`MYCLASS BASE`,
+  `.Object~mixinClass`) whose **private** methods are the base's protected
+  members (`extMember`) and, for each overridden member with a base
+  implementation, that implementation (`extBase`, as `base.Name`), and the
+  class inherits it (`cls~inherit`). The mixin comes after the class's
+  superclasses in the search order (ooRexx appends it), so `self~Name`
+  still finds the class's own private forwarders first (as before) and
+  NetObject's methods win over the mixin's (a protected member named
+  `Start` or `String` is reached by `self~Start`, not by `:super`); and
+  `self~Name:super`, which starts the search after the class, finds the
+  mixin's method before NetObject's `UNKNOWN`: the base implementation,
+  non-virtually (no recursion into the Rexx override), or the protected
+  member, also when the class hides it with a method of the same name
+  (C#'s `base.Name`: the old trap is gone). From outside the methods are
+  private: 97.1. A Rexx subclass of the extending class reaches its Rexx
+  superclass's methods with `:super`, as usual. `base.Name` stays.
+  tests/extend.rex 69 (`SquareS`: the same tests as `Square` with
+  `:super`).
 - **Lifetime.** The .NET object holds its Rexx object (the handler's
   global reference) and the Rexx object holds its .NET object (the handle):
   both live until `.net~detach(o)`, which ends the link: the overrides run

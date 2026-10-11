@@ -35,6 +35,18 @@ call err "protected from outside",   ".Square~new(1)~secret", "does not understa
 call err "protected method from outside", ".Square~new(1)~Hidden", "does not understand message ""HIDDEN"""
 call err "readonly protected field: no set", ".Square~new(1)~setFixed", "does not understand message ""FIXEDNAME="""
 
+-- self~Name:super: the base's implementation, or its protected member, as in any Rexx class
+.net~extend(.SquareS, "RexxNetTests.Shape")
+ss = .SquareS~new(3)
+call ok ":super, public virtual (from .NET)", ss~Report, "<squareS: 9>"
+call ok ":super, in the base constructor's call", ss~Created, "<squareS: 9>"
+call ok ":super, protected virtual method",  ss~Greet("you"), "HELLO hello you"
+call ok ":super, protected virtual property", ss~SidesSeen, 4
+call ok ":super, protected member hidden by a Rexx method", ss~Hidden, "mine, hidden squareS"
+call ok ":super, protected property hidden", ss~Label, "label: none"
+call ok ":super, a protected setter",         ss~relabel("big"), "label: big"
+call err ":super's methods are private",      ".SquareS~new(1)~secret", "does not understand message ""SECRET"""
+
 -- errors in overrides, and what overrides return
 .local~failing = .Bad~new
 .failing~arm
@@ -183,6 +195,26 @@ windowsForm: procedure
   self~Label = new
   return old self~Label
 ::method selfName; return self~Name
+
+::class SquareS subclass NetObject   -- the same, with :super instead of base.
+::method init
+  expose side
+  use strict arg side
+  self~init:super("squareS")
+::method Area
+  expose side
+  return side * side
+::method Describe; return "<" || self~Describe:super || ">"
+::method Hello
+  use arg who
+  return "HELLO" self~Hello:super(who)
+::method Sides;    return self~Sides:super + 4
+::method Hidden;   return "mine," self~Hidden:super
+::method Label;    return "label:" self~Label:super
+::method relabel
+  use arg new
+  self~"LABEL=":super(new)
+  return self~Label
 
 ::class Square2 subclass Square
 ::method Describe
