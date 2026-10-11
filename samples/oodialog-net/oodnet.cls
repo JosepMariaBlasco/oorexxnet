@@ -196,7 +196,7 @@
   expose last
   use arg id, x, y, cx, cy, style = ""
   F = .net~System~Windows~Forms
-  if style~upper~wordPos("AUTOBUDDY") > 0, var("LAST"), last~isA(.NetObject), .net~isInstance(last~ctl, "System.Windows.Forms.TextBox") then do
+  if style~upper~wordPos("AUTOBUDDY") > 0, var("LAST"), .net~isInstance(last~ctl, "System.Windows.Forms.TextBox") then do
     old = last~ctl
     c = F~NumericUpDown~new
     c~Location = old~Location
