@@ -68,6 +68,12 @@ More of ooDialog's samples will follow, in batches.
 | data attributes (`createEdit(id, ..., "TLINE")`, then `self~TLine`) | the same |
 | `infoDialog`, `errorDialog`, `askDialog`, `messageDialog`, `inputBox`, `integerBox`, `passwordBox`, `listChoice`, `multiListChoice`, `checkList`, `singleSelection`, `multiInputBox`, `fileNameDialog`, `browseForFolder`, `timedMessage` | the same names, arguments and results; `self~IDOK`... `self~IDCONTINUE` as ooDialog's |
 
+**One trap**: a .NET collection with an indexer by number and one by key
+(`ListView.Items`, `SubItems`, `Controls`...) takes a Rexx string as the key:
+`list~Items[2]` looks for the item whose key is "2". Give the number as a
+number: `list~Items[.net~int32(2)]` (or `list~Items~get_Item(2)`... any
+method that takes only an int).
+
 A control `oodnet.cls` has no `create*` for: make it and place it with
 `self~place(id, control, x, y, cx, cy)` (private: from the dialog's own
 methods), or add it to `self~form~Controls` yourself. `self~px(n)` and

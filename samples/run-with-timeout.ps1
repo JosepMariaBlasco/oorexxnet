@@ -2,6 +2,7 @@
 # kills it if it has not ended after SECONDS (for check-samples.rex, on Windows).
 param([string]$File, [string]$Arg, [int]$Seconds = 90)
 $p = Start-Process -FilePath "rexx" -ArgumentList "`"$File`" $Arg" -NoNewWindow -PassThru
+$null = $p.Handle          # (without it, ExitCode is lost once the process ends)
 if (-not $p.WaitForExit($Seconds * 1000)) {
     Write-Host "TIMEOUT: still running after $Seconds seconds; killed"
     taskkill /T /F /PID $p.Id | Out-Null

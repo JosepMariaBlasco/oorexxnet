@@ -401,7 +401,7 @@
   r = form~ShowDialog
   if var("RUNNER") then do
     do t over runner~timers; t~Stop; end
-    if runner~failed then do
+    if runner~failed \== .false then do
       form~Dispose
       raise syntax 98.900 array("NetDialog (auto):" runner~failed)
     end
