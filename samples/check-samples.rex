@@ -7,8 +7,9 @@
    PowerPoint: Office must be installed) when "office" is given, and those
    in samples/libreoffice (Writer, Calc through COM: LibreOffice must be
    installed) when "libreoffice" is given; in samples/oorexx-ole (ooRexx's
-   OLE samples, .NET versions) the AOO_* ones with "libreoffice", the MS*
-   ones with "office". Each runs with the argument
+   OLE samples, .NET versions; on Windows, with its wmi and adsi folders)
+   the AOO_* ones with "libreoffice", the MS*
+   ones with "office", the others always. Each runs with the argument
    "auto", which makes the interactive ones (windows, dialogs) finish by
    themselves; a sample passes when its exit status is 0. The output is
    shown. build-dir: the bridge's build, as for docs/check-guide.rex.
@@ -53,11 +54,11 @@ dirs = .array~of("rexx")
 if windows then dirs~append("windows")
 if windows & office then dirs~append("office")              -- (Office must be installed)
 if windows & libre then dirs~append("libreoffice")          -- (LibreOffice must be installed)
-if windows & (office | libre) then dirs~append("oorexx-ole")
+if windows then dirs~appendAll(.array~of("oorexx-ole", "oorexx-ole/wmi", "oorexx-ole/adsi"))   -- (MS*: Office, AOO_*: LibreOffice)
 count = 0; fails = 0
 do d over dirs
   files = .array~new
-  call sysFileTree here || d || sep || "*.rex", "found.", "FO"
+  call sysFileTree here || d~changeStr("/", sep) || sep || "*.rex", "found.", "FO"
   do i = 1 to found.0; files~append(found.i); end
   do f over files~sort
     if d == "oorexx-ole" then do                              -- AOO_*: LibreOffice; MS*: Office

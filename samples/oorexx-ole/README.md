@@ -80,6 +80,30 @@ this repository is under the Apache License 2.0.)
 | `AOO_swriter_paragraphs.rex` | Writer: paragraphs with four adjustments |
 | `AOO_swriter_table.rex` | Writer: the DevGuide's "Quick Tour": a table, a text frame, colours |
 
+And from `samples\ole\apps`, the Windows objects every Windows has (run
+by the CI on its Windows runner, as the folders below):
+
+| | |
+|---|---|
+| `ScriptingFileSystemObject.rex` | `Scripting.FileSystemObject`: drives, folders, files, a text file written and read |
+| `ShellApplication_listSystemFolders.rex` | `Shell.Application`: the paths of Windows' special folders |
+| `WScriptNetwork.rex` | `WScript.Network`: computer and user names, mapped drives, printers |
+| `WScriptShell.rex` | `WScript.Shell`: environment, special folders, a shortcut on the desktop, a popup |
+
+From `samples\ole\wmi`, in `wmi/` (WMI through `.net~getObject("winmgmts:...")`):
+`accounts.rex` (user accounts), `osinfo.rex` (the operating system, the
+computer, its processors and disks), `process.rex` (running processes),
+`services.rex` (the services; starting and stopping them, by hand). From
+`samples\ole\adsi`, in `adsi/` (Active Directory Service Interfaces,
+through `.net~getObject("WinNT://...")`): `adsi1`–`adsi6` read the computer,
+a user, groups, the domain, the schema; `adsi7` and `adsi8` create and
+remove fifteen local users and a group (by hand only, as an administrator:
+`auto` skips them).
+
+Not here: the Lotus samples (Lotus 1-2-3, Notes, Word Pro: discontinued) and
+the Internet Explorer ones (IE is gone from Windows 11); `methinfo` and
+`oleinfo` (a COM object's methods from its type information) are to come.
+
 Not here as such: `MSAccessDemo_32bit_only.rex`. It needs the Jet engine
 (`Microsoft.Jet.OLEDB.4.0`, `JRO.JetEngine`), which exists for 32-bit
 processes only, and the bridge runs in 64-bit ooRexx. Its 64-bit
