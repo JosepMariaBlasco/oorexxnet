@@ -620,10 +620,9 @@ Rexx loop (~6 µs as a `Call` from .NET); a SAY through the forwarder ~7 µs
 inside a loop; no growth over 120 000 calls (commands, `Run<int>`, SAY with
 `Output` set).
 
-**Not done (later, if wanted):** the RXOFNC / RXEXF exits (functions
-provided by the application, `appfunc(1, 2)`: today a command, or phase C's
-`.NetObject`s); RXVALUE (`value(name, , 'APP')` reading application values);
-`Send` with a token; a per-run trace.
+**Not done (later, if wanted):** `Send` with a token; a per-run trace.
+(The RXOFNC and RXVALUE exits, functions and values of the application: built,
+see "Application functions and values: built".)
 
 
 ## Phase C: built (08/10/2026)
@@ -952,3 +951,80 @@ converts its text. `Convert.ToInt32` and kin still use Rexx's rules.
 `samples/csharp/tour` and `samples/vbnet/tour`: one file per topic (Run,
 objects, SendMessage, ADDRESS, standard streams, .NET objects and delegates
 to Rexx), the same output in both; run by the CI with the bridge just built.
+
+## Application functions and values: built (11/10/2026)
+
+`Host/RexxInterpreter.Functions.cs`; tests `tests/HostTests/Functions.cs`
+(40; host 256). Guide section 9.
+
+```csharp
+rexx.AddFunction("hypot", (double a, double b) => Math.Sqrt(a * a + b * b));
+rexx.AddFunction("greet", (string who, string greeting = "Hello") => $"{greeting}, {who}!");
+rexx.AddFunction("info", call => $"{call.Name} {call.Arguments.Count} {call["X"]}");
+rexx.AddValueSelector("APP", name => settings[name], (name, value) => settings[name] = value);
+```
+
+- **Through system exits, always set.** RXOFNC (object-valued external
+  functions) and RXVALUE, given as `DirectExits` to `RexxCreateInterpreter`:
+  an exit cannot be added to a running instance, so every instance
+  `Create` makes has both, whether or not functions are added. Costless for
+  the rest: ooRexx asks RXOFNC only for a call that is no internal routine,
+  built-in function or `::ROUTINE` of the program
+  (`RexxActivation::externalCall`: the functions directory, the program's
+  routines, then the exits, then external libraries and files, then
+  RXEXF), and RXVALUE only for a selector that is not its own. An unknown
+  name answers "not handled", and ooRexx goes on as without the exit (43.1,
+  40.914 unchanged: tested). One fixed native entry (`Exits.Entry`,
+  `[UnmanagedCallersOnly]`) for both and every instance, which finds the
+  instance by its pointer, as commands do. An instance ooRexx made (guest
+  mode) has no such exits: `AddFunction` there is an
+  `InvalidOperationException` saying why.
+- **Precedence**, Rexx's: the program's own routines and the built-in
+  functions win (an application `length` is never called: tested);
+  external functions of the same name (a library's, a `.rex` file) are
+  hidden by the application's. RXOFNC rather than RXFNC: arguments and
+  result as objects (a .NET object goes and comes as itself), and no
+  RXSTRING buffers. RXEXF (asked last, after the file search) would let
+  files win over the application, which is not what an application that
+  names a function wants.
+- **The handler**: `Func<RexxFunctionCall, object?>`, `Action<...>` (no
+  result), or **any delegate** (`AddFunction(string, Delegate)`: a typed
+  lambda or a method group), whose parameters get the arguments converted
+  by `RexxConvert` (Rexx's rules: `"4"` for a `double`); a parameter with a
+  default value may be left out (or omitted: `f(1, , 3)`), a `params` array
+  takes the rest, a parameter of type `RexxFunctionCall` gets the call. A
+  lambda with untyped parameters (`call => ...`) is the first overload (it
+  has no natural type), a typed one or a method the third: no ambiguity.
+  `RexxFunctionCall`: `Name` (uppercased, unless the Rexx code wrote a
+  literal: `'myFunc'()`), `Arguments` (from 0: a `RexxString`, a
+  `RexxObject`, a `.NetObject`'s .NET object, null for `.nil`,
+  `RexxValue.Omitted`), `Arg<T>(i, fallback)`, `IsSubroutine` (CALL), and
+  the caller's variables: `RexxCommand`'s members, now in a common base
+  class, `RexxCallContext`. Valid only while the handler runs. Names are not
+  case-sensitive; adding one again replaces it; no removal.
+- **Results**: converted as any .NET value going to Rexx (null `.nil`, a
+  .NET object a `.NetObject`); a void handler has none: fine for `CALL`
+  (`RESULT` dropped), Rexx's own 44.1 as a function.
+- **Errors**, raised as a command handler raises conditions (recorded on
+  the thread context, raised when the exit returns: never an unwinding
+  API, "Phase B: built" item 4): a .NET exception is **SYNTAX 40.900**
+  ("Incorrect call to routine") with its message; too few, too many or a
+  required argument omitted, for a typed delegate, are 40.3, 40.4, 40.5
+  (Rexx's own messages, with the function's name); an argument that does
+  not convert, 40.900 naming it ("HYPOT, argument 1: "a" is not a Rexx
+  number"); a `RexxException` out of Rexx code the handler called is
+  raised again as itself. Why 40 and not 98.900 (guest-mode calls) nor
+  FAILURE (commands): a function is a routine call, and 40 is Rexx's
+  "incorrect call to routine".
+- **VALUE selectors**: `AddValueSelector(selector, get, set = null)`.
+  `VALUE(name, , sel)` is `get(name)`; `VALUE(name, new, sel)` is
+  `get(name)` (what VALUE answers) then `set(name, new)`; no `set`: 40.900.
+  The name as the Rexx code gave it (not uppercased: the application
+  decides). Selectors not case-sensitive; ooRexx's own (`ENVIRONMENT`)
+  win.
+- **Threads**: the handler runs on the Rexx thread, with the exit context's
+  thread context pushed as the thread's current one (calls into Rexx from
+  it are nested, as in a command handler); 4 threads × 50 calls tested.
+- **Measured** (warm, .NET 10, this container): an application function
+  ~2.5 µs a call inside a Rexx loop (a typed one with two arguments,
+  through `DynamicInvoke`, ~2.75); a `::ROUTINE` doing the same, 0.4.

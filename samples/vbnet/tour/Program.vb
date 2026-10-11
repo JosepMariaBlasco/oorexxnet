@@ -13,7 +13,8 @@ Module Program
             ("sendmessage", AddressOf SendMessages.Run), ' 03-SendMessage.vb
             ("address", AddressOf AddressEnv.Run),       ' 04-Address.vb
             ("output", AddressOf Output.Run),            ' 05-Output.vb
-            ("netobjects", AddressOf NetObjects.Run)     ' 06-NetObjects.vb
+            ("netobjects", AddressOf NetObjects.Run),    ' 06-NetObjects.vb
+            ("functions", AddressOf AppFunctions.Run)    ' 07-Functions.vb
         }
         Dim unknown = args.Where(Function(a) Not topics.Any(Function(t) String.Equals(t.Name, a, StringComparison.OrdinalIgnoreCase))).ToList()
         If unknown.Count > 0 Then

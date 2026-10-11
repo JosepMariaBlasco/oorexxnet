@@ -117,6 +117,16 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             if (options?.ExternalCallPath != null) Add("ExternalCallPath", options.ExternalCallPath);
             if (options?.ExternalCallExtensions != null) Add("ExternalCallPathExt", options.ExternalCallExtensions);
             if (options != null) foreach (var l in options.LoadLibraries) Add("LoadRequiredLibrary", l);
+            // The exits behind AddFunction and AddValueSelector: always, since
+            // they can only be set now (RexxContextExit { handler; int code }: 16 bytes)
+            nint exits = Marshal.AllocCoTaskMem(3 * 16);
+            strings.Add(exits);
+            new Span<byte>((void*)exits, 3 * 16).Clear();
+            ((nint*)exits)[0] = Exits.Address; ((int*)exits)[2] = Exits.RXOFNC;
+            ((nint*)exits)[2] = Exits.Address; ((int*)exits)[6] = Exits.RXVALUE;
+            nint de = Marshal.StringToCoTaskMemUTF8("DirectExits");
+            strings.Add(de);
+            opts.Add(new RexxOptionData { name = de, value = exits, type = Native.REXX_VALUE_POINTER });
             opts.Add(default);                                   // the end: a null name
             var arr = opts.ToArray();
             nint ip, cp;

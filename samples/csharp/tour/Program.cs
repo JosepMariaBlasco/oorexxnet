@@ -13,6 +13,7 @@ var topics = new (string Name, Action<RexxInterpreter> Run)[]
     ("address",     Address.Run),          // 04-Address.cs
     ("output",      Output.Run),           // 05-Output.cs
     ("netobjects",  NetObjects.Run),       // 06-NetObjects.cs
+    ("functions",   Functions.Run),        // 07-Functions.cs
 };
 var unknown = args.Where(a => !topics.Any(t => t.Name.Equals(a, StringComparison.OrdinalIgnoreCase))).ToList();
 if (unknown.Count > 0)

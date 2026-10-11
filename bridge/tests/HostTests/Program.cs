@@ -248,6 +248,8 @@ static partial class Program
         PhaseC();
         // phase D: .net from the start (PhaseD.cs)
         PhaseD(rexx);
+        // functions and VALUE selectors of the application (Functions.cs), on an instance of their own
+        Functions();
 
         rexx.Dispose();
         Throws<ObjectDisposedException>("disposed interpreter", () => rexx.Run("return 1"));

@@ -697,6 +697,48 @@ no C# name (`"[]="`, `"||"`). In VB.NET, a Rexx object as `Object` with
 `[New]` there). `samples/csharp/tour` and `samples/vbnet/tour` show it all,
 topic by topic.
 
+**Functions and values of the application.** `rexx.AddFunction(name,
+handler)` gives the Rexx code a function (`name(args)`, `CALL name args`),
+called on the Rexx thread as a command handler is. The handler gets a
+`RexxFunctionCall` (`Name`, `Arguments`, `Arg<T>(i)`, `IsSubroutine`, the
+caller's variables as `RexxCommand` has them), or is any delegate or method,
+whose parameters get the arguments converted by Rexx's rules (a default
+value may be left out, a `params` array takes the rest). A .NET exception is
+Rexx's error 40.900, with its message; wrong argument counts are 40.3 / 40.4.
+The program's own routines and Rexx's built-in functions win; external ones
+of the same name are hidden. `rexx.AddValueSelector(selector, get, set)`
+answers `VALUE(name, , selector)` (and sets with `VALUE(name, new,
+selector)`). Both need an instance made by `RexxInterpreter.Create`.
+
+```csharp
+using System;
+using System.Collections.Generic;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.AddFunction("hypot", (double a, double b) => Math.Sqrt(a * a + b * b));
+rexx.AddFunction("greet", (string who, string greeting = "Hello") => $"{greeting}, {who}!");
+rexx.AddFunction("vars", call => $"{call.Name} sees x = {call["X"]}");
+var settings = new Dictionary<string, object?> { ["COLOR"] = "blue" };
+rexx.AddValueSelector("APP", name => settings.GetValueOrDefault(name.ToUpperInvariant()),
+                             (name, value) => settings[name.ToUpperInvariant()] = value);
+
+Console.WriteLine(rexx.Run("return hypot(3, 4)"));
+Console.WriteLine(rexx.Run("return greet('Rony') greet('JM', 'Hola')"));
+Console.WriteLine(rexx.Run("x = 42; return vars()"));
+Console.WriteLine(rexx.Run("old = value('color', 'red', 'APP'); return old value('color', , 'APP')"));
+Console.WriteLine(rexx.Run("signal on syntax; return hypot(1)\n" +
+                           "syntax: return condition('O')~code"));
+```
+
+```text
+5
+Hello, Rony! Hola, JM!
+VARS sees x = 42
+blue red
+40.3
+```
+
 **Both ways in one process.** .NET objects passed to Rexx are `.NetObject`s
 (`net.cls` is loaded on first need), and Rexx code can use `.net` as in a Rexx
 program; they come back to .NET as themselves. .NET code called from Rexx

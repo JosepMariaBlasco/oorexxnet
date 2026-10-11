@@ -24,46 +24,35 @@ using System.Runtime.InteropServices;
 
 namespace Rexx.Net;
 
-/// A command sent to an ADDRESS environment of the application. Valid only
-/// while its handler runs.
-public sealed class RexxCommand
+/// What a command handler or an application function gets (RexxCommand,
+/// RexxFunctionCall): the instance and the calling Rexx code's variables.
+/// Valid only while its handler runs.
+public abstract class RexxCallContext
 {
     readonly ExitCtx x;
-    readonly Redirector io;
     bool live = true;
 
-    internal RexxCommand(RexxInterpreter rexx, ExitCtx x, Redirector io, string address, string command)
-    {
-        Interpreter = rexx; this.x = x; this.io = io; Address = address; Command = command;
-    }
+    private protected RexxCallContext(RexxInterpreter rexx, ExitCtx x) { Interpreter = rexx; this.x = x; }
 
-    /// The instance whose Rexx code sent the command.
+    /// The instance whose Rexx code made the call.
     public RexxInterpreter Interpreter { get; }
-    /// The environment as the Rexx code named it ("APP", or "app" from ADDRESS 'app').
-    public string Address { get; }
-    /// The command string.
-    public string Command { get; }
-
-    public override string ToString() => Command;
-    /// The command string, so that a handler taking a string can be given the command.
-    public static implicit operator string(RexxCommand c) => c.Command;
 
     internal void End() => live = false;
 
-    Ctx C
+    private protected Ctx C
     {
         get
         {
-            if (!live) throw new InvalidOperationException("a RexxCommand is valid only while its handler runs");
+            if (!live) throw new InvalidOperationException($"a {GetType().Name} is valid only while its handler runs");
             return x.Thread;
         }
     }
 
     // ------------------------------------------------------------ variables
 
-    /// A variable of the Rexx code that sent the command (null if it has no
-    /// value, or is .nil). Names as Rexx writes them, uppercased: "X", "STEM.",
-    /// "STEM.1". Setting null drops nothing: it sets .nil (Drop drops).
+    /// A variable of the calling Rexx code (null if it has no value, or is
+    /// .nil). Names as Rexx writes them, uppercased: "X", "STEM.", "STEM.1".
+    /// Setting null drops nothing: it sets .nil (Drop drops).
     public object? this[string name]
     {
         get
@@ -94,7 +83,7 @@ public sealed class RexxCommand
     /// Drops the variable (DROP).
     public void Drop(string name) { _ = C; x.DropVariable(name.ToUpperInvariant()); }
 
-    /// Every variable of the Rexx code that sent the command, by name (a copy).
+    /// Every variable of the calling Rexx code, by name (a copy).
     public IReadOnlyDictionary<string, object?> Variables
     {
         get
@@ -104,6 +93,27 @@ public sealed class RexxCommand
             return all.Supplier().ToDictionary(p => p.Key?.ToString() ?? "", p => p.Value);
         }
     }
+}
+
+/// A command sent to an ADDRESS environment of the application. Valid only
+/// while its handler runs.
+public sealed class RexxCommand : RexxCallContext
+{
+    readonly Redirector io;
+
+    internal RexxCommand(RexxInterpreter rexx, ExitCtx x, Redirector io, string address, string command) : base(rexx, x)
+    {
+        this.io = io; Address = address; Command = command;
+    }
+
+    /// The environment as the Rexx code named it ("APP", or "app" from ADDRESS 'app').
+    public string Address { get; }
+    /// The command string.
+    public string Command { get; }
+
+    public override string ToString() => Command;
+    /// The command string, so that a handler taking a string can be given the command.
+    public static implicit operator string(RexxCommand c) => c.Command;
 
     // ---------------------------------------------------------- redirection
 

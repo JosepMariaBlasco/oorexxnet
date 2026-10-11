@@ -58,8 +58,9 @@ ooRexx's licence, the CPL). `check-samples.rex` runs the AOO ones with
   one file per topic: running Rexx code and its results, Rexx objects
   (`dynamic` / late binding, `Send`, collections), messages by name as in
   BSF4ooRexx (`SendMessage`, `SendMessage0..5`, `SendMessageScope`), an
-  `ADDRESS` environment, Rexx's standard streams, and .NET objects and
-  delegates used by the Rexx code. `dotnet run` (every topic) or
+  `ADDRESS` environment, Rexx's standard streams, .NET objects and
+  delegates used by the Rexx code, and functions and `VALUE` selectors of
+  the application. `dotnet run` (every topic) or
   `dotnet run -- sendmessage` (one); the bridge from a build
   (`-p:RexxNetDir=DIR`, else `$REXXNET_BUILD/rexxnet` or `~/build/rexxnet`)
   or else from NuGet.
