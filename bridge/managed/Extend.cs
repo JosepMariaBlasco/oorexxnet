@@ -11,7 +11,9 @@
 // object is the peer and whose message is NET.OVERRIDE, which forwards to the
 // method). An abstract member with no Rexx method throws
 // NotImplementedException. A virtual member whose peer is gone (.net~detach)
-// runs the base implementation again.
+// runs the base implementation again. A generic method's override is
+// generic too (the base's type parameters and constraints); the Rexx method
+// gets its type arguments after its arguments, as NetTypes.
 //
 // The peer of an instance is set before its constructor runs (the object is
 // made uninitialized, the peer registered, then the constructor invoked on
@@ -53,7 +55,8 @@ public static class Extend
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static readonly object NoPeer = new();
 
-    sealed record Slot(string Name, Type Ret, string What);
+    // Def: a generic method's definition (its result's type known only with the type arguments)
+    sealed record Slot(string Name, Type Ret, string What, MethodInfo? Def = null);
 
     sealed class Info
     {
@@ -90,6 +93,21 @@ public static class Extend
         all[0] = s.Name;
         Array.Copy(args, 0, all, 1, args.Length);
         return Callbacks.Call(h, all, s.Ret, s.What);
+    }
+
+    /// The body of an override of a generic method: its type arguments go to
+    /// the Rexx method after its arguments, as NetTypes. Public for the emitted code only.
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static object? DispatchGeneric(object self, int slot, object?[] args, Type[] targs)
+    {
+        if (!peers.TryGetValue(self, out var h) || h.Released || !Callbacks.Started) return NoPeer;
+        Slot s;
+        lock (gate) s = slots[slot];
+        var all = new object?[args.Length + targs.Length + 1];
+        all[0] = s.Name;
+        Array.Copy(args, 0, all, 1, args.Length);
+        for (int i = 0; i < targs.Length; i++) all[args.Length + 1 + i] = StaticOf.For(targs[i]);
+        return Callbacks.Call(h, all, s.Def!.MakeGenericMethod(targs).ReturnType, s.What);
     }
 
     // ------------------------------------------------------------ the type
@@ -157,27 +175,24 @@ public static class Extend
                 var rn = RexxName(m);
                 bool mine = rn != null && rexxNames.Contains(rn);
                 if (!mine && !m.IsAbstract) continue;
-                var ps = m.GetParameters().Select(p => p.ParameterType).ToArray();
-                bool ok = !ps.Any(UnsupportedParameter) && !Unsupported(m.ReturnType);
+                bool ok = Supported(m);
                 var attrs = (m.IsPublic ? MethodAttributes.Public : MethodAttributes.Family) |
                             MethodAttributes.Virtual | MethodAttributes.HideBySig | MethodAttributes.ReuseSlot;
                 if (m.IsSpecialName) attrs |= MethodAttributes.SpecialName;
-                var mb = tb.DefineMethod(m.Name, attrs, m.ReturnType, ps);
+                var sig = DefineLike(tb, m.Name, attrs, m);
                 string what = $"{rexxClass}~{rn ?? m.Name} ({Types.Display(baseType)}.{m.Name})";
-                MethodInfo? baseCall = m.IsAbstract ? null : m;
                 if (mine && ok)
                 {
-                    Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), m.GetParameters(), m.ReturnType, baseCall,
-                         $"{Types.Display(baseType)}.{m.Name}: no Rexx peer to call");
-                    if (baseCall != null)
+                    Body(sig, m, NewSlot(rn!, m, what), !m.IsAbstract, $"{Types.Display(baseType)}.{m.Name}: no Rexx peer to call");
+                    if (!m.IsAbstract)
                     {
-                        var tr = Trampoline(tb, m, ps);
+                        var tr = Trampoline(tb, m);
                         if (!info.Bases.TryGetValue(rn!, out var list)) info.Bases[rn!] = list = new();
                         list.Add(tr);
                     }
                 }
-                else Throw(mb.GetILGenerator(), mine
-                    ? $"{what}: pointer, span or generic parameters, or a result by reference, are not supported"
+                else Throw(sig.Builder.GetILGenerator(), mine
+                    ? $"{what}: pointer or span parameters, or a result by reference, are not supported"
                     : $"{rexxClass} does not define {rn ?? m.Name}, which the abstract {Types.Display(baseType)}.{m.Name} needs");
             }
 
@@ -217,18 +232,16 @@ public static class Extend
                     bool evt = m.IsSpecialName && (m.Name.StartsWith("add_") || m.Name.StartsWith("remove_"));
                     bool mine = rn != null && rexxNames.Contains(rn) && !evt;
                     if (!mine && !m.IsAbstract) continue;           // a default implementation: kept
-                    var ps = m.GetParameters().Select(p => p.ParameterType).ToArray();
-                    bool ok = !ps.Any(UnsupportedParameter) && !Unsupported(m.ReturnType);
-                    var mb = tb.DefineMethod(i.FullName + "." + m.Name,
+                    bool ok = Supported(m);
+                    var sig = DefineLike(tb, i.FullName + "." + m.Name,
                         MethodAttributes.Private | MethodAttributes.Virtual | MethodAttributes.Final |
-                        MethodAttributes.HideBySig | MethodAttributes.NewSlot, m.ReturnType, ps);
-                    tb.DefineMethodOverride(mb, m);
+                        MethodAttributes.HideBySig | MethodAttributes.NewSlot, m);
+                    tb.DefineMethodOverride(sig.Builder, m);
                     string what = $"{rexxClass}~{rn ?? m.Name} ({Types.Display(i)}.{m.Name})";
                     if (mine && ok)
-                        Body(mb.GetILGenerator(), NewSlot(rn!, m.ReturnType, what), m.GetParameters(), m.ReturnType, null,
-                             $"{Types.Display(i)}.{m.Name}: no Rexx peer to call");
-                    else Throw(mb.GetILGenerator(), evt ? $"{Types.Display(i)}.{m.Name}: this event's accessors are not supported"
-                        : mine ? $"{what}: pointer, span or generic parameters, or a result by reference, are not supported"
+                        Body(sig, m, NewSlot(rn!, m, what), false, $"{Types.Display(i)}.{m.Name}: no Rexx peer to call");
+                    else Throw(sig.Builder.GetILGenerator(), evt ? $"{Types.Display(i)}.{m.Name}: this event's accessors are not supported"
+                        : mine ? $"{what}: pointer or span parameters, or a result by reference, are not supported"
                         : $"{rexxClass} does not define {rn ?? m.Name}, which {Types.Display(i)} needs");
                 }
 
@@ -252,24 +265,85 @@ public static class Extend
 
     static string Clean(string s) => new string(s.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
 
-    static bool Unsupported(Type t) => t.IsByRef || t.IsPointer || t.IsByRefLike || t.IsGenericParameter;
+    // A generic method's own type parameters are fine, unless one may be a
+    // ref struct ("allows ref struct", .NET 9: it could not be boxed for Rexx).
+    const GenericParameterAttributes AllowByRefLike = (GenericParameterAttributes)0x20;
 
-    // A parameter: by reference too (ref / out: a ComRef for the Rexx method), but no pointer, span or generic parameter
+    static bool Unsupported(Type t) => t.IsByRef || t.IsPointer || t.IsByRefLike ||
+        (t.IsGenericParameter && t.DeclaringMethod == null);
+
+    // A parameter: by reference too (ref / out: a ComRef for the Rexx method), but no pointer or span
     static bool UnsupportedParameter(Type t) => t.IsByRef ? Unsupported(t.GetElementType()!) : Unsupported(t);
 
-    static int NewSlot(string name, Type ret, string what)
+    static bool Supported(MethodInfo m) =>
+        !m.GetParameters().Any(p => UnsupportedParameter(p.ParameterType)) && !Unsupported(m.ReturnType) &&
+        !(m.IsGenericMethodDefinition && m.GetGenericArguments().Any(g => (g.GenericParameterAttributes & AllowByRefLike) != 0));
+
+    static int NewSlot(string name, MethodInfo m, string what)
     {
-        slots.Add(new Slot(name, ret, what));
+        slots.Add(new Slot(name, m.ReturnType, what, m.IsGenericMethodDefinition ? m : null));
         return slots.Count - 1;
     }
 
+    // A method of the new type with m's signature: for a generic method, its
+    // own type parameters (same names, same constraints) and the signature
+    // in terms of them.
+    sealed record Signature(MethodBuilder Builder, Type[] Params, Type Ret, Type[] TypeParams);
+
+    static Signature DefineLike(TypeBuilder tb, string name, MethodAttributes attrs, MethodInfo m)
+    {
+        var mb = tb.DefineMethod(name, attrs, CallingConventions.HasThis);
+        Type[] gps = Type.EmptyTypes;
+        if (m.IsGenericMethodDefinition)
+        {
+            var orig = m.GetGenericArguments();
+            var made = mb.DefineGenericParameters(orig.Select(g => g.Name).ToArray());
+            gps = made;
+            for (int i = 0; i < orig.Length; i++)
+            {
+                made[i].SetGenericParameterAttributes(orig[i].GenericParameterAttributes);
+                var cs = orig[i].GetGenericParameterConstraints().Select(c => Map(c, gps)).ToList();
+                var cls = cs.FirstOrDefault(c => !c.IsInterface && !c.IsGenericParameter);
+                if (cls != null) made[i].SetBaseTypeConstraint(cls);
+                var others = cs.Where(c => c != cls).ToArray();
+                if (others.Length > 0) made[i].SetInterfaceConstraints(others);
+            }
+        }
+        var ps = m.GetParameters().Select(p => Map(p.ParameterType, gps)).ToArray();
+        var ret = Map(m.ReturnType, gps);
+        mb.SetReturnType(ret);
+        mb.SetParameters(ps);
+        var pars = m.GetParameters();
+        for (int i = 0; i < pars.Length; i++) mb.DefineParameter(i + 1, pars[i].Attributes & (ParameterAttributes.In | ParameterAttributes.Out), pars[i].Name);
+        return new Signature(mb, ps, ret, gps);
+    }
+
+    // t with a generic method's type parameters replaced by gps (by position)
+    static Type Map(Type t, Type[] gps)
+    {
+        if (gps.Length == 0) return t;
+        if (t.IsGenericParameter) return t.DeclaringMethod != null ? gps[t.GenericParameterPosition] : t;
+        if (t.HasElementType)
+        {
+            var e = Map(t.GetElementType()!, gps);
+            return t.IsByRef ? e.MakeByRefType() : t.IsPointer ? e.MakePointerType()
+                 : t.IsSZArray ? e.MakeArrayType() : e.MakeArrayType(t.GetArrayRank());
+        }
+        if (t.IsGenericType && t.ContainsGenericParameters)
+            return t.GetGenericTypeDefinition().MakeGenericType(t.GetGenericArguments().Select(a => Map(a, gps)).ToArray());
+        return t;
+    }
+
+    // Must a value of t (m's own, unmapped) be boxed? A value type, or a type parameter (a no-op for a reference type).
+    static bool Boxed(Type t) => t.IsValueType || t.IsGenericParameter;
+
     // The virtual members a subclass in another assembly can override: the
-    // most derived of each, public or protected, not sealed; no generic
-    // methods, no Finalize, no event accessors.
+    // most derived of each, public or protected, not sealed (generic methods
+    // too); no Finalize, no event accessors.
     static IEnumerable<MethodInfo> Virtuals(Type t) =>
         t.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
          .Where(m => m.IsVirtual && !m.IsFinal && (m.IsPublic || m.IsFamily || m.IsFamilyOrAssembly))
-         .Where(m => !m.IsGenericMethodDefinition && !(m.Name == "Finalize" && m.GetParameters().Length == 0))
+         .Where(m => !(m.Name == "Finalize" && m.GetParameters().Length == 0))
          .Where(m => !(m.IsSpecialName && (m.Name.StartsWith("add_") || m.Name.StartsWith("remove_") || m.Name.StartsWith("raise_"))) || m.IsAbstract);
 
     // The Rexx method for a member: its name; a property's getter: the
@@ -293,9 +367,13 @@ public static class Extend
     // return base.M(args...);    or    throw new NotImplementedException(...)
     // A parameter by reference goes as a ComRef holding its value (an out
     // parameter's: none); what the Rexx method leaves in its Value goes back.
-    static void Body(ILGenerator il, int slot, ParameterInfo[] pars, Type ret, MethodInfo? baseCall, string noPeerMessage)
+    // A generic method's override passes its type arguments (typeof(T)...) to DispatchGeneric.
+    static void Body(Signature sig, MethodInfo m, int slot, bool callBase, string noPeerMessage)
     {
-        var ps = pars.Select(p => p.ParameterType).ToArray();
+        var il = sig.Builder.GetILGenerator();
+        var pars = m.GetParameters();
+        var ps = sig.Params;
+        var ret = sig.Ret;
         var r = il.DeclareLocal(typeof(object));
         var refs = new LocalBuilder?[ps.Length];
         for (int i = 0; i < ps.Length; i++)
@@ -308,7 +386,7 @@ public static class Extend
             {
                 il.Emit(OpCodes.Ldarg, (short)(i + 1));
                 il.Emit(OpCodes.Ldobj, et);
-                if (et.IsValueType) il.Emit(OpCodes.Box, et);
+                if (Boxed(pars[i].ParameterType.GetElementType()!)) il.Emit(OpCodes.Box, et);
             }
             il.Emit(OpCodes.Call, newRef);
             il.Emit(OpCodes.Stloc, refs[i]!);
@@ -326,11 +404,25 @@ public static class Extend
             else
             {
                 il.Emit(OpCodes.Ldarg, (short)(i + 1));
-                if (ps[i].IsValueType) il.Emit(OpCodes.Box, ps[i]);
+                if (Boxed(pars[i].ParameterType)) il.Emit(OpCodes.Box, ps[i]);
             }
             il.Emit(OpCodes.Stelem_Ref);
         }
-        il.Emit(OpCodes.Call, dispatch);
+        if (sig.TypeParams.Length > 0)
+        {
+            il.Emit(OpCodes.Ldc_I4, sig.TypeParams.Length);
+            il.Emit(OpCodes.Newarr, typeof(Type));
+            for (int i = 0; i < sig.TypeParams.Length; i++)
+            {
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Ldc_I4, i);
+                il.Emit(OpCodes.Ldtoken, sig.TypeParams[i]);
+                il.Emit(OpCodes.Call, typeFromHandle);
+                il.Emit(OpCodes.Stelem_Ref);
+            }
+            il.Emit(OpCodes.Call, dispatchGeneric);
+        }
+        else il.Emit(OpCodes.Call, dispatch);
         il.Emit(OpCodes.Stloc, r);
         il.Emit(OpCodes.Ldloc, r);
         il.Emit(OpCodes.Ldsfld, noPeer);
@@ -354,11 +446,11 @@ public static class Extend
         }
         il.Emit(OpCodes.Ret);
         il.MarkLabel(fallback);
-        if (baseCall != null)
+        if (callBase)
         {
             il.Emit(OpCodes.Ldarg_0);
             for (int i = 0; i < ps.Length; i++) il.Emit(OpCodes.Ldarg, (short)(i + 1));
-            il.Emit(OpCodes.Call, baseCall);                // non-virtual: the base's own
+            il.Emit(OpCodes.Call, Instance(m, sig));        // non-virtual: the base's own
             il.Emit(OpCodes.Ret);
         }
         else
@@ -369,6 +461,11 @@ public static class Extend
         }
     }
 
+    // m itself, or, generic, instantiated with sig's type parameters (m<T...>)
+    static MethodInfo Instance(MethodInfo m, Signature sig) =>
+        sig.TypeParams.Length == 0 ? m : m.MakeGenericMethod(sig.TypeParams);
+
+    static readonly MethodInfo dispatchGeneric = typeof(Extend).GetMethod(nameof(DispatchGeneric))!;
     static readonly MethodInfo newRef = typeof(Extend).GetMethod(nameof(NewRef))!;
     static readonly MethodInfo fromRef = typeof(Extend).GetMethod(nameof(FromRef))!;
     static readonly MethodInfo typeFromHandle = typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle))!;
@@ -453,14 +550,14 @@ public static class Extend
 
     // A private method calling the base implementation non-virtually (for
     // base.Name): its name, "<base>" and the member's.
-    static string Trampoline(TypeBuilder tb, MethodInfo m, Type[] ps)
+    static string Trampoline(TypeBuilder tb, MethodInfo m)
     {
         var name = "<base>" + m.Name;
-        var mb = tb.DefineMethod(name, MethodAttributes.Private | MethodAttributes.HideBySig, m.ReturnType, ps);
-        var il = mb.GetILGenerator();
+        var sig = DefineLike(tb, name, MethodAttributes.Private | MethodAttributes.HideBySig, m);
+        var il = sig.Builder.GetILGenerator();
         il.Emit(OpCodes.Ldarg_0);
-        for (int i = 0; i < ps.Length; i++) il.Emit(OpCodes.Ldarg, (short)(i + 1));
-        il.Emit(OpCodes.Call, m);
+        for (int i = 0; i < sig.Params.Length; i++) il.Emit(OpCodes.Ldarg, (short)(i + 1));
+        il.Emit(OpCodes.Call, Instance(m, sig));
         il.Emit(OpCodes.Ret);
         return name;
     }
@@ -549,6 +646,7 @@ public static class Extend
         }
         if (args.Count == 0 && field != null) { Conv.ToRexx(w, field.GetValue(field.IsStatic ? null : o)); return; }
         var methods = ms.OfType<MethodInfo>().Where(m => !m.ContainsGenericParameters)
+                        .Concat(Members.Instantiate(ms.OfType<MethodInfo>().Where(m => m.IsGenericMethodDefinition), args, null))
                         .Concat(ms.OfType<PropertyInfo>().Where(p => p.GetIndexParameters().Length > 0)
                                   .Select(p => p.GetGetMethod(true)).Where(g => g != null && Reachable(g)).Select(g => g!))
                         .ToList();
@@ -577,9 +675,33 @@ public static class Extend
         if (!info.Bases.TryGetValue(name, out var tramps))
             throw new BridgeException($"base.{name}: {info.RexxClass} overrides no {name} with a base implementation");
         var ms = tramps.Distinct().SelectMany(tn => t.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).Where(m => m.Name == tn)).ToList();
-        var (mi, conv) = Members.Choose(ms, args, $"base.{name} of {Types.Display(t.BaseType!)}");
+        string what = $"base.{name} of {Types.Display(t.BaseType!)}";
+        // A generic one: its type arguments after the arguments, as its override got them; or inferred
+        var given = new List<MethodInfo>();
+        int k = 0;
+        foreach (var g in ms.Where(m => m.IsGenericMethodDefinition))
+        {
+            int n = g.GetGenericArguments().Length;
+            if (args.Count < n || !args.Skip(args.Count - n).All(IsType)) continue;
+            if (g.GetParameters().Length != args.Count - n) continue;
+            try { given.Add(g.MakeGenericMethod(args.Skip(args.Count - n).Select(TypeOf).ToArray())); k = n; }
+            catch (ArgumentException) { }                   // constraints
+        }
+        if (given.Count > 0 && given.All(m => m.GetGenericArguments().Length == k))
+        {
+            var plain = args.Take(args.Count - k).ToList();
+            var (gm, gconv) = Members.Choose(given, plain, what);
+            Answer(w, gm.Invoke(o, gconv), gm.ReturnType, plain, gconv);
+            return;
+        }
+        var cands = ms.Where(m => !m.IsGenericMethodDefinition)
+                      .Concat(Members.Instantiate(ms.Where(m => m.IsGenericMethodDefinition), args, null)).ToList();
+        var (mi, conv) = Members.Choose(cands, args, what);
         Answer(w, mi.Invoke(o, conv), mi.ReturnType, args, conv);
     }
+
+    static bool IsType(Rec r) => r.Tag == 'O' && Handles.Get(r.Id) is StaticOf;
+    static Type TypeOf(Rec r) => ((StaticOf)Handles.Get(r.Id)).Type;
 
     // ------------------------------------------------------------- instances
 

@@ -590,8 +590,30 @@ to) is an event of the new type: .NET code and Rexx (`o~PropertyChanged +=
 handler`) subscribe to it, and the object's own methods raise it with
 `self~raise.PropertyChanged(self, args)`. A parameter by reference (`ref`,
 `out`) arrives as a `Rexx.Net.ComRef`, as in COM events: `ref~Value` is its
-value, and `ref~Value = x` gives the caller a new one. Not yet: generic
-methods; methods added to the class after `.net~extend`. On Windows, a `Form` whose
+value, and `ref~Value = x` gives the caller a new one. A generic method's
+Rexx method gets its type arguments after its arguments, as NetTypes (what
+`.net~type` gives), and `self~base.Name(args..., types...)` passes them on:
+
+```rexx
+.net~extend(.Lambdas, "System.Linq.Expressions.ExpressionVisitor")
+E = .net~System~Linq~Expressions~Expression
+lambda = E~Lambda(E~Constant(.net~int32(42)))
+v = .Lambdas~new
+say v~Visit(lambda)~Compile~DynamicInvoke
+::requires "net.cls"
+::class Lambdas subclass NetObject
+::method VisitLambda             -- protected virtual Expression VisitLambda<T>(Expression<T> node)
+  use strict arg node, t
+  say "a lambda:" .net~typeOf(t)
+  return self~base.VisitLambda(node, t)
+```
+
+```text
+a lambda: System.Func<System.Int32>
+42
+```
+
+Not yet: methods added to the class after `.net~extend`. On Windows, a `Form` whose
 `OnPaint`, `OnLoad`... are Rexx methods is `samples/windows/forms-extend.rex`.
 
 ## 9. .NET → ooRexx

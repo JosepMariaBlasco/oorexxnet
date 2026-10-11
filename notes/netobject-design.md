@@ -1149,8 +1149,27 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
 - **Not overridden, and so the base's:** members with no Rexx method.
   **Abstract** members with no method throw `NotImplementedException`
   ("MYCLASS does not define AREA, which the abstract ... needs"). Members
-  with pointer or span parameters and generic methods are not supported
-  yet (an abstract one throws saying so).
+  with pointer or span parameters, or a result by reference, are not
+  supported (an abstract one throws saying so).
+- **Generic methods** (11/10/2026). The override is a generic method with
+  the base's type parameters (names, constraints: the runtime refuses an
+  override with weaker ones) and the signature in terms of them. Its body
+  passes `typeof(T)...` (`ldtoken` of its own type parameters: the
+  instantiation the caller made) to `Extend.DispatchGeneric`, which
+  converts the result to the instantiated return type. **The Rexx method
+  gets the type arguments after the arguments, as NetTypes** (what
+  `.net~type` gives: `t == .net~type("int")`, `t~new`): `T Make<T>(string
+  s)` is `use arg s, t`. Rejected: a per-call query (`.net~typeArguments`),
+  hidden state that would need care with threads and nesting; and
+  passing them first, which would shift every argument. A method that does
+  not need them ignores them (`use arg` without `strict`). `base.Name` takes
+  them the same way, after the arguments (`self~base.Pair(b, a, t)`), or
+  infers them from the arguments as any generic call (only .NET objects
+  say much: a Rexx string infers `String`). Protected generic methods are
+  reached with inference. Type parameters that "allow ref struct" (.NET 9)
+  are not supported (they could not be boxed for Rexx). tests/extend.rex
+  61 (a `Factory` of our own, an interface's two-parameter method,
+  `ExpressionVisitor.VisitLambda<T>`).
 - **Parameters by reference** (`ref`, `out`; 11/10/2026). The override
   passes each as a `Rexx.Net.ComRef` (the class COM events use for the
   same thing) holding its value (an `out` parameter's: none); after the

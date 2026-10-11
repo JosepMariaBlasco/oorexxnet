@@ -53,8 +53,33 @@ public class Parser
     public virtual bool TryParse(string s, out int n) { n = int.TryParse(s, out var v) ? v : -1; return n >= 0; }
 }
 
+/// Generic methods to override: abstract (the result a type parameter),
+/// virtual, constrained, protected, with an out parameter.
+public abstract class Factory
+{
+    public abstract T Make<T>(string text);
+    public virtual List<T> Pair<T>(T a, T b) => new() { a, b };
+    public virtual string Show<T>(T x) where T : IFormattable => "base " + x.ToString(null, System.Globalization.CultureInfo.InvariantCulture);
+    protected virtual T First<T>(T[] xs) => xs[0];
+    public T CallFirst<T>(params T[] xs) => First(xs);
+    public virtual bool TryGet<T>(string key, out T value) { value = default!; return false; }
+}
+
+public interface IConverter
+{
+    TOut Convert<TIn, TOut>(TIn x);
+}
+
 public static class ExtendProbe
 {
+    public static string UseFactory(Factory f) =>
+        $"{f.Make<int>("41") + 1} {f.Make<string>("s")} {f.Make<DateTime>("2026-10-11").Year} {f.Make<List<int>>("x").Count}";
+    public static string Pair(Factory f) => string.Join(",", f.Pair(1, 2)) + " " + string.Join(",", f.Pair("a", "b"));
+    public static string Show(Factory f) => f.Show(1.5) + " / " + f.Show(7);
+    public static string First(Factory f) => f.CallFirst(3, 4) + " " + f.CallFirst("p", "q") + " " + f.CallFirst(5, 6, 7);
+    public static string TryGet(Factory f) => (f.TryGet<int>("n", out var n) ? $"{n}" : "-") + " " + (f.TryGet<string>("s", out var s) ? s : "-");
+    public static string Convert(IConverter c) => c.Convert<int, string>(5) + " " + (c.Convert<string, int>("6") + 1);
+
     public static string Find(IFinder f, string key) => f.TryFind(key, out var v) ? $"found {v}" : $"none {v}";
     public static int Twice(IFinder f, int n) { f.Twice(ref n); return n; }
     public static string Parse(Parser p, string s) => $"{p.TryParse(s, out var n)} {n}";

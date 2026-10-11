@@ -100,6 +100,25 @@ do x over "ccc a bb dddd"~makeArray(" "); l~Add(x); end
 l~Sort(.ByLength~new)
 call ok "IComparer<T> in List.Sort", l~ToArray~makeString("L", " "), "a bb ccc dddd"
 
+-- generic methods: their type arguments after the arguments, as NetTypes
+.net~extend(.MyFactory, "RexxNetTests.Factory")
+f = .MyFactory~new
+call ok "generic abstract, result T",       probe~UseFactory(f), "42 [s:String] 2026 0"
+call ok "generic virtual, base. given",     probe~Pair(f), "2,1 b,a"
+call ok "generic constrained",              probe~Show(f), "Double: base 1.5 / Int32: base 7"
+call ok "generic protected, base. inferred", probe~First(f), "4 q 5"
+call ok "generic out parameter",            probe~TryGet(f), "7 -"
+.net~extend(.Conv, "RexxNetTests.IConverter")
+call ok "generic interface method, two type parameters", probe~Convert(.Conv~new), "System.Int32>System.String:5 7"
+
+-- a framework class's generic method: ExpressionVisitor.VisitLambda<T>(Expression<T>), protected
+.net~extend(.Lambdas, "System.Linq.Expressions.ExpressionVisitor")
+v = .Lambdas~new
+E = .net~System~Linq~Expressions~Expression
+lam = E~Lambda(E~Constant(.net~int32(42)))
+r = v~Visit(lam)
+call ok "ExpressionVisitor.VisitLambda<T>", v~seen (r == lam) r~Compile~DynamicInvoke, "System.Func<System.Int32> 1 42"
+
 -- .net~detach: no more calls into Rexx; virtual members are the base's again
 d = .Square~new(5)
 .net~detach(d)
@@ -315,3 +334,45 @@ syntax:
   if msg~pos(fragment) > 0 then return
   .local~fails += 1
   say "FAIL" name": message ["msg"], want ["fragment"]"
+
+::class MyFactory subclass NetObject
+::method Make                    -- T Make<T>(string text)
+  use strict arg text, t
+  select
+    when t == .net~type("string") then return "["text":".net~typeObject(t)~Name"]"
+    when .net~typeOf(t)~startsWith("System.Collections.Generic.List") then return t~new
+    otherwise return text            -- converted to T: 41 to an int, a date to a DateTime
+  end
+::method Pair                    -- virtual List<T> Pair<T>(T a, T b): base. with the arguments swapped
+  use strict arg a, b, t
+  return self~base.Pair(b, a, t)      -- the type arguments given: "2" alone would infer String
+::method Show                    -- virtual string Show<T>(T x) where T : IFormattable
+  use strict arg x, t
+  return .net~typeObject(t)~Name":" self~base.Show(x, t)
+::method First                   -- protected virtual T First<T>(T[] xs): the last one
+  use strict arg xs, t
+  if xs~items > 2 then return self~base.First(xs)    -- T inferred from the .NET array
+  return xs[xs~items]
+::method TryGet                  -- virtual bool TryGet<T>(string key, out T value)
+  use strict arg key, value, t
+  if t \== .net~type("int") then do
+    r = .net~ref                       -- the base's out parameter: a .NetRef
+    found = self~base.TryGet(key, r, t)
+    value~Value = r~value
+    return found
+  end
+  value~Value = 7
+  return .true
+
+::class Conv subclass NetObject
+::method Convert                 -- TOut Convert<TIn, TOut>(TIn x)
+  use strict arg x, tin, tout
+  if tout == .net~type("string") then return .net~typeOf(tin)">"||.net~typeOf(tout)":"||x
+  return x
+
+::class Lambdas subclass NetObject
+::attribute seen
+::method VisitLambda             -- protected virtual Expression VisitLambda<T>(Expression<T> node)
+  use strict arg node, t
+  self~seen = .net~typeOf(t)
+  return self~base.VisitLambda(node, t)
