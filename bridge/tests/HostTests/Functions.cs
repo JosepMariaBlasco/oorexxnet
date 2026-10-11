@@ -97,7 +97,7 @@ static partial class Program
         rexx.AddValueSelector("RO", n => n.ToUpperInvariant());
         Ok("a read-only selector",       rexx.Run("return value('abc', , 'RO')"), "ABC");
         Ok("... set: 40.900",            rexx.Run("signal on syntax; return value('abc', 1, 'RO')" + Trap), "40.900 VALUE: the selector RO cannot set abc.");
-        Ok("ENVIRONMENT still ooRexx's", rexx.Run("return value('HOME', , 'ENVIRONMENT') \\== ''"), "1");
+        Ok("ENVIRONMENT still ooRexx's", rexx.Run("return value('PATH', , 'ENVIRONMENT') \\== ''"), "1");
         Ok("unknown selector: as before", rexx.Run("signal on syntax; return value('x', , 'NOSUCH')" + Trap)?.ToString()?.Split(' ')[0], "40.914");
 
         rexx.Dispose();
