@@ -1012,9 +1012,9 @@
   timer~Start
 ::method tick
   expose ctl text font step x
-  if ctl~IsDisposed then return self~stop
+  if ctl~IsDisposed then do; self~stop; return; end
   x -= step
-  if x < -.net~System~Windows~Forms~TextRenderer~MeasureText(text, font)~Width then return self~stop
+  if x < -.net~System~Windows~Forms~TextRenderer~MeasureText(text, font)~Width then do; self~stop; return; end
   ctl~Invalidate
 ::method paint
   expose text font y color x

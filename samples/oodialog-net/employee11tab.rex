@@ -68,6 +68,7 @@
   dlg~execute
 
   if .NetDialog~auto then do                             -- (.NET version) what was saved
+    say "(auto) the sheet ended:" dlg~getResult
     db = .AcmeEmployeesDlg~autoDataBase
     if SysFileExists(db) then do
       do l over .stream~new(db)~arrayIn; say "(auto) saved:" l; end
