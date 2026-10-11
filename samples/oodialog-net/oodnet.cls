@@ -65,7 +65,7 @@
   call NetDialogTrace "create: visual styles"
   F~Application~EnableVisualStyles
   call NetDialogTrace "create: exception mode"
-  if self~class~auto then call NetDialogThrow
+  if .NetDialog~auto then call NetDialogThrow
   call NetDialogTrace "create: the form"   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
   form~Font = D~Font~new(fontName, .net~single(fontSize))
@@ -378,7 +378,7 @@
   call NetDialogTrace "execute: initDialog"
   self~initDialog
   call NetDialogTrace "execute: timers"
-  if self~class~auto then do            -- unattended: autoRun soon, and a watchdog
+  if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
     call NetDialogTrace "execute: runner made"
     t = .net~System~Windows~Forms~Timer~new

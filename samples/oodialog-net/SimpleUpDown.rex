@@ -44,16 +44,19 @@
   .NetDialog~auto = arg(1)~strip~caselessEquals("auto")   -- (.NET version) unattended
   dlg = .SimpleDialog~new
   dlg~execute("SHOWTOP")
-  say "Value:" dlg~value                                    -- (.NET version)
+  if dlg~value == .nil then say "Cancelled"                -- (.NET version)
+  else say "Value:" dlg~value
 return 0
 
 ::requires "oodnet.cls"
 
 ::class 'SimpleDialog' subclass NetDialog
-::attribute value
+::attribute value                      -- (.NET version) the value, on OK
+
 
 ::method init
   forward class (super) continue
+  self~value = .nil
   self~create(30, 30, 147, 69, "Simple UpDown Control", , "CENTER")
 
 ::method defineDialog
