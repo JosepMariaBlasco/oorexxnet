@@ -63,10 +63,19 @@
    delivers the events while it does;
  - with the argument "auto" nothing waits for the user (for unattended runs);
  - .net~releaseObject where the program ends with the application, and
-   ::requires "net.cls" at the end.
+   ::routine running                    -- (.NET version) is an instance of the class running already?
+  signal on syntax
+  o = .net~getActiveObject(arg(1))
+  return .true
+syntax:
+  return .false
+
+::requires "net.cls" at the end.
 */
 
  auto = arg(1)~strip~caselessEquals("auto")         -- (.NET version) unattended: monitor a few seconds
+ started = \running("Outlook.Application")          -- (.NET version)
+ if auto then signal on syntax name autoEnd
  outLook = .net~createObject("Outlook.Application")
 
  inboxID = .net~getConstant(outLook, "olFolderInBox")
@@ -106,7 +115,12 @@
     -- End select
     end
     say 'ooRexx Mail Monitor version 1.0.0 ended'
-
+autoEnd:                                             -- (.NET version) unattended: an Outlook that this
+  if auto & started & var("OUTLOOK") then outLook~Quit  -- program started ends (the user's stays), on errors too
+  if condition("C") == "SYNTAX" then do
+    say "Error" condition("O")~code":" condition("O")~message
+    exit -98
+  end
 return 0
 
 ::method printNewMail unguarded

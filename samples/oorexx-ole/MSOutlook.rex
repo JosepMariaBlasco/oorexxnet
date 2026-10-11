@@ -56,6 +56,8 @@
 */
 
   auto = arg(1)~strip~caselessEquals("auto")         -- (.NET version) unattended: no waiting
+  started = \running("Outlook.Application")          -- (.NET version)
+  if auto then signal on syntax name autoEnd
   Outlook = .net~createObject("Outlook.Application")
   NameSpace = Outlook~GetNamespace("MAPI")
 
@@ -80,5 +82,19 @@
   end
 
 if \auto then Call SysSleep 10
+autoEnd:                                             -- (.NET version) unattended: an Outlook that this
+  if auto & started & var("OUTLOOK") then Outlook~Quit  -- program started ends (the user's stays), on errors too
+  if condition("C") == "SYNTAX" then do
+    say "Error" condition("O")~code":" condition("O")~message
+    exit -98
+  end
+exit 0
+
+::routine running                    -- (.NET version) is an instance of the class running already?
+  signal on syntax
+  o = .net~getActiveObject(arg(1))
+  return .true
+syntax:
+  return .false
 
 ::requires "net.cls"
