@@ -24,6 +24,9 @@ public static class HostLib
     public static string Kind(RexxObject o) => "RexxObject";
     public static string Str(RexxString s) => "[" + s.Value + "]";
     public static bool SameAsHost() => RexxInterpreter.Current == Host && Host != null;
+    // Two instances' handlers (TwoInstances): each called from .NET with no Rexx code waiting
+    public static readonly Func<string>?[] Kept = new Func<string>?[2];
+    public static void Keep(int slot, Func<string> f) => Kept[slot] = f;
     public static int Nested() => RexxInterpreter.Current!.Run<int>("return 6 * 7");
     public static RexxObject? CallBack(RexxObject o, string message) => o.Send(message);
     public static string Withdraw(RexxObject account, int n) => account.Send<string>("WITHDRAW", n);
@@ -64,6 +67,7 @@ static partial class Program
         var costs = new System.Threading.Thread(() => { using (rexx.Enter()) BothWaysCosts(rexx); });
         costs.Start(); costs.Join();
         rexx.Dispose();
+        TwoInstances();
     }
 
     // .NET objects to Rexx (.NetObject, by reference) and back (themselves)
@@ -195,5 +199,30 @@ static partial class Program
                           $"Rexx object to a .NET method and back {c1:F1} -> {c2:F1} µs; handles {Handles.Count}");
         Ok("C: no growth, .NET objects",    p2 < 4 * p1 + 5, true);
         Ok("C: no growth, Rexx objects",    c2 < 4 * c1 + 5, true);
+    }
+
+    // A .NetHandler calls back into the instance that made it, not the first
+    // one that used .NET (Phase C, item 8): two instances, each with its own
+    // .local~who, their handlers called from .NET threads with no Rexx caller.
+    static void TwoInstances()
+    {
+        using var a = RexxInterpreter.Create();
+        var b = RexxInterpreter.Create();
+        const string Make = "use arg slot, who; .local~who = who\n" +
+                            ".net~type('HostLib')~Keep(slot, .net~handler(.Who~new, 'WHO'))\n" +
+                            "::requires 'net.cls'\n::class Who\n::method who; return .local~who .context~interpreter";
+        a.Run(Make, 0, "A");
+        b.Run(Make, 1, "B");
+        string Both() => HostLib.Kept[0]!().Split(' ')[0] + " " + HostLib.Kept[1]!().Split(' ')[0];
+        string seen = "";
+        var t = new System.Threading.Thread(() => seen = Both());
+        t.Start(); t.Join();
+        Ok("C: two instances' handlers, another thread", seen, "A B");
+        Ok("C: ... and this thread, outside Rexx", Both(), "A B");
+        Ok("C: ... from inside the other instance's Rexx code",
+           a.Run("return .net~type('HostLib')~Kept[2]~Invoke~word(1)"), "B");  // .NET arrays from 1
+        Ok("C: ... each in its own instance", HostLib.Kept[0]!().Split(' ')[1] != HostLib.Kept[1]!().Split(' ')[1], true);
+        b.Dispose();
+        HostLib.Kept[0] = HostLib.Kept[1] = null;
     }
 }

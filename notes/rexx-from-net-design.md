@@ -783,8 +783,11 @@ request and the proxy. Since 09/10/2026 `net.cls` remembers them: ~2 µs; see
 **Not done (later, if wanted):** Arrays to a `RexxObject` parameter as
 themselves; Directory → `Dictionary` (StringTable and Directory →
 `Dictionary`: built, see below); the NativeAOT / custom-host
-registration (see "One process, both ways"); a test with two instances whose
-handlers call back (item 8 is a correctness fix without its own test).
+registration (see "One process, both ways"). (Item 8's test, added
+11/10/2026: two instances, each with its own `.local~who`, whose handlers
+.NET calls from a thread of its own, from a thread outside Rexx, and from
+inside the other instance's Rexx code: each answers from its own instance.
+HostTests 260.)
 
 ## StringTable → `Dictionary`: built (09/10/2026)
 
