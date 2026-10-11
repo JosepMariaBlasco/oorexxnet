@@ -127,7 +127,10 @@
   v = style~wordPos("VSCROLL") > 0; h = style~wordPos("HSCROLL") > 0
   if v & h then c~ScrollBars = "Both"; else if v then c~ScrollBars = "Vertical"; else if h then c~ScrollBars = "Horizontal"
   if h then c~WordWrap = .false
-  if style~wordPos("READONLY") > 0 then c~ReadOnly = .true
+  if style~wordPos("READONLY") > 0 then do
+    c~ReadOnly = .true
+    c~GotFocus += .net~handler(.NetDialogNoSelect~new, "DESELECT")   -- (Windows Forms selects the text)
+  end
   if style~wordPos("PASSWORD") > 0 then c~UseSystemPasswordChar = .true
   if style~wordPos("RIGHT") > 0 then c~TextAlign = "Right"
   if style~wordPos("CENTER") > 0 then c~TextAlign = "Center"
@@ -137,6 +140,7 @@
   use arg id, x, y, cx, cy, style = "", label = "", methodName
   c = self~place(id, .net~System~Windows~Forms~Button~new, x, y, cx, cy)
   c~Text = label
+  c~Padding = .net~System~Windows~Forms~Padding~new(0)   -- a Win32 button's margins: "ArcCos" in one line
   style = style~upper
   if style~wordPos("DEFAULT") > 0 | id~string~upper == "IDOK" then self~form~AcceptButton = c
   if id~string~upper == "IDCANCEL" then self~form~CancelButton = c
@@ -461,6 +465,11 @@
   expose controls
   use arg id, ctl
   if id \== "" & id \== -1 then controls[id~string~upper] = ctl
+
+::class NetDialogNoSelect              -- (inside) a read-only edit control shows its text unselected
+::method deselect
+  use arg box
+  box~SelectionLength = 0
 
 ::class NetDialogLast                  -- (inside) the control placed last, for AUTOBUDDY
 ::attribute id
