@@ -149,6 +149,7 @@
     when arg(8, "E") then self~connectButtonEvent(id, "CLICKED", methodName)
     when id~string~upper == "IDOK" then self~connectButtonEvent(id, "CLICKED", "OK")
     when id~string~upper == "IDCANCEL" then self~connectButtonEvent(id, "CLICKED", "CANCEL")
+    when id~string~upper == "IDHELP" then self~connectButtonEvent(id, "CLICKED", "HELP")
     otherwise nop
   end
   return 0
@@ -175,8 +176,9 @@
   c = self~place(id, .net~System~Windows~Forms~ListBox~new, x, y, cx, cy)
   style = style~upper
   if style~wordPos("MULTI") > 0 | style~wordPos("EXTSEL") > 0 then c~SelectionMode = "MultiExtended"
-  if style~wordPos("SORT") > 0 then c~Sorted = .true
+  if style~wordPos("SORT") > 0 | style~wordPos("STANDARD") > 0 then c~Sorted = .true   -- (LBS_STANDARD sorts)
   c~IntegralHeight = .false
+  if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createComboBox
   use arg id, x, y, cx, cy, style = "", attributeName
@@ -188,15 +190,16 @@
     otherwise c~DropDownStyle = "DropDown"
   end
   if style~wordPos("SORT") > 0 then c~Sorted = .true
+  if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
-/* An up-down control with AUTOBUDDY joins the edit control before it: Windows
-   Forms has both in one, a NumericUpDown, which takes the edit's place and
-   both ids. */
+/* An up-down control with AUTOBUDDY and SETBUDDYINT joins the edit control
+   before it (a number): Windows Forms has both in one, a NumericUpDown, which
+   takes the edit's place and both ids. */
 ::method createUpDown
   expose last
   use arg id, x, y, cx, cy, style = ""
   F = .net~System~Windows~Forms
-  if style~upper~wordPos("AUTOBUDDY") > 0, var("LAST"), .net~isInstance(last~ctl, "System.Windows.Forms.TextBox") then do
+  if style~upper~wordPos("AUTOBUDDY") > 0, style~upper~wordPos("SETBUDDYINT") > 0, var("LAST"), .net~isInstance(last~ctl, "System.Windows.Forms.TextBox") then do
     old = last~ctl
     c = F~NumericUpDown~new
     c~Location = old~Location
@@ -209,7 +212,11 @@
     self~register(id, c)
     return 0
   end
-  self~place(id, F~NumericUpDown~new, x, y, cx, cy)
+  /* no buddy: Windows Forms has no up-down alone; a small vertical scroll
+     bar, whose arrows give connectUpDownEvent's DELTAPOS (ooDialog's
+     setRange / setPosition: ~Minimum, ~Maximum, ~Value) */
+  c = self~place(id, F~VScrollBar~new, x, y, cx, cy)
+  c~LargeChange = 1
   return 0
 ::method createMonthCalendar
   use arg id, x, y, cx, cy, style = ""
@@ -259,6 +266,14 @@
 ::method control
   expose controls
   use strict arg id
+  if id~dataType("W") then do          -- Windows' numbers for the standard buttons
+    select case id + 0
+      when 1 then id = "IDOK"
+      when 2 then id = "IDCANCEL"
+      when 9 then id = "IDHELP"
+      otherwise nop
+    end
+  end
   c = controls[id~string~upper]
   if c == .nil then raise syntax 93.900 array("this dialog has no control" id)
   return c
@@ -309,6 +324,16 @@
     otherwise e = event
   end
   return self~connectEvent(id, e, methodName)
+/* DELTAPOS: the method gets ooDialog's (position, delta): delta +1 for the up
+   arrow, -1 for the down one (of a NumericUpDown: its ValueChanged, the
+   change); its result is not used */
+::method connectUpDownEvent
+  use arg id, event, methodName
+  c = self~control(id)
+  relay = .NetDialogUpDownRelay~new(self, methodName)
+  if .net~isInstance(c, "System.Windows.Forms.ScrollBar") then c~Scroll += .net~handler(relay, "SCROLL")
+  else c~ValueChanged += .net~handler(relay, "CHANGED")
+  return 0
 ::method connectEditEvent
   use arg id, event, methodName
   select case event~upper
@@ -363,6 +388,50 @@
   if arg(2, "E") then item~Click += .net~handler(self, methodName)
   return item
 
+/* ooDialog's helpers on controls by id */
+::method getControlData                -- a control's value: an edit's text, a check's 1 / 0, a list's selected item
+  use strict arg id
+  return NetDialogValue(self~control(id))
+::method setControlData
+  use strict arg id, value
+  call NetDialogSetValue self~control(id), value
+  return 0
+::method addComboEntry
+  use strict arg id, text
+  return self~control(id)~Items~Add(text) + 1
+::method addListEntry
+  forward message "ADDCOMBOENTRY"
+::method enableItem
+  self~control(arg(1))~Enabled = .true
+  return 0
+::method disableItem
+  self~control(arg(1))~Enabled = .false
+  return 0
+::method createFontEx                  -- createFontEx(name, size [, additional]): a .NET Font (weight >= 600: bold)
+  use arg name, size = 8, additional = .nil
+  style = "Regular"
+  if additional \== .nil then do
+    if additional~hasIndex("WEIGHT"), additional~weight >= 600 then style = "Bold"
+    if additional~hasIndex("ITALIC"), additional~italic == .true then style = style~changeStr("Regular", "") "Italic"
+  end
+  return .net~System~Drawing~Font~new(name, .net~single(size), style~strip~changeStr(" ", ", "))
+::method setControlFont
+  use strict arg id, font
+  self~control(id)~Font = font
+  return 0
+::method setListTabulators             -- setListTabulators(id, tab...): tab stops, in dialog units
+  use arg id
+  c = self~control(id)
+  c~UseCustomTabOffsets = .true
+  do i = 2 to arg(); c~CustomTabOffsets~Add(.net~int32(self~px(arg(i)))); end
+  return 0
+::method getData                       -- (ooDialog copies attributes and controls; here they are one)
+  return 0
+::method setData
+  return 0
+::method help unguarded                -- (to override) the Help button (IDHELP)
+  return 0
+
 ::method setTitle
   self~form~Text = arg(1)
 ::method title
@@ -376,6 +445,7 @@
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
   self~defineDialog
   self~initDialog
+  self~applyData
   if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
     t = .net~System~Windows~Forms~Timer~new
@@ -391,6 +461,7 @@
     say "(auto) showing" form~Text
   end
   r = form~ShowDialog
+  self~snapshot                        -- the data attributes keep their values
   if var("RUNNER") then do
     do t over runner~timers; t~Stop; end
     if runner~failed \== .false then do
@@ -428,23 +499,37 @@
 
 /* data attributes, as ooDialog's: self~name gives the control's value,
    self~name = v sets it (before execute, when the control is created) */
+::method applyData private              -- the data attributes set so far, into their controls
+  expose data pending controls
+  do attr over pending~allIndexes
+    c = controls[data[attr]~string~upper]
+    if c \== .nil then call NetDialogSetValue c, pending[attr]
+  end
+::method snapshot private
+  expose data pending controls closed
+  do attr over data~allIndexes
+    c = controls[data[attr]~string~upper]
+    if c \== .nil then pending[attr] = NetDialogValue(c)
+  end
+  closed = .true
 ::method dataAttribute private
   expose data
   use arg name, id
   data[name~upper] = id
 ::method unknown
-  expose data pending controls
+  expose data pending controls closed
   use arg name, args
   set = name~right(1) == "="
   attr = set~?(name~left(name~length - 1), name)
   id = data[attr]
   if id == .nil then raise syntax 97.1 array(self, name)
   c = controls[id~string~upper]
-  if set then do
-    if c == .nil then pending[attr] = args[1]; else call NetDialogSetValue c, args[1]
+  if set then do                       -- remembered too: applied again after initDialog (as ooDialog's setData),
+    pending[attr] = args[1]            -- when a list has its items
+    if c \== .nil then call NetDialogSetValue c, args[1]
     return
   end
-  if c == .nil then return pending[attr]
+  if c == .nil | var("CLOSED") then return pending[attr]
   return NetDialogValue(c)
 
 /* (inside) a control in place: x, y, cx, cy in dialog units */
@@ -465,6 +550,28 @@
   expose controls
   use arg id, ctl
   if id \== "" & id \== -1 then controls[id~string~upper] = ctl
+
+::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
+::method init
+  expose dialog methodName last
+  use arg dialog, methodName
+  last = .nil
+::method scroll                        -- a scroll bar: its up arrow is SmallDecrement
+  expose dialog methodName
+  use arg bar, e
+  select case e~Type~string
+    when "SmallDecrement" then delta = 1
+    when "SmallIncrement" then delta = -1
+    otherwise return
+  end
+  dialog~send(methodName, bar~Value, delta)
+::method changed                       -- a NumericUpDown: the change
+  expose dialog methodName last
+  use arg box, e
+  v = box~Value
+  if last == .nil then delta = 1; else delta = v - last
+  last = v
+  dialog~send(methodName, v, delta)
 
 ::class NetDialogNoSelect              -- (inside) a read-only edit control shows its text unselected
 ::method deselect
@@ -517,12 +624,15 @@ syntax:
 ::routine NetDialogValue               -- a control's value: a check's 1/0, else its text
   use arg c
   if .net~isInstance(c, "System.Windows.Forms.CheckBox") | .net~isInstance(c, "System.Windows.Forms.RadioButton") then return c~Checked
-  if .net~isInstance(c, "System.Windows.Forms.NumericUpDown") then return c~Value
+  if .net~isInstance(c, "System.Windows.Forms.NumericUpDown") | .net~isInstance(c, "System.Windows.Forms.ScrollBar") then return c~Value
+  if .net~isInstance(c, "System.Windows.Forms.ListBox") then return (c~SelectedItem == .nil)~?("", c~SelectedItem)
   return c~Text
 ::routine NetDialogSetValue
   use arg c, v
   if .net~isInstance(c, "System.Windows.Forms.CheckBox") | .net~isInstance(c, "System.Windows.Forms.RadioButton") then c~Checked = (v = 1)
-  else if .net~isInstance(c, "System.Windows.Forms.NumericUpDown") then c~Value = v
+  else if .net~isInstance(c, "System.Windows.Forms.NumericUpDown") | .net~isInstance(c, "System.Windows.Forms.ScrollBar") then c~Value = v
+  else if .net~isInstance(c, "System.Windows.Forms.ListBox") then c~SelectedItem = v
+  else if .net~isInstance(c, "System.Windows.Forms.ComboBox"), c~DropDownStyle~string == "DropDownList" then c~SelectedItem = v
   else c~Text = v
 
 /* ------------------------------------------------------- public routines */

@@ -85,16 +85,20 @@ expose el b1 b2 copyItem watch ticker
   copyItem = self~menuItem("&Copy", "Copy2CB")
   copyItem~Enabled = .false             /* GRAYED                            */
   edit~DropDownItems~Add(copyItem)
+  menuBar~Items~Add(edit)               /* the original's order: Edit, File   */
   menuBar~Items~Add(file)
-  menuBar~Items~Add(edit)
   self~attachMenu(menuBar)
 
   b1 = self~newPushButton(11)
   b2 = self~newPushButton(12)
+  /* (.NET version) MS Sans Serif, a bitmap font, shows bold in buttons;
+     .NET's substitute does not                                              */
+  bold = .net~System~Drawing~Font~new(b1~Font, "Bold")
+  b1~Font = bold; b2~Font = bold
   el = self~newEdit(10)
   el~Text = '00:00:00.00'
   el~BackColor = .net~System~Drawing~Color~Black
-  el~ForeColor = .net~System~Drawing~Color~Fuchsia
+  el~ForeColor = .net~System~Drawing~Color~Red  /* ooDialog's colour 13    */
   el~Font = .net~System~Drawing~Font~new('Lucida Console', .net~single(18), "Bold")
   watch = .net~System~Diagnostics~Stopwatch~new
   ticker = self~startTimer(40, 'Tick')  /* the display, 25 times a second    */
