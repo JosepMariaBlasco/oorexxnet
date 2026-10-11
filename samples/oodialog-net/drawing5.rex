@@ -103,6 +103,7 @@ return 0
     -- Erases the entire drawing surface, this could be improved, maybe, by only
     -- erasing what needs to be erased.
     g~FillRectangle(D~SystemBrushes~Control, r)          -- ooDialog: self~rectangle(dc, r~left, r~top, r~right, r~bottom, 'FILL')
+    g~DrawRectangle(D~Pens~Black, r~Left, r~Top, r~Width - 1, r~Height - 1)   -- (with its border: the DC's default pen)
 
     -- Get the midpoint of the button rectangle and center the text there
     x = r~Right % 2; y = r~Bottom % 2
