@@ -231,6 +231,7 @@ call err "open generic new",    "x = .net~System~Collections~Generic~List~new", 
 call ok ".net~typeOf",          .net~typeOf(sb), "System.Text.StringBuilder"
 call ok ".net~typeObject",      .net~typeObject(sb)~Name, "StringBuilder"
 call ok ".net~isInstance",      .net~isInstance(sb, .net~System~Object) .net~isInstance(sb, "string"), "1 0"
+call ok ".net~isInstance, no .NET object", .net~isInstance(0, "int") .net~isInstance("x", "System.Object") .net~isInstance(.nil, "System.Object"), "0 0 0"
 call ok ".net~members",         .net~members(sb)~hasItem("Append"), 1
 
 -- handles are released by UNINIT

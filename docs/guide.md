@@ -126,7 +126,8 @@ System.Collections.Generic.Dictionary<System.String, System.Int32>
 Exact access, when a name is not enough: `.net~invoke(o, "Name", args...)`,
 `.net~get(o, "Name")`, `.net~set(o, "Name", value)` (exact case, no guessing).
 Introspection: `.net~typeOf(o)`, `.net~typeObject(o)` (the `System.Type`),
-`.net~isInstance(o, type)`, `.net~members(o)`.
+`.net~isInstance(o, type)` (0 for a Rexx value or `.nil`: no .NET object),
+`.net~members(o)`.
 
 Rexx's own `Object` methods whose names .NET also uses — `start`, `send`,
 `copy`, `run`, `request`, `string` — go to the .NET member when the object has

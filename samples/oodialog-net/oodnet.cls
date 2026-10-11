@@ -796,7 +796,7 @@
    keyboard); show(point): the menu there; enable / disable (an id, or an
    Array of them) */
 ::method assignTo
-  expose dialog
+  expose dialog item
   use arg dialog, autoConnect = .false
   if autoConnect then do i over item~DropDownItems~makeArray
     if .net~isInstance(i, "System.Windows.Forms.ToolStripSeparator") then iterate

@@ -181,6 +181,7 @@ public static unsafe class Bridge
             case "isInstance":
             {
                 var t = r[2].Tag == 'S' ? Types.Parse(r[2].Text) : TypeOf(r[2]);
+                if (r[1].Tag != 'O') { w.Add('S', "0"); break; }       // a Rexx value, .nil: no .NET object (C#'s null is T)
                 var o = Handles.Get(r[1].Id);
                 w.Add('S', (o is StaticOf so ? t.IsInstanceOfType(so.Type) : t.IsInstanceOfType(o)) ? "1" : "0");
                 break;
