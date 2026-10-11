@@ -64,6 +64,7 @@ this repository is under the Apache License 2.0.)
 | | |
 |---|---|
 | `MSAccessDemo.rex` | Access: a database through ADO: a table created, filled, read, updated; compacted |
+| `MSAccessDemo_64bit.rex` | Access without Access: the database engine alone (ACE, 64-bit) through ADO, ADOX and DAO; what `MSAccessDemo_32bit_only.rex` does with Jet |
 | `MSAccess_contacts.rex` | Access: a new database with a table, through DAO |
 | `MSExcel.rex` | Excel: a sheet with data, formulas, colours and a number format; saved |
 | `MSExcel_cURL.rex` | Excel: today's temperatures from wttr.in (here through .NET's `HttpClient`) and a chart |
@@ -79,10 +80,13 @@ this repository is under the Apache License 2.0.)
 | `AOO_swriter_paragraphs.rex` | Writer: paragraphs with four adjustments |
 | `AOO_swriter_table.rex` | Writer: the DevGuide's "Quick Tour": a table, a text frame, colours |
 
-Not here: `MSAccessDemo_32bit_only.rex`. It needs the Jet engine
+Not here as such: `MSAccessDemo_32bit_only.rex`. It needs the Jet engine
 (`Microsoft.Jet.OLEDB.4.0`, `JRO.JetEngine`), which exists for 32-bit
-processes only, and the bridge runs in 64-bit ooRexx (`MSAccessDemo.rex`
-does the same through Access itself). Where a program does something only
+processes only, and the bridge runs in 64-bit ooRexx. Its 64-bit
+counterpart is `MSAccessDemo_64bit.rex`, written for the bridge: the same
+program on ACE, Jet's successor (ADOX creates the database, DAO 12
+compacts it), which needs no Access application; `MSAccessDemo.rex` does
+the same through Access itself. Where a program does something only
 because of its language or its machine (Word's style names, which are the
 local ones), the .NET version does it in a way that works anywhere, and
 says so.
