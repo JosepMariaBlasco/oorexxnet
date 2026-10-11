@@ -956,6 +956,15 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
   undocumented third argument of `new`, "try GetActiveObject first, else
   create".) Office registers in the ROT when started by hand, not when
   started by automation: tested by hand. tests/com.rex 60 (+5).
+  **Lesson** (JM's machine, 11/10/2026): `getObject(file)` with no Excel
+  running starts a hidden one for the file, which closing the workbook does
+  not end; it stays in the ROT (found first by `getActiveObject`, and reused
+  by the next `getObject(file)`). Three such orphans had piled up from the
+  samples' first versions. `samples/office/excel-existing-*` now quit an
+  Excel that has no workbooks left and is not the user's (`UserControl`),
+  release it, and wait for it to leave the ROT. Verified by hand: with the
+  user's Excel open, the file opens in it and `getActiveObject` gives it,
+  with its workbook.
 - **Not done**: named arguments; typed access through Office's interop assemblies (their
   interfaces would go through reflection already: objects of interop types
   are not `__ComObject`, `Com.Is`).
