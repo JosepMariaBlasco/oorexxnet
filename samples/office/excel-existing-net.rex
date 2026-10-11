@@ -19,7 +19,9 @@ excel~Quit
 -- the object the file names: its workbook, opened by Excel
 book = .net~getObject(file)
 say "getObject:" book~Name "A1 =" book~Worksheets~Item(1)~Range("A1")~Value
-book~Close(.false)
+app = book~Application                                     -- an Excel started for the file
+book~Close(.false)                                          -- (not one the user opened) ends now:
+if app~Workbooks~Count = 0 & \app~UserControl then app~Quit  -- else getActiveObject could find it
 .net~releaseObject(book)
 .net~System~IO~File~Delete(file)
 
