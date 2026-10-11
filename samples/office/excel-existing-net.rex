@@ -37,3 +37,5 @@ exit 0
 noExcel:
   say "getActiveObject:" condition("O")~message
   exit (\auto)
+
+::requires "net.cls"
