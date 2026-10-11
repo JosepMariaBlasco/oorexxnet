@@ -82,17 +82,17 @@
 ::class "Employe7_IDM_MENUBAR" subclass NetMenuBar public   -- the .rc's IDM_MENUBAR MENU
 ::method init
   forward class (super) continue
-  p1 = .NetPopupMenu~new
+  p1 = .NetPopupMenu~new()
   p1~insertItem(, IDCANCEL, "&Cancel")
   p1~insertItem(, IDOK, "E&xit")
   self~insertPopup(, , p1, "&File")
-  p2 = .NetPopupMenu~new
+  p2 = .NetPopupMenu~new()
   p2~insertItem(, IDM_ADD, "&Add")
   p2~insertItem(, IDM_PRINT, "&Print")
   p2~insertSeparator
   p2~insertItem(, IDM_LIST, "&List", "GRAYED")
   self~insertPopup(, , p2, "&Employees")
-  p3 = .NetPopupMenu~new
+  p3 = .NetPopupMenu~new()
   p3~insertSeparator
   p3~insertItem(, IDM_ABOUT, "&About")
   self~insertPopup(, , p3, "&Help")

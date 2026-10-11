@@ -59,7 +59,7 @@
 /* create(x, y, cx, cy [, title [, style [, dlgClass [, fontName [, fontSize]]]]]),
    as ooDialog's; style: CENTER, MINIMIZEBOX, MAXIMIZEBOX, SIZEBOX, ...      */
 ::method create
-  expose form bx by sizeX sizeY
+  expose form bx by sizeX sizeY fontName fontSize
   use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = "MS Shell Dlg 2", fontSize = 8
   sizeX = cx; sizeY = cy
   F = .net~System~Windows~Forms
@@ -92,6 +92,12 @@
   use arg cx, cy, title = "", style = "", dlgClass, fontName = "MS Shell Dlg 2", fontSize = 8
   return self~create(0, 0, cx, cy, title, style "CENTER", , fontName, fontSize)
 
+::method fontName                      -- the dialog's font, as create was given it
+  expose fontName
+  return fontName
+::method fontSize
+  expose fontSize
+  return fontSize
 ::method sizeX                         -- the dialog's size, in dialog units (ooDialog's sizeX, sizeY)
   expose sizeX
   return sizeX
@@ -150,8 +156,10 @@
   c~Text = label
   c~Padding = .net~System~Windows~Forms~Padding~new(0)   -- a Win32 button's margins: "ArcCos" in one line
   style = style~upper
-  if style~wordPos("DEFAULT") > 0 | id~string~upper == "IDOK" then self~form~AcceptButton = c
-  if id~string~upper == "IDCANCEL" then self~form~CancelButton = c
+  if .net~isInstance(self~form, "System.Windows.Forms.Form") then do   -- (not on a property sheet's page)
+    if style~wordPos("DEFAULT") > 0 | id~string~upper == "IDOK" then self~form~AcceptButton = c
+    if id~string~upper == "IDCANCEL" then self~form~CancelButton = c
+  end
   if style~wordPos("DISABLED") > 0 then c~Enabled = .false
   select
     when arg(8, "E") then self~connectButtonEvent(id, "CLICKED", methodName)
@@ -321,7 +329,7 @@
     when "CLICK" then e = "MouseClick"
     when "DBLCLK", "ACTIVATE" then e = "DoubleClick"
     when "COLUMNCLICK" then e = "ColumnClick"
-    when "SELECTCHANGED", "SELCHANGE" then e = "SelectedIndexChanged"
+    when "SELECTCHANGED", "SELCHANGE" then e = "ItemSelectionChanged"   -- (e~ItemIndex, e~IsSelected)
     when "CHECKBOXCHANGED" then e = "ItemChecked"
     otherwise e = event
   end
@@ -480,6 +488,22 @@
   c~UseCustomTabOffsets = .true
   do i = 2 to arg(); c~CustomTabOffsets~Add(.net~int32(self~px(arg(i)))); end
   return 0
+/* showBalloon(control, title, text [, icon]): a balloon tip on a control
+   (ooDialog's edit~showBalloon(title, text, icon)); icon INFO, WARNING, ERROR */
+::method showBalloon
+  use arg ctl, title, text, icon = "INFO"
+  if NetDialogAuto("balloon:" title "-" text) then return 0
+  tip = .net~System~Windows~Forms~ToolTip~new
+  tip~IsBalloon = .true
+  tip~ToolTipTitle = title
+  select case icon~upper
+    when "ERROR" then tip~ToolTipIcon = "Error"
+    when "WARNING" then tip~ToolTipIcon = "Warning"
+    when "NONE" then nop
+    otherwise tip~ToolTipIcon = "Info"
+  end
+  tip~Show(text, ctl, ctl~Width % 2, ctl~Height, 4000)
+  return 0
 ::method deleteFont                    -- (.NET frees fonts itself)
   return 0
 ::method getData                       -- (ooDialog copies attributes and controls; here they are one)
@@ -493,6 +517,41 @@
   self~form~Text = arg(1)
 ::method title
   return self~form~Text
+
+/* ------------------------------------------------------- property sheet pages
+   Any NetDialog can be a page of a NetPropertySheet (ooDialog's RcPSPDialog
+   and UserPSPDialog): its controls go into a tab page the first time it is
+   shown (initDialog then; wasActivated tells), setActive runs each time it
+   is shown, killActive when another one is chosen (.false keeps it), apply
+   on the sheet's OK. propSheet is the sheet.                              */
+::attribute propSheet
+::method wasActivated
+  expose built
+  return var("BUILT")
+::method setActive unguarded            -- (to override)
+  return 0
+::method killActive unguarded           -- (to override) .false: stay on this page
+  return .true
+::method apply unguarded                -- (to override)
+  return 0
+::method hostIn                        -- (inside) the page in a container (a TabPage), not its own window
+  expose form
+  use strict arg container
+  container~Font = form~Font
+  container~Text = form~Text
+  old = form
+  form = container
+  old~Dispose
+::method buildPage                     -- (inside) its controls, the first time it is shown
+  expose built defined deferred
+  if var("BUILT") then return
+  built = .true
+  self~defineDialog
+  self~framesToBack
+  defined = .true
+  do d over deferred; self~sendWith(d[1], d[2]); end
+  self~initDialog
+  self~applyData
 
 /* Group boxes and frames go behind the other controls once they are all
    made (a control made later would otherwise be behind an opaque GroupBox);
@@ -664,9 +723,17 @@
   strip = .net~System~Windows~Forms~MenuStrip~new
   popups = .array~new
   connected = .directory~new
+::method getPopup                      -- the NetPopupMenu inserted with that id
+  expose popups
+  use strict arg id
+  do p over popups
+    if p~id \== .nil, NetMenuKey(p~id) == NetMenuKey(id) then return p
+  end
+  return .nil
 ::method insertPopup
   expose strip popups
   use arg before = .nil, id = .nil, popup, text
+  if id \== .nil then popup~id = id
   popup~item~Text = text
   call NetMenuInsert strip~Items, popup~item, self~find(before)
   popups~append(popup)
@@ -707,10 +774,56 @@
 
 ::class NetPopupMenu public
 ::attribute item get                   -- the ToolStripMenuItem that holds the items
-::method init                          -- (ooDialog's id is not needed)
+::attribute id                         -- its id, if it has one
+::method init
   expose item ids
+  use arg id = .nil
+  self~id = (id == "")~?(.nil, id)
   item = .net~System~Windows~Forms~ToolStripMenuItem~new
   ids = .directory~new
+/* as a context menu (ooDialog's): assignTo(dialog [, autoConnect]): with
+   autoConnect each item runs the dialog's method named as its text without
+   "&", spaces and dots ("&Add Employee..." runs addEmployee);
+   connectContextMenu(method, hwnd): a right click on that window calls the
+   dialog's method with (hwnd, x, y), screen coordinates (-1, -1 from the
+   keyboard); show(point): the menu there; enable / disable (an id, or an
+   Array of them) */
+::method assignTo
+  expose dialog
+  use arg dialog, autoConnect = .false
+  if autoConnect then do i over item~DropDownItems~makeArray
+    if .net~isInstance(i, "System.Windows.Forms.ToolStripSeparator") then iterate
+    name = i~Text~changeStr("&", "")~changeStr(" ", "")~changeStr(".", "")
+    i~Click += .net~handler(dialog, name)
+  end
+  return 0
+::method connectContextMenu
+  expose dialog
+  use strict arg methodName, hwnd
+  c = .net~System~Windows~Forms~Control~FromHandle(hwnd)
+  relay = .NetDialogContextRelay~new(dialog, methodName, hwnd)
+  c~MouseUp += .net~handler(relay, "MOUSEUP")
+  c~KeyUp += .net~handler(relay, "KEYUP")
+  return 0
+::method show
+  expose strip
+  use arg pos
+  if \var("STRIP") then do            -- its items move to a ContextMenuStrip, once
+    strip = .net~System~Windows~Forms~ContextMenuStrip~new
+    do i over item~DropDownItems~makeArray; strip~Items~Add(i); end
+  end
+  strip~Show(.net~System~Drawing~Point~new(pos~x, pos~y))
+  return 0
+::method enable
+  use strict arg ids
+  if \ids~isA(.array) then ids = .array~of(ids)
+  do i over ids; self~find(i)~Enabled = .true; end
+  return 0
+::method disable
+  use strict arg ids
+  if \ids~isA(.array) then ids = .array~of(ids)
+  do i over ids; self~find(i)~Enabled = .false; end
+  return 0
 ::method insertItem                    -- insertItem(before, id, text [, state]): state GRAYED, DISABLED, CHECKED
   expose item ids
   use arg before = .nil, id, text, state = ""
@@ -759,6 +872,99 @@
   if id == 1 then return "IDOK"
   if id == 2 then return "IDCANCEL"
   return id
+
+/* ----------------------------------------------------------- property sheet */
+/* ooDialog's PropertySheetDialog: .NetPropertySheet~new(pages [, options
+   [, caption]]), each page a NetDialog (its controls on a tab); startPage,
+   pages, setCurSel(, index), getResult ("CLOSEDOK", "CLOSEDCANCEL");
+   options: NOAPPLYNOW (no Apply button). OK asks the page shown to
+   killActive, then every page shown to apply. */
+::class NetPropertySheet subclass NetDialog public
+::attribute pages get
+::attribute startPage
+::method init
+  expose pages options result cur
+  use arg pages, options = "", caption = ""
+  self~init:super
+  self~startPage = 1
+  result = "CLOSEDCANCEL"; cur = 0
+  cx = 0; cy = 0
+  do p over pages
+    p~propSheet = self
+    cx = max(cx, p~sizeX); cy = max(cy, p~sizeY)
+  end
+  first = pages[1]
+  self~createCenter(cx + 14, cy + 42, caption, , , first~fontName, first~fontSize)
+::method defineDialog
+  expose pages options tabs
+  F = .net~System~Windows~Forms
+  tabs = F~TabControl~new
+  self~place("PROPSHEET.TABS", tabs, 7, 7, self~sizeX - 14, self~sizeY - 35)
+  do p over pages
+    t = F~TabPage~new
+    t~UseVisualStyleBackColor = .true
+    p~hostIn(t)
+    tabs~TabPages~Add(t)
+  end
+  apply = options~upper~wordPos("NOAPPLYNOW") = 0
+  x = self~sizeX - 7 - 50
+  if apply then do
+    self~createPushButton("IDAPPLY", x, self~sizeY - 21, 50, 14, , "&Apply", "APPLYALL")
+    x -= 55
+  end
+  self~createPushButton(IDCANCEL, x, self~sizeY - 21, 50, 14, , "Cancel")
+  self~createPushButton(IDOK, x - 55, self~sizeY - 21, 50, 14, "DEFAULT", "OK")
+  tabs~Selecting += .net~handler(self, "PROPSHEET.SELECTING")
+  tabs~Selected += .net~handler(self, "PROPSHEET.SELECTED")
+::method initDialog
+  expose tabs cur
+  start = max(1, min(self~startPage, self~pages~items))
+  tabs~SelectedIndex = start - 1
+  if cur \= start then self~activate(start)   -- (no Selected event before the window exists)
+::method activate private
+  expose cur
+  use arg i
+  cur = i
+  p = self~pages[i]
+  p~buildPage
+  p~setActive(self)
+::method "PROPSHEET.SELECTING" unguarded
+  expose cur
+  use arg tabs, e
+  if cur = 0 then return
+  p = self~pages[cur]
+  if p~wasActivated, p~killActive(self) == .false then e~Cancel = .true
+::method "PROPSHEET.SELECTED" unguarded
+  use arg tabs, e
+  if e~TabPageIndex >= 0 then self~activate(e~TabPageIndex + 1)
+::method setCurSel unguarded           -- setCurSel(hPage, index): the page shown (from 1)
+  expose tabs
+  use arg hPage, index
+  tabs~SelectedIndex = index - 1
+  return 0
+::method curSel
+  expose cur
+  return cur
+::method applyAll unguarded
+  do p over self~pages
+    if p~wasActivated then p~apply(self)
+  end
+  return 0
+::method ok unguarded
+  expose cur result
+  if cur > 0, self~pages[cur]~killActive(self) == .false then return 0
+  self~applyAll
+  result = "CLOSEDOK"
+  self~endDialog(1)
+  return 0
+::method cancel unguarded
+  expose result
+  result = "CLOSEDCANCEL"
+  self~endDialog(2)
+  return 0
+::method getResult
+  expose result
+  return result
 
 ::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
 ::method init
@@ -815,6 +1021,33 @@
     ctl~Invalidate
   end
   self~running = .false
+
+::class NetDialogContextRelay          -- (inside) connectContextMenu: (hwnd, x, y) as ooDialog's
+::method init
+  expose dialog methodName hwnd
+  use arg dialog, methodName, hwnd
+::method mouseUp
+  expose dialog methodName hwnd
+  use arg sender, e
+  if e~Button~string \== "Right" then return
+  p = sender~PointToScreen(e~Location)
+  dialog~send(methodName, hwnd, p~X, p~Y)
+::method keyUp                         -- the context menu key, or Shift+F10
+  expose dialog methodName hwnd
+  use arg sender, e
+  k = e~KeyCode~string
+  if k == "Apps" | (k == "F10" & e~Shift) then dialog~send(methodName, hwnd, -1, -1)
+
+/* a point, as ooDialog's .Point (x, y attributes) */
+::class NetPoint public
+::attribute x
+::attribute y
+::method init
+  expose x y
+  use arg x = 0, y = 0
+::method copy
+  expose x y
+  return .NetPoint~new(x, y)
 
 ::class NetDialogNoSelect              -- (inside) a read-only edit control shows its text unselected
 ::method deselect

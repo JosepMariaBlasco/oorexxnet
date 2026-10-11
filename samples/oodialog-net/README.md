@@ -52,6 +52,7 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `drawing3.rex` | `tutorial\drawing3.rex` | the same with the control's rectangle; centred text |
 | `drawing4.rex` | `tutorial\drawing4.rex` | a UserDialog with an owner-drawn button |
 | `drawing5.rex` | `tutorial\drawing5.rex` | a clock: the time drawn every second (a timer in place of an Alarm) |
+| `employee11tab.rex` | `tutorial\employee11tab.rex` | a property sheet of four pages; a list view; a context menu from a .rc; a file as the database |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -74,6 +75,10 @@ More of ooDialog's samples will follow, in batches.
 | `redrawControl(id)`; `scrollInControl(id, text, font, size, style)` | the same |
 | ids 1, 2, 9 in a .rc | IDOK, IDCANCEL, IDHELP, as Windows takes them |
 | a control's text that is one of the dialog's methods (`Fontname`) | the data attribute `DATA<id>`, as ooDialog names it |
+| `PropertySheetDialog~new(pages, options, caption)`; pages `subclass RcPSPDialog` | `.NetPropertySheet~new(pages, options, caption)` (a `TabControl`, OK, Cancel, Apply unless `NOAPPLYNOW`); a page is any NetDialog: `setActive`, `killActive`, `apply`, `wasActivated`, `propSheet`, the sheet's `startPage`, `pages`, `setCurSel(, i)`, `getResult` as ooDialog's |
+| `menuBar~getPopup(id)`, `popup~assignTo(dlg, .true)`, `connectContextMenu(m, hwnd)`, `show(pos)` | the same on a NetPopupMenu (a `ContextMenuStrip` when shown); `.Point` is `.NetPoint` |
+| `edit~connectCharEvent(m)`, `reply` a character; `edit~showBalloon(title, text, icon)` | `edit~KeyPress += .net~handler(self, m)`: `e~KeyChar`, `e~Handled = .true` refuses it; `self~showBalloon(edit, title, text, icon)` |
+| `lv~insertColumn`, `addRow`, `setItemText`, `delete`, `select`, `focus`; `SELECTCHANGED`'s (id, item, state) | `lv~Columns~Add`, a `ListViewItem` with `SubItems`, `lv~Items[i]~SubItems[j]~Text`, `lv~Items~RemoveAt(i)`, `~Selected`, `~Focused`; .NET's `ItemSelectionChanged`: `e~ItemIndex`, `e~IsSelected` |
 | `self~getControlData(id)`, `setControlData(id, v)`, `addComboEntry(id, t)`, `addListEntry(id, t)` | the same |
 | The `.rc`'s controls (`LTEXT`, `EDITTEXT`, `PUSHBUTTON`, `DEFPUSHBUTTON`, `AUTORADIOBUTTON`, `AUTOCHECKBOX`, `GROUPBOX`, `LISTBOX`, `COMBOBOX`, `CONTROL ... MONTHCAL_CLASS / WC_LISTVIEW / ...`) | in `defineDialog`: `createStatic`, `createEdit`, `createPushButton` (`DEFAULT`), `createRadioButton`, `createCheckBox`, `createGroupBox`, `createListBox`, `createComboBox`, `createMonthCalendar`, `createListView`... with the same coordinates |
 | Numeric resource ids, `constDir`, `.h` files | names: any string or symbol (`IDC_EDIT`, `"box"`); `IDOK` and `IDCANCEL` are OK and Cancel |
@@ -124,7 +129,6 @@ answer their defaults. The programs override `autoRun` to do what a user
 would (click a few buttons) and print what came out; `samples/check-samples.rex`
 runs them so on Windows, the CI too.
 
-**Not yet in `oodnet.cls`**: property sheets and tab pages, resizable
-dialogs (in .NET: a control's `Anchor` and `Dock`), owner drawing, image
-lists, dialogs inside dialogs (ControlDialog). They come with the samples
+**Not yet in `oodnet.cls`**: resizable dialogs (in .NET: a control's
+`Anchor` and `Dock`), dialogs inside dialogs (ControlDialog). They come with the samples
 that need them.

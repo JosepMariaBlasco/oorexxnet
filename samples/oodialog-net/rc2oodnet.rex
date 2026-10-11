@@ -169,10 +169,12 @@ menu: procedure
     l = lines[i]; u = l~word(1)~upper; i += 1
     select
       when l == "" | u == "{" | u == "BEGIN" then nop
-      when u == "POPUP" then do
+      when u == "POPUP" then do          -- POPUP "text" [, id ...] (MENUEX: with an id)
         n += 1
-        out~append("  p"n "= .NetPopupMenu~new")
-        stack~append(.array~of("p"n, splitArgs(l~subWord(2))[1]))
+        a = splitArgs(l~subWord(2))
+        pid = (a[2] \== "")~?(rexxId(a[2]), "")
+        out~append("  p"n "= .NetPopupMenu~new(" || pid || ")")
+        stack~append(.array~of("p"n, a[1], pid))
       end
       when u == "}" | u == "END" then do
         if stack~items = 0 then leave   -- the menu's end
@@ -180,19 +182,21 @@ menu: procedure
         stack~delete(stack~last)
         if stack~items = 0 then parent = "self"     -- (~? would evaluate both)
         else parent = stack[stack~items][1]
-        out~append("  "parent"~insertPopup(, ," top[1]"," top[2]")")
+        out~append("  "parent"~insertPopup(," top[3]"," top[1]"," top[2]")")
       end
       when u == "MENUITEM" & stack~items = 0 then out~append("  -- (by hand: an item on the bar)" l)
       when u == "MENUITEM" then do
         target = stack[stack~items][1]
         if l~word(2)~upper == "SEPARATOR" then out~append("  "target"~insertSeparator")
+        else if l~upper~pos("MFT_SEPARATOR") > 0 then   -- MENUEX: MENUITEM "", id, MFT_SEPARATOR
+          out~append("  "target"~insertSeparator(," rexxId(splitArgs(l~subWord(2))[2])")")
         else do
           a = splitArgs(l~subWord(2))
           state = ""
           do k = 3 to a~items
             f = a[k]~upper
-            if wordPos(f, "GRAYED INACTIVE") > 0 then state = state "GRAYED"
-            if f == "CHECKED" then state = state "CHECKED"
+            if wordPos(f, "GRAYED INACTIVE") > 0 | f~pos("MFS_GRAYED") > 0 | f~pos("MFS_DISABLED") > 0 then state = state "GRAYED"
+            if f == "CHECKED" | f~pos("MFS_CHECKED") > 0 then state = state "CHECKED"
           end
           out~append("  "target"~insertItem(," rexxId(a[2])"," a[1] || (state == "")~?("", "," quote(state~strip))")")
         end
