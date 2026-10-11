@@ -17,7 +17,8 @@
 // (.net~box("string", "007") forces a string); .nil, and an omitted argument,
 // as "not given" (Type.Missing: COM's optional parameters); a .NetRef by
 // reference (its value converted the same way; afterwards it holds what the
-// COM object left there); .NET objects as themselves. Results as any .NET result (another COM object: a .NetObject).
+// COM object left there); .NET objects as themselves. Results as any .NET result (another COM object: a .NetObject);
+// VT_NULL (DBNull) as .nil, as .OLEObject gives it.
 // Every call is made in English (US), as VBA's (see English below), unless
 // the object was created with another language (.net~createObject(progID,
 // "user"): the user's, as .OLEObject; or a culture name): the objects it
@@ -316,6 +317,7 @@ static class Com
         try
         {
             var r = o.GetType().InvokeMember(name, how, null, o, args, byRef, LanguageOf(o), names);
+            if (r is DBNull) return null;                   // VT_NULL (a WMI property with no value): .nil, as .OLEObject gives
             Inherit(o, r);
             return r;
         }
