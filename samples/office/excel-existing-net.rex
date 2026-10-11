@@ -23,14 +23,22 @@ app = book~Application                                     -- an Excel started f
 book~Close(.false)                                          -- (not one the user opened) ends now:
 say "  (that Excel: window" app~Hwnd"," word("hidden visible", app~Visible + 1)"," -
     word("program's user's", app~UserControl + 1)", with" app~Workbooks~Count "other workbook(s))"
-if app~Workbooks~Count = 0 & \app~UserControl then app~Quit  -- else getActiveObject could find it
+fileExcel = app~Hwnd
+quit = app~Workbooks~Count = 0 & \app~UserControl
+if quit then app~Quit                                       -- else getActiveObject could find it
 .net~releaseObject(book)
+.net~releaseObject(app)                                     -- (Excel ends once nothing refers to it)
 .net~System~IO~File~Delete(file)
 
 -- the Excel the user opened, if one runs (Office registers itself in the
 -- Running Object Table when started by hand, not when started by a program)
 signal on syntax name noExcel
-running = .net~getActiveObject("Excel.Application")
+do tries = 1 to 20                                          -- the Excel that quit leaves the
+  running = .net~getActiveObject("Excel.Application")      -- table only as its process ends
+  if \quit | running~Hwnd \== fileExcel | tries = 20 then leave
+  .net~releaseObject(running)
+  call SysSleep 0.5
+end
 signal off syntax
 say "getActiveObject: Excel" running~Version "with" running~Workbooks~Count "workbook(s)" -
     "(window" running~Hwnd"," word("hidden visible", running~Visible + 1)"," word("program's user's", running~UserControl + 1)")"
