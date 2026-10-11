@@ -674,11 +674,18 @@
   use arg name, id
   data[name~upper] = id
 ::method unknown
-  expose data pending controls closed
+  expose data pending controls closed defined
   use arg name, args
   set = name~right(1) == "="
   attr = set~?(name~left(name~length - 1), name)
   id = data[attr]
+  if id == .nil, \defined then do      -- in INIT (an RcDialog's way): a control still to be made
+    if set then do
+      pending[attr] = args[1]
+      return
+    end
+    if pending~hasIndex(attr) then return pending[attr]
+  end
   if id == .nil then raise syntax 97.1 array(self, name)
   c = controls[NetDialogKey(id)]
   if set then do                       -- remembered too: applied again after initDialog (as ooDialog's setData),
