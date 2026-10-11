@@ -236,6 +236,7 @@ do i = 1 to m.0
 end
 call ok "getKnownMethods: Dictionary's Add", found, "1 2 Key Item [in]"
 call ok "... its return types",            m.1.!RETTYPE~abbrev("VT_"), 1
+call ok "... its ProgID and CLSID (the bridge's)", m.!PROGID~caselessAbbrev("Scripting.Dictionary") m.!CLSID~left(1), "1 {"
 ev. = .net~getKnownEvents(.net~createObject("ADODB.Recordset"))
 names = ""
 do i = 1 to ev.0; names = names ev.i.!NAME; end

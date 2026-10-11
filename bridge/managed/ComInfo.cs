@@ -53,6 +53,39 @@ static class ComInfo
             }
         }
         catch (Exception e) when (e is COMException or InvalidCastException) { }
+        // No IProvideClassInfo (Excel): the ProgID it was created with, or the
+        // coclass of its type library that implements its interface
+        if (clsid == null && Com.progIds.TryGetValue(o, out var given))
+        {
+            progId = given;
+            if (CLSIDFromProgID(given, out var g) == 0) clsid = g.ToString("B").ToUpperInvariant();
+        }
+        if (clsid == null)
+            try
+            {
+                var iid = ComEvents.Attr(ti).guid;
+                ti.GetContainingTypeLib(out var lib, out _);
+                for (int i = 0, n = lib.GetTypeInfoCount(); i < n && clsid == null; i++)
+                {
+                    lib.GetTypeInfoType(i, out var kind);
+                    if (kind != ComTypes.TYPEKIND.TKIND_COCLASS) continue;
+                    lib.GetTypeInfo(i, out var cc);
+                    for (int k = 0, m = ComEvents.Attr(cc).cImplTypes; k < m; k++)
+                    {
+                        cc.GetImplTypeFlags(k, out var flags);
+                        if (((int)flags & 3) != 1) continue;            // the default interface, not a source one
+                        cc.GetRefTypeOfImplType(k, out int href);
+                        cc.GetRefTypeInfo(href, out var it);
+                        if (ComEvents.Attr(it).guid != iid) continue;
+                        var guid = ComEvents.Attr(cc).guid;
+                        clsid = guid.ToString("B").ToUpperInvariant();
+                        cc.GetDocumentation(-1, out ccName, out ccDoc, out _, out _);
+                        if (ProgIDFromCLSID(ref guid, out var p) == 0 && p != 0) { progId = Marshal.PtrToStringUni(p); Marshal.FreeCoTaskMem(p); }
+                        break;
+                    }
+                }
+            }
+            catch (COMException) { }
         foreach (var v in new[] { libName, libDoc, ccName, ccDoc, clsid, progId })
             if (string.IsNullOrEmpty(v)) r.Add('N', ""); else r.Add('S', v);
         var all = new Writer();
@@ -124,6 +157,8 @@ static class ComInfo
     // A VARTYPE's name, as .OLEObject writes it: "VT_BYREF VT_I4"
     [DllImport("ole32.dll")]
     static extern int ProgIDFromCLSID(ref Guid clsid, out nint progId);
+    [DllImport("ole32.dll", CharSet = CharSet.Unicode)]
+    static extern int CLSIDFromProgID(string progId, out Guid clsid);
 
     static string VtName(short vt)
     {

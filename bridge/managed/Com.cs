@@ -238,6 +238,7 @@ static class Com
             catch (Exception e) when (Starting(e) && DateTime.UtcNow < until) { System.Threading.Thread.Sleep(pause); }
         }
         if (o == null) throw new BridgeException($"\"{progId}\" could not be created");
+        progIds.AddOrUpdate(o, progId);
         if (culture != English) languages.AddOrUpdate(o, culture);
         return o;
     }
@@ -269,9 +270,14 @@ static class Com
         hr = GetActiveObject(ref clsid, 0, out var o);
         if (hr == MK_E_UNAVAILABLE || o == null) throw new BridgeException($"no running \"{progId}\" (none is in the Running Object Table)");
         if (hr < 0) throw new BridgeException($"\"{progId}\": {Marshal.GetExceptionForHR(hr)?.Message ?? $"HRESULT 0x{hr:X8}"}");
+        progIds.AddOrUpdate(o, progId);
         if (culture != English) languages.AddOrUpdate(o, culture);
         return o;
     }
+
+    /// The ProgID an object was created with (.net~createObject), for
+    /// getKnownMethods' !PROGID and !CLSID when the object cannot tell.
+    internal static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, string> progIds = new();
 
     static Guid IUnknown = new("00000000-0000-0000-C000-000000000046");
     const int MK_E_UNAVAILABLE = unchecked((int)0x800401E3);
