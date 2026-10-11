@@ -70,7 +70,8 @@ do d over dirs
       if n~caselessAbbrev("MS") & \office then iterate
       if n~caselessAbbrev("MSOutlook") & \outlook then iterate
     end
-    if filespec("name", f)~caselessEquals("rc2oodnet.rex") then iterate   -- a tool, not a sample
+    if filespec("name", f)~caselessEquals("rc2oodnet.rex") then iterate   -- tools, not samples
+    if filespec("name", f)~caselessAbbrev("measure-dialogs") then iterate
     count += 1
     name = d"/"filespec("name", f)
     say "=====" name

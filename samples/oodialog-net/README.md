@@ -122,6 +122,14 @@ A control `oodnet.cls` has no `create*` for: make it and place it with
 methods), or add it to `self~form~Controls` yourself. `self~px(n)` and
 `self~py(n)` turn dialog units into pixels.
 
+**Sizes, measured.** `rexx measure-dialogs.rex [build-dir]` (Windows, with
+ooDialog: ooRexx for Windows has it) opens some of ooDialog's sample dialogs
+both with ooDialog and as `rc2oodnet.rex` makes them, and writes to
+`measure-dialogs.log` every control's rectangle on each side, in pixels.
+The CI's Windows job runs it (the log is one of its artifacts). Today the
+two agree to the pixel, but for a NumericUpDown, which is an edit and its
+up-down in one control.
+
 **Unattended.** `.NetDialog~auto = .true` (each program sets it from its
 argument `auto`) makes a dialog run its `autoRun` method shortly after it
 shows (by default: it ends with OK), and the routines show nothing and

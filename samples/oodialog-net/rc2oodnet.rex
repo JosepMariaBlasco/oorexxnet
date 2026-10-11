@@ -19,10 +19,11 @@
    program that subclasses ooDialog's RcDialog with that .rc subclasses it
    instead, and keeps the rest of its code.                                  */
 
-parse arg a1 a2 a3 a4
+w = argWords(arg(1))                    -- (a name with spaces in double quotes)
+a1 = w[1]; a2 = w[2]; a3 = w[3]; a4 = w[4]
 toCls = a1~caselessEquals("-cls")
-if toCls then parse value a2 a3 with rcFile outFile
-else parse value a1 a2 a3 with rcFile dialogId hFile
+if toCls then do; rcFile = a2; outFile = a3; end
+else do; rcFile = a1; dialogId = a2; hFile = a3; end
 if rcFile == "" then do
   say "usage: rexx rc2oodnet.rex file.rc [dialogId] [file.h]"
   say "       rexx rc2oodnet.rex -cls file.rc [out.cls]"
@@ -363,6 +364,7 @@ listStyles: procedure
   if st~pos("LBS_MULTIPLESEL") > 0 | st~pos("LBS_EXTENDEDSEL") > 0 then r = r "MULTI"
   if st~pos("LBS_USETABSTOPS") > 0 then r = r "USETAB"
   if st~pos("LBS_MULTICOLUMN") > 0 then r = r "COLUMNS"
+  if st~pos("LBS_NOINTEGRALHEIGHT") > 0 then r = r "PARTIAL"
   return r~strip
 
 comboStyles: procedure
@@ -402,3 +404,17 @@ treeViewStyles: procedure
   if st~pos("TVS_HASBUTTONS") > 0 then r = r "HASBUTTONS"
   if st~pos("TVS_LINESATROOT") > 0 then r = r "LINESATROOT"
   return r~strip
+
+/* The words of the command line, a word in double quotes kept whole (a path
+   with spaces); missing ones are "" */
+argWords: procedure
+  use arg line
+  w = .array~new
+  do while line~strip \== ""
+    line = line~strip("L")
+    if line~left(1) == '"' then parse var line '"' word '"' line
+    else parse var line word line
+    w~append(word)
+  end
+  do i = w~items + 1 to 4; w[i] = ""; end
+  return w

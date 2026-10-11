@@ -115,6 +115,16 @@ jobs:
         run: .\samples\powershell\hello.ps1 "$env:RUNNER_TEMP\build\rexxnet"
       - name: Samples
         run: rexx samples\check-samples.rex "${{ runner.temp }}\build\rexxnet"
+      - name: ooDialog's dialogs and their ports, measured
+        continue-on-error: true           # a report, not a test
+        timeout-minutes: 5
+        run: rexx samples\oodialog-net\measure-dialogs.rex "${{ runner.temp }}\build\rexxnet"
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: measure-dialogs
+          path: measure-dialogs.log
+          if-no-files-found: ignore
       - name: C# sample (the package on nuget.org)
         run: dotnet run --project samples\csharp\hello
       - name: C# and VB.NET tours (the bridge built here)

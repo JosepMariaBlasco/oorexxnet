@@ -1368,10 +1368,38 @@ run in the `libreoffice` workflow; the MS ones need Office.
 `samples/oodialog-net/oodnet.cls` gives a `Form` ooDialog's shape (the
 porting table is in that folder's README). Decisions and traps found:
 
-- **Dialog units** from the dialog's font as Windows computes them: the
-  average width of A-Z a-z (`TextRenderer.MeasureText` / 52) and the font's
-  height; the default font is ooDialog's, MS Shell Dlg 2, 8, so a port has
-  the original's size.
+- **Dialog units** from the dialog's font as Windows computes them
+  (GdiGetCharDimensions): the average width of A-Z a-z, rounded as integers
+  (`TextRenderer.MeasureText` with NoPadding, `(w / 26 + 1) / 2`), and the
+  font's height (tmHeight); the default font is ooDialog's, MS Shell Dlg 2,
+  8. **Measured, not judged by eye**: `measure-dialogs.rex` opens six of
+  ooDialog's sample dialogs (one per font: MS Shell Dlg 8 and 10, MS Shell
+  Dlg 2 8, System, Tahoma 10, Courier New 12) with ooDialog and as
+  rc2oodnet.rex makes them, and logs each control's rectangle (the
+  original's through ooDialog by id, and UI Automation for the controls
+  without one), its text size, and each side's base units; the CI's
+  Windows job uploads the log. What it found, and is now as Windows does:
+  - A dialog's font is a whole number of pixels high, `-MulDiv(points, dpi,
+    72)`: 10 points at 96 dpi is 13 pixels. A .NET `Font` of 10 points is
+    13.33, and GDI then made it a size larger (Tahoma 10: 17 pixels high,
+    not 16; base units 8 x 17, not 7 x 16), which made the calculator too
+    tall and the tutorial's Tahoma dialogs too wide. oodnet's fonts are
+    made in pixels (`createFontEx` and `scrollInControl` too).
+  - "System" is a bitmap font GDI+ cannot use: its stand-in is Microsoft
+    Sans Serif bold, 12 pixels (its texts about as wide), but the base
+    units are System's own, 8 x 16 at 96 dpi.
+  - A single-line TextBox sizes itself to its font: `AutoSize` off, the
+    .rc's height.
+  - An up-down at its buddy's edge (UDS_ALIGNRIGHT / ALIGNLEFT) is as wide
+    as a vertical scroll bar and 1 (18 pixels at 96 dpi), whatever the .rc
+    says, over the buddy's 2-pixel border: the buddy loses the width less 2.
+  - A list box without LBS_NOINTEGRALHEIGHT (ooDialog's PARTIAL) shows whole
+    rows: its height within the 2-pixel border is cut to a multiple of the
+    row height, the dialog font's tmHeight.
+  After these, every control of the six dialogs is where the original's is,
+  to the pixel, but a NumericUpDown (an edit and its up-down made one
+  control: it spans both, its height its font's) and a combo box's height
+  (one pixel).
 - **Z-order.** Windows Forms paints a control with a lower index in
   `Controls` on top; an opaque `GroupBox` made before its radio buttons, and
   sent to the back at once, still covered them (they were added later, behind

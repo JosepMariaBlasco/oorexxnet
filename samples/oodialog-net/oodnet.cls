@@ -67,14 +67,21 @@
   F~Application~EnableVisualStyles
   if .NetDialog~auto then call NetDialogThrow   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
-  form~Font = NetDialogFont(fontName, fontSize)
+  dpi = form~DeviceDpi
+  form~Font = NetDialogFont(fontName, fontSize, dpi)
   -- dialog base units, as Windows computes them for a dialog's font (GdiGetCharDimensions):
   -- the average width of a..z A..Z, rounded as integers, and the font's tmHeight
-  flags = F~TextFormatFlags~NoPadding
-  big = D~Size~new(32000, 32000)
-  ext = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", form~Font, big, flags)~Width
-  bx = (ext % 26 + 1) % 2
-  by = F~TextRenderer~MeasureText("A", form~Font, big, flags)~Height
+  if fontName~caselessEquals("System") then do   -- (its own, not its stand-in's: 8 x 16 at 96 dpi)
+    bx = (8 * dpi + 48) % 96
+    by = (16 * dpi + 48) % 96
+  end
+  else do
+    flags = F~TextFormatFlags~NoPadding
+    big = D~Size~new(32000, 32000)
+    ext = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", form~Font, big, flags)~Width
+    bx = (ext % 26 + 1) % 2
+    by = F~TextRenderer~MeasureText("A", form~Font, big, flags)~Height
+  end
   form~Text = title
   form~ClientSize = D~Size~new(self~px(cx), self~py(cy))
   style = style~upper
@@ -129,7 +136,9 @@
   forward message "CREATESTATIC"
 ::method createEdit
   use arg id, x, y, cx, cy, style = "", attributeName
-  c = self~place(id, .net~System~Windows~Forms~TextBox~new, x, y, cx, cy)
+  e = .net~System~Windows~Forms~TextBox~new
+  e~AutoSize = .false                  -- (the .rc's height, not its font's)
+  c = self~place(id, e, x, y, cx, cy)
   style = style~upper
   if style~wordPos("MULTILINE") > 0 then do
     c~Multiline = .true
@@ -199,6 +208,10 @@
   if style~wordPos("USETAB") > 0 then c~UseTabStops = .true
   if style~wordPos("COLUMNS") > 0 then c~MultiColumn = .true
   c~IntegralHeight = .false
+  if style~wordPos("PARTIAL") = 0 then do  -- as Win32 (LBS_NOINTEGRALHEIGHT: PARTIAL): whole rows of the dialog font's
+    by = self~py(8000) / 1000                -- height (its tmHeight, the base unit), within a 2-pixel border
+    c~Height = (c~Height - 4) % by * by + 4
+  end
   if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createComboBox
@@ -243,15 +256,17 @@
   st = style~upper
   if st~wordPos("AUTOBUDDY") > 0, (st~wordPos("ALIGNRIGHT") > 0 | st~wordPos("ALIGNLEFT") > 0), -
      .net~isInstance(buddy, "System.Windows.Forms.TextBox") then do   -- as Win32: at the buddy's edge, the buddy narrower
-    b = buddy
-    w = c~Width
-    b~Width = b~Width - w
+    b = buddy                          -- (comctl32: the up-down as wide as a scroll bar and 1, whatever
+    w = F~SystemInformation~VerticalScrollBarWidth + 1   -- the .rc says, over the buddy's 2-pixel border)
+    c~Width = w
+    b~Width = b~Width - (w - 2)
     if st~wordPos("ALIGNLEFT") > 0 then do
       c~Location = .net~System~Drawing~Point~new(b~Left, b~Top)
-      b~Left = b~Left + w
+      b~Left = b~Left + (w - 2)
     end
-    else c~Location = .net~System~Drawing~Point~new(b~Right, b~Top)
+    else c~Location = .net~System~Drawing~Point~new(b~Right - 2, b~Top)
     c~Height = b~Height
+    c~BringToFront
   end
   return 0
 ::method createScrollBar                -- VERTICAL, else horizontal (ooDialog: setRange, setPosition; here ~Minimum, ~Maximum, ~Value)
@@ -432,7 +447,7 @@
     if wordPos(w, "BOLD ITALIC UNDERLINE STRIKEOUT") > 0 then st = st w~left(1) || w~substr(2)~lower
   end
   if st == "" then st = "Regular"
-  font = .net~System~Drawing~Font~new(fontName, .net~single(fontSize), st~strip~changeStr(" ", ", "))
+  font = NetDialogFont(fontName, fontSize, self~form~DeviceDpi, st~strip~changeStr(" ", ", "))
   if \.net~isInstance(color, "System.Drawing.Color") then color = .net~System~Drawing~Color~Black
   scroller = .NetDialogScroller~new(self~control(id), text, font, displaceY, step, sleep, color)
   return 0
@@ -489,13 +504,16 @@
   self~control(arg(1))~Enabled = .false
   return 0
 ::method createFontEx                  -- createFontEx(name, size [, additional]): a .NET Font (weight >= 600: bold)
+  expose form
   use arg name, size = 8, additional = .nil
   style = "Regular"
   if additional \== .nil then do
     if additional~hasIndex("WEIGHT"), additional~weight >= 600 then style = "Bold"
     if additional~hasIndex("ITALIC"), additional~italic == .true then style = style~changeStr("Regular", "") "Italic"
   end
-  return .net~System~Drawing~Font~new(name, .net~single(size), style~strip~changeStr(" ", ", "))
+  dpi = 96
+  if var("FORM") then dpi = form~DeviceDpi
+  return NetDialogFont(name, size, dpi, style~strip~changeStr(" ", ", "))
 ::method setControlFont
   use strict arg id, font
   self~control(id)~Font = font
@@ -731,7 +749,10 @@
 ::method register private
   expose controls
   use arg id, ctl
-  if id \== "" & id \== -1 then controls[NetDialogKey(id)] = ctl
+  if id \== "" & id \== -1 then do
+    controls[NetDialogKey(id)] = ctl
+    ctl~Name = id~string                 -- (its id, for UI Automation and measure-dialogs.rex)
+  end
 
 /* ------------------------------------------------------------------- menus */
 /* ooDialog's menu bar and popup menus, as a .NET MenuStrip: insertPopup,
@@ -1124,19 +1145,27 @@ syntax:
   end
   return id
 
-/* (inside) a dialog's font as Windows makes it: "MS Shell Dlg 2" and "MS
-   Shell Dlg" are names Windows maps (to Tahoma and Microsoft Sans Serif),
-   which GDI+ does not know; "System" is a bitmap font GDI+ cannot use: the
-   nearest TrueType one, bold, of its size (16 pixels high, 7 wide) */
+/* (inside) a dialog's font as Windows makes it: its height a whole number
+   of pixels, -MulDiv(points, dpi, 72) (10 points at 96 dpi: 13 pixels, where
+   .NET would draw 13.33, a size larger); "MS Shell Dlg 2" and "MS Shell
+   Dlg" are names Windows maps (to Tahoma and Microsoft Sans Serif), which
+   GDI+ does not know; "System" is a bitmap font GDI+ cannot use: the nearest
+   TrueType one, bold, about as wide (its base units, 8 x 16, are its own) */
 ::routine NetDialogFont
-  use arg name, size
+  use arg name, size, dpi = 96, style = "Regular"
   D = .net~System~Drawing
+  px = (size * dpi + 36) % 72          -- (MulDiv rounds)
   select case name~upper
-    when "MS SHELL DLG 2" then return D~Font~new("Tahoma", .net~single(size))
-    when "MS SHELL DLG" then return D~Font~new("Microsoft Sans Serif", .net~single(size))
-    when "SYSTEM" then return D~Font~new("Microsoft Sans Serif", .net~single(13), "Bold", "Pixel")   -- (13 em: 16 high)
-    otherwise return D~Font~new(name, .net~single(size))
+    when "MS SHELL DLG 2" then face = "Tahoma"
+    when "MS SHELL DLG" then face = "Microsoft Sans Serif"
+    when "SYSTEM" then do
+      face = "Microsoft Sans Serif"
+      px = (12 * dpi + 48) % 96
+      if style == "Regular" then style = "Bold"
+    end
+    otherwise face = name
   end
+  return D~Font~new(face, .net~single(px), style, "Pixel")
 
 ::routine NetDialogTrace               -- (inside) unattended: where it is
   if .NetDialog~auto then say "(auto)" arg(1)
