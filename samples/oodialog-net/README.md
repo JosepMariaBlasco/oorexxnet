@@ -43,7 +43,7 @@ More of ooDialog's samples will follow, in batches.
 |---|---|
 | `::requires "ooDialog.cls"` | `::requires "oodnet.cls"` (which requires `net.cls`) |
 | `::class MyDialog subclass UserDialog` (or `RcDialog`) | `::class MyDialog subclass NetDialog` |
-| `self~create(x, y, cx, cy, title, style, , font, size)`, `createCenter(cx, cy, ...)` | the same: dialog units, and the dialog's font (default Segoe UI 9) |
+| `self~create(x, y, cx, cy, title, style, , font, size)`, `createCenter(cx, cy, ...)` | the same: dialog units, and the dialog's font (default MS Shell Dlg 2, 8: ooDialog's, so the sizes match) |
 | An RcDialog's `.rc`: `DIALOG x, y, cx, cy`, `CAPTION`, `FONT` | `self~create(x, y, cx, cy, caption, style, , font, size)` in `init` |
 | The `.rc`'s controls (`LTEXT`, `EDITTEXT`, `PUSHBUTTON`, `DEFPUSHBUTTON`, `AUTORADIOBUTTON`, `AUTOCHECKBOX`, `GROUPBOX`, `LISTBOX`, `COMBOBOX`, `CONTROL ... MONTHCAL_CLASS / WC_LISTVIEW / ...`) | in `defineDialog`: `createStatic`, `createEdit`, `createPushButton` (`DEFAULT`), `createRadioButton`, `createCheckBox`, `createGroupBox`, `createListBox`, `createComboBox`, `createMonthCalendar`, `createListView`... with the same coordinates |
 | Numeric resource ids, `constDir`, `.h` files | names: any string or symbol (`IDC_EDIT`, `"box"`); `IDOK` and `IDCANCEL` are OK and Cancel |

@@ -58,7 +58,7 @@
    as ooDialog's; style: CENTER, MINIMIZEBOX, MAXIMIZEBOX, SIZEBOX, ...      */
 ::method create
   expose form bx by sizeX sizeY
-  use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = "Segoe UI", fontSize = 9
+  use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = "MS Shell Dlg 2", fontSize = 8
   sizeX = cx; sizeY = cy
   F = .net~System~Windows~Forms
   D = .net~System~Drawing
@@ -87,7 +87,7 @@
 
 /* createCenter(cx, cy [, title [, style [, dlgClass [, fontName [, fontSize]]]]]) */
 ::method createCenter
-  use arg cx, cy, title = "", style = "", dlgClass, fontName = "Segoe UI", fontSize = 9
+  use arg cx, cy, title = "", style = "", dlgClass, fontName = "MS Shell Dlg 2", fontSize = 8
   return self~create(0, 0, cx, cy, title, style "CENTER", , fontName, fontSize)
 
 ::method sizeX                         -- the dialog's size, in dialog units (ooDialog's sizeX, sizeY)
@@ -198,6 +198,7 @@
     c~Location = old~Location
     c~Size = old~Size
     c~TextAlign = old~TextAlign
+    c~ThousandsSeparator = .true       -- as Windows' up-down shows its buddy's number
     self~form~Controls~Remove(old)
     self~form~Controls~Add(c)
     self~register(last~id, c)
