@@ -389,12 +389,9 @@
     w~Tick += .net~handler(runner, "WATCHDOG")
     w~Start
     runner~timers = .array~of(t, w)
-    killer = .NetDialogKiller~new
-    killer~start("RUN", 45)            -- a Rexx thread: if even the timers never fire
     say "(auto) showing" form~Text
   end
   r = form~ShowDialog
-  if var("KILLER") then killer~done
   if var("RUNNER") then do
     do t over runner~timers; t~Stop; end
     if runner~failed then do
@@ -503,20 +500,6 @@ syntax:
   failed = "the dialog was still open after 30 seconds"
   .error~say(failed)
   dialog~endDialog(2)
-
-::class NetDialogKiller                -- (inside) unattended: the process ends if a dialog hangs
-::method done unguarded
-  expose done
-  done = .true
-::method run unguarded
-  expose done
-  use arg seconds
-  do seconds * 10
-    if var("DONE") then return
-    call SysSleep 0.1
-  end
-  .error~say("NetDialog (auto): the dialog was still open after" seconds "seconds; the process ends")
-  .net~System~Environment~Exit(3)
 
 ::routine NetDialogTrace               -- (inside) unattended: where it is
   if .NetDialog~auto then say "(auto)" arg(1)

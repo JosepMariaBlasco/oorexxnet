@@ -4,7 +4,7 @@ param([string]$File, [string]$Arg, [int]$Seconds = 90)
 $p = Start-Process -FilePath "rexx" -ArgumentList "`"$File`" $Arg" -NoNewWindow -PassThru
 if (-not $p.WaitForExit($Seconds * 1000)) {
     Write-Host "TIMEOUT: still running after $Seconds seconds; killed"
-    $p.Kill($true)
+    taskkill /T /F /PID $p.Id | Out-Null
     exit 124
 }
 exit $p.ExitCode
