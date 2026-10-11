@@ -14,6 +14,7 @@ let Office's process end at once.
 | Word: a heading, a paragraph, a table, saved as .docx | `word-ole.rex` | `word-net.rex` |
 | PowerPoint: two slides, saved as .pptx | `powerpoint-ole.rex` | `powerpoint-net.rex` |
 | Excel's events: cells changed, a Close refused | `excel-events-ole.rex` | `excel-events-net.rex` |
+| Excel objects that exist: a workbook file (`GetObject`), the Excel the user opened | `excel-existing-ole.rex` | `excel-existing-net.rex` |
 
 `diff excel-ole.rex excel-net.rex` shows everything that differs.
 
