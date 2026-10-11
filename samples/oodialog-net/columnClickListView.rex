@@ -99,7 +99,7 @@
   list = self~newListView(IDC_LISTVIEW)
   -- .net~int32: Items and SubItems have an indexer by number and one by key
   -- (a string): a Rexx string would choose the key's
-  r = list~Items[.net~int32(2)]~SubItems[.net~int32(1)]~Bounds
+  r = list~Items[2]~SubItems[1]~Bounds
   e = .net~System~Windows~Forms~MouseEventArgs~new("Left", 1, r~X + 2, r~Y + 2, 0)
   self~onClick(list, e)
   self~ok

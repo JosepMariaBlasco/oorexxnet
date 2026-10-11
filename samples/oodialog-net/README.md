@@ -68,10 +68,10 @@ More of ooDialog's samples will follow, in batches.
 | data attributes (`createEdit(id, ..., "TLINE")`, then `self~TLine`) | the same |
 | `infoDialog`, `errorDialog`, `askDialog`, `messageDialog`, `inputBox`, `integerBox`, `passwordBox`, `listChoice`, `multiListChoice`, `checkList`, `singleSelection`, `multiInputBox`, `fileNameDialog`, `browseForFolder`, `timedMessage` | the same names, arguments and results; `self~IDOK`... `self~IDCONTINUE` as ooDialog's |
 
-**One trap**: a .NET collection with an indexer by number and one by key
-(`ListView.Items`, `SubItems`, `Controls`...) takes a Rexx string as the key:
-`list~Items[2]` looks for the item whose key is "2". Give the number as a
-number: `list~Items[.net~int32(2)]`.
+**Indexers by number and by key** (`ListView.Items`, `SubItems`,
+`Controls`...): a Rexx whole number is a position, from 0 as in .NET
+(`list~Items[2]` is the third item); a key that looks like a number takes
+`.net~string("2")`.
 
 **From a .rc.** `rexx rc2oodnet.rex file.rc [dialogId] [file.h]` prints the
 `create` line for `init` and a `defineDialog` with one `create*` per control

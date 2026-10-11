@@ -50,6 +50,9 @@ public static class Conv
 
     public static bool IsNumber(Type t) => Array.IndexOf(numberOrder, t) >= 0;
 
+    /// A Rexx whole number in the range of a long ("2", " 2 ", "007", "1E3", "7.0").
+    public static bool IsWholeNumber(string s) => TryNumber(s.Trim(), typeof(long), out _);
+
     // ------------------------------------------------------------ Rexx -> .NET
 
     /// Converts a request record to the type `to`. Returns the cost, or Fail.

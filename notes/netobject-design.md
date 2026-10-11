@@ -1385,7 +1385,16 @@ porting table is in that folder's README). Decisions and traps found:
   defaults; an exception in an event handler is thrown, not shown in .NET's
   dialog (`SetUnhandledExceptionMode`). `check-samples.rex` runs each
   Windows sample under a 90-second wrapper that kills its process tree.
-- **The indexer trap**: a collection with an `int` indexer and a `string`
-  one (`ListView.Items`, `SubItems`, `Controls`) takes a Rexx string as the
-  key, by the rule that a Rexx string prefers a string parameter;
-  `.net~int32(n)` picks the other.
+- **The indexer trap, removed**: a collection with an `int` indexer and a
+  `string` one (`ListView.Items`, `SubItems`, `Controls`) took a Rexx string
+  as the key, by the rule that a Rexx string prefers a string parameter, and
+  answered null (`.nil`) far from the cause. Now indexers alone take a Rexx
+  whole number as a position where an integer and a string candidate
+  compete (`Members.PreferIntegerPositions`; `o[i]`, `o[i] = v` and an
+  indexed property `o~Item(i)`), as COM collections already did; a key that
+  looks like a number takes `.net~string("2")`. Methods keep the general
+  rule (`Append("007")` appends "007"). Why an exception: a position is what
+  `list~Items[2]` means in nearly every program, the old answer failed
+  silently, and the cost (numeric keys need `.net~string`) is rare and
+  fails the same way it used to. The sibling bridges have no overloads to
+  choose between.

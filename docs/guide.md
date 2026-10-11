@@ -281,6 +281,23 @@ b
 a
 ```
 
+**A collection with both an `int` indexer and a `string` one**
+(`NameValueCollection`, WinForms' `ListView.Items`, `Controls`...) takes a
+Rexx whole number as a position, as a COM collection does; a key that looks
+like a number is given with `.net~string`. Everywhere else a Rexx string
+prefers a `string` parameter (§3).
+
+```rexx
+nv = .net~System~Collections~Specialized~NameValueCollection~new
+nv~Add("1", "first"); nv~Add("0", "second")
+say nv[0] "/" nv[.net~string(0)] "/" nv["1"] "/" nv~Get("1")
+::requires "net.cls"
+```
+
+```text
+first / second / second / first
+```
+
 **A Rexx Array** goes to .NET as a new array or `List<T>` (a copy, items
 converted); **a StringTable or a Directory** as a new `Dictionary<string, T>`
 where a dictionary with string keys is asked for (a copy too; anywhere else

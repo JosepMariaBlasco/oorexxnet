@@ -178,6 +178,30 @@ public static class Members
         return a.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == def);
     }
 
+    static readonly Type[] integerTypes =
+        { typeof(int), typeof(long), typeof(short), typeof(sbyte), typeof(uint), typeof(ulong), typeof(ushort), typeof(byte) };
+
+    /// Indexers only: where one candidate takes an integer and another a
+    /// string at the same position, and the argument there is a Rexx whole
+    /// number, the string ones go. `list~Items[2]` is the third item, not
+    /// the item whose key is "2" (as a COM collection's `Item(2)`); a key
+    /// that looks like a number takes `.net~string("2")`. Everywhere else a
+    /// Rexx string prefers a string parameter.
+    public static List<T> PreferIntegerPositions<T>(List<T> candidates, List<Rec> args) where T : MethodBase
+    {
+        if (candidates.Count < 2) return candidates;
+        for (int k = 0; k < args.Count; k++)
+        {
+            var a = args[k];
+            if (a.Tag != 'S' || a.Logical || !Conv.IsWholeNumber(a.Text)) continue;
+            bool Has(T c, Func<Type, bool> p) { var ps = SigOf(c).Types; return k < ps.Length && p(ps[k]); }
+            bool anyInt = candidates.Any(c => Has(c, t => Array.IndexOf(integerTypes, t) >= 0));
+            bool anyString = candidates.Any(c => Has(c, t => t == typeof(string)));
+            if (anyInt && anyString) candidates = candidates.Where(c => !Has(c, t => t == typeof(string))).ToList();
+        }
+        return candidates;
+    }
+
     static readonly ConcurrentDictionary<Type, PropertyInfo[]> indexers = new();
 
     /// The public indexers of an object's type (the default member: Item, or

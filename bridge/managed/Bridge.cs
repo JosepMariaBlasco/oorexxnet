@@ -345,6 +345,8 @@ public static unsafe class Bridge
                 : set.Generic.Length > 0
                 ? $"cannot infer the type arguments of {set.Name} of {Types.Display(t)}: give them, e.g. .net~invoke(o, \"{set.Name}<int>\", ...)"
                 : $"{set.Name} of {Types.Display(t)} is not a method: it takes no arguments");
+        if (given == null && set.Methods.Length == 0 && set.Generic.Length == 0)
+            candidates = Members.PreferIntegerPositions(candidates, args);   // an indexed property: o~Item(2)
         var (m, conv) = Members.Choose(candidates, args, $"{Types.Display(t)}.{set.Name}");
         var result = m.Invoke(inst, conv);
         if (!args.Any(a => a.Tag == 'R')) { Conv.ToRexx(w, result, m.ReturnType); return; }

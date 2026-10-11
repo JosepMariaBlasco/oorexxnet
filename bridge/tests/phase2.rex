@@ -97,6 +97,17 @@ m = .net~RexxNetTests~Matrix~new
 m[1, 2] = 5
 call ok "IndexerName, 2 indices", m[1, 2], 5
 call ok "overloaded indexer",   m["name"], "matrix"
+-- An int indexer and a string one: a Rexx whole number is a position
+nv = .net~System~Collections~Specialized~NameValueCollection~new
+nv~Add("1", "first"); nv~Add("0", "second")
+call ok "int vs string indexer: whole number", nv[0], "first"
+call ok "int vs string indexer: 1E0",          nv["1E0"], "second"
+call ok "int vs string indexer: forced key",   nv[.net~string(0)], "second"
+call ok "int vs string indexer: other text",   nv["x"] == .nil, 1
+call ok "int vs string, indexed property",     nv~Item(0), "first"
+nv[1] = "changed"                              -- only [string] can be set: a key
+call ok "string-only setter takes the key",    nv~Get(.net~string(1)) nv~Count, "changed 2"
+call ok "methods keep string first",           nv~Get("0"), "second"
 call err "type has no indexer", "x = .net~System~Math[1]", "is a type: it has no indexer"
 call err "no indexer",          "x = .local~sb0[1, 2, 3]", "accepts"
 

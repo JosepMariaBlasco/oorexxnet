@@ -121,7 +121,7 @@ public static class Collections
         if (Com.Is(o)) { Com.Index(o, idx, w); return; }
         var getters = Members.Indexers(o.GetType()).Where(p => p.GetMethod is { IsPublic: true }).Select(p => p.GetMethod!).ToList();
         if (getters.Count == 0) throw new BridgeException($"{Types.Display(o.GetType())} has no indexer");
-        var (m, conv) = Members.Choose(getters, idx, $"{Types.Display(o.GetType())}[]");
+        var (m, conv) = Members.Choose(Members.PreferIntegerPositions(getters, idx), idx, $"{Types.Display(o.GetType())}[]");
         Conv.ToRexx(w, m.Invoke(o, conv), m.ReturnType);
     }
 
@@ -134,7 +134,7 @@ public static class Collections
         if (setters.Count == 0)
             throw new BridgeException($"{Types.Display(o.GetType())} has no indexer that can be set");
         var args = new List<Rec>(idx) { value };                   // the setter: (indices..., value)
-        var (m, conv) = Members.Choose(setters, args, $"{Types.Display(o.GetType())}[] =");
+        var (m, conv) = Members.Choose(Members.PreferIntegerPositions(setters, args), args, $"{Types.Display(o.GetType())}[] =");
         m.Invoke(o, conv);
     }
 
