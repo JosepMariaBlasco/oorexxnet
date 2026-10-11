@@ -63,6 +63,7 @@
   F = .net~System~Windows~Forms
   D = .net~System~Drawing
   F~Application~EnableVisualStyles
+  if self~class~auto then call NetDialogThrow   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
   form~Font = D~Font~new(fontName, .net~single(fontSize))
   -- dialog base units, as Windows computes them for a dialog's font
@@ -370,13 +371,30 @@
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
   self~defineDialog
   self~initDialog
-  if self~class~auto then do
+  if self~class~auto then do            -- unattended: autoRun soon, and a watchdog
+    runner = .NetDialogAutoRun~new(self)
     t = .net~System~Windows~Forms~Timer~new
     t~Interval = 1200
-    t~Tick += .net~handler(.NetDialogAutoRun~new(self, t), "TICK")
+    t~Tick += .net~handler(runner, "TICK")
     t~Start
+    w = .net~System~Windows~Forms~Timer~new
+    w~Interval = 30000
+    w~Tick += .net~handler(runner, "WATCHDOG")
+    w~Start
+    runner~timers = .array~of(t, w)
+    killer = .NetDialogKiller~new
+    killer~start("RUN", 45)            -- a Rexx thread: if even the timers never fire
+    say "(auto) showing" form~Text
   end
   r = form~ShowDialog
+  if var("KILLER") then killer~done
+  if var("RUNNER") then do
+    do t over runner~timers; t~Stop; end
+    if runner~failed then do
+      form~Dispose
+      raise syntax 98.900 array("NetDialog (auto):" runner~failed)
+    end
+  end
   self~leaving
   form~Dispose
   return (r~string == "OK")~?(1, 2)
@@ -452,14 +470,52 @@
   expose id ctl
   use arg id, ctl
 
-::class NetDialogAutoRun               -- (inside) unattended: autoRun, once
+::class NetDialogAutoRun               -- (inside) unattended: autoRun, once; its errors end the dialog
+::attribute timers
+::attribute failed                     -- .false, or what went wrong
 ::method init
-  expose dialog timer
-  use arg dialog, timer
+  expose dialog failed
+  use arg dialog
+  failed = .false
 ::method tick
-  expose dialog timer
-  timer~Stop
+  expose dialog failed
+  self~timers[1]~Stop
+  say "(auto) running" dialog~form~Text
+  signal on syntax
   dialog~autoRun
+  return
+syntax:
+  c = condition("O")
+  failed = "autoRun: Error" c~code":" c~message
+  .error~say(failed)
+  if c~traceback \== .nil then do line over c~traceback; .error~say(line); end
+  dialog~endDialog(2)
+::method watchdog                      -- still open after 30 s: something waits for a user
+  expose dialog failed
+  self~timers[2]~Stop
+  failed = "the dialog was still open after 30 seconds"
+  .error~say(failed)
+  dialog~endDialog(2)
+
+::class NetDialogKiller                -- (inside) unattended: the process ends if a dialog hangs
+::method done unguarded
+  expose done
+  done = .true
+::method run unguarded
+  expose done
+  use arg seconds
+  do seconds * 10
+    if var("DONE") then return
+    call SysSleep 0.1
+  end
+  .error~say("NetDialog (auto): the dialog was still open after" seconds "seconds; the process ends")
+  .net~System~Environment~Exit(3)
+
+::routine NetDialogThrow               -- (inside) once, before the first window
+  signal on syntax
+  .net~System~Windows~Forms~Application~SetUnhandledExceptionMode("ThrowException")
+syntax:
+  return
 
 ::routine NetDialogValue               -- a control's value: a check's 1/0, else its text
   use arg c
