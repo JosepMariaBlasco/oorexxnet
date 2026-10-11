@@ -292,6 +292,12 @@ internal readonly unsafe struct Ctx
         fixed (byte* pn = n) return ((delegate* unmanaged<nint, nint, byte*, nint, nint>)F(ThreadInterface.SendMessage))(P, o, pn, args);
     }
 
+    public nint SendScoped(nint o, string msg, nint scope, nint args)
+    {
+        var n = Native.Z(msg);
+        fixed (byte* pn = n) return ((delegate* unmanaged<nint, nint, byte*, nint, nint, nint>)F(ThreadInterface.SendMessageScoped))(P, o, pn, scope, args);
+    }
+
     public nint NewRoutine(string name, string source)
     {
         var n = Native.Z(name); var s = Encoding.UTF8.GetBytes(source);

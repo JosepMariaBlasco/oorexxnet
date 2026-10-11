@@ -81,13 +81,36 @@ public class RexxObject : DynamicObject, IEnumerable<object?>, IDisposable
     /// Send, the result converted (Send<int>, Send<string>...).
     public T Send<T>(string name, params object?[] args) => RexxConvert.To<T>(SendRaw(name.ToUpperInvariant(), args));
 
-    internal object? SendRaw(string name, object?[]? args)
+    // ------------------------------------------- BSF4ooRexx's RexxProxy names
+
+    // The methods of BSF4ooRexx's RexxProxy (Java), under the same names, as
+    // ooRexx/Python has them: the name is any string (one held in a
+    // variable, or one that is no C# name: "[]=", "||", "<>"), uppercased as
+    // Send's. They are .NET methods, so through dynamic o.SendMessage(...)
+    // never sends a Rexx message of that name; o.SendMessage("SendMessage")
+    // does.
+
+    /// o~name(args...): args an array (or none) of the arguments.
+    public RexxObject? SendMessage(string name, params object?[]? args) => Send(name, args ?? Array.Empty<object?>());
+    public RexxObject? SendMessage0(string name) => Send(name);
+    public RexxObject? SendMessage1(string name, object? a1) => Send(name, a1);
+    public RexxObject? SendMessage2(string name, object? a1, object? a2) => Send(name, a1, a2);
+    public RexxObject? SendMessage3(string name, object? a1, object? a2, object? a3) => Send(name, a1, a2, a3);
+    public RexxObject? SendMessage4(string name, object? a1, object? a2, object? a3, object? a4) => Send(name, a1, a2, a3, a4);
+    public RexxObject? SendMessage5(string name, object? a1, object? a2, object? a3, object? a4, object? a5) => Send(name, a1, a2, a3, a4, a5);
+
+    /// o~name:scope(args...): the method search starts at the class scope
+    /// (one of the object's classes or superclasses), as Rexx's o~name:super.
+    public RexxObject? SendMessageScope(string name, RexxClass scope, params object?[]? args) =>
+        (RexxObject?)SendRaw(name.ToUpperInvariant(), args ?? Array.Empty<object?>(), scope);
+
+    internal object? SendRaw(string name, object?[]? args, RexxClass? scope = null)
     {
         var r = Interpreter;
         using var u = r.Context();
         var c = u.C;
         nint target = Target(c), a = r.Args(c, args);
-        nint result = c.Send(target, name, a);
+        nint result = scope == null ? c.Send(target, name, a) : c.SendScoped(target, name, scope.Live, a);
         c.ReleaseLocal(a);
         Done(c, target);
         r.Check(c);
@@ -280,8 +303,10 @@ public sealed class RexxString : RexxObject, IEquatable<RexxString>, IConvertibl
     public static explicit operator bool(RexxString s) => RexxConvert.ToBool(s.Value);
     public static explicit operator char(RexxString s) => (char)RexxConvert.To(s, typeof(char))!;
 
-    // IConvertible: Convert.ToInt32(s) and friends, by Rexx's rules.
-    TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
+    // IConvertible: Convert.ToInt32(s) and friends, by Rexx's rules. Its
+    // type code is String: VB's late binding (Dim n As Integer = o.Balance)
+    // converts by the type code, and a String's it converts from its text.
+    TypeCode IConvertible.GetTypeCode() => TypeCode.String;
     object IConvertible.ToType(Type t, IFormatProvider? p) => RexxConvert.To(this, t)!;
     bool IConvertible.ToBoolean(IFormatProvider? p) => RexxConvert.ToBool(Value);
     char IConvertible.ToChar(IFormatProvider? p) => (char)this;
@@ -307,6 +332,8 @@ public sealed class RexxClass : RexxObject
     public RexxObject? New(params object?[] args) => Send("NEW", args);
     /// The class's id ("Account").
     public string Name => Send<string>("ID");
+    /// Its (first) superclass; null for Object.
+    public RexxClass? SuperClass => Send("SUPERCLASS") as RexxClass;
 }
 
 /// A Rexx routine: Call(args), or r(args) through dynamic.

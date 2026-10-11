@@ -928,3 +928,27 @@ collection stays one object when assigned (`RexxObject` is enumerable, but
 PowerShell does not unroll a method's result into a variable). In the
 Windows binary package as `hello.ps1`.
 
+
+## BSF4ooRexx's names: SendMessage*; the C# and VB.NET tours (11/10/2026)
+
+Asked for: the methods of BSF4ooRexx's `RexxProxy`, as the Python bridge
+has them. `RexxObject` has `SendMessage(name, params args)`,
+`SendMessage0(name)` … `SendMessage5(name, a1, …, a5)` and
+`SendMessageScope(name, RexxClass scope, params args)` (the API's
+`SendMessageScoped`: the method search starts at `scope`); `RexxClass` has
+`SuperClass`. Names uppercased as `Send`'s. They are .NET methods, so through
+`dynamic` `o.SendMessage(...)` is that method, never a Rexx message of that
+name (`o.SendMessage("SendMessage")` sends one). As with any `params`
+method, an `object[]` given alone is the argument list (BSF4ooRexx's
+`sendMessage(name, Object[] args)`); to send one Rexx Array, wrap it.
+HostTests 216.
+
+VB.NET's late binding (a `RexxObject` as `Object`, `Option Strict Off`)
+works through `DynamicObject` as `dynamic` does, but VB converts results by
+the `IConvertible` type code: a `RexxString` now answers `TypeCode.String`
+(it was `Object`, which VB refuses), so `Dim n As Integer = o.Balance`
+converts its text. `Convert.ToInt32` and kin still use Rexx's rules.
+
+`samples/csharp/tour` and `samples/vbnet/tour`: one file per topic (Run,
+objects, SendMessage, ADDRESS, standard streams, .NET objects and delegates
+to Rexx), the same output in both; run by the CI with the bridge just built.

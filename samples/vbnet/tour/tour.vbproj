@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A tour of .NET running ooRexx (VB.NET): dotnet run, or dotnet run with topic names after a double dash
+       The bridge: the build in RexxNetDir if given (dotnet run
+       -p:RexxNetDir=DIR), else in $REXXNET_BUILD/rexxnet or ~/build/rexxnet
+       if there is one, else the NuGet package Rexx.Net. ooRexx 5 must be
+       installed (rexx on the PATH). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <OptionStrict>Off</OptionStrict>          <!-- late binding: a Rexx object as Object, as C#'s dynamic -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Tour</RootNamespace>
+    <RexxNetDir Condition="'$(RexxNetDir)' == '' and '$(REXXNET_BUILD)' != ''">$(REXXNET_BUILD)/rexxnet</RexxNetDir>
+    <RexxNetDir Condition="'$(RexxNetDir)' == ''">$([System.Environment]::GetFolderPath(SpecialFolder.UserProfile))/build/rexxnet</RexxNetDir>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(RexxNetDir)/Rexx.Net.dll')">
+    <Reference Include="Rexx.Net"><HintPath>$(RexxNetDir)/Rexx.Net.dll</HintPath></Reference>
+    <!-- rexxnet, the native half: for Rexx code that uses .NET (net.cls) -->
+    <None Include="$(RexxNetDir)/*rexxnet.so;$(RexxNetDir)/*rexxnet.dylib;$(RexxNetDir)/*rexxnet.dll"
+          CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('$(RexxNetDir)/Rexx.Net.dll')">
+    <PackageReference Include="Rexx.Net" Version="0.1.0-*" />
+  </ItemGroup>
+</Project>

@@ -90,11 +90,36 @@ static partial class Program
         Ok("dynamic to string",      text, "150");
         Ok("explicit (int)",         (int)(RexxString)((RexxObject)acct).Send("balance")!, 150);
         Ok("Convert.ToInt32",        Convert.ToInt32(((RexxObject)acct).Send("balance")), 150);
+        Ok("VB's late-bound conversion", Microsoft.VisualBasic.CompilerServices.Conversions.ToInteger(((RexxObject)acct).Send("balance")), 150);
         var twice = (RexxRoutine)pkg.Routines["TWICE"]!;
         Ok("routine Call",           twice.Call(21), "42");
         dynamic dtwice = twice;
         Ok("routine, dynamic invoke", dtwice(5), "10");
         Throws<NotSupportedException>("named arguments", () => acct.Deposit(n: 1), "named arguments");
+
+        // BSF4ooRexx's RexxProxy names: SendMessage, SendMessage0..5, SendMessageScope
+        var shapes = rexx.LoadPackage("shapes.cls",
+            "::class Shape public\n::method describe; return 'a shape'\n" +
+            "::method sum; s = 0; do i = 1 to arg(); s += arg(i); end; return arg() '=' s\n" +
+            "::class Square public subclass Shape\n::method describe; return 'a square'\n" +
+            "::method area; use arg side; return side * side\n");
+        var square = shapes.FindClass("Square")!;
+        var sq = square.New()!;
+        string message = "describe";
+        Ok("SendMessage (a name in a variable)", sq.SendMessage(message), "a square");
+        Ok("SendMessage with args",  sq.SendMessage("area", 3), "9");
+        Ok("SendMessage, an array of args", sq.SendMessage("area", new object?[] { 4 }), "16");
+        Ok("SendMessage0..5",        $"{sq.SendMessage0("describe")} {sq.SendMessage1("area", 5)} {sq.SendMessage2("sum", 1, 2)} " +
+                                     $"{sq.SendMessage3("sum", 1, 2, 3)} {sq.SendMessage4("sum", 1, 2, 3, 4)} {sq.SendMessage5("sum", 1, 2, 3, 4, 5)}",
+                                     "a square 25 2 = 3 3 = 6 4 = 10 5 = 15");
+        Ok("SendMessageScope",       sq.SendMessageScope("describe", square.SuperClass!), "a shape");
+        Ok("SuperClass",             square.SuperClass!.Name, "SHAPE");
+        var lang = rexx.Run("return .directory~new")!;
+        lang.SendMessage2("[]=", "ooRexx", "lang");
+        Ok("SendMessage: no C# name", $"{lang.SendMessage1("[]", "lang")} {lang.SendMessage0("items")}", "ooRexx 1");
+        dynamic dsq = sq;
+        Ok("through dynamic: the .NET method", (string)dsq.SendMessage("describe"), "a square");
+        Throws<RexxException>("SendMessageScope: not a superclass", () => sq.SendMessageScope("describe", rexx.FindClass("Array")!));
 
         // errors
         try { acct.Withdraw(1000); Ok("RexxException", "none", "thrown"); }

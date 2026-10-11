@@ -71,6 +71,10 @@ jobs:
         run: rexx samples/check-samples.rex
       - name: C# sample (the package on nuget.org)
         run: dotnet run --project samples/csharp/hello
+      - name: C# and VB.NET tours (the bridge built here)
+        run: |
+          dotnet run --project samples/csharp/tour -p:RexxNetDir="$REXXNET_BUILD/rexxnet"
+          dotnet run --project samples/vbnet/tour -p:RexxNetDir="$REXXNET_BUILD/rexxnet"
       - uses: actions/upload-artifact@v6
         with:
           name: native-${{ matrix.name }}
@@ -113,6 +117,13 @@ jobs:
         run: rexx samples\check-samples.rex "${{ runner.temp }}\build\rexxnet"
       - name: C# sample (the package on nuget.org)
         run: dotnet run --project samples\csharp\hello
+      - name: C# and VB.NET tours (the bridge built here)
+        shell: pwsh
+        run: |
+          dotnet run --project samples\csharp\tour "-p:RexxNetDir=$env:RUNNER_TEMP\build\rexxnet"
+          if ($LASTEXITCODE) { exit 1 }
+          dotnet run --project samples\vbnet\tour "-p:RexxNetDir=$env:RUNNER_TEMP\build\rexxnet"
+          exit $LASTEXITCODE
       - uses: actions/upload-artifact@v6
         with:
           name: native-win-x64

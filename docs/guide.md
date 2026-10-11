@@ -653,6 +653,17 @@ cancelled
 41.1 Bad arithmetic conversion.
 ```
 
+Messages can also be sent with the names of BSF4ooRexx's `RexxProxy` (and
+the Python bridge's): `o.SendMessage(name, args...)` (or an array of them),
+`o.SendMessage0(name)` … `o.SendMessage5(name, a1, …, a5)`, and
+`o.SendMessageScope(name, cls, args...)`, where the method search starts at
+the Rexx class `cls` (`o~name:cls`; `cls.SuperClass` gives a class's
+superclass). The name is any string: one held in a variable, or one that is
+no C# name (`"[]="`, `"||"`). In VB.NET, a Rexx object as `Object` with
+`Option Strict Off` is late-bound as `dynamic` is in C# (a class's `New` is
+`[New]` there). `samples/csharp/tour` and `samples/vbnet/tour` show it all,
+topic by topic.
+
 **Both ways in one process.** .NET objects passed to Rexx are `.NetObject`s
 (`net.cls` is loaded on first need), and Rexx code can use `.net` as in a Rexx
 program; they come back to .NET as themselves. .NET code called from Rexx
