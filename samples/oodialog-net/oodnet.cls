@@ -31,6 +31,12 @@
 ::method "AUTO=" class
   expose auto
   use strict arg auto
+::method defaultFont class             -- defaultFont([name, size]): the font of dialogs whose create names none
+  expose defaultFont                   -- (ooDialog's .application~defaultFont: MS Shell Dlg 2, 8, unless set)
+  use arg name, size
+  if arg() > 0 then defaultFont = .array~of(name, size)
+  if \var("DEFAULTFONT") then defaultFont = .array~of("MS Shell Dlg 2", 8)
+  return defaultFont
 ::attribute form get                   -- the System.Windows.Forms.Form
 -- ooDialog's constants for the answers of messageDialog and the buttons
 ::constant IDOK 1
@@ -50,9 +56,17 @@
 
 ::attribute ownerDialog                -- ooDialog's: a dialog that owns this one (set before it shows): this one
                                        -- stays above it, hides when it is minimized, closes with it (Form.Owner)
+::attribute exArgs                     -- ooDialog's extra arguments to new: a TabOwnerDlgInfo or a ControlDlgInfo, if given
 ::method init
   expose controls data pending ending deferred defined ownerDialog
   ownerDialog = .nil
+  self~exArgs = .nil
+  do i = 1 to arg()                    -- (wherever ooDialog's new takes it)
+    if arg(i, "E") then do
+      if arg(i)~isA(.TabOwnerDlgInfo) | arg(i)~isA(.ControlDlgInfo) then self~exArgs = arg(i)~copy
+      if arg(i)~isA(.NetDialog), self~isA(.ControlDialog) then ownerDialog = arg(i)   -- (a UserControlDialog's parent)
+    end
+  end
   controls = .directory~new            -- id (uppercased) -> control
   data = .directory~new                -- data attribute (uppercased) -> control id
   pending = .directory~new             -- data attribute values set before the control exists
@@ -65,7 +79,7 @@
    as ooDialog's; style: CENTER, MINIMIZEBOX, MAXIMIZEBOX, SIZEBOX, ...      */
 ::method create
   expose form bx by sizeX sizeY fontName fontSize
-  use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = "MS Shell Dlg 2", fontSize = 8
+  use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = (.NetDialog~defaultFont[1]), fontSize = (.NetDialog~defaultFont[2])
   sizeX = cx; sizeY = cy
   F = .net~System~Windows~Forms
   D = .net~System~Drawing
@@ -105,7 +119,7 @@
 
 /* createCenter(cx, cy [, title [, style [, dlgClass [, fontName [, fontSize]]]]]) */
 ::method createCenter
-  use arg cx, cy, title = "", style = "", dlgClass, fontName = "MS Shell Dlg 2", fontSize = 8
+  use arg cx, cy, title = "", style = "", dlgClass, fontName = (.NetDialog~defaultFont[1]), fontSize = (.NetDialog~defaultFont[2])
   return self~create(0, 0, cx, cy, title, style "CENTER", , fontName, fontSize)
 
 ::method fontName                      -- the dialog's font, as create was given it
@@ -164,6 +178,9 @@
     c~GotFocus += .net~handler(.NetDialogNoSelect~new, "DESELECT")   -- (Windows Forms selects the text)
   end
   if style~wordPos("PASSWORD") > 0 then c~UseSystemPasswordChar = .true
+  if style~wordPos("UPPER") > 0 | style~wordPos("UPPERCASE") > 0 then c~CharacterCasing = "Upper"
+  if style~wordPos("LOWER") > 0 | style~wordPos("LOWERCASE") > 0 then c~CharacterCasing = "Lower"
+  if style~wordPos("NUMBER") > 0 then c~KeyPress += .net~handler(.NetDialogDigitsOnly~new, "KEYPRESS")   -- (ES_NUMBER: digits only)
   if style~wordPos("NOBORDER") > 0 then c~BorderStyle = "None"
   if style~wordPos("RIGHT") > 0 then c~TextAlign = "Right"
   if style~wordPos("CENTER") > 0 then c~TextAlign = "Center"
@@ -387,9 +404,14 @@
   c~ShowRootLines = style~wordPos("ATROOT") > 0 | style~wordPos("LINESATROOT") > 0
   self~common(c, style)
   return 0
-::method createTab
+::method createTab                     -- FIXED (tabs of one width), BUTTONS, MULTILINE, BOTTOM
   use arg id, x, y, cx, cy, style = ""
   c = self~place(id, .net~System~Windows~Forms~TabControl~new, x, y, cx, cy)
+  st = style~upper
+  if st~wordPos("FIXED") > 0 then c~SizeMode = "Fixed"
+  if st~wordPos("BUTTONS") > 0 then c~Appearance = "Buttons"
+  if st~wordPos("MULTILINE") > 0 then c~Multiline = .true
+  if st~wordPos("BOTTOM") > 0 then c~Alignment = "Bottom"
   self~common(c, style)
   return 0
 ::method common private                -- (inside) styles any control may have: HIDDEN, DISABLED
@@ -713,6 +735,29 @@
   self~form~Refresh
   return 0
 
+/* connectKeyPress(method, keys [, filter]): those keys, anywhere in the
+   dialog, call method with ooDialog's (key, shift, control, alt, info);
+   keys: Windows' virtual key codes (ooDialog's .VK~F3...), or .NET's Keys
+   names ("F3"), a list or a range ("112-114"); filter: NONE (no Shift,
+   Control or Alt down), SHIFT, CONTROL, ALT, AND (all those named), the
+   default any */
+::method connectKeyPress
+  use arg methodName, keys, filter = ""
+  f = self~form
+  if .net~isInstance(f, "System.Windows.Forms.Form") then f~KeyPreview = .true
+  f~KeyDown += .net~handler(.NetDialogKeyPress~new(self, methodName, keys, filter), "KEYDOWN")
+  return 0
+::method pixel2dlgUnit                 -- a NetRect's or NetPoint's pixels to dialog units (its x / left, y / top, right, bottom)
+  use strict arg r
+  if r~isA(.NetPoint) then do
+    r~x = r~x * 4 % (self~px(4000) / 1000); r~y = r~y * 8 % (self~py(8000) / 1000)
+    return 0
+  end
+  bx = self~px(4000) / 1000; by = self~py(8000) / 1000
+  r~left = r~left * 4 % bx; r~right = r~right * 4 % bx
+  r~top = r~top * 8 % by;   r~bottom = r~bottom * 8 % by
+  return 0
+
 /* a Windows Forms timer calling methodName every ms milliseconds (stop it: timer~Stop) */
 ::method startTimer
   use strict arg ms, methodName
@@ -990,6 +1035,7 @@
   self~framesToBack
   defined = .true
   do d over deferred; self~sendWith(d[1], d[2]); end
+  if self~isA(.TabOwnerDialog) then self~tabOwnerSetup
   self~initDialog
   self~applyData
   if self~isA(.ResizingAdmin) then self~raSetup
@@ -1501,6 +1547,10 @@
 ::method hide unguarded
   self~form~Visible = .false
   return 0
+::method showFast unguarded            -- (ooDialog's: shown, drawn later; here the same as show)
+  forward message "SHOW"
+::method hideFast unguarded
+  forward message "HIDE"
 ::method setWindowPos unguarded        -- setWindowPos(hwndAfter, rect [, flags]): rect's left, top, right (the width), bottom (the height)
   use arg after, r, flags = ""
   self~form~Bounds = .net~System~Drawing~Rectangle~new(r~left, r~top, r~right, r~bottom)
@@ -1517,6 +1567,169 @@
   ended = .true
   self~leaving
   return 0
+::method pageTitle                     -- its tab's text, from its ControlDlgInfo (a managed page)
+  if self~exArgs~isA(.ControlDlgInfo) then return self~exArgs~title
+  return self~title
+::method isManaged
+  if \self~exArgs~isA(.ControlDlgInfo) then return .false
+  return self~exArgs~managed == .true
+::method tabPageSetActive unguarded    -- (to override) 0: the page may show; or the number of another page to show instead
+  use arg owner, tab
+  return 0
+::method tabPageKillActive unguarded   -- (to override) .false: stay on this page
+  use arg owner, tab
+  return .true
+
+/* ooDialog's TabOwnerDialog: a dialog whose tab controls show control
+   dialogs as their pages, a ManagedTab for each, given to new in a
+   TabOwnerDlgInfo. Each page (a ControlDialog with a ControlDlgInfo: its
+   title is the tab's text) is made the first time its tab is chosen, and
+   placed over the tab control's display area; the page that goes is asked
+   tabPageKillActive(owner, tab) and the one that comes tabPageSetActive(owner,
+   tab) (the owner's tabOwnerKillActive / tabOwnerSetActive(page, tab) instead,
+   when the ManagedTab's options say KILLACTIVE / SETACTIVE); with SELCHANGE
+   the owner's tabOwnerSelChange(page, pageNumber) follows a change.     */
+::class TabOwnerDialog public mixinclass Object
+::method tabOwnerSetup                 -- (inside) once the controls exist, before initDialog
+  expose managed
+  managed = .array~new
+  info = self~exArgs
+  if \info~isA(.TabOwnerDlgInfo) then raise syntax 98.900 array("TabOwnerDialog: new needs a TabOwnerDlgInfo")
+  do mt over info~tabs
+    managed~append(.NetManagedTab~new(self, self~control(mt~tabID), mt))
+  end
+::method getTabPage                    -- getTabPage(tabID, index): the page dialog (index from 1)
+  expose managed
+  use strict arg tabID, index
+  do m over managed
+    if NetDialogKey(m~tabID) == NetDialogKey(tabID) then return m~pages[index]
+  end
+  return .nil
+::method tabOwnerOk unguarded
+  expose managed
+  do m over managed; do p over m~pages; p~endExecution(.true); end; end
+  return 0
+::method tabOwnerCancel unguarded
+  expose managed
+  do m over managed; do p over m~pages; p~endExecution(.false); end; end
+  return 0
+::method tabOwnerKillActive unguarded  -- (to override)
+  use arg pageDlg, tab
+  return .true
+::method tabOwnerSetActive unguarded   -- (to override)
+  use arg pageDlg, tab
+  return 0
+::method tabOwnerSelChange unguarded   -- (to override)
+  use arg pageDlg, pageNumber
+  return 0
+::method tabOwnerSelChanging unguarded -- (to override)
+  use arg pageDlg, pageNumber
+  return 0
+
+::class TabOwnerDlgInfo public          -- new(managedTab | Array of them); add(managedTab)
+::attribute tabs get
+::method init
+  expose tabs
+  use arg mts = .nil
+  tabs = .array~new
+  if mts~isA(.array) then do m over mts; tabs~append(m); end
+  else if mts \== .nil then tabs~append(mts)
+::method add
+  expose tabs
+  use strict arg mt
+  tabs~append(mt)
+  return 0
+::method copy
+  expose tabs
+  c = .TabOwnerDlgInfo~new(tabs~copy)
+  return c
+
+::class ManagedTab public               -- new(tabID, pages [, opts]): opts SELCHANGE SELCHANGING SETACTIVE KILLACTIVE
+::attribute tabID get
+::attribute pages get
+::attribute opts get
+::attribute startPage
+::method init
+  expose tabID pages opts
+  use strict arg tabID, pages, opts = "", startPage = 1
+  opts = opts~upper
+  self~startPage = startPage
+
+::class ControlDlgInfo public           -- new([owner [, managed [, title [, size]]]]): a control dialog's extra arguments
+::attribute owner
+::attribute managed
+::attribute title
+::attribute size
+::method init
+  use arg owner = .nil, managed = .false, title = "", size = .nil
+  self~owner = owner; self~managed = managed; self~title = title; self~size = size
+::method copy
+  return .ControlDlgInfo~new(self~owner, self~managed, self~title, self~size)
+
+::class NetManagedTab                   -- (inside) a TabOwnerDialog's managed tab control
+::attribute tabID get
+::attribute pages get
+::method init
+  expose owner tc mt pages showing tabID
+  use strict arg owner, tc, mt
+  tabID = mt~tabID
+  pages = mt~pages
+  do p over pages
+    tc~TabPages~Add(p~pageTitle)
+    p~ownerDialog = owner
+  end
+  showing = 0
+  tc~SelectedIndexChanged += .net~handler(self, "SELCHANGE")
+  tc~Selecting += .net~handler(self, "SELECTING")
+  tc~SizeChanged += .net~handler(self, "PLACE")
+  start = max(1, min(mt~startPage, pages~items))
+  self~bring(start)
+  showing = start
+  if start > 1 then tc~SelectedIndex = start - 1
+::method bring private                  -- page i made, if it is not yet, and placed over the display area
+  expose owner tc pages
+  use arg i
+  p = pages[i]
+  p~execute
+  self~placePage(p)
+::method placePage private
+  expose tc
+  use arg p
+  r = tc~DisplayRectangle
+  p~form~Bounds = .net~System~Drawing~Rectangle~new(tc~Left + r~X, tc~Top + r~Y, r~Width, r~Height)
+::method place                          -- the tab control's size changed: the page follows
+  expose pages showing
+  if showing > 0 then self~placePage(pages[showing])
+::method selecting
+  expose owner tc mt pages showing
+  use arg sender, e
+  if showing = 0 then return
+  p = pages[showing]
+  if mt~opts~wordPos("KILLACTIVE") > 0 then ok = owner~tabOwnerKillActive(p, tc)
+  else ok = p~tabPageKillActive(owner, tc)
+  if ok == .false then e~Cancel = .true
+  else if mt~opts~wordPos("SELCHANGING") > 0 then owner~tabOwnerSelChanging(p, showing)
+::method selChange
+  expose owner tc mt pages showing
+  use arg sender, e
+  cur = tc~SelectedIndex + 1
+  if cur < 1 | cur = showing then return
+  new = pages[cur]
+  self~bring(cur)
+  if mt~opts~wordPos("SETACTIVE") > 0 then other = owner~tabOwnerSetActive(new, tc)
+  else other = new~tabPageSetActive(owner, tc)
+  if \datatype(other, "W") then other = 0
+  if other \= 0, other \= cur then do  -- another page instead
+    tc~SelectedIndex = other - 1
+    return
+  end
+  if showing > 0 then pages[showing]~hide
+  new~show
+  showing = cur
+  if mt~opts~wordPos("SELCHANGE") > 0 then owner~tabOwnerSelChange(new, cur)
+::method showing                        -- (inside) the page number shown
+  expose showing
+  return showing
 
 /* ----------------------------------------------------------------- resizing */
 /* ooDialog's ResizingAdmin: a NetDialog that inherits it can be sized by the
@@ -2241,6 +2454,42 @@
   e~Handled = .true
   dialog~send(methodName)
 
+::class NetDialogKeyPress              -- (inside) connectKeyPress
+::method init
+  expose dialog methodName keys filter
+  use arg dialog, methodName, keys, filter
+  keys = keys~changeStr(",", " ")~space
+  filter = filter~upper
+::method keyDown
+  expose dialog methodName keys filter
+  use arg sender, e
+  code = e~KeyValue; name = e~KeyCode~string
+  hit = .false
+  do k over keys~makeArray(" ")
+    if k~pos("-") > 1 then do
+      parse var k a "-" b
+      if datatype(a, "W"), datatype(b, "W"), code >= a, code <= b then hit = .true
+    end
+    else if datatype(k, "W") then do; if k = code then hit = .true; end
+    else if k~caselessEquals(name) then hit = .true
+  end
+  if \hit then return
+  sh = e~Shift; ct = e~Control; al = e~Alt
+  if filter \== "" then do
+    if filter~wordPos("NONE") > 0 then do; if sh | ct | al then return; end
+    else if filter~wordPos("AND") > 0 then do
+      if filter~wordPos("SHIFT") > 0, \sh then return
+      if filter~wordPos("CONTROL") > 0, \ct then return
+      if filter~wordPos("ALT") > 0, \al then return
+    end
+    else do
+      want = (filter~wordPos("SHIFT") > 0 & sh) | (filter~wordPos("CONTROL") > 0 & ct) | (filter~wordPos("ALT") > 0 & al)
+      if \want then return
+    end
+  end
+  e~Handled = .true
+  dialog~send(methodName, code, sh, ct, al, "")
+
 ::class NetDialogInputKeys             -- (inside) wantKeys
 ::method init
   expose keys
@@ -2249,6 +2498,13 @@
   expose keys
   use arg ctl, e
   if wordPos(e~KeyCode~string, keys) > 0 then e~IsInputKey = .true
+
+::class NetDialogDigitsOnly            -- (inside) an edit control's NUMBER style: only digits typed
+::method keyPress
+  use arg box, e
+  c = e~KeyChar
+  if c~c2d < 32 then return            -- (Backspace, Ctrl+C...)
+  if \c~dataType("W") then e~Handled = .true
 
 ::class NetDialogNoSelect              -- (inside) a read-only edit control shows its text unselected
 ::method deselect
@@ -2320,6 +2576,8 @@ syntax:
     end
     otherwise face = name
   end
+  if style~pos(",") > 0 then           -- (several: "Bold, Italic", .NET's flags, parsed by .NET)
+    style = .net~System~Enum~Parse(D~FontStyle~Regular~GetType, style)
   return D~Font~new(face, .net~single(px), style, "Pixel")
 
 /* (inside) a colour: a .NET Color, or ooDialog's index into Windows'

@@ -865,7 +865,7 @@ return 0
   use strict arg p, r
   return r~Contains(p~x, p~y)
 
-/* (.NET version) the first line the edit control shows (from 1) */
+/* (.NET version) the first line the edit control shows (from 1): EM_GETFIRSTVISIBLELINE */
 ::routine firstLine
   use strict arg edit
-  return edit~GetLineFromCharIndex(edit~GetCharIndexFromPosition(.net~System~Drawing~Point~new(1, 1))) + 1
+  return sendWinIntMsg(edit, 206, 0, 0) + 1
