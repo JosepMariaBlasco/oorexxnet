@@ -63,6 +63,15 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `openSaveFileDemo.rex` | `examples\openSaveFileDemo.rex` | the Common Item Dialog as .NET's OpenFileDialog and SaveFileDialog (ClientGuid, preview, filters, folders); tool tips |
 | `saveFileWithFilter.rex` | `examples\saveFileWithFilter.rex` | a save dialog refusing some extensions (its FileOk event) |
 | `addManyRows.rex` | `examples\addManyRows.rex` | ProgressDialog with a Cancel button (Alerter); 25,000 list view rows; .NET's sort and a sort calling a Rexx IComparer; two groups of radio buttons in one group box |
+| `toolBar.rex` | `controls\ToolBar\toolBar.rex` | a tool bar from a .rc (a ToolStrip), its buttons added and inserted |
+| `comboBoxTypes.rex` | `controls\ComboBox\comboBoxTypes.rex` | the three kinds of combo box; their colours (setFullColor: BackColor, ForeColor) |
+| `customPositionToolTip.rex` | `controls\ToolTip\customPositionToolTip.rex` | a tree view's tips placed by the program (NodeMouseHover, ToolTip.Show) |
+| `columnIcons.rex` | `controls\ListView\columnIcons.rex` | a list view's four views; icons in the subitems (drawn: OwnerDraw); sorting by a clicked column |
+| `PaidHolidays.rex` | `controls\PaidHolidays.rex` | a month calendar: its range, its optimal size, dates in bold |
+| `incrementalSearch.rex` | `controls\ListBox\incrementalSearch.rex` | a list box's own incremental search, with a longer interval (KeyPress, a Timer) |
+| `editControl.rex` | `controls\ListView\subitem.editing\editControl.rex` | a list view's subitems edited in place (a TextBox inside the ListView) |
+| `dropDownComboBox.rex` | `controls\ListView\subitem.editing\dropDownComboBox.rex` | the same with a drop-down combo box |
+| `dropDownListComboBox.rex` | `controls\ListView\subitem.editing\dropDownListComboBox.rex` | the same with a drop-down list |
 
 More of ooDialog's samples will follow, in batches.
 
