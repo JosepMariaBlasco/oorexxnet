@@ -46,8 +46,11 @@
   return self~form~Handle
 ::attribute initCode                   -- as ooDialog's (0: fine)
 
+::attribute ownerDialog                -- ooDialog's: a dialog that owns this one (set before it shows): this one
+                                       -- stays above it, hides when it is minimized, closes with it (Form.Owner)
 ::method init
-  expose controls data pending ending deferred defined
+  expose controls data pending ending deferred defined ownerDialog
+  ownerDialog = .nil
   controls = .directory~new            -- id (uppercased) -> control
   data = .directory~new                -- data attribute (uppercased) -> control id
   pending = .directory~new             -- data attribute values set before the control exists
@@ -89,6 +92,7 @@
   else form~FormBorderStyle = "FixedDialog"
   form~MaximizeBox = style~wordPos("MAXIMIZEBOX") > 0
   form~MinimizeBox = style~wordPos("MINIMIZEBOX") > 0
+  if style~wordPos("NOMENU") > 0 then form~ControlBox = .false   -- (no system menu: no [x] either)
   if style~wordPos("CENTER") > 0 then form~StartPosition = "CenterScreen"
   else do
     form~StartPosition = "Manual"
@@ -131,6 +135,8 @@
   if style~wordPos("CENTER") > 0 then c~TextAlign = "TopCenter"
   if style~wordPos("BORDER") > 0 | style~pos("FRAME") > 0 then c~BorderStyle = "FixedSingle"   -- (GRAYFRAME, BLACKFRAME...)
   if style~pos("FRAME") > 0 then self~frame(c)                 -- a frame: behind what it frames
+  if style~wordPos("SUNKEN") > 0 then c~BorderStyle = "Fixed3D"
+  if style~wordPos("ELLIPSIS") > 0 then c~AutoEllipsis = .true
   return 0
 ::method createStaticText
   forward message "CREATESTATIC"
@@ -175,6 +181,7 @@
     if id~string~upper == "IDCANCEL" then self~form~CancelButton = c
   end
   if style~wordPos("DISABLED") > 0 then c~Enabled = .false
+  if style~wordPos("HIDDEN") > 0 then c~Visible = .false
   select
     when arg(8, "E") then self~connectButtonEvent(id, "CLICKED", methodName)
     when id~string~upper == "IDOK" then self~connectButtonEvent(id, "CLICKED", "OK")
@@ -355,9 +362,22 @@
     when "DBLCLK" then e = "DoubleClick"
     when "GOTFOCUS" then e = "GotFocus"
     when "LOSTFOCUS" then e = "LostFocus"
+    when "HOTITEM" then return self~connectHot(id, methodName)
     otherwise e = "Click"
   end
   return self~connectEvent(id, e, methodName)
+::method connectHot private             -- HOTITEM: methodName(id, entering) as the mouse comes onto the button (.true) and leaves it
+  expose defined deferred
+  use strict arg id, methodName
+  if \defined then do
+    deferred~append(.array~of("CONNECTHOT", .array~of(id, methodName)))
+    return 0
+  end
+  relay = .NetDialogHotRelay~new(self, id, methodName)
+  c = self~control(id)
+  c~MouseEnter += .net~handler(relay, "ENTER")
+  c~MouseLeave += .net~handler(relay, "LEAVE")
+  return 0
 ::method connectListViewEvent
   use arg id, event, methodName
   select case event~upper
@@ -634,13 +654,7 @@
    event methods, called while it waits, can run. */
 ::method execute unguarded
   expose form ending defined deferred
-  if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
-  self~defineDialog
-  self~framesToBack
-  defined = .true
-  do d over deferred; self~sendWith(d[1], d[2]); end
-  self~initDialog
-  self~applyData
+  self~prepare
   if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
     t = .net~System~Windows~Forms~Timer~new
@@ -655,7 +669,8 @@
     runner~timers = .array~of(t, w)
     say "(auto) showing" form~Text
   end
-  r = form~ShowDialog
+  if self~ownerDialog \== .nil then r = form~ShowDialog(self~ownerDialog~form)
+  else r = form~ShowDialog
   self~snapshot                        -- the data attributes keep their values
   if var("RUNNER") then do
     do t over runner~timers; t~Stop; end
@@ -667,6 +682,38 @@
   self~leaving
   form~Dispose
   return (r~string == "OK")~?(1, 2)
+/* popup([show]): the dialog shown without waiting for it (ooDialog's
+   popup; a modeless form): the events of this thread's windows run it, as
+   while a modal dialog or msSleep waits. ok / cancel / endDialog close it;
+   leaving runs when it closes. */
+::method popup unguarded
+  expose form modeless
+  self~prepare
+  modeless = .true
+  form~FormClosed += .net~handler(self, "NETDIALOG.CLOSED")
+  if self~ownerDialog \== .nil then form~Owner = self~ownerDialog~form
+  form~Show
+  return 0
+::method isModeless private
+  expose modeless
+  return var("MODELESS")
+::method "NETDIALOG.CLOSED" unguarded
+  use arg sender, e
+  self~snapshot
+  self~leaving
+::method prepare private               -- (inside) defineDialog, initDialog, the data
+  expose form defined deferred
+  if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
+  self~defineDialog
+  self~framesToBack
+  defined = .true
+  do d over deferred; self~sendWith(d[1], d[2]); end
+  self~initDialog
+  self~applyData
+::method setWindowTitle                -- setWindowTitle(hwnd, text): a window of this program's title
+  use strict arg hwnd, text
+  .net~System~Windows~Forms~Control~FromHandle(hwnd)~Text = text
+  return 0
 ::method defineDialog                  -- (to override)
 ::method initDialog                    -- (to override)
 ::method leaving                       -- (to override)
@@ -681,16 +728,23 @@
 ::method autoRun unguarded             -- unattended (.NetDialog~auto): what the user would do
   self~ok
 ::method endDialog unguarded           -- ends the dialog: 1 OK, else Cancel
-  expose form ending
+  expose form ending closing
   use arg code = 1
   ending = .true
   form~DialogResult = (code = 1)~?("OK", "Cancel")
+  if self~isModeless, \var("CLOSING") then form~Close   -- (a modeless form: DialogResult does not close it)
 ::method "NETDIALOG.CLOSING" unguarded  -- the window's [x] (or Alt+F4): the dialog's cancel
-  expose ending
+  expose ending closing
   use arg sender, e
   if ending then return
-  ending = .true
+  if e~CloseReason~string \== "UserClosing" then do   -- its owner closing, Windows ending: no say in it
+    ending = .true
+    return
+  end
+  closing = .true                      -- (endDialog: no Close of its own)
   self~cancel
+  drop closing
+  if \ending then e~Cancel = .true     -- a cancel that did not end the dialog (overridden): it stays, as in ooDialog
 
 /* data attributes, as ooDialog's: self~name gives the control's value,
    self~name = v sets it (before execute, when the control is created) */
@@ -1070,6 +1124,17 @@
   end
   self~running = .false
 
+::class NetDialogHotRelay              -- (inside) HOTITEM: (id, entering) as ooDialog's
+::method init
+  expose dialog id methodName
+  use arg dialog, id, methodName
+::method enter
+  expose dialog id methodName
+  dialog~sendWith(methodName, .array~of(id, .true))
+::method leave
+  expose dialog id methodName
+  dialog~sendWith(methodName, .array~of(id, .false))
+
 ::class NetDialogContextRelay          -- (inside) connectContextMenu: (hwnd, x, y) as ooDialog's
 ::method init
   expose dialog methodName hwnd
@@ -1377,9 +1442,51 @@ syntax:
 /* timedMessage(message, title, duration [, earlyReply]): a message that goes away after duration ms */
 ::routine timedMessage public
   use arg message, title, duration, earlyReply = .false
-  if NetDialogAuto("timedMessage:" message) then return 0
+  if duration >= 0, NetDialogAuto("timedMessage:" message) then return 0
   dlg = .NetDialogTimed~new(message, title, duration)
+  if duration < 0 then do              -- until the program cancels it: the dialog, shown, at once
+    dlg~popup
+    return dlg
+  end
+  if earlyReply == .true then do       -- back at once; it goes away by itself
+    dlg~popup
+    return 0
+  end
   dlg~execute
+  return 0
+
+/* findWindow(title): the handle of this program's window of that title, or
+   0 (.NET has no Win32 FindWindow: its own forms, Application.OpenForms) */
+::routine findWindow public
+  use strict arg title
+  do f over .net~System~Windows~Forms~Application~OpenForms~makeArray
+    if f~Text == title then return f~Handle
+  end
+  return 0
+
+/* play(file [, "YES" | "LOOP"]): a .wav, to its end, or in the background
+   ("YES"), or over and over ("LOOP") until another play; .NET's SoundPlayer */
+::routine play public
+  use arg file, how = ""
+  if NetDialogAuto("play:" file how) then return 0
+  p = .net~System~Media~SoundPlayer~new(file)
+  select
+    when how~upper == "YES" then p~Play
+    when how~upper == "LOOP" then p~PlayLooping
+    otherwise p~PlaySync
+  end
+  return 0
+
+/* msSleep(ms): waits, this thread's windows alive meanwhile (a modeless
+   dialog, a timedMessage that replied early) */
+::routine msSleep public
+  use strict arg ms
+  F = .net~System~Windows~Forms
+  sw = .net~System~Diagnostics~Stopwatch~StartNew
+  do while sw~ElapsedMilliseconds < ms
+    F~Application~DoEvents
+    call SysSleep 0.02
+  end
   return 0
 
 ::routine NetDialogAsk                 -- (inside) inputBox and kin
@@ -1519,6 +1626,9 @@ syntax:
   self~init:super
   self~createCenter(200, 40, title)
 ::method defineDialog
-  expose message duration
+  expose message duration timer
   self~createStatic("msg", 10, 14, 180, 20, "CENTER", message)
-  self~startTimer(duration, "OK")
+  if duration > 0 then timer = self~startTimer(duration, "OK")   -- (-1: until cancelled)
+::method leaving
+  expose timer
+  if var("TIMER") then timer~Stop      -- (it would tick on, after the window)

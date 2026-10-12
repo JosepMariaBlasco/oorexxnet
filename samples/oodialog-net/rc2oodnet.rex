@@ -218,6 +218,7 @@ control: procedure
   select
     when wordPos(kw, "LTEXT RTEXT CTEXT") > 0 then do
       style = (kw == "RTEXT")~?("RIGHT", (kw == "CTEXT")~?("CENTER", ""))
+      if args~hasIndex(7) then style = (style staticStyles(args[7]))~strip   -- (its own styles: SS_SUNKEN...)
       return call("createStatic", args[2], args, style, args[1])
     end
     when kw == "EDITTEXT" then return call("createEdit", args[1], shift(args, -1), editStyles(args[6]), , dataName("", args[1]))
@@ -383,6 +384,8 @@ staticStyles: procedure
   if st~pos("SS_RIGHT") > 0 then r = r "RIGHT"
   if st~pos("FRAME") > 0 then r = r "FRAME"
   if st~pos("WS_BORDER") > 0 then r = r "BORDER"
+  if st~pos("SS_SUNKEN") > 0 then r = r "SUNKEN"
+  if st~pos("ELLIPSIS") > 0 then r = r "ELLIPSIS"    -- (SS_ENDELLIPSIS, SS_WORDELLIPSIS, SS_PATHELLIPSIS)
   return r~strip
 
 listViewStyles: procedure
