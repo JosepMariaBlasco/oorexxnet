@@ -414,7 +414,7 @@
   end
   self~onBackward; self~onBackward
   say "(auto) info tip:" lv~Items[1]~ToolTipText~changeStr(.endOfLine, " / ") "- shown" lv~ShowItemToolTips
-  self~newCheckBox(IDC_CK_INFOTIPS)~PerformClick
+  self~newCheckBox(IDC_CK_INFOTIPS)~Checked = .false; self~onCheckClicked   -- a CheckBox has no PerformClick
   say "(auto) Use Info Tips unchecked: shown" lv~ShowItemToolTips
   self~onAdd
   say "(auto) added:" rows(lv)

@@ -161,6 +161,19 @@
   return 0
 ::method createStaticText
   forward message "CREATESTATIC"
+::method createBlackFrame               -- createBlackFrame(id, x, y, cx, cy [, style]): a frame (a bordered Label)
+  use arg id, x, y, cx, cy, style = ""
+  return self~createStatic(id, x, y, cx, cy, style "BLACKFRAME", "")
+/* createStaticImage(id, x, y, cx, cy [, style]): a PictureBox (its Image:
+   ooDialog's setImage); SIZEIMAGE stretches the image, CENTERIMAGE centres it */
+::method createStaticImage
+  use arg id, x, y, cx, cy, style = ""
+  c = self~place(id, .net~System~Windows~Forms~PictureBox~new, x, y, cx, cy)
+  st = style~upper
+  if st~wordPos("SIZEIMAGE") > 0 then c~SizeMode = "StretchImage"
+  else if st~wordPos("CENTERIMAGE") > 0 then c~SizeMode = "CenterImage"
+  self~common(c, style)
+  return 0
 ::method createEdit
   use arg id, x, y, cx, cy, style = "", attributeName
   e = .net~System~Windows~Forms~TextBox~new
@@ -552,8 +565,14 @@
     otherwise e = event
   end
   return self~connectEvent(id, e, methodName)
-::method connectComboBoxEvent
-  forward message "CONNECTLISTBOXEVENT"
+::method connectComboBoxEvent            -- SELCHANGE, SELENDOK (.NET's SelectionChangeCommitted), DROPDOWN, CLOSEUP, DBLCLK
+  use arg id, event, methodName
+  select case event~upper
+    when "SELENDOK" then return self~connectEvent(id, "SelectionChangeCommitted", methodName)
+    when "DROPDOWN" then return self~connectEvent(id, "DropDown", methodName)
+    when "CLOSEUP" then return self~connectEvent(id, "DropDownClosed", methodName)
+    otherwise forward message "CONNECTLISTBOXEVENT"
+  end
 /* connectDateTimePickerEvent(id, event, method): DATETIMECHANGE (.NET's
    ValueChanged), SETFOCUS, KILLFOCUS, DROPDOWN, CLOSEUP; USERSTRING: a .NET
    DateTimePicker cannot be typed in (Win32's CANPARSE): F2 puts an edit
@@ -777,8 +796,17 @@
   if .net~isInstance(f, "System.Windows.Forms.Form") then f~KeyPreview = .true
   f~KeyDown += .net~handler(.NetDialogKeyPress~new(self, methodName, keys, filter), "KEYDOWN")
   return 0
+::method getTextSizeDu                 -- a text's size in this dialog's font, in dialog units (a NetSize)
+  use strict arg text
+  s = .net~System~Windows~Forms~TextRenderer~MeasureText(text, self~form~Font)
+  bx = self~px(4000) / 1000; by = self~py(8000) / 1000
+  return .NetSize~new((s~Width * 4 + bx - 1) % bx, (s~Height * 8 + by - 1) % by)
 ::method pixel2dlgUnit                 -- a NetRect's or NetPoint's pixels to dialog units (its x / left, y / top, right, bottom)
   use strict arg r
+  if r~isA(.NetSize) then do
+    r~width = r~width * 4 % (self~px(4000) / 1000); r~height = r~height * 8 % (self~py(8000) / 1000)
+    return 0
+  end
   if r~isA(.NetPoint) then do
     r~x = r~x * 4 % (self~px(4000) / 1000); r~y = r~y * 8 % (self~py(8000) / 1000)
     return 0
@@ -911,6 +939,32 @@
   return .true
 ::method apply unguarded                -- (to override)
   return 0
+::method wizBack unguarded              -- (to override) a wizard's Back: 0 on, -1 stay, or the page number to go to
+  return 0
+::method wizNext unguarded              -- (to override) a wizard's Next: the same
+  return 0
+::method wizFinish unguarded            -- (to override) a wizard's Finish: 0 ends it
+  return 0
+::method queryFromSibling unguarded     -- (to override) a sibling's querySiblings(arg1, arg2): 0 lets the others answer
+  return 0
+::method pageCreate unguarded           -- (to override) once, before its controls are made
+  return .true
+::method headerTitle                    -- a wizard's interior page: the header's title and subtitle ("": an exterior page)
+  expose headerTitle
+  if \var("HEADERTITLE") then return ""
+  return headerTitle
+::method "HEADERTITLE="
+  expose headerTitle
+  use strict arg headerTitle
+::method headerSubtitle
+  expose headerSubtitle
+  if \var("HEADERSUBTITLE") then return ""
+  return headerSubtitle
+::method "HEADERSUBTITLE="
+  expose headerSubtitle
+  use strict arg headerSubtitle
+::method dlgHandle                      -- (ooDialog's: the window's handle)
+  return self~hwnd
 ::method hostIn                        -- (inside) the page in a container (a TabPage), not its own window
   expose form
   use strict arg container
@@ -923,6 +977,7 @@
   expose built defined deferred
   if var("BUILT") then return
   built = .true
+  self~pageCreate
   self~defineDialog
   self~framesToBack
   defined = .true
@@ -1458,21 +1513,36 @@
 ::constant IDC_TAB_IN_PROPSHEET "PROPSHEET.TABS"   -- the tab control's id (ResizingAdmin's sizing names it)
 ::attribute pages get
 ::attribute startPage
+::attribute header                     -- a wizard's header bitmap (a .NET Image), on its interior pages
+::attribute watermark                  -- a wizard's watermark (a .NET Image), on its exterior pages (no headerTitle)
 ::method init
-  expose pages options outcome cur      -- (not RESULT: a message instruction sets it)
+  expose pages options outcome cur wizard extH intH
   use arg pages, options = "", caption = ""
   self~init:super
   self~startPage = 1
+  self~header = .nil; self~watermark = .nil
   outcome = "CLOSEDCANCEL"; cur = 0
-  cx = 0; cy = 0
+  op = options~upper
+  wizard = op~wordPos("WIZARD97") > 0 | op~wordPos("WIZARD") > 0 | op~wordPos("AERO") > 0 | op~wordPos("WIZARDLITE") > 0
+  cx = 0; cy = 0; extH = 0; intH = 0
   do p over pages
     p~propSheet = self
     cx = max(cx, p~sizeX); cy = max(cy, p~sizeY)
+    if p~headerTitle == "" then extH = max(extH, p~sizeY)
+    else intH = max(intH, p~sizeY)
   end
   first = pages[1]
-  self~createCenter(cx + 14, cy + 42, caption, , , first~fontName, first~fontSize)
+  if wizard then do                    -- exterior pages fill the area; interior ones go under a header
+    contentH = max(extH, intH + 50)
+    self~createCenter(cx, contentH + 31, caption, , , first~fontName, first~fontSize)
+  end
+  else self~createCenter(cx + 14, cy + 42, caption, , , first~fontName, first~fontSize)
+::method isWizard
+  expose wizard
+  return wizard
 ::method defineDialog
-  expose pages options tabs
+  expose pages options tabs wizard
+  if wizard then return self~defineWizard
   F = .net~System~Windows~Forms
   tabs = F~TabControl~new
   self~place("PROPSHEET.TABS", tabs, 7, 7, self~sizeX - 14, self~sizeY - 35)
@@ -1492,18 +1562,162 @@
   self~createPushButton(IDOK, x - 55, self~sizeY - 21, 50, 14, "DEFAULT", "OK")
   tabs~Selecting += .net~handler(self, "PROPSHEET.SELECTING")
   tabs~Selected += .net~handler(self, "PROPSHEET.SELECTED")
+/* a wizard (Wizard97): the page shown over the area above a line, the
+   buttons under it (Back, Next or Finish, Cancel); an interior page (one
+   with a headerTitle) under a white header with its title, subtitle and the
+   header bitmap, 7 dialog units in; an exterior page on white, the
+   watermark on its left */
+::method defineWizard private
+  expose pages panels headerBox titleLabel subtitleLabel headerPicture
+  F = .net~System~Windows~Forms
+  D = .net~System~Drawing
+  contentH = self~sizeY - 31
+  w = self~px(self~sizeX)
+  headerBox = F~Panel~new
+  headerBox~BackColor = D~Color~White
+  headerBox~Bounds = D~Rectangle~new(0, 0, w, self~py(36))
+  self~form~Controls~Add(headerBox)
+  titleLabel = F~Label~new
+  titleLabel~Font = D~Font~new(self~form~Font, "Bold")
+  titleLabel~Bounds = D~Rectangle~new(self~px(15), self~py(8), w - self~px(15) - 60, self~py(10))
+  subtitleLabel = F~Label~new
+  subtitleLabel~Bounds = D~Rectangle~new(self~px(22), self~py(18), w - self~px(22) - 60, self~py(18))
+  headerPicture = F~PictureBox~new
+  headerPicture~SizeMode = "CenterImage"
+  headerPicture~Bounds = D~Rectangle~new(w - 56, (self~py(36) - 49) % 2, 49, 49)
+  line = F~Label~new
+  line~BorderStyle = "Fixed3D"
+  line~Bounds = D~Rectangle~new(0, self~py(36) - 2, w, 2)
+  do c over .array~of(titleLabel, subtitleLabel, headerPicture, line); headerBox~Controls~Add(c); end
+  panels = .array~new
+  do i = 1 to pages~items
+    p = pages[i]
+    panel = F~Panel~new
+    panel~Visible = .false
+    if p~headerTitle == "" then do       -- exterior
+      panel~Bounds = D~Rectangle~new(0, 0, w, self~py(contentH))
+      panel~BackColor = D~Color~White
+    end
+    else panel~Bounds = D~Rectangle~new(0, self~py(36) + self~py(7), w, self~py(p~sizeY))
+    p~hostIn(panel)
+    self~form~Controls~Add(panel)
+    panels[i] = panel
+  end
+  sep = F~Label~new
+  sep~BorderStyle = "Fixed3D"
+  sep~Bounds = D~Rectangle~new(0, self~py(contentH), w, 2)
+  self~form~Controls~Add(sep)
+  y = contentH + 9
+  x = self~sizeX - 7 - 50
+  self~createPushButton(IDCANCEL, x, y, 50, 14, , "Cancel")
+  x -= 57
+  self~createPushButton("PROPSHEET.NEXT", x, y, 50, 14, "DEFAULT", "&Next >", "WIZARDNEXT")
+  self~createPushButton("PROPSHEET.FINISH", x, y, 50, 14, "HIDDEN", "Finish", "WIZARDFINISH")
+  self~createPushButton("PROPSHEET.BACK", x - 50, y, 50, 14, , "< &Back", "WIZARDBACK")
+  self~form~AcceptButton = self~control("PROPSHEET.NEXT")
 ::method initDialog
-  expose tabs cur
+  expose tabs cur wizard
   start = max(1, min(self~startPage, self~pages~items))
+  if wizard then do
+    self~setWizButtons("NEXT")
+    self~activate(start)
+    return
+  end
   tabs~SelectedIndex = start - 1
   if cur \= start then self~activate(start)   -- (no Selected event before the window exists)
 ::method activate private
-  expose cur
+  expose cur wizard panels headerBox titleLabel subtitleLabel headerPicture
   use arg i
+  if wizard then do
+    if cur > 0 then panels[cur]~Visible = .false
+    p = self~pages[i]
+    if p~headerTitle == "" then do
+      headerBox~Visible = .false
+      if self~watermark \== .nil then do
+        panels[i]~BackgroundImage = self~watermark
+        panels[i]~BackgroundImageLayout = "None"
+      end
+    end
+    else do
+      titleLabel~Text = p~headerTitle
+      subtitleLabel~Text = p~headerSubtitle
+      if self~header \== .nil then headerPicture~Image = self~header
+      headerBox~Visible = .true
+      headerBox~BringToFront
+    end
+    panels[i]~Visible = .true
+    panels[i]~BringToFront
+  end
   cur = i
   p = self~pages[i]
   p~buildPage
   p~setActive(self)
+/* a wizard's buttons: setWizButtons(words): BACK, NEXT, FINISH,
+   DISABLEDFINISH; pressButton(BACK | NEXT | FINISH | CANCEL); a page's
+   wizBack / wizNext answer 0 (on), -1 (stay) or the page number to go to,
+   its wizFinish 0 (end) or else (stay) */
+::method setWizButtons unguarded
+  use strict arg opts
+  opts = opts~upper
+  self~control("PROPSHEET.BACK")~Enabled = opts~wordPos("BACK") > 0
+  finishing = opts~wordPos("FINISH") > 0 | opts~wordPos("DISABLEDFINISH") > 0
+  next = self~control("PROPSHEET.NEXT"); finish = self~control("PROPSHEET.FINISH")
+  next~Visible = \finishing
+  next~Enabled = opts~wordPos("NEXT") > 0
+  finish~Visible = finishing
+  finish~Enabled = opts~wordPos("FINISH") > 0
+  self~form~AcceptButton = finishing~?(finish, next)
+  return .true
+::method pressButton unguarded
+  use strict arg button
+  select case button~upper
+    when "BACK" then self~wizardBack
+    when "NEXT" then self~wizardNext
+    when "FINISH" then self~wizardFinish
+    when "CANCEL" then self~cancel
+    when "OK" then self~ok
+    otherwise nop
+  end
+  return .true
+::method wizardBack unguarded
+  expose cur
+  if \self~control("PROPSHEET.BACK")~Enabled then return 0
+  r = self~pages[cur]~wizBack(self)
+  self~wizardGo(r, cur - 1)
+  return 0
+::method wizardNext unguarded
+  expose cur
+  if \self~control("PROPSHEET.NEXT")~Enabled then return 0
+  r = self~pages[cur]~wizNext(self)
+  self~wizardGo(r, cur + 1)
+  return 0
+::method wizardGo private
+  expose cur
+  use arg r, default
+  if r = -1 then return                -- (the page stays)
+  if self~pages[cur]~killActive(self) == .false then return
+  to = default
+  if datatype(r, "W"), r > 0 then to = r
+  if to < 1 | to > self~pages~items then return
+  self~activate(to)
+::method wizardFinish unguarded
+  expose cur outcome
+  r = self~pages[cur]~wizFinish(self)
+  if r \= 0 then return 0
+  self~applyAll
+  outcome = "CLOSEDOK"
+  self~endDialog(1)
+  return 0
+/* querySiblings(arg1, arg2): each page made so far gets
+   queryFromSibling(arg1, arg2, propSheet), until one answers other than 0 */
+::method querySiblings unguarded
+  use arg arg1, arg2
+  do p over self~pages
+    if \p~wasActivated then iterate
+    r = p~queryFromSibling(arg1, arg2, self)
+    if r \= 0 then return r
+  end
+  return 0
 ::method "PROPSHEET.SELECTING" unguarded
   expose cur
   use arg tabs, e
@@ -1514,9 +1728,10 @@
   use arg tabs, e
   if e~TabPageIndex >= 0 then self~activate(e~TabPageIndex + 1)
 ::method setCurSel unguarded           -- setCurSel(hPage, index): the page shown (from 1)
-  expose tabs
+  expose tabs wizard
   use arg hPage, index
-  tabs~SelectedIndex = index - 1
+  if wizard then self~activate(index)
+  else tabs~SelectedIndex = index - 1
   return 0
 ::method curSel
   expose cur
@@ -1527,7 +1742,8 @@
   end
   return 0
 ::method ok unguarded
-  expose cur outcome
+  expose cur outcome wizard
+  if wizard then return self~wizardNext   -- (Enter: the default button)
   if cur > 0, self~pages[cur]~killActive(self) == .false then return 0
   self~applyAll
   outcome = "CLOSEDOK"
@@ -1762,6 +1978,38 @@
 ::method showing                        -- (inside) the page number shown
   expose showing
   return showing
+
+/* ooDialog's UserPSPDialog: a property sheet's page laid out in code, its
+   size given later by setSize(size) (dialog units, in the default font):
+   new([dlgData [, hFile [, options [, title]]]]) */
+::class UserPSPDialog subclass NetDialog public
+::attribute pageTitle
+::method init
+  use arg dlgData, hFile, options = "", title = ""
+  self~init:super
+  self~pageTitle = title
+::method setSize
+  use strict arg size
+  self~create(0, 0, size~width, size~height, self~pageTitle)
+  return 0
+
+/* ooDialog's .Size (width, height) */
+::class NetSize public
+::attribute width
+::attribute height
+::method init
+  expose width height
+  use arg width = 0, height = 0
+
+/* ooDialog's TimedMessage class: new(message, title, duration
+   [, earlyReply]), execute */
+::class TimedMessage public
+::method init
+  expose message title duration earlyReply
+  use arg message, title, duration, earlyReply = .false
+::method execute
+  expose message title duration earlyReply
+  return timedMessage(message, title, duration, earlyReply)
 
 /* ----------------------------------------------------------------- resizing */
 /* ooDialog's ResizingAdmin: a NetDialog that inherits it can be sized by the
