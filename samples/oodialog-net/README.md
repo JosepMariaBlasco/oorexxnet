@@ -53,6 +53,16 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `drawing4.rex` | `tutorial\drawing4.rex` | a UserDialog with an owner-drawn button |
 | `drawing5.rex` | `tutorial\drawing5.rex` | a clock: the time drawn every second (a timer in place of an Alarm) |
 | `employee11tab.rex` | `tutorial\employee11tab.rex` | a property sheet of four pages; a list view; a context menu from a .rc; a file as the database |
+| `genGUID.rex` | `examples\genGUID.rex` | a GUID (.NET's Guid); an edit control without a border |
+| `simpleFolderBrowse.rex` | `examples\simpleFolderBrowse.rex` | .SimpleFolderBrowse as .NET's FolderBrowserDialog |
+| `fileNameDialog_demo.rex` | `examples\fileNameDialog_demo.rex` | fileNameDialog's open, save, filters and multiple files; the SingleSelection class: the original's code |
+| `browsePrinters.rex` | `examples\browsePrinters.rex` | a printer picked: .NET's PrintDialog in place of the Shell's folder browser |
+| `publicRoutines_demo.rex` | `examples\publicRoutines_demo.rex` | play, findWindow, msSleep, timed messages (one until cancelled, one that replies early); a modeless dialog (popup); screen size and system metrics |
+| `useTools.rex` | `examples\useTools.rex` | an owned window (ownerDialog: Form.Owner), a tool palette of bitmap buttons; an overridden cancel that keeps a dialog open |
+| `imageButton.rex` | `examples\imageButton.rex` | a button's images for each state (normal, hot, pushed, disabled, default) on .NET's events; HOTITEM; text above or below the picture |
+| `openSaveFileDemo.rex` | `examples\openSaveFileDemo.rex` | the Common Item Dialog as .NET's OpenFileDialog and SaveFileDialog (ClientGuid, preview, filters, folders); tool tips |
+| `saveFileWithFilter.rex` | `examples\saveFileWithFilter.rex` | a save dialog refusing some extensions (its FileOk event) |
+| `addManyRows.rex` | `examples\addManyRows.rex` | ProgressDialog with a Cancel button (Alerter); 25,000 list view rows; .NET's sort and a sort calling a Rexx IComparer; two groups of radio buttons in one group box |
 
 More of ooDialog's samples will follow, in batches.
 

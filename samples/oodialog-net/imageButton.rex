@@ -177,7 +177,7 @@ return 0
   bestSize = pbView~GetPreferredSize(D~Size~Empty)       -- ooDialog: pbView~getIdealSize
 
   -- Write this to the screen, example only.
-  say 'Got ideal size:' bestSize
+  say 'Got ideal size:' bestSize~ToString
   say '  width: ' bestSize~Width
   say '  height:' bestSize~Height
   say

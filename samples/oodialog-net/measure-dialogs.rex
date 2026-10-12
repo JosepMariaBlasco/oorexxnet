@@ -23,6 +23,9 @@
        tutorial\employe8.rc        100                System 8
        tutorial\employe7.rc        IDD_EMPLOYEES7     Tahoma 10
        tutorial\employe7.rc        IDD_EMPLOYEE_LIST  Courier New 12
+       examples\resources\osfDialogs.rc   IDD_SIMPLE_OSF_DIALOGS  (radio buttons in a group box)
+       examples\resources\addManyRows.rc  IDD_SORT_PARAMS         (group boxes in a group box,
+                                     two groups of radio buttons in one, an up-down)
 
    Each side of each dialog runs in a process of its own (the original's in
    measure-dialogs-ood.rex, the port's as measure-dialogs.rex -net), killed
@@ -63,7 +66,8 @@ call logLine log, "measure-dialogs.rex" date("S") time() "-" .rexxInfo~version "
 call logLine log, "ooDialog's samples:" ood
 dialogs = .array~of("rc\calculator.rc DIALOG_1", "rc\oodStandardDialogs.rc IDD_STDRTNS",  -
   "controls\upDown.rc IDD_UP_DOWN", "tutorial\employe8.rc 100",                          -
-  "tutorial\employe7.rc IDD_EMPLOYEES7", "tutorial\employe7.rc IDD_EMPLOYEE_LIST")
+  "tutorial\employe7.rc IDD_EMPLOYEES7", "tutorial\employe7.rc IDD_EMPLOYEE_LIST",              -
+  "examples\resources\osfDialogs.rc IDD_SIMPLE_OSF_DIALOGS", "examples\resources\addManyRows.rc IDD_SORT_PARAMS")
 tmp = here"measure-dialogs-tmp.cls"     -- next to oodnet.cls, which it requires
 fails = 0
 do d over dialogs

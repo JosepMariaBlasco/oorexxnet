@@ -271,7 +271,7 @@
 ::method showFileDialog unguarded private
     use strict arg fd
     if .NetDialog~auto then do
-        say "(auto)" fd~GetType~Name "with ClientGuid" fd~ClientGuid
+        say "(auto)" fd~GetType~Name "with ClientGuid" fd~ClientGuid~ToString
         return "Cancel"
     end
     return fd~ShowDialog(self~form)~string
