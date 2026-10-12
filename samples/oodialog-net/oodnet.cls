@@ -955,25 +955,65 @@
 /* ooDialog's menu bar and popup menus, as a .NET MenuStrip: insertPopup,
    insertItem, insertSeparator (before the item `before`, by id; at the end
    when it is omitted or not there), connectCommandEvent(id, method, dialog),
-   enable / disable / check / uncheck (by id), attachTo(dialog). Items with
-   the ids IDOK and IDCANCEL end the dialog with its ok and cancel, as
-   ooDialog's WM_COMMAND does. A menu of a .rc: rc2oodnet.rex -cls makes it a
-   subclass of NetMenuBar.                                                  */
+   connectAllCommandEvents([method [, dialog]]), enable / disable / check /
+   uncheck / checkRadio (by id), attachTo(dialog). Items with the ids IDOK
+   and IDCANCEL end the dialog with its ok and cancel, as ooDialog's
+   WM_COMMAND does. A command's method gets ooDialog's (id, 0), the id as
+   the menu was given it. A menu of a .rc: rc2oodnet.rex -cls makes it a
+   subclass of NetMenuBar. ooDialog's UserMenuBar builds itself with
+   addPopup, addItem, addSeparator and complete: the same here.
+
+   ooDialog's constructors take an autoConnect and an attachTo argument; here
+   the program says it after the menu is built: menuBar~attachTo(dialog),
+   then menuBar~connectAllCommandEvents (each item to the dialog's method
+   named as its text: "Insert Text ..." runs insertText).                  */
 ::class NetMenuBar public
 ::attribute strip get                  -- the MenuStrip
 ::method init                          -- (ooDialog's arguments are not needed)
-  expose strip popups connected attached
+  expose strip popups connected attached queued
   attached = .nil
   strip = .net~System~Windows~Forms~MenuStrip~new
   popups = .array~new
   connected = .directory~new
-::method getPopup                      -- the NetPopupMenu inserted with that id
+  queued = .array~new                  -- addItem's methods, connected when it is attached
+::method getPopup                      -- getPopup(id [, byPosition]): the NetPopupMenu inserted with that id, or at that position (from 1)
   expose popups
-  use strict arg id
+  use strict arg id, byPosition = .false
+  if byPosition then do
+    if \popups~hasIndex(id) then return .nil
+    return popups[id]
+  end
   do p over popups
     if p~id \== .nil, NetMenuKey(p~id) == NetMenuKey(id) then return p
   end
   return .nil
+/* ooDialog's UserMenuBar: addPopup(id, text [, opts [, helpID]]),
+   addItem(id, text [, opts [, method]]), addSeparator(id [, opts]),
+   complete; opts: DEFAULT (bold), GRAYED, DISABLED, CHECKED, RADIO (a check
+   mark here: .NET's menu items have no bullet), END (ignored: the popups
+   end where the next one starts) */
+::method addPopup
+  expose current
+  use arg id, text, opts = "", helpID
+  current = .NetPopupMenu~new(id)
+  self~insertPopup(, id, current, text)
+  call NetMenuState current~item, opts
+  return .true
+::method addItem
+  expose current queued
+  use arg id, text, opts = "", methodName
+  if \var("CURRENT") then raise syntax 93.900 array("NetMenuBar: addItem before addPopup")
+  current~insertItem(, id, text, opts)
+  if arg(4, "E") then queued~append(.array~of(id, methodName))
+  return .true
+::method addSeparator
+  expose current
+  use arg id, opts = ""
+  if \var("CURRENT") then raise syntax 93.900 array("NetMenuBar: addSeparator before addPopup")
+  current~insertSeparator(, id)
+  return .true
+::method complete                      -- (nothing to do: the menu is ready as it is built)
+  return .true
 ::method insertPopup
   expose strip popups
   use arg before = .nil, id = .nil, popup, text
@@ -982,11 +1022,12 @@
   call NetMenuInsert strip~Items, popup~item, self~find(before)
   popups~append(popup)
   return 0
-::method find                          -- the ToolStripItem with that id, or .nil
+::method find                          -- the ToolStripItem with that id (a popup's too), or .nil
   expose popups
   use arg id
   if id == .nil then return .nil
   do p over popups
+    if p~id \== .nil, NetMenuKey(p~id) == NetMenuKey(id) then return p~item
     i = p~find(id)
     if i \== .nil then return i
   end
@@ -999,9 +1040,25 @@
 ::method connectCommandEvent           -- connectCommandEvent(id, method [, dialog]): the dialog attached to, if omitted
   expose connected attached
   use strict arg id, methodName, dialog = (attached)
-  self~item(id)~Click += .net~handler(dialog, methodName)
+  self~item(id)~Click += .net~handler(.NetMenuCommandRelay~new(dialog, methodName, id), "CLICK")
   connected[NetMenuKey(id)] = .true
   return 0
+/* connectAllCommandEvents([method [, dialog]]): every command item (not a
+   submenu or a separator, nor IDOK, IDCANCEL, IDHELP, which go to ok, cancel
+   and help) to method, or each to the method named as its text without
+   spaces, "&", "+", ":" and a closing "..." (ooDialog's names) */
+::method connectAllCommandEvents
+  expose popups connected attached
+  use arg methodName = .nil, dialog = (attached)
+  if dialog == .nil then raise syntax 93.900 array("NetMenuBar: connectAllCommandEvents needs a dialog (or attachTo first)")
+  do p over popups
+    p~connectAllCommandEvents(methodName, dialog, connected)
+  end
+  return .true
+::method checkRadio                    -- checkRadio(first, last, id): the items from first to last unchecked, id checked
+  use strict arg first, last, id
+  call NetMenuCheckRadio self~item(first), self~item(last), self~item(id)
+  return .true
 ::method enable;  self~item(arg(1))~Enabled = .true;  return 0
 ::method disable; self~item(arg(1))~Enabled = .false; return 0
 ::method isEnabled; return self~item(arg(1))~Enabled
@@ -1009,56 +1066,82 @@
 ::method uncheck; self~item(arg(1))~Checked = .false; return 0
 ::method isChecked; return self~item(arg(1))~Checked
 ::method attachTo                      -- attachTo(dialog [, pos]): on top of the dialog
-  expose strip connected attached
+  expose strip connected attached queued
   use arg dialog
   attached = dialog
   if \connected~hasIndex("IDOK"), self~find("IDOK") \== .nil then self~connectCommandEvent("IDOK", "OK", dialog)
   if \connected~hasIndex("IDCANCEL"), self~find("IDCANCEL") \== .nil then self~connectCommandEvent("IDCANCEL", "CANCEL", dialog)
+  do q over queued; self~connectCommandEvent(q[1], q[2], dialog); end
+  queued~empty
   dialog~attachMenu(strip)
-  return 0
+  return .true
 
 ::class NetPopupMenu public
 ::attribute item get                   -- the ToolStripMenuItem that holds the items
 ::attribute id                         -- its id, if it has one
 ::method init
-  expose item ids
+  expose item ids dialog
   use arg id = .nil
+  dialog = .nil
   self~id = (id == "")~?(.nil, id)
   item = .net~System~Windows~Forms~ToolStripMenuItem~new
   ids = .directory~new
-/* as a context menu (ooDialog's): assignTo(dialog [, autoConnect]): with
-   autoConnect each item runs the dialog's method named as its text without
-   "&", spaces and dots ("&Add Employee..." runs addEmployee);
-   connectContextMenu(method, hwnd): a right click on that window calls the
-   dialog's method with (hwnd, x, y), screen coordinates (-1, -1 from the
-   keyboard); show(point): the menu there; enable / disable (an id, or an
-   Array of them) */
+/* as a context menu (ooDialog's): assignTo(dialog [, autoConnect [,
+   method]]): with autoConnect each item runs the dialog's method named as
+   its text (ooDialog's names: "&Add Employee..." runs addEmployee), or
+   method; connectContextMenu(method, hwnd [, dialog]): a right click on that
+   window calls the dialog's method with (hwnd, x, y), screen coordinates
+   (-1, -1 from the keyboard); show(point [, dialog]): the menu there;
+   connectAllCommandEvents([method [, dialog]]); enable / disable (an id, or
+   an Array of them) */
 ::method assignTo
-  expose dialog item
-  use arg dialog, autoConnect = .false
-  if autoConnect then do i over item~DropDownItems~makeArray
+  expose dialog
+  use arg dialog, autoConnect = .false, methodName = .nil
+  if autoConnect then self~connectAllCommandEvents(methodName, dialog)
+  return .true
+::method connectAllCommandEvents       -- (a menu bar's third argument: its items connected one by one)
+  expose dialog ids subs
+  use arg methodName = .nil, dlg = .nil, skip = (.directory~new)
+  if dlg == .nil then dlg = dialog
+  if dlg == .nil then raise syntax 93.900 array("NetPopupMenu: connectAllCommandEvents needs a dialog")
+  if dialog == .nil then dialog = dlg
+  do key over ids~allIndexes
+    i = ids[key]
     if .net~isInstance(i, "System.Windows.Forms.ToolStripSeparator") then iterate
-    name = i~Text~changeStr("&", "")~changeStr(" ", "")~changeStr(".", "")
-    i~Click += .net~handler(dialog, name)
+    if i~HasDropDownItems | wordPos(key, "IDOK IDCANCEL IDHELP 9") > 0 | skip~hasIndex(key) then iterate
+    name = methodName
+    if name == .nil then name = NetMenuMethodName(i~Text)
+    i~Click += .net~handler(.NetMenuCommandRelay~new(dlg, name, key), "CLICK")
   end
-  return 0
+  if var("SUBS") then do p over subs; p~connectAllCommandEvents(methodName, dlg, skip); end
+  return .true
+::method checkRadio                    -- checkRadio(first, last, id), as a menu bar's
+  use strict arg first, last, id
+  call NetMenuCheckRadio self~find(first), self~find(last), self~find(id)
+  return .true
 ::method connectContextMenu
   expose dialog
-  use strict arg methodName, hwnd
+  use strict arg methodName, hwnd, dlg = .nil
+  if dlg == .nil then dlg = dialog
   c = .net~System~Windows~Forms~Control~FromHandle(hwnd)
-  relay = .NetDialogContextRelay~new(dialog, methodName, hwnd)
+  relay = .NetDialogContextRelay~new(dlg, methodName, hwnd)
   c~MouseUp += .net~handler(relay, "MOUSEUP")
   c~KeyUp += .net~handler(relay, "KEYUP")
-  return 0
+  return .true
 ::method show
-  expose strip
-  use arg pos
+  expose strip dialog item
+  use arg pos, dlg = .nil
+  if dlg \== .nil then dialog = dlg
   if \var("STRIP") then do            -- its items move to a ContextMenuStrip, once
     strip = .net~System~Windows~Forms~ContextMenuStrip~new
     do i over item~DropDownItems~makeArray; strip~Items~Add(i); end
   end
   strip~Show(.net~System~Drawing~Point~new(pos~x, pos~y))
   return 0
+::method contextStrip                  -- the ContextMenuStrip show makes (.nil before it is shown)
+  expose strip
+  if var("STRIP") then return strip
+  return .nil
 ::method enable
   use strict arg ids
   if \ids~isA(.array) then ids = .array~of(ids)
@@ -1069,13 +1152,11 @@
   if \ids~isA(.array) then ids = .array~of(ids)
   do i over ids; self~find(i)~Enabled = .false; end
   return 0
-::method insertItem                    -- insertItem(before, id, text [, state]): state GRAYED, DISABLED, CHECKED
+::method insertItem                    -- insertItem(before, id, text [, state]): state GRAYED, DISABLED, CHECKED, DEFAULT
   expose item ids
   use arg before = .nil, id, text, state = ""
   i = .net~System~Windows~Forms~ToolStripMenuItem~new(text)
-  state = state~upper
-  if state~wordPos("GRAYED") > 0 | state~wordPos("DISABLED") > 0 then i~Enabled = .false
-  if state~wordPos("CHECKED") > 0 then i~Checked = .true
+  call NetMenuState i, state
   call NetMenuInsert item~DropDownItems, i, self~find(before)
   ids[NetMenuKey(id)] = i
   return 0
@@ -1117,6 +1198,36 @@
   if id == 1 then return "IDOK"
   if id == 2 then return "IDCANCEL"
   return id
+::routine NetMenuState                 -- (inside) an item's state words: GRAYED, DISABLED, CHECKED, DEFAULT
+  use arg i, state
+  state = state~upper
+  if state~wordPos("GRAYED") > 0 | state~wordPos("DISABLED") > 0 then i~Enabled = .false
+  if state~wordPos("CHECKED") > 0 then i~Checked = .true
+  if state~wordPos("DEFAULT") > 0 then i~Font = .net~System~Drawing~Font~new(i~Font, "Bold")   -- (Windows' default item: bold)
+/* (inside) ooDialog's method name for a menu item: its text without spaces,
+   tabs, "&", "+" and ":", and cut where a closing "..." starts
+   (strdup_2methodName in oodCommon.cpp) */
+::routine NetMenuMethodName
+  use arg text
+  name = text~changeStr(" ", "")~changeStr("09"x, "")~changeStr("&", "")~changeStr("+", "")~changeStr(":", "")
+  if name~length >= 3, name~substr(name~length - 2, 1) == "." then name = name~left(name~length - 3)
+  return name
+::routine NetMenuCheckRadio            -- (inside) checkRadio: the items of first's menu from first to last
+  use arg first, last, chosen
+  items = first~Owner~Items
+  a = items~IndexOf(first); b = items~IndexOf(last)
+  do k = min(a, b) to max(a, b)
+    it = items[k]
+    if .net~isInstance(it, "System.Windows.Forms.ToolStripMenuItem") then it~Checked = it~Equals(chosen)
+  end
+
+::class NetMenuCommandRelay            -- (inside) a menu item's Click: the dialog's method with ooDialog's (id, 0)
+::method init
+  expose dialog methodName id
+  use arg dialog, methodName, id
+::method click
+  expose dialog methodName id
+  dialog~send(methodName, id, 0)
 
 /* ----------------------------------------------------------- property sheet */
 /* ooDialog's PropertySheetDialog: .NetPropertySheet~new(pages [, options
