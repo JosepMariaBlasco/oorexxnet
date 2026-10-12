@@ -1396,6 +1396,11 @@ porting table is in that folder's README). Decisions and traps found:
   - A list box without LBS_NOINTEGRALHEIGHT (ooDialog's PARTIAL) shows whole
     rows: its height within the 2-pixel border is cut to a multiple of the
     row height, the dialog font's tmHeight.
+  - Push buttons are drawn by Windows (`FlatStyle.System`): with the same
+    rectangle and font, a Windows Forms button still wrapped "ArcCos" and
+    "+/-" (its text margins are wider than Win32's, which never wraps
+    without BS_MULTILINE). Such a button shows no image: a program that
+    gives it one sets `FlatStyle.Standard`.
   After these, every control of the six dialogs is where the original's is,
   to the pixel, but a NumericUpDown (an edit and its up-down made one
   control: it spans both, its height its font's) and a combo box's height

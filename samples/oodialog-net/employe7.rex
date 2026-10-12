@@ -120,6 +120,7 @@ exit
     -- Assign the image list to the 'Add' button.
     button = self~newPushButton(12)                   -- ooDialog: setImageList(imageList, .Rect~new(2))
     button~Text = ""
+    button~FlatStyle = "Standard"                      -- (oodnet's buttons are drawn by Windows, which shows no ImageList)
     button~ImageList = imageList
     button~ImageIndex = 0
 

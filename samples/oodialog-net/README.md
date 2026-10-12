@@ -122,6 +122,12 @@ A control `oodnet.cls` has no `create*` for: make it and place it with
 methods), or add it to `self~form~Controls` yourself. `self~px(n)` and
 `self~py(n)` turn dialog units into pixels.
 
+**Buttons are drawn by Windows** (`FlatStyle` System), as ooDialog's: a
+text that fits the original's button stays on one line (Windows Forms' own
+buttons wrap it, their margins being wider). A button that shows an image
+list, an image or colours needs `button~FlatStyle = "Standard"` first
+(`employe7.rex` does so).
+
 **Sizes, measured.** `rexx measure-dialogs.rex [build-dir]` (Windows, with
 ooDialog: ooRexx for Windows has it) opens some of ooDialog's sample dialogs
 both with ooDialog and as `rc2oodnet.rex` makes them, and writes to

@@ -166,7 +166,8 @@
   c = self~place(id, .net~System~Windows~Forms~Button~new, x, y, cx, cy)
   id = NetDialogKey(id)                -- (1, 2, 9: IDOK, IDCANCEL, IDHELP)
   c~Text = label
-  c~Padding = .net~System~Windows~Forms~Padding~new(0)   -- a Win32 button's margins: "ArcCos" in one line
+  c~FlatStyle = "System"               -- drawn by Windows, as ooDialog's: a text too wide for Windows Forms' margins
+                                       -- stays one line ("ArcCos"); an image or colours need FlatStyle "Standard"
   style = style~upper
   if .net~isInstance(self~form, "System.Windows.Forms.Form") then do   -- (not on a property sheet's page)
     if style~wordPos("DEFAULT") > 0 | id~string~upper == "IDOK" then self~form~AcceptButton = c
