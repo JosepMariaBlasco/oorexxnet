@@ -830,11 +830,13 @@ return 0
     say "(auto) expanded:" childTexts(special)
     special~Collapse
     say "(auto) collapsed:" special~Nodes~Count "child"
-    tv~SelectedNode = find(tv, 'Digital Watch')
+    tv~SelectedNode = find(tv, 'IDE Drives')~FirstNode     -- Drive A, a leaf
     self~onNewItem
-    say "(auto) after Digital Watch:" find(tv, 'Digital Watch')~NextNode~Text
+    new = find(tv, 'Smart Watch')
+    say "(auto) the new item: under" new~Parent~Text", leaf" .InventoryDlg~isLeafItem(tv, new)
+    n = tv~GetNodeCount(.true)
     self~onDeleteItem
-    say "(auto) deleted the selected item:" (find(tv, 'Digital Watch') == .nil)
+    say "(auto) the selected item deleted:" n "->" tv~GetNodeCount(.true) "items"
     self~cancel
 
 
@@ -950,7 +952,7 @@ return 0
 return self~ok:super
 
 ::method autoRun                       -- (.NET version) unattended: a new item, a sibling of the one selected
-    self~newEdit(IDC_EDIT_NAME)~Text = "Smart Watch"
+    self~newEdit(IDC_EDIT_NAME)~Text = "Smart Watch"         -- (a sibling of a leaf: under its parent)
     say "(auto) new item: sibling" self~newRadioButton(IDC_RB_SIBLING)~Checked", folder" self~newCheckBox(IDC_CHK_FOLDER)~Checked
     self~ok
 
