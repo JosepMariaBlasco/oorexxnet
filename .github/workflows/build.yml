@@ -1,6 +1,7 @@
 # Builds and tests the bridge on Linux, macOS and Windows, then makes the
-# NuGet package with the native library of all three, and the Windows binary
-# zip. ooRexx comes from its portable builds on SourceForge, pinned to one
+# NuGet package with the native library of all three, and the binary zip
+# (rexxnet-*.zip: all three, with install.rex), which it then installs and
+# checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
 # revision: the bridge needs at least r13267 (ooRexx bug #2106, fixed there),
 # and a newer one is taken deliberately, after checking it.
 #
@@ -9,7 +10,7 @@
 # nuget.org (trusted publishing: a policy on nuget.org for this repository
 # and build.yml; the secret NUGET_USER, the nuget.org user name), and a
 # GitHub release with the package
-# and the Windows zip. Pushes to main publish nothing.
+# and the binary zip. Pushes to main publish nothing.
 name: build
 
 on:
@@ -135,18 +136,12 @@ jobs:
           dotnet run --project samples\vbnet\tour "-p:RexxNetDir=$env:RUNNER_TEMP\build\rexxnet"
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v6
-        with:
+        with:                             # (with its runtime configurations: the desktop framework)
           name: native-win-x64
-          path: ${{ runner.temp }}\build\rexxnet\rexxnet.dll
-      - name: Windows binary zip
-        shell: pwsh
-        run: |
-          bridge\package-windows.ps1 -Dest "$env:RUNNER_TEMP\zip"
-          if (-not (Get-ChildItem "$env:RUNNER_TEMP\zip\*.zip")) { exit 1 }
-      - uses: actions/upload-artifact@v6
-        with:
-          name: windows-binaries
-          path: ${{ runner.temp }}\zip\*.zip
+          path: |
+            ${{ runner.temp }}\build\rexxnet\rexxnet.dll
+            ${{ runner.temp }}\build\rexxnet\Rexx.Net.runtimeconfig.json
+            ${{ runner.temp }}\build\rexxnet\Rexx.Net.core.runtimeconfig.json
 
   nuget:
     needs: [unix, windows]
@@ -179,10 +174,75 @@ jobs:
         with:
           name: nuget
           path: nupkg/*
+      - name: Binary zip (every system)
+        run: |
+          V=()
+          if [ "$GITHUB_REF_TYPE" = tag ]; then V=(--version "${GITHUB_REF_NAME#v}"); fi
+          bridge/build.sh "$RUNNER_TEMP/managed" >/dev/null
+          bridge/package.sh "${V[@]}" --managed "$RUNNER_TEMP/managed" \
+                            --native linux-x64="$RUNNER_TEMP/managed/librexxnet.so" \
+                            --native osx-arm64=natives/native-osx-arm64/librexxnet.dylib \
+                            --native win-x64=natives/native-win-x64 zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: binaries
+          path: zip/*.zip
+
+  # The binary zip as a user gets it: unzipped, installed into an ooRexx
+  # (portable: no administrator), a sample run from elsewhere with no
+  # variables, its status, uninstalled.
+  install:
+    needs: nuget
+    name: install (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-24.04
+            oorexx: ubuntu2404.x86_64
+          - name: osx-arm64
+            os: macos-14
+            oorexx: macos.arm64.x86_64
+          - name: win-x64
+            os: windows-2022
+            oorexx: windows.x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+        run: |                            # (7z where there is no unzip: Windows' Git Bash)
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/oorexx.zip" \
+            "$OOREXX_URL/oorexx-5.3.0-$OOREXX_REV.${{ matrix.oorexx }}-portable-release.zip"
+          if command -v unzip >/dev/null; then unzip -q "$RUNNER_TEMP/oorexx.zip" -d "$RUNNER_TEMP"
+          else 7z x -y -o"$RUNNER_TEMP" "$RUNNER_TEMP/oorexx.zip" >/dev/null; fi
+          echo "$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.${{ matrix.oorexx }}-portable-release/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@v7
+        with:
+          name: binaries
+          path: zip
+      - name: Install, use, uninstall
+        run: |
+          cd zip
+          if command -v unzip >/dev/null; then unzip -q rexxnet-*.zip; else 7z x -y rexxnet-*.zip >/dev/null; fi
+          cd rexxnet
+          rexx install
+          cd "$RUNNER_TEMP"
+          samples="$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.${{ matrix.oorexx }}-portable-release/samples/dotnet"
+          rexx "$samples/rexx/01-basics.rex"
+          rexx oorexxnet-uninstall status
+          rexx oorexxnet-uninstall
+          if [ -e "$samples" ]; then echo "the samples are still there"; exit 1; fi
 
   publish:
     if: github.ref_type == 'tag'
-    needs: [nuget, windows]
+    needs: [nuget, install]
     runs-on: ubuntu-24.04
     timeout-minutes: 20                   # a hang fails here, not after 6 hours
     permissions:
@@ -198,7 +258,7 @@ jobs:
           path: nupkg
       - uses: actions/download-artifact@v7
         with:
-          name: windows-binaries
+          name: binaries
           path: zip
       # Trusted publishing: no stored API key; nuget.org's policy names this
       # repository and build.yml, and gives a key valid for an hour
@@ -217,7 +277,7 @@ jobs:
         run: |
           pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac
           cat > notes.md <<'NOTES'
-          **To use .NET from Rexx on Windows, download `rexxnet-windows-x64-….zip`** (below, under Assets): unzip it (say into `C:\rexxnet`), add that folder to `PATH` and `REXX_PATH`, and read its `README.txt`. Its `samples` folder has the samples: `rexx` (every platform), `windows`, and `office` (Excel, Word, PowerPoint and Excel's events, each written with `.OLEObject` and through the bridge).
+          **To use .NET from Rexx, download `rexxnet-….zip`** (below, under Assets): one package for Windows (x64), Linux (x64) and macOS (Apple silicon). Unzip it, open a terminal in the folder `rexxnet` and run `rexx install` (as administrator on Windows, `sudo` on Linux and macOS, when ooRexx is in a system folder): it installs the bridge into that ooRexx, with its samples (in ooRexx's samples folder, under `dotnet`), and checks it. Its `README.md` says more, and how to use it without installing.
 
           The `.nupkg` is the NuGet package, for .NET programs (C#, PowerShell...) that run Rexx code: a .NET project gets it with `dotnet add package Rexx.Net --prerelease`. Rexx programs do not need it. The `.snupkg` holds its debugging symbols.
 

@@ -944,7 +944,9 @@ day): each push builds and tests on Linux x64, macOS arm64 and Windows x64
 (ooRexx from its portable builds, pinned by `OOREXX_REV`: r13267, the first
 with #2106 fixed, later r13268; .NET 8 and 10), and a last job runs `pack.sh` with the other two
 natives: the package has `runtimes/linux-x64`, `osx-arm64` and `win-x64`.
-The Windows binary zip is made there too. Both are the run's artifacts.
+The Windows binary zip is made there too (later one zip for all three
+systems, with an installer, `rexx install`, checked on each by the CI).
+Both are the run's artifacts.
 
 **A name's case.** The built-in packages are `net.cls` and `CLR.CLS`, as
 the files are; ooRexx compares loaded names exactly, so `::requires NET.CLS`

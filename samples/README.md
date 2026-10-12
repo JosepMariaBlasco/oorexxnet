@@ -82,9 +82,9 @@ event logs and shortcuts.
 
 ## Running them
 
-All need ooRexx 5 (64-bit) and .NET 8 or later. From the Windows binary
-package, with its folder on the `PATH` and `REXX_PATH`:
-`rexx samples\rexx\01-basics.rex`. From a build of the bridge, with
+All need ooRexx 5 (64-bit) and .NET 8 or later. Installed from the binary
+zip (`rexx install`), the samples are in ooRexx's samples folder, under
+`dotnet`, and run from anywhere: `rexx 01-basics.rex` in its `rexx` folder. From a build of the bridge, with
 `REXX_PATH` and the library path (`LD_LIBRARY_PATH`, macOS
 `DYLD_LIBRARY_PATH`, Windows `PATH`) at the build directory. Or all at once:
 `rexx samples/check-samples.rex [build-dir]`.

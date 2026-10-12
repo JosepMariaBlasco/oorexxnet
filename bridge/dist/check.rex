@@ -1,13 +1,19 @@
-/* check.rex: checks the ooRexx/.NET bridge (Windows binary package).
-   rexx check.rex          versions, a StringBuilder, a MessageBox
-   rexx check.rex nogui    the same, without opening any window          */
+/* check.rex: checks the ooRexx/.NET bridge, as installed or unzipped.
+
+       rexx check.rex          versions, the .NET frameworks, a StringBuilder;
+                               on Windows, Windows Forms and a MessageBox
+       rexx check.rex nogui    the same, without opening any window
+
+   Exit status: 0 everything works; 2 the bridge works, but Windows Forms
+   is not available (Windows, no .NET Desktop Runtime); else it failed.    */
 parse version v
-say "ooRexx:" v
+say "ooRexx:" v "r".RexxInfo~revision
 say ".NET:  " .net~System~Runtime~InteropServices~RuntimeInformation~FrameworkDescription
 call frameworks
 sb = .net~System~Text~StringBuilder~new("Hello")
 sb~Append(", ")~Append("world")
 say "StringBuilder:" sb~ToString sb~Length
+if \.RexxInfo~platform~upper~abbrev("WIN") then exit 0
 
 signal on syntax name noForms
 f = .net~System~Windows~Forms~Form~new
@@ -25,7 +31,7 @@ say "Windows Forms: not available"
 say "  " condition('O')~message
 say "The bridge needs Microsoft.WindowsDesktop.App (above) for Windows Forms:"
 say "install the .NET Desktop Runtime, x64, from https://dotnet.microsoft.com/download"
-exit 1
+exit 2
 
 /* The .NET frameworks installed where the running one is (the bridge takes
    the newest major version there) */

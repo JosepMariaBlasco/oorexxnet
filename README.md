@@ -39,12 +39,33 @@ the guide pass, and every sample of BSF4ooRexx's `CLR.CLS` that .NET still
 supports, Windows Forms and common dialogs included), and on macOS (Apple
 silicon). Every push runs the test suites on Linux, macOS and Windows
 (GitHub Actions: `.github/workflows/build.yml`), which also makes the NuGet
-package, with the native library of all three, and the Windows binaries. The design is still being
+package, with the native library of all three, and the binary zip with its installer. The design is still being
 discussed and parts of the API may change.
 
 **Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
 both directions feature by feature, every example run and checked
 (`docs/check-guide.rex`).
+
+## Installing (without building)
+
+Each [release](https://github.com/JosepMariaBlasco/oorexxnet/releases) has
+a zip of binaries, `rexxnet-….zip`, for Windows (x64), Linux (x64) and
+macOS (Apple silicon) at once. With ooRexx 5 (64-bit) and .NET 8 or later
+installed (on Windows, the .NET Desktop Runtime), unzip it, open a terminal
+in the folder `rexxnet` and run
+
+    rexx install
+
+(as administrator on Windows, or with `sudo` on Linux and macOS, when ooRexx
+is in a system folder). It installs the bridge into the ooRexx that runs it,
+so that any program finds `net.cls` with no variables to set; copies the
+samples into ooRexx's samples folder, under `dotnet`; and checks it all.
+`rexx oorexxnet-uninstall [status]` shows or removes what it installed. The
+zip's [`README.md`](bridge/dist/README.md) says more (BSF4ooRexx's
+`CLR.CLS`; using the zip without installing). The newest build of `main`
+is also an artifact, `binaries`, of each [Actions
+run](https://github.com/JosepMariaBlasco/oorexxnet/actions) (signed in to
+GitHub). .NET programs that run Rexx code use the NuGet package instead.
 
 ## Layout
 
@@ -59,8 +80,8 @@ both directions feature by feature, every example run and checked
   - `build.sh`, `tests/run.sh` — build, and run every test suite (Windows:
     `build.ps1`, `tests/run.ps1`).
   - `pack.sh` — the NuGet package `Rexx.Net` (`nuget/README.md` is its
-    page); `package-windows.ps1` — a zip of Windows binaries
-    (`dist/windows/`: its README and `check.rex`).
+    page); `package.sh` — the zip of binaries for every system (`dist/`:
+    its `install.rex`, `check.rex` and `README.md`).
   - `tests/` — `phase1.rex`, `phase2.rex`, `phase3.rex` (ooRexx → .NET),
     `bothways.rex` (ooRexx as the host, .NET calling back), `clr.rex` (the
     `CLR.CLS` package), `HostTests/` (.NET → ooRexx); `clr-samples.sh` runs
@@ -141,12 +162,15 @@ CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
   (needed only for `.net` in that Rexx code) goes in `runtimes/<rid>/native/`
   for this platform and for any other given (a `rexxnet.dll` from
   `build.ps1`, say). An installed ooRexx 5 is a prerequisite.
-- **Windows binaries** (`powershell -ExecutionPolicy Bypass -File
-  bridge\package-windows.ps1`): a zip with everything a Rexx programmer
-  needs to try the bridge without building it.
+- **Binaries** (`bridge/package.sh --managed DIR --native RID=PATH... DEST`,
+  run by the CI with the three systems' native libraries): one zip with
+  everything a Rexx programmer needs to use the bridge without building it,
+  and its installer (`bridge/dist/install.rex`; `--from DIR` installs a
+  build folder instead). The CI then installs it on each system and runs a
+  sample.
 - **Releases**: a tag `vX.Y.Z[-suffix]` makes the CI publish the package to
   nuget.org (trusted publishing) and a GitHub release with the package and
-  the Windows zip: [releases](https://github.com/JosepMariaBlasco/oorexxnet/releases).
+  the zip: [releases](https://github.com/JosepMariaBlasco/oorexxnet/releases).
 
 ## Related work
 

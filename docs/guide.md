@@ -24,6 +24,12 @@ tried there. The design behind each choice is in `notes/`.
 
 ## 1. Setting up
 
+Without building it: the binary zip of a release (`rexxnet-….zip`, at
+<https://github.com/JosepMariaBlasco/oorexxnet/releases>: Windows, Linux
+and macOS in one) has an installer, `rexx install`, which puts the bridge
+into your ooRexx: then any program finds `net.cls`, with no variables to set
+(its `README.md` says more). From the sources:
+
 ```bash
 sudo scripts/setup-env.sh --no-dotnet       # ooRexx 5.3.0 trunk (.deb), if there is no rexx yet
 DOTNET_DIR=~/dotnet scripts/setup-env.sh    # the .NET SDKs 8 and 10 into ~/dotnet
