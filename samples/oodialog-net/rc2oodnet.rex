@@ -329,6 +329,8 @@ splitArgs: procedure
    DATA<id> for a numeric one */
 dataName: procedure
   use arg text, id
+  if \id~strip~datatype("W"), id~strip~datatype("V") then return id~strip~upper   -- (a symbolic id names it, as ooDialog's
+                                                                                -- addAttribute does while loading a .rc)
   t = unquote(text)~changeStr("&", "")
   n = ""
   do i = 1 to t~length
@@ -377,6 +379,8 @@ editStyles: procedure
   if st~pos("ES_RIGHT") > 0 then r = r "RIGHT"
   if st~pos("ES_CENTER") > 0 then r = r "CENTER"
   if st~pos("ES_NUMBER") > 0 then r = r "NUMBER"
+  if st~pos("ES_UPPERCASE") > 0 then r = r "UPPER"
+  if st~pos("ES_LOWERCASE") > 0 then r = r "LOWER"
   if st~pos("WS_VSCROLL") > 0 then r = r "VSCROLL"
   if st~pos("WS_HSCROLL") > 0 then r = r "HSCROLL"
   if st~space(1)~pos("NOT WS_BORDER") > 0 then r = r "NOBORDER"

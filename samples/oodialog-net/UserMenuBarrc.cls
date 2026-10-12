@@ -112,9 +112,9 @@
   self~createPushButton(IDOK, 171, 128, 50, 14, "DEFAULT", "OK")
   self~createPushButton(IDCANCEL, 226, 128, 50, 14, "", "Cancel")
   self~createStatic(IDC_STATIC, 7, 11, 269, 8, "CENTER", "Select the Text to Insert")
-  self~createRadioButton(IDC_RB_WICKED, 11, 33, 141, 8, "", "The wicked flee when none pursueth ...", "THEWICKEDFLEEWHENNONEPURSUETH")
-  self~createRadioButton(IDC_RB_LOTUS, 11, 53, 122, 8, "", "Lotus 123 had its ups and downs.", "LOTUS123HADITSUPSANDDOWNS")
-  self~createRadioButton(IDC_RB_IDES, 11, 74, 186, 8, "", "Ides of March - name of March 15 in Roman calendar.", "IDESOFMARCHNAMEOFMARCH15INROMANCALENDAR")
+  self~createRadioButton(IDC_RB_WICKED, 11, 33, 141, 8, "", "The wicked flee when none pursueth ...", "IDC_RB_WICKED")
+  self~createRadioButton(IDC_RB_LOTUS, 11, 53, 122, 8, "", "Lotus 123 had its ups and downs.", "IDC_RB_LOTUS")
+  self~createRadioButton(IDC_RB_IDES, 11, 74, 186, 8, "", "Ides of March - name of March 15 in Roman calendar.", "IDC_RB_IDES")
   self~createRadioButton(IDC_RB_TITANIC, 11, 95, 226, 8, "", "472 lifeboat seats not used when 1,503 people died on the Titanic.", "IDC_RB_TITANIC")
 
 ::class "UserMenuBar_IDD_POSITION_DIALOG" subclass NetDialog public

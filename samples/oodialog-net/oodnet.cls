@@ -51,6 +51,7 @@
 ::method hwnd                          -- the window's handle (the routines take it, as ooDialog's, and need not)
   return self~form~Handle
 ::method isDialogActive unguarded      -- its window still there
+  if self~isA(.ControlDialog) then return self~controlDialogActive
   return \self~form~IsDisposed
 ::attribute initCode                   -- as ooDialog's (0: fine)
 
@@ -393,6 +394,8 @@
   end
   if style~wordPos("SHOWSELALWAYS") > 0 then c~HideSelection = .false
   if style~wordPos("SINGLESEL") > 0 then c~MultiSelect = .false
+  c~AutoArrange = style~wordPos("AUTOARRANGE") > 0   -- (Windows': only with LVS_AUTOARRANGE; .NET's: on unless told)
+  if style~wordPos("EDITLABELS") > 0 then c~LabelEdit = .true
   self~common(c, style)
   return 0
 ::method createTreeView
@@ -470,12 +473,39 @@
   c~MouseEnter += .net~handler(relay, "ENTER")
   c~MouseLeave += .net~handler(relay, "LEAVE")
   return 0
+/* connectListViewEvent(id, event [, method]): CLICK (.NET's MouseClick),
+   DBLCLK (DoubleClick), ACTIVATE (ItemActivate: a double click, or Enter),
+   COLUMNCLICK, SELECTCHANGED (ItemSelectionChanged), CHECKBOXCHANGED
+   (ItemChecked), BEGINEDIT / ENDEDIT (BeforeLabelEdit / AfterLabelEdit:
+   the list view's labels made editable), BEGINDRAG (ItemDrag; with
+   ooDialog's DefListDragHandler: an item of an icon view dragged to where
+   it is let go, Escape puts it back); the method gets .NET's (sender, e) */
 ::method connectListViewEvent
+  expose defined deferred
   use arg id, event, methodName
   if arg(3, "O") then methodName = "on" || event   -- (ooDialog's default: onColumnClick...)
+  if event~upper == "BEGINDRAG", methodName~caselessEquals("DefListDragHandler") then do
+    if \defined then do
+      deferred~append(.array~of("CONNECTLISTVIEWEVENT", .array~of(id, event, methodName)))
+      return 0
+    end
+    .NetListDrag~new(self~control(id))
+    return 0
+  end
+  if wordPos(event~upper, "BEGINEDIT ENDEDIT") > 0 then do
+    if \defined then do
+      deferred~append(.array~of("CONNECTLISTVIEWEVENT", .array~of(id, event, methodName)))
+      return 0
+    end
+    self~control(id)~LabelEdit = .true
+  end
   select case event~upper
     when "CLICK" then e = "MouseClick"
-    when "DBLCLK", "ACTIVATE" then e = "DoubleClick"
+    when "DBLCLK" then e = "DoubleClick"
+    when "ACTIVATE" then e = "ItemActivate"
+    when "BEGINEDIT" then e = "BeforeLabelEdit"
+    when "ENDEDIT" then e = "AfterLabelEdit"
+    when "BEGINDRAG" then e = "ItemDrag"
     when "COLUMNCLICK" then e = "ColumnClick"
     when "SELECTCHANGED", "SELCHANGE" then e = "ItemSelectionChanged"   -- (e~ItemIndex, e~IsSelected)
     when "CHECKBOXCHANGED" then e = "ItemChecked"
@@ -816,7 +846,7 @@
     do k over .array~of("Bold", "Italic", "Underline", "Strikeout")
       if w~wordPos(k~upper) > 0 then st = st k
     end
-    if st \== "" then style = st~strip~changeStr(" ", ", ")
+    if st \== "" then style = st~strip
   end
   else if additional \== .nil then do
     if additional~hasIndex("WEIGHT"), additional~weight >= 600 then style = "Bold"
@@ -981,6 +1011,7 @@
    event methods, called while it waits, can run. */
 ::method execute unguarded
   expose form ending defined deferred
+  if self~isA(.ControlDialog) then return self~controlDialogExecute   -- (a mixin's methods come after the superclasses')
   self~prepare
   if .NetDialog~auto then do            -- unattended: autoRun soon, and a watchdog
     runner = .NetDialogAutoRun~new(self)
@@ -1523,7 +1554,7 @@
    endExecution(ok) (leaving runs). It cannot end by itself: its owner ends.
    The panel is its form; self~form~Parent the owner's. */
 ::class ControlDialog public mixinclass Object
-::method execute unguarded             -- (no show or icon: it is inside its owner)
+::method controlDialogExecute unguarded   -- (NetDialog's execute: no show or icon, it is inside its owner)
   expose started
   if var("STARTED") then return 0
   owner = self~ownerDialog
@@ -1537,9 +1568,10 @@
   started = .true
   self~buildPage
   return 0
-::method isDialogActive unguarded
+::method controlDialogActive unguarded    -- (NetDialog's isDialogActive)
   expose started
-  return var("STARTED") & \self~form~IsDisposed
+  if \var("STARTED") then return .false
+  return \self~form~IsDisposed
 ::method show unguarded
   self~form~Visible = .true
   self~form~BringToFront
@@ -2217,6 +2249,38 @@
     n = n % 2; bit *= 2
   end
   return r
+
+/* (inside) ooDialog's DefListDragHandler on a .NET ListView: in an icon
+   view, the item follows the pointer; Escape puts it back */
+::class NetListDrag
+::method init
+  expose lv item origin dx dy
+  use arg lv
+  item = .nil
+  lv~AllowDrop = .true
+  lv~ItemDrag += .net~handler(self, "ITEMDRAG")
+  lv~DragOver += .net~handler(self, "DRAGOVER")
+  lv~DragDrop += .net~handler(self, "DRAGDROP")
+::method itemDrag
+  expose lv item origin dx dy
+  use arg sender, e
+  if wordPos(lv~View~string, "LargeIcon SmallIcon") = 0 then return   -- (items have places in the icon views only)
+  item = e~Item
+  origin = item~Position
+  p = lv~PointToClient(.net~System~Windows~Forms~Control~MousePosition)
+  dx = p~X - origin~X; dy = p~Y - origin~Y
+  r = lv~DoDragDrop("ListViewItem", "Move")
+  if r~string == "None" then item~Position = origin   -- (given up: back where it was)
+  item = .nil
+::method dragOver
+  expose lv item dx dy
+  use arg sender, e
+  if item == .nil then do; e~Effect = "None"; return; end
+  e~Effect = "Move"
+  p = lv~PointToClient(.net~System~Drawing~Point~new(e~X, e~Y))
+  item~Position = .net~System~Drawing~Point~new(max(0, p~X - dx), max(0, p~Y - dy))
+::method dragDrop
+  use arg sender, e
 
 /* (inside) ooDialog's DefTreeDragHandler on a .NET TreeView */
 ::class NetTreeDrag
