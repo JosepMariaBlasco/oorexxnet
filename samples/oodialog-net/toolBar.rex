@@ -85,8 +85,10 @@ return 0
   -- (ooDialog: addButtons() takes an array of TbButton objects)
   tb~Items~AddRange(.array~of(tbb1, tbb2))
 
-  -- (ooDialog: insertButton(tbb3, 2), at the place of index 2: after the two)
-  tb~Items~Insert(2, tbb3)
+  -- insertButton() inserts the button to the left of the button index
+  -- specified, the button with the index of 2 (ooDialog counts from 1:
+  -- "Where Am I?"; .NET counts from 0)
+  tb~Items~Insert(1, tbb3)             -- ooDialog: tb~insertButton(tbb3, 2)
 
   -- And show the tool bar (it has sized itself to its buttons).
   tb~Visible = .true                   -- ooDialog: tb~autoSize; tb~show
