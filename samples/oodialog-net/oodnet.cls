@@ -99,7 +99,7 @@
     form~Location = D~Point~new(self~px(x), self~py(y))
   end
   form~FormClosing += .net~handler(self, "NETDIALOG.CLOSING")
-  return 0
+  return .true                         -- (as ooDialog's: .true, made)
 
 /* createCenter(cx, cy [, title [, style [, dlgClass [, fontName [, fontSize]]]]]) */
 ::method createCenter
@@ -578,6 +578,49 @@
 ::method wantKeys
   use arg ctl, keys = "Enter Escape"
   ctl~PreviewKeyDown += .net~handler(.NetDialogInputKeys~new(keys), "PREVIEW")
+  return 0
+
+/* sizing, as ooDialog's: connectResize(method): each change of the dialog's
+   size calls method with ooDialog's (sizingType, sizeInfo): SIZE_RESTORED,
+   SIZE_MINIMIZED or SIZE_MAXIMIZED, and the client area's width + 65536 *
+   its height, in pixels (WM_SIZE's); connectSizeMoveEnded(method): once the
+   user lets go (.NET's ResizeEnd); connectResizing(method): while the user
+   drags an edge, before the size changes (WM_SIZING, which .NET has not: a
+   NativeWindow on the form sees it), method gets (rect, edge), rect a NetRect
+   of the window on the screen (left top right bottom) and edge LEFT, RIGHT,
+   TOP, TOPLEFT, TOPRIGHT, BOTTOM, BOTTOMLEFT or BOTTOMRIGHT: when it answers
+   .true, the window takes rect's coordinates as it changed them */
+::constant SIZE_RESTORED 0
+::constant SIZE_MINIMIZED 1
+::constant SIZE_MAXIMIZED 2
+::constant SIZE_MAXSHOW 3
+::constant SIZE_MAXHIDE 4
+::method connectResize
+  use arg methodName = "onResize"
+  self~form~Resize += .net~handler(.NetDialogResizeRelay~new(self, methodName), "RESIZE")
+  return .true
+::method connectSizeMoveEnded
+  use arg methodName = "onSizeMoveEnded"
+  self~form~ResizeEnd += .net~handler(.NetDialogSizeEndRelay~new(self, methodName), "ENDED")
+  return .true
+::method connectResizing
+  use arg methodName = "onResizing"
+  .NetDialogSizingHook~prepare
+  hook = .NetDialogSizingHook~new(self, methodName)
+  f = self~form
+  if f~IsHandleCreated then hook~AssignHandle(.net~as(f~Handle, "System.IntPtr"))
+  else f~HandleCreated += .net~handler(hook, "CREATED")
+  return .true
+::method pixelCX                       -- the dialog's window, in pixels
+  return self~form~Width
+::method pixelCY
+  return self~form~Height
+::method redrawClient                  -- the dialog and its controls drawn again
+  use arg erase = .true
+  self~form~Refresh
+  return 0
+::method update
+  self~form~Refresh
   return 0
 
 /* a Windows Forms timer calling methodName every ms milliseconds (stop it: timer~Stop) */
@@ -1338,6 +1381,7 @@
    onSizeEnded) once the user lets go. Controls inside others (a ListView's
    edit control, radio buttons in a group box) move with their parent.     */
 ::class ResizingAdmin public mixinclass Object
+::constant IDC_DEFAULT_PINTO_WINDOW 0   -- a pin's pinTo: the dialog (as omitting it)
 ::method defineSizing                  -- (to override) the pins: defaultLeft..., controlLeft..., controlSizing...
   return 0
 ::method raState private
@@ -1358,6 +1402,7 @@
   ok = wordPos(how, "STATIONARY PROPORTIONAL") > 0 | (how == "MYLEFT" & side == "RIGHT") | (how == "MYTOP" & side == "BOTTOM")
   if \ok then raise syntax 93.900 array("ResizingAdmin: the" side~lower "edge cannot be pinned" how)
   if wordPos(edge, "LEFT TOP RIGHT BOTTOM XCENTER YCENTER") = 0 then raise syntax 93.900 array("ResizingAdmin: no edge" edge)
+  if pinTo == 0 then pinTo = .nil      -- (IDC_DEFAULT_PINTO_WINDOW: the dialog)
   if pinTo \== .nil then do            -- a control named before this one (ooDialog's rule)
     k = NetDialogKey(pinTo)
     p = order~index(k)
@@ -1538,6 +1583,223 @@
     when "XCENTER" then return (r[1] + r[3]) % 2
     otherwise return (r[2] + r[4]) % 2
   end
+
+/* --------------------------------------------------------- dialog areas */
+/* ooDialog's DlgArea: an area of a dialog, in dialog units, to place
+   controls in: new(left, top, width, height [, margin]); x([offset]) and
+   y([offset]) inside the margin, an offset of whole numbers (negative: from
+   the right or bottom) or a percentage ("70%"); w([pc]) and h([pc]), the
+   width and height inside the margin, or a percentage of them, or "R": what
+   is left after the last x or y (wr, hr); l t r b, the edges inside the
+   margin. The same arithmetic as ooDialog's (written anew here). */
+::class DlgArea public
+::attribute t
+::attribute l
+::attribute b
+::attribute r
+::attribute top
+::attribute left
+::attribute width
+::attribute height
+::attribute margin
+::method init
+  expose lastX lastY
+  use arg left, top, width, height, margin
+  self~top = DlgAreaNum(top, 10)
+  self~left = DlgAreaNum(left, 10)
+  self~width = DlgAreaNum(width, 100)
+  self~height = DlgAreaNum(height, 100)
+  if datatype(margin, "N") then self~margin = trunc(margin)
+  else self~margin = max(min(self~height % 7, 5), 1)
+  self~t = self~top + self~margin
+  self~l = self~left + self~margin
+  self~b = self~top + self~height - self~margin
+  self~r = self~left + self~width - self~margin
+  lastX = 0; lastY = 0
+::method x
+  expose lastX
+  use arg offset = ""
+  lastX = "0" || offset
+  return DlgAreaPos(offset, self~left, self~width, self~margin, self~w)
+::method y
+  expose lastY
+  use arg offset = ""
+  lastY = "0" || offset
+  return DlgAreaPos(offset, self~top, self~height, self~margin, self~h)
+::method w
+  use arg pc = ""
+  if pc~upper == "R" then return self~wr
+  w = self~width - 2 * self~margin
+  if pc~pos("%") > 0 then return trunc(w * pc~changeStr("%", "") / 100)
+  return w
+::method h
+  use arg pc = ""
+  if pc~upper == "R" then return self~hr
+  h = self~height - 2 * self~margin
+  if pc~pos("%") > 0 then return trunc(h * pc~changeStr("%", "") / 100)
+  return trunc(h)
+::method wr                            -- the width left, after the last x
+  expose lastX
+  if lastX~pos("%") = 0 then return self~left + self~width - self~margin - lastX
+  return self~w(100 - lastX~changeStr("%", "") || "%")
+::method hr                            -- the height left, after the last y
+  expose lastY
+  if lastY~pos("%") = 0 then return self~top + self~height - self~margin - lastY
+  return self~h(100 - lastY~changeStr("%", "") || "%")
+::method cx;    return self~w(arg(1))
+::method cy;    return self~h(arg(1))
+::method sizeX; return self~width
+::method sizeY; return self~height
+
+::routine DlgAreaNum                   -- (inside) a whole number, or the default
+  use arg n, default
+  if datatype(n, "N") then return trunc(n)
+  return default
+::routine DlgAreaPos                   -- (inside) x or y: offset from the edge, within the margin
+  use arg offset, start, size, margin, inner
+  if offset~pos("%") > 0 then do
+    pc = offset~changeStr("%", "")
+    if \datatype(pc, "N") then return start + margin
+    if pc < 0 then pc = 100 + pc       -- (from the right or bottom)
+    return trunc(start + margin + inner * pc / 100)
+  end
+  if \datatype(offset, "N") then return start + margin
+  if offset >= 0 then return trunc(start + margin + offset)
+  return trunc(start + size - margin + offset)
+
+/* ooDialog's DlgAreaU: the whole dialog as a DlgArea, new(dialog [, margin
+   [, noResize [, noMove]]]), which also resizes the dialog's controls:
+   resize(dialog, sizeInfo), from connectResize's method, scales each
+   control's original position and size as the dialog's client area has
+   grown (noResizePut(id), noMovePut(id): controls whose size, or position,
+   stays). ooDialog reads defineDialog's source to know the controls'
+   original rectangles; here they are the controls' own, as they were made.
+   correctionFactor is 1 here (ooDialog's 1.05 makes up for the rounding of
+   its sizes in dialog units: this is in pixels); updateOnResize: .false
+   leaves the redrawing to the program (redrawClient). */
+::class DlgAreaU subclass DlgArea public
+::attribute noResize
+::attribute noMove
+::attribute correctionFactor
+::attribute lastError
+::attribute updateOnResize
+::method init
+  expose dlg original
+  use arg dlg, margin = 5, noResize = .nil, noMove = .nil
+  if \datatype(margin, "N") then margin = 5
+  self~init:super(0, 0, dlg~sizeX, dlg~sizeY, margin)
+  self~noResize = .set~new
+  self~noMove = .set~new
+  if noResize~isA(.collection) then do id over noResize; self~noResizePut(id); end
+  if noMove~isA(.collection) then do id over noMove; self~noMovePut(id); end
+  self~correctionFactor = 1
+  self~lastError = .nil
+  self~updateOnResize = .true
+  original = .nil
+::method noResizePut
+  use strict arg id
+  self~noResize~put(NetDialogKey(id))
+  return 0
+::method noMovePut
+  use strict arg id
+  self~noMove~put(NetDialogKey(id))
+  return 0
+::method resize
+  expose original origW origH
+  use arg dialog, sizeInfo
+  f = dialog~form
+  if original == .nil then do          -- the controls as defineDialog made them
+    original = .array~new
+    do c over f~Controls~makeArray
+      if c~Dock~string \== "None" then iterate   -- (a menu bar)
+      original~append(.array~of(c, c~Bounds, NetDialogKey(c~Name)))
+    end
+    origW = dialog~px(self~width); origH = dialog~py(self~height)
+  end
+  w = sizeInfo // 65536; h = sizeInfo % 65536
+  if w = 0 | h = 0 then return 0       -- (minimized)
+  fx = w / origW * self~correctionFactor
+  fy = h / origH * self~correctionFactor
+  f~SuspendLayout
+  do o over original
+    c = o[1]; b = o[2]
+    x = b~X; y = b~Y; cw = b~Width; ch = b~Height
+    if \self~noResize~hasIndex(o[3]) then do; cw = trunc(cw * fx); ch = trunc(ch * fy); end
+    if \self~noMove~hasIndex(o[3]) then do; x = trunc(x * fx); y = trunc(y * fy); end
+    c~Bounds = .net~System~Drawing~Rectangle~new(x, y, cw, ch)
+  end
+  f~ResumeLayout
+  if self~updateOnResize then dialog~update
+  return 0
+
+/* ooDialog's .Rect: left, top, right, bottom */
+::class NetRect public
+::attribute left
+::attribute top
+::attribute right
+::attribute bottom
+::method init
+  expose left top right bottom
+  use arg left = 0, top = 0, right = 0, bottom = 0
+
+::class NetDialogResizeRelay           -- (inside) connectResize: (sizingType, sizeInfo)
+::method init
+  expose dialog methodName
+  use arg dialog, methodName
+::method resize
+  expose dialog methodName
+  use arg f, e
+  select case f~WindowState~string
+    when "Minimized" then type = 1
+    when "Maximized" then type = 2
+    otherwise type = 0
+  end
+  cs = f~ClientSize
+  dialog~send(methodName, type, cs~Width + 65536 * cs~Height)
+
+::class NetDialogSizeEndRelay          -- (inside) connectSizeMoveEnded
+::method init
+  expose dialog methodName
+  use arg dialog, methodName
+::method ended
+  expose dialog methodName
+  dialog~send(methodName)
+
+/* (inside) connectResizing: a NativeWindow on the dialog's form, whose
+   WndProc sees WM_SIZING (wParam the edge, lParam the window's RECT) */
+::class NetDialogSizingHook subclass NetObject
+::method prepare class                 -- (once, the first time it is needed: not when the package loads)
+  expose extended
+  if var("EXTENDED") then return
+  .net~extend(self, "System.Windows.Forms.NativeWindow")
+  extended = .true
+::method init
+  expose dialog methodName
+  use strict arg dialog, methodName
+  self~init:super
+::method created                       -- the form's HandleCreated
+  use arg f, e
+  self~AssignHandle(.net~as(f~Handle, "System.IntPtr"))
+::method WndProc
+  expose dialog methodName
+  use arg ref
+  msg = ref~Value
+  if msg~Msg = 532 then do             -- WM_SIZING (0x214)
+    edges = "LEFT RIGHT TOP TOPLEFT TOPRIGHT BOTTOM BOTTOMLEFT BOTTOMRIGHT"
+    k = msg~WParam
+    if k >= 1, k <= 8 then do
+      M = .net~System~Runtime~InteropServices~Marshal
+      p = .net~as(msg~LParam, "System.IntPtr")
+      r = .NetRect~new(M~ReadInt32(p, 0), M~ReadInt32(p, 4), M~ReadInt32(p, 8), M~ReadInt32(p, 12))
+      if dialog~send(methodName, r, edges~word(k)) == .true then do
+        M~WriteInt32(p, 0, .net~int32(r~left));  M~WriteInt32(p, 4, .net~int32(r~top))
+        M~WriteInt32(p, 8, .net~int32(r~right)); M~WriteInt32(p, 12, .net~int32(r~bottom))
+      end
+    end
+  end
+  r = .net~ref(msg)
+  self~base.WndProc(r)
+  ref~Value = r~value
 
 ::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
 ::method init
@@ -2147,6 +2409,25 @@ syntax:
   end
   dlg~execute
   return 0
+
+/* sendWinIntMsg(control, msg, wParam, lParam): a Windows message sent to a
+   control (ooDialog's control~sendWinIntMsg), its result. A NativeWindow
+   on the control's handle passes it to the control's own window procedure
+   (Windows Forms', then Windows'): .NET has no SendMessage of its own. */
+::routine sendWinIntMsg public
+  use strict arg ctl, msg, wParam, lParam
+  F = .net~System~Windows~Forms
+  h = .net~as(ctl~Handle, "System.IntPtr")
+  nw = F~NativeWindow~new
+  nw~AssignHandle(h)
+  r = .net~ref(F~Message~Create(h, .net~int32(msg), .net~as(wParam, "System.IntPtr"), .net~as(lParam, "System.IntPtr")))
+  signal on syntax
+  nw~DefWndProc(r)
+  nw~ReleaseHandle
+  return r~value~Result
+syntax:
+  nw~ReleaseHandle
+  raise propagate
 
 /* findWindow(title): the handle of this program's window of that title, or
    0 (.NET has no Win32 FindWindow: its own forms, Application.OpenForms) */
