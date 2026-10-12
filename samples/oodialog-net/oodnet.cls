@@ -2242,35 +2242,46 @@
   w = bmp~Width; h = bmp~Height
   x = trunc(x); y = trunc(y)
   if x < 0 | y < 0 | x >= w | y >= h then return 1
-  rect = D~Rectangle~new(0, 0, w, h)
-  data = bmp~LockBits(rect, "ReadOnly", "Format32bppArgb")
-  ints = .net~System~Array~CreateInstance(.net~type("int"), w * h)
-  .net~System~Runtime~InteropServices~Marshal~Copy(data~Scan0, ints, 0, w * h)
+  data = bmp~LockBits(D~Rectangle~new(0, 0, w, h), "ReadOnly", "Format32bppArgb")
+  stride = data~Stride
+  bytes = .net~System~Array~CreateInstance(.net~type("byte"), stride * h)
+  .net~System~Runtime~InteropServices~Marshal~Copy(data~Scan0, bytes, 0, stride * h)
   bmp~UnlockBits(data)
-  px = ints~makeArray                  -- (the pixels, a Rexx Array: one row after the other)
-  border = NetDialogColor(color)~ToArgb
-  if px[y * w + x + 1] = border then return 1
-  done = .set~new
+  -- the pixels as one Rexx string (BGRA, a row after the other): one trip
+  -- through .NET, not one a pixel
+  px = .mutableBuffer~new(.net~System~Convert~ToBase64String(bytes)~decodeBase64)
+  c = NetDialogColor(color)
+  border = c~B~d2c(1) || c~G~d2c(1) || c~R~d2c(1) || c~A~d2c(1)
+  if px~substr(y * stride + x * 4 + 1, 4) == border then return 1
   todo = .queue~of(x y)
-  do while todo~items > 0              -- (a span at a time, as scanline fills go)
+  do while todo~items > 0              -- (a span at a time; a filled span is marked as border)
     parse value todo~pull with sx sy
-    row = sy * w
-    if px[row + sx + 1] = border | done~hasIndex(sx sy) then iterate
+    row = sy * stride + 1
+    if px~substr(row + sx * 4, 4) == border then iterate
     l = sx
     do while l > 0
-      if px[row + l] = border then leave    -- (the pixel left of l)
+      if px~substr(row + (l - 1) * 4, 4) == border then leave
       l -= 1
     end
     r = sx
     do while r < w - 1
-      if px[row + r + 2] = border then leave   -- (the pixel right of r)
+      if px~substr(row + (r + 1) * 4, 4) == border then leave
       r += 1
     end
     graphics~FillRectangle(brush, l, sy, r - l + 1, 1)
-    do i = l to r
-      done~put(i sy)
-      if sy > 0 then if px[row - w + i + 1] \= border, \done~hasIndex(i (sy - 1)) then todo~queue(i (sy - 1))
-      if sy < h - 1 then if px[row + w + i + 1] \= border, \done~hasIndex(i (sy + 1)) then todo~queue(i (sy + 1))
+    px~overlay(border~copies(r - l + 1), row + l * 4)
+    do d over .array~of(-1, 1)         -- (the rows above and below: a seed where a span begins)
+      ny = sy + d
+      if ny < 0 | ny >= h then iterate
+      nrow = ny * stride + 1
+      inSpan = .false
+      do i = l to r
+        if px~substr(nrow + i * 4, 4) \== border then do
+          if \inSpan then todo~queue(i ny)
+          inSpan = .true
+        end
+        else inSpan = .false
+      end
     end
   end
   return self~shown
