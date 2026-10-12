@@ -167,6 +167,8 @@ exit   /* leave program */
     end
     say "(auto) Step:" s~strip
   end
+  bar = self~newProgressBar("IDC_PBAR_A")
+  say "(auto) diagnostics: Value" bar~Value "Step" bar~Step "Maximum" bar~Maximum "handle" bar~IsHandleCreated "- PBM_GETRANGE" sendWinIntMsg(bar, 1031, 0, 0)
   self~help
   self~cancel
 

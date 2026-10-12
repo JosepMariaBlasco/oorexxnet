@@ -758,7 +758,8 @@
   return 0
 ::method scrolling unguarded
   expose scroller
-  return var("SCROLLER") & scroller~running
+  if \var("SCROLLER") then return .false   -- (Rexx's & evaluates both sides)
+  return scroller~running
 
 /* -------------------------------------------------------- other threads */
 /* ooDialog's dialog methods may be called from any Rexx thread (a method
