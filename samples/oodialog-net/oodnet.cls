@@ -899,6 +899,14 @@
   forward message "SHOW"
 ::method hideFast unguarded
   forward message "HIDE"
+::method enable unguarded              -- enable, disable: the dialog's window (all its controls with it)
+  if self~offThread then return self~onThreadLater("ENABLE", arg(1, "A"))
+  self~form~Enabled = .true
+  return 0
+::method disable unguarded
+  if self~offThread then return self~onThreadLater("DISABLE", arg(1, "A"))
+  self~form~Enabled = .false
+  return 0
 ::method toTheTop unguarded            -- the dialog in front, active
   if self~offThread then return self~onThread("TOTHETOP", arg(1, "A"))
   f = self~form
@@ -975,21 +983,125 @@
   use arg id, x, y, cx, cy, style = ""
   return self~createStatic(id, x, y, cx, cy, style "GRAYRECT", "")
 
-/* write(x, y, text [, fontName [, fontSize [, fontStyle]]]): text on the
-   dialog's face, at once (as ooDialog's: what next paints the dialog wipes
-   it out); writeToButton(id, ...), writeToControl: on a control's face */
+/* write(x, y, text [, fontName [, fontSize [, fontStyle [, fg [, bk]]]]]):
+   text on the dialog's face, at once (as ooDialog's: what next paints the
+   dialog wipes it out), on its background colour (fontStyle TRANSPARENT:
+   none); fg, bk: ooDialog's colour numbers; writeToButton(id, ...),
+   writeToControl: on a control's face (with a device context: on what it
+   draws) */
 ::method write unguarded
   if self~offThread then return self~onThreadLater("WRITE", arg(1, "A"))
-  use arg x, y, text, fontName = "System", fontSize = 10, fontStyle = ""
-  return NetDialogWriteOn(self~form, x, y, text, fontName, fontSize, fontStyle)
+  use arg x, y, text, fontName = "System", fontSize = 10, fontStyle = "", fg = (-1), bk = (-1)
+  return NetDialogWriteOn(self~form, x, y, text, fontName, fontSize, fontStyle, fg, bk)
 ::method writeToControl unguarded
+  expose dcs
   if self~offThread then return self~onThreadLater("WRITETOCONTROL", arg(1, "A"))
-  use arg id, x, y, text, fontName = "System", fontSize = 10, fontStyle = ""
-  return NetDialogWriteOn(self~control(id), x, y, text, fontName, fontSize, fontStyle)
+  use arg id, x, y, text, fontName = "System", fontSize = 10, fontStyle = "", fg = (-1), bk = (-1)
+  dc = .nil
+  if var("DCS") then dc = dcs[NetDialogKey(id)]
+  if dc \== .nil then return NetDialogWriteOn(self~control(id), x, y, text, fontName, fontSize, fontStyle, fg, bk, dc)
+  return NetDialogWriteOn(self~control(id), x, y, text, fontName, fontSize, fontStyle, fg, bk)
 ::method writeToButton unguarded
   forward message "WRITETOCONTROL"
 ::method scrollInButton unguarded
   forward message "SCROLLINCONTROL"
+
+/* -------------------------------------------------- device contexts */
+/* ooDialog's drawing on a control through its device context (GDI's):
+   getButtonDC(id) gives it; createPen(width, style, color),
+   createBrush(color), createFontEx: the objects; objectToDC(dc, obj),
+   fontToDC(dc, font): selected (answering the one there before);
+   rectangle, drawLine, drawPixel, drawArc, drawPie, drawAngleArc,
+   fillDrawing, writeDirect; transparentText, opaqueText, setArcDirection;
+   freeButtonDC, deleteObject. Here the device context draws on a bitmap
+   that the control shows (its Paint), drawn again when the control is:
+   ooDialog's drawing goes away when the control repaints itself. Colours
+   are ooDialog's numbers; coordinates pixels. */
+::method getButtonDC unguarded
+  expose dcs
+  use strict arg id
+  if \var("DCS") then dcs = .directory~new
+  key = NetDialogKey(id)
+  if dcs~hasIndex(key) then return dcs[key]
+  c = self~control(id)
+  if .net~isInstance(c, "System.Windows.Forms.ButtonBase") then c~FlatStyle = "Standard"   -- (System: no Paint)
+  dc = .NetDC~new(c)
+  dcs[key] = dc
+  c~Paint += .net~handler(dc, "PAINT")
+  return dc
+::method getControlDC unguarded
+  forward message "GETBUTTONDC"
+::method freeButtonDC unguarded        -- (the drawing stays: the control shows it)
+  return 0
+::method freeControlDC unguarded
+  return 0
+::method createPen unguarded           -- createPen([width [, style [, color]]]): style SOLID DASH DOT DASHDOT DASHDOTDOT NULL
+  use arg width = 1, style = "SOLID", color = 0
+  D = .net~System~Drawing
+  style = style~strip~upper
+  if style == "NULL" then return D~Pen~new(D~Color~Transparent, .net~single(1))
+  pen = D~Pen~new(NetDialogColor(color), .net~single(max(width, 1)))
+  select case style
+    when "DASH" then pen~DashStyle = "Dash"
+    when "DOT" then pen~DashStyle = "Dot"
+    when "DASHDOT" then pen~DashStyle = "DashDot"
+    when "DASHDOTDOT" then pen~DashStyle = "DashDotDot"
+    otherwise nop
+  end
+  if width > 1 then do                 -- (GDI's wide pens: round ends and joins)
+    pen~StartCap = "Round"; pen~EndCap = "Round"; pen~LineJoin = "Round"
+  end
+  return pen
+::method createBrush unguarded         -- createBrush([color]): a solid brush (no color: a hollow one)
+  if arg(1, "O") then return .net~System~Drawing~SolidBrush~new(.net~System~Drawing~Color~Transparent)
+  return .net~System~Drawing~SolidBrush~new(NetDialogColor(arg(1)))
+::method objectToDC unguarded          -- a pen or a brush (or a font) into the device context: the one before
+  use strict arg dc, obj
+  return dc~select(obj)
+::method fontToDC unguarded
+  use strict arg dc, font
+  return dc~select(font)
+::method deleteObject unguarded
+  use strict arg obj
+  if obj~isA(.NetObject) then obj~Dispose
+  return 0
+::method transparentText unguarded
+  arg(1)~transparent = .true
+  return 0
+::method opaqueText unguarded
+  arg(1)~transparent = .false
+  return 0
+::method setArcDirection unguarded     -- setArcDirection(dc, CLOCKWISE | COUNTERCLOCKWISE): drawArc's and drawPie's
+  use strict arg dc, direction
+  dc~clockwise = direction~strip~upper == "CLOCKWISE"
+  return 0
+::method rectangle unguarded           -- rectangle(dc, left, top, right, bottom [, "FILL"]): the pen's outline (FILL: the brush inside)
+  use arg dc, l, t, r, b, fill = ""
+  return dc~rectangle(l, t, r, b, fill~upper == "FILL")
+::method drawLine unguarded            -- drawLine(dc, [x, y,] toX, toY): from x, y (or the last line's end)
+  use arg dc, x, y, toX, toY
+  if arg(2, "O") then x = dc~curX
+  if arg(3, "O") then y = dc~curY
+  return dc~line(x, y, toX, toY)
+::method drawPixel unguarded           -- drawPixel(dc, x, y, color)
+  use arg dc, x, y, color
+  return dc~pixel(x, y, color)
+::method drawArc unguarded             -- drawArc(dc, left, top, right, bottom [, startX, startY, endX, endY]): an ellipse's line
+  use arg dc, l, t, r, b, sx, sy, ex, ey
+  if arg() < 6 then return dc~ellipse(l, t, r, b)
+  return dc~arc(l, t, r, b, sx, sy, ex, ey, .false)
+::method drawPie unguarded             -- drawPie(dc, left, top, right, bottom, startX, startY, endX, endY): filled with the brush
+  use arg dc, l, t, r, b, sx, sy, ex, ey
+  return dc~arc(l, t, r, b, sx, sy, ex, ey, .true)
+::method drawAngleArc unguarded        -- drawAngleArc(dc, xStart, yStart, x, y, radius, startAngle, sweepAngle): GDI's AngleArc
+  use arg dc, xs, ys, x, y, radius, angle, sweep
+  return dc~angleArc(xs, ys, x, y, radius, angle, sweep)
+::method fillDrawing unguarded         -- fillDrawing(dc, x, y, color): filled with the brush from x, y to a line of color
+  use arg dc, x, y, color
+  return dc~flood(x, y, color)
+::method writeDirect unguarded         -- writeDirect(dc, x, y, text): in the device context's font
+  use arg dc, x, y, text
+  return dc~text(x, y, text)
 
 /* ---------------------------------------------------------- bitmap buttons */
 /* ooDialog's bitmap buttons: an owner-drawn button (here a Panel) whose face
@@ -2001,6 +2113,164 @@
     end
     grey~Dispose
   end
+
+
+/* (inside) ooDialog's device context: a bitmap with the control's face,
+   drawn on (GDI's current pen, brush, font, text mode, position, arc
+   direction), shown by the control's Paint */
+::class NetDC
+::attribute graphics get
+::attribute bitmap get
+::attribute transparent
+::attribute clockwise
+::attribute curX
+::attribute curY
+::method init
+  expose control bmp graphics pen brush font transparent clockwise curX curY brushes
+  use arg control
+  D = .net~System~Drawing
+  w = max(control~Width, 1); h = max(control~Height, 1)
+  bmp = D~Bitmap~new(w, h)
+  control~DrawToBitmap(bmp, D~Rectangle~new(0, 0, w, h))   -- (what the control shows now)
+  graphics = D~Graphics~FromImage(bmp)
+  siblings = control~Parent~Controls      -- (and the controls made after it over it: Windows paints them on it,
+  i = siblings~GetChildIndex(control)     -- Windows Forms puts them behind it)
+  do k = i + 1 to siblings~Count - 1     -- (in the order they were made: the last on top)
+    c = siblings[k]
+    if \c~Visible | \c~Bounds~IntersectsWith(control~Bounds) then iterate
+    tmp = D~Bitmap~new(c~Width, c~Height)
+    c~DrawToBitmap(tmp, D~Rectangle~new(0, 0, c~Width, c~Height))
+    graphics~DrawImageUnscaled(tmp, c~Left - control~Left, c~Top - control~Top)
+    tmp~Dispose
+  end
+  pen = D~Pen~new(D~Color~Black, .net~single(1))
+  brush = D~SolidBrush~new(D~Color~White)
+  font = control~Font
+  transparent = .false; clockwise = .false; curX = 0; curY = 0
+  brushes = .directory~new
+::method paint unguarded
+  expose bmp
+  use arg sender, e
+  e~Graphics~DrawImageUnscaled(bmp, 0, 0)
+::method select
+  expose pen brush font
+  use arg obj
+  if .net~isInstance(obj, "System.Drawing.Pen") then do; old = pen; pen = obj; return old; end
+  if .net~isInstance(obj, "System.Drawing.Brush") then do; old = brush; brush = obj; return old; end
+  if .net~isInstance(obj, "System.Drawing.Font") then do; old = font; font = obj; return old; end
+  return .nil
+::method shown private                  -- (the control shows the bitmap again)
+  expose control
+  control~Invalidate
+  return 0
+::method rectangle
+  expose graphics pen brush
+  use arg l, t, r, b, fill
+  l = trunc(l); t = trunc(t); r = trunc(r); b = trunc(b)   -- (GDI's coordinates: whole pixels)
+  x = min(l, r); y = min(t, b); w = abs(r - l); h = abs(b - t)
+  if fill then graphics~FillRectangle(brush, x, y, w, h)
+  if w > 1, h > 1 then graphics~DrawRectangle(pen, x, y, w - 1, h - 1)
+  return self~shown
+::method line
+  expose graphics pen curX curY
+  use arg x, y, toX, toY
+  x = trunc(x); y = trunc(y); toX = trunc(toX); toY = trunc(toY)
+  graphics~DrawLine(pen, x, y, toX, toY)
+  curX = toX; curY = toY
+  return self~shown
+::method pixel
+  expose graphics brushes
+  use arg x, y, color
+  x = trunc(x); y = trunc(y)
+  if \brushes~hasIndex(color) then brushes[color] = .net~System~Drawing~SolidBrush~new(NetDialogColor(color))
+  graphics~FillRectangle(brushes[color], x, y, 1, 1)
+  return self~shown
+::method ellipse
+  expose graphics pen
+  use arg l, t, r, b
+  l = trunc(l); t = trunc(t); r = trunc(r); b = trunc(b)
+  graphics~DrawEllipse(pen, min(l, r), min(t, b), abs(r - l), abs(b - t))
+  return self~shown
+::method arc                           -- an arc, or a pie, from the start radial to the end one (GDI's direction)
+  expose graphics pen brush clockwise
+  use arg l, t, r, b, sx, sy, ex, ey, pie
+  l = trunc(l); t = trunc(t); r = trunc(r); b = trunc(b)
+  x = min(l, r); y = min(t, b); w = abs(r - l); h = abs(b - t)
+  if w = 0 | h = 0 then return 0
+  M = .net~System~Math
+  cx = x + w / 2; cy = y + h / 2
+  a1 = M~Atan2(sy - cy, sx - cx) * 180 / M~PI          -- (.NET's degrees: clockwise on the screen)
+  a2 = M~Atan2(ey - cy, ex - cx) * 180 / M~PI
+  if clockwise then sweep = NetDialogMod360(a2 - a1)
+  else sweep = -NetDialogMod360(a1 - a2)               -- (GDI's default: counterclockwise on the screen)
+  if sweep = 0 then sweep = clockwise~?(360, -360)
+  rect = .net~System~Drawing~RectangleF~new(.net~single(x), .net~single(y), .net~single(w), .net~single(h))
+  if pie then do
+    graphics~FillPie(brush, .net~single(x), .net~single(y), .net~single(w), .net~single(h), .net~single(a1), .net~single(sweep))
+    graphics~DrawPie(pen, rect, .net~single(a1), .net~single(sweep))
+  end
+  else graphics~DrawArc(pen, rect, .net~single(a1), .net~single(sweep))
+  return self~shown
+::method angleArc                      -- GDI's AngleArc: a line from xs, ys to the arc's start, the arc (degrees counterclockwise)
+  expose graphics pen curX curY
+  use arg xs, ys, x, y, radius, angle, sweep
+  M = .net~System~Math
+  a = angle * M~PI / 180; e = (angle + sweep) * M~PI / 180
+  sx = x + radius * M~Cos(a); sy = y - radius * M~Sin(a)
+  graphics~DrawLine(pen, .net~single(xs), .net~single(ys), .net~single(sx), .net~single(sy))
+  rect = .net~System~Drawing~RectangleF~new(.net~single(x - radius), .net~single(y - radius), .net~single(2 * radius), .net~single(2 * radius))
+  graphics~DrawArc(pen, rect, .net~single(-angle), .net~single(-sweep))
+  curX = trunc(x + radius * M~Cos(e)); curY = trunc(y - radius * M~Sin(e))
+  self~shown
+  return 0
+::method text
+  expose graphics font transparent
+  use arg x, y, text
+  x = trunc(x); y = trunc(y)
+  D = .net~System~Drawing
+  back = transparent~?(D~Color~Transparent, D~Color~White)
+  .net~System~Windows~Forms~TextRenderer~DrawText(graphics, text, font, D~Point~new(x, y), D~Color~Black, back, -
+    .net~System~Windows~Forms~TextFormatFlags~NoPadding)
+  return self~shown
+::method flood                         -- GDI's FloodFill (FLOODFILLBORDER): from x, y up to a line of the color
+  expose bmp graphics brush
+  use arg x, y, color
+  D = .net~System~Drawing
+  w = bmp~Width; h = bmp~Height
+  x = trunc(x); y = trunc(y)
+  if x < 0 | y < 0 | x >= w | y >= h then return 1
+  rect = D~Rectangle~new(0, 0, w, h)
+  data = bmp~LockBits(rect, "ReadOnly", "Format32bppArgb")
+  ints = .net~System~Array~CreateInstance(.net~type("int"), w * h)
+  .net~System~Runtime~InteropServices~Marshal~Copy(data~Scan0, ints, 0, w * h)
+  bmp~UnlockBits(data)
+  px = ints~makeArray                  -- (the pixels, a Rexx Array: one row after the other)
+  border = NetDialogColor(color)~ToArgb
+  if px[y * w + x + 1] = border then return 1
+  done = .set~new
+  todo = .queue~of(x y)
+  do while todo~items > 0              -- (a span at a time, as scanline fills go)
+    parse value todo~pull with sx sy
+    row = sy * w
+    if px[row + sx + 1] = border | done~hasIndex(sx sy) then iterate
+    l = sx
+    do while l > 0
+      if px[row + l] = border then leave    -- (the pixel left of l)
+      l -= 1
+    end
+    r = sx
+    do while r < w - 1
+      if px[row + r + 2] = border then leave   -- (the pixel right of r)
+      r += 1
+    end
+    graphics~FillRectangle(brush, l, sy, r - l + 1, 1)
+    do i = l to r
+      done~put(i sy)
+      if sy > 0 then if px[row - w + i + 1] \= border, \done~hasIndex(i (sy - 1)) then todo~queue(i (sy - 1))
+      if sy < h - 1 then if px[row + w + i + 1] \= border, \done~hasIndex(i (sy + 1)) then todo~queue(i (sy + 1))
+    end
+  end
+  return self~shown
 
 ::class NetDialogFrameLine             -- (inside) a static frame's line, in its colour
 ::method init
@@ -3920,16 +4190,29 @@ syntax:
   end
   return file
 ::routine NetDialogWriteOn             -- (inside) write, writeToControl: text drawn on a window, at once
-  use arg w, x, y, text, fontName, fontSize, fontStyle
+  use arg w, x, y, text, fontName, fontSize, fontStyle, fg, bk, dc = .nil
   st = ""
   do word over fontStyle~upper~makeArray(" ")
     if wordPos(word, "BOLD ITALIC UNDERLINE STRIKEOUT") > 0 then st = st word~left(1) || word~substr(2)~lower
   end
   if st == "" then st = "Regular"
   font = NetDialogFont(fontName, fontSize, w~DeviceDpi, st~strip~changeStr(" ", ", "))
-  g = w~CreateGraphics
-  .net~System~Windows~Forms~TextRenderer~DrawText(g, text, font, .net~System~Drawing~Point~new(x, y), w~ForeColor)
-  g~Dispose
+  D = .net~System~Drawing
+  fore = D~Color~Black; back = D~Color~White         -- (a window's device context: black on white, opaque)
+  if fg \= -1 then fore = NetDialogColor(fg)
+  if bk \= -1 then back = NetDialogColor(bk)
+  if fontStyle~upper~wordPos("TRANSPARENT") > 0 then back = D~Color~Transparent
+  pt = D~Point~new(trunc(x), trunc(y))
+  flags = .net~System~Windows~Forms~TextFormatFlags~NoPadding
+  if dc \== .nil then do
+    .net~System~Windows~Forms~TextRenderer~DrawText(dc~graphics, text, font, pt, fore, back, flags)
+    w~Invalidate
+  end
+  else do
+    g = w~CreateGraphics
+    .net~System~Windows~Forms~TextRenderer~DrawText(g, text, font, pt, fore, back, flags)
+    g~Dispose
+  end
   return 0
 ::routine NetDialogDoubleBuffered       -- (inside) a control drawn off screen first (its protected DoubleBuffered, by reflection)
   use arg c
@@ -3959,6 +4242,9 @@ syntax:
   big = D~Size~new(32000, 32000)
   ext = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", font, big, flags)~Width
   return .array~of((ext % 26 + 1) % 2, F~TextRenderer~MeasureText("A", font, big, flags)~Height)
+::routine NetDialogMod360              -- (inside) an angle in 0 <= a < 360
+  use arg a
+  return a - 360 * (a / 360)~floor
 ::routine NetDialogStemArray            -- (inside) a stem's entries from first on, as an Array
   use arg stem, first
   a = .array~new
