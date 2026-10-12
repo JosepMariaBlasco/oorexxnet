@@ -1361,8 +1361,9 @@
   how = pin[1]
   if how == "MYLEFT" then return cur[1] + (o[3] - o[1])
   if how == "MYTOP" then return cur[2] + (o[4] - o[2])
-  key = pin[3]
-  if key == .nil | \rects~hasIndex(key) then key = "RESIZINGADMIN.DIALOG"
+  key = pin[3]                         -- (the dialog, or a control: the dialog if it is not one of the dialog's own)
+  if key == .nil then key = "RESIZINGADMIN.DIALOG"
+  else if \rects~hasIndex(key) then key = "RESIZINGADMIN.DIALOG"
   t = rects[key]
   tOld = t[2]; tNow = t[3]
   if how == "STATIONARY" then
