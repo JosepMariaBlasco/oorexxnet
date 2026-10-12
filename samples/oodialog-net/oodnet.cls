@@ -2121,7 +2121,9 @@
    direction), shown by the control's Paint */
 ::class NetDC
 ::attribute graphics get
-::attribute bitmap get
+::method bitmap                        -- the bitmap it draws on
+  expose bmp
+  return bmp
 ::attribute transparent
 ::attribute clockwise
 ::attribute curX

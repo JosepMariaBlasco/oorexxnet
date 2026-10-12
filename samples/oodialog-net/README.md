@@ -102,6 +102,21 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `ticketWizard.rex` | `propertysheet.tabControls\ticketWizard.rex` | a wizard (Wizard97): header and watermark bitmaps, Back, Next, Finish set by the pages, pages querying each other |
 | `resizablePropertySheetDemo.rex` | `resizableDialogs\ResizingAdmin\PropertySheetDemo.rex` | `PropertySheetDemo.rex` resizable: the sheet and each page with ResizingAdmin |
 | `resizableTabDemo.rex` | `resizableDialogs\ResizingAdmin\TabDemo.rex` | `TabDemo.rex` resizable: the control dialogs sized with the tab control (pagedTab) |
+| `ftyperex.rex` | `ftyperex.rex` | the registry (.NET's `Microsoft.Win32.Registry` for winsystm.cls's WindowsRegistry); SingleSelection, or the console |
+| `editrex.rex` | `editrex.rex` | the same for the Edit command; fileNameDialog for the editor |
+| `oodStandardDialogs.rex` | `oodStandardDialogs.rex` | the standard dialog classes (CheckList, InputBox, IntegerBox, ListChoice, MultiInputBox, MultiListChoice, PasswordBox, SingleSelection, TimedMessage); a default icon |
+| `oovideo.rex` | `oovideo.rex` | a dialog's data stem (new's dlgData.) in and out; CONNECTBUTTONS; validate, a cancel that asks; sounds |
+| `oodpbar.rex` | `oodpbar.rex` | vertical progress bars stepped (PBM_STEPIT); the Help button |
+| `GUI_Template.rex` | `GUI_Template.rex` | the template for a UserDialog, as a NetDialog's |
+| `oobmpvu.rex` | `oobmpvu.rex` | a bitmap viewer: a bitmap button changed, a combo box of a directory's files |
+| `oograph.rex` | `oograph.rex` | bitmaps scrolled into bitmap buttons (scrollBitmapFromTo), scrolling text, a thread of the program's own; the bitmap viewer and the drawing program started from it |
+| `oobandit.rex` | `oobandit.rex` | a slot machine: bitmap buttons changed from a thread of its own while the dialog runs; text written on the dialog |
+| `oophil.rex` | `oophil.rex` | the philosophers' forks: five threads, guarded forks, bitmap buttons of a .rc; executeAsync |
+| `AnimalGame.rex` | `AnimalGame.rex` | buttons with images (one for the pressed state); data stems; timed messages placed on the screen |
+| `oowalker.rex` | `oowalker.rex` | ooDialog's AnimatedButton (`AnimatedButton.cls`): a walking man, on a thread of his own |
+| `oowalk2.rex` | `oowalk2.rex` | the same, its bitmaps those of a .rc's BITMAP resources |
+| `oodraw.rex` | `oodraw.rex` | drawing through a device context: pens, brushes, rectangles, lines, pixels, arcs, pies, a flood fill |
+| `sample.rex` | `sample.rex` | the samples' launcher: bitmap buttons on a background bitmap, each starting a program here |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -164,6 +179,14 @@ More of ooDialog's samples will follow, in batches.
 | `ResizingAdmin`'s `pagedTab(tabID, dlgIDs)` | the same: the control dialogs started in the dialog follow the tab control's display area |
 | `PropertySheetDialog` with `WIZARD97` (`AERO`...), pages `subclass UserPSPDialog`, `setWizButtons`, `wizNext`, `wizBack`, `wizFinish`, `querySiblings` | `.NetPropertySheet~new(pages, "WIZARD97", caption)`, pages `subclass UserPSPDialog`: the same methods; `header` and `watermark` (.NET Images), as ooDialog's |
 | `.PlainBaseDialog~setDefaultFont(name, size)` | `.NetDialog~defaultFont(name, size)` |
+| a dialog method called from a thread of the program's own (`start`, a REPLY): ooDialog's go to the window | the same: from another thread, oodnet.cls's dialog methods run on the dialog's thread (the bridge's `.NetEventThread~runLater`); those that only change what it shows return at once |
+| `createBitmapButton`, `installBitmapButton`, `changeBitmapButton`, `setBitmapPosition`, `scrollBitmapFromTo`, `loadBitmap`, `removeBitmap` | the same (a Panel drawing its bitmaps; a bitmap is a file's name or a .NET Image) |
+| `getButtonDC`, `createPen`, `createBrush`, `objectToDC`, `rectangle`, `drawLine`, `drawArc`, `drawPie`, `fillDrawing`, `writeDirect` | the same, on a bitmap the control shows |
+| `.CheckList~new(...)`, `.InputBox~new(...)` and the other standard dialog classes; `.application~defaultIcon(file)` | the same classes; `.NetDialog~defaultIcon(file)` |
+| `new(..., dlgData., ...)`, `setDataStem`, `getDataStem`; `CONNECTBUTTONS` | the same (the stem's tails the controls' ids) |
+| `executeAsync`, `endAsyncExecution`; `self~hide`, `show`, `enable`, `disable` | the same (a modeless form; a modal one hidden is made transparent) |
+| `.WindowsRegistry` (winsystm.cls) | `.net~Microsoft~Win32~Registry` |
+| `::requires "samplesSetup.rex"` (the sound path), `play("WHISTLE.WAV")` | the same: `samplesSetup.rex` here sets SOUNDPATH, which oodnet.cls's `play` searches |
 
 **Indexers by number and by key** (`ListView.Items`, `SubItems`,
 `Controls`...): a Rexx whole number is a position, from 0 as in .NET

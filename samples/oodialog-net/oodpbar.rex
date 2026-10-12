@@ -46,8 +46,9 @@
    dialog is a class of oodpbarrc.cls (rc2oodnet.rex -cls), the program's
    RcDialog its subclass. A progress bar is .NET's ProgressBar: setRange,
    setStep and setPos are its Minimum and Maximum, Step and Value; step is
-   Windows' own PBM_STEPIT (sendWinIntMsg), which starts over when the bar
-   is full, as ooDialog's does: .NET's PerformStep stops at the maximum.) */
+   the routine pbStep below, which starts over at the minimum when the bar
+   is full, as Windows' PBM_STEPIT (ooDialog's step) does: .NET's
+   PerformStep stops at the maximum.) */
 
 .NetDialog~auto = arg(1)~strip~caselessEquals("auto")   -- (.NET version) unattended
 -- ooDialog: .application~useGlobalConstDir('O'): here the ids are names
@@ -147,15 +148,15 @@ exit   /* leave program */
 ::method ok unguarded
   /* step each progress bar by the step set with the setStep method */
   curPB = self~newProgressBar("IDC_PBAR_A")
-  call sendWinIntMsg curPB, 1029, 0, 0                   -- ooDialog: curPB~step (PBM_STEPIT)
+  call pbStep curPB                                      -- ooDialog: curPB~step
   curPB = self~newProgressBar("IDC_PBAR_B")
-  call sendWinIntMsg curPB, 1029, 0, 0                   -- ooDialog: curPB~step (PBM_STEPIT)
+  call pbStep curPB                                      -- ooDialog: curPB~step
   curPB = self~newProgressBar("IDC_PBAR_C")
-  call sendWinIntMsg curPB, 1029, 0, 0                   -- ooDialog: curPB~step (PBM_STEPIT)
+  call pbStep curPB                                      -- ooDialog: curPB~step
   curPB = self~newProgressBar("IDC_PBAR_D")
-  call sendWinIntMsg curPB, 1029, 0, 0                   -- ooDialog: curPB~step (PBM_STEPIT)
+  call pbStep curPB                                      -- ooDialog: curPB~step
   curPB = self~newProgressBar("IDC_PBAR_E")
-  call sendWinIntMsg curPB, 1029, 0, 0                   -- ooDialog: curPB~step (PBM_STEPIT)
+  call pbStep curPB                                      -- ooDialog: curPB~step
   return 0
 
 ::method autoRun unguarded               -- (.NET version) unattended: Step three times, Help, Cancel
@@ -163,12 +164,10 @@ exit   /* leave program */
     self~ok
     s = ""
     do id over .array~of("IDC_PBAR_A", "IDC_PBAR_B", "IDC_PBAR_C", "IDC_PBAR_D", "IDC_PBAR_E")
-      s = s sendWinIntMsg(self~newProgressBar(id), 1032, 0, 0)   -- (PBM_GETPOS)
+      s = s self~newProgressBar(id)~Value
     end
     say "(auto) Step:" s~strip
   end
-  bar = self~newProgressBar("IDC_PBAR_A")
-  say "(auto) diagnostics: Value" bar~Value "Step" bar~Step "Maximum" bar~Maximum "handle" bar~IsHandleCreated "- PBM_GETRANGE" sendWinIntMsg(bar, 1031, 0, 0)
   self~help
   self~cancel
 
@@ -204,3 +203,11 @@ exit   /* leave program */
 
   return 0
 
+/* (.NET version) ooDialog's step (Windows' PBM_STEPIT): the position moved by
+   the step; past the maximum, it starts over at the minimum */
+::routine pbStep
+  use arg bar
+  v = bar~Value + bar~Step
+  if v > bar~Maximum then v = bar~Minimum
+  bar~Value = v
+  return 0

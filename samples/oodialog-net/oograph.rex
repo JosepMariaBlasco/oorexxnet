@@ -231,10 +231,17 @@
    self~~show~toTheTop
 
 ::method autoRun unguarded             -- (.NET version) unattended: the introduction, the bitmap viewer, Cancel
-   expose sd
-   do i = 1 to 150 while \self~newPushButton(IDC_PB_VIEWER)~Enabled   -- (the bitmaps scroll in first)
-     call msSleep 100
-   end
+   expose autoTimer autoTicks
+   -- (a timer that looks now and then: waiting here would run inside the
+   -- introduction's own waits, which then could not go on)
+   autoTicks = 0
+   autoTimer = self~startTimer(200, "autoLook")
+
+::method autoLook unguarded            -- (.NET version) the introduction over? then the rest
+   expose autoTimer autoTicks
+   autoTicks += 1
+   if \self~newPushButton(IDC_PB_VIEWER)~Enabled, autoTicks < 100 then return
+   autoTimer~Stop
    say "(auto) after the introduction: Bitmap-Viewer enabled" self~newPushButton(IDC_PB_VIEWER)~Enabled", the frame shown" self~newStatic(IDC_ST_WFRAME)~Visible
    pos = .NetPoint~new(-1, -1)
    self~getBitmapPosition(IDC_BMP_TOP, pos)
