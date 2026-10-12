@@ -76,8 +76,8 @@
  * up, the combo box's MouseMove does. The tips are two .NET ToolTips, shown
  * by the program (ToolTip.Show) after the ToolTip's InitialDelay, or at once
  * for the tracking ones, where onShow and its kin say, or below the mouse
- * when the ToolTip positions them. The cue is the ComboBox's
- * PlaceholderText, drawn by us too.)
+ * when the ToolTip positions them. The cue (setCue) is drawn by us too, in
+ * the selection field while nothing is selected.)
  */
 
   .NetDialog~auto = arg(1)~strip~caselessEquals("auto")   -- (.NET version) unattended
@@ -128,7 +128,7 @@
  *  and create and configure the tool tips.
  */
 ::method initDialog
-  expose comboBox itemHeight tt ttTrack delay poll hot hotBounds
+  expose comboBox itemHeight tt ttTrack delay poll hot hotBounds cue
 
   WF = .net~System~Windows~Forms
   comboBox = self~newComboBox(IDC_COMBOBOX)
@@ -149,7 +149,7 @@
     comboBox~Items~Add(e)
   end
 
-  comboBox~PlaceholderText = "Select a city"                -- ooDialog: comboBox~setCue("Select a city")
+  cue = "Select a city"                                     -- ooDialog: comboBox~setCue("Select a city"): drawn by onDrawItem
   comboBox~MaxDropDownItems = 10                            -- ooDialog: comboBox~setMinVisible(10)
   comboBox~DropDownHeight = 10 * itemHeight + 2
 
@@ -184,14 +184,14 @@
  * keyboard's).
  */
 ::method onDrawItem unguarded
-  expose comboBox hot hotBounds
+  expose comboBox hot hotBounds cue
   use arg cb, e
 
   WF = .net~System~Windows~Forms
   flags = "VerticalCenter, SingleLine, NoPrefix"            -- (a TextFormatFlags, by its names)
   e~DrawBackground
   if e~Index < 0 then do                                    -- the selection field, nothing selected: the cue
-    WF~TextRenderer~DrawText(e~Graphics, cb~PlaceholderText, e~Font, e~Bounds, .net~System~Drawing~SystemColors~GrayText, flags)
+    WF~TextRenderer~DrawText(e~Graphics, cue, e~Font, e~Bounds, .net~System~Drawing~SystemColors~GrayText, flags)
     return
   end
   WF~TextRenderer~DrawText(e~Graphics, cb~Items[e~Index], e~Font, e~Bounds, e~ForeColor, flags)

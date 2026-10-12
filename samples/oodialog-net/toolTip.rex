@@ -337,7 +337,7 @@
             else do
                 say 'NO hit'
                 say 'Mouse at:             ' pos~toString
-                say 'Test push button hwnd:' pbTest~Handle~toString
+                say 'Test push button hwnd:' pbTest~Handle
                 say
             end
         end

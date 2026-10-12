@@ -265,6 +265,7 @@
     c~Size = old~Size
     c~TextAlign = old~TextAlign
     c~ThousandsSeparator = .true       -- as Windows' up-down shows its buddy's number
+    if style~upper~wordPos("ALIGNLEFT") > 0 then c~UpDownAlign = "Left"
     self~form~Controls~Remove(old)
     self~form~Controls~Add(c)
     self~register(last~id, c)

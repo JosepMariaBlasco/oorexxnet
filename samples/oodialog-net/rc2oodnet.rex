@@ -231,7 +231,9 @@ control1: procedure
   select
     when wordPos(kw, "LTEXT RTEXT CTEXT") > 0 then do
       style = (kw == "RTEXT")~?("RIGHT", (kw == "CTEXT")~?("CENTER", ""))
-      if args~hasIndex(7) then style = (style staticStyles(args[7]))~strip   -- (its own styles: SS_SUNKEN...)
+      if args~hasIndex(7) then do w over staticStyles(args[7])~makeArray(" ")   -- (its own styles: SS_SUNKEN...)
+        if wordPos(w, style) = 0 then style = (style w)~strip
+      end
       return call("createStatic", args[2], args, style, args[1])
     end
     when kw == "EDITTEXT" then return call("createEdit", args[1], shift(args, -1), editStyles(args[6]), , dataName("", args[1]))
