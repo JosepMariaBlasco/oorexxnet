@@ -207,8 +207,21 @@ menu: procedure
   end
   return out
 
-/* one control statement as a create* call */
+/* one control statement as a create* call; NOT WS_VISIBLE and WS_DISABLED,
+   which any control may have, as the styles HIDDEN and DISABLED */
 control: procedure
+  use arg l
+  r = control1(l)
+  if \r~abbrev("self~create") | r~pos(', "') = 0 then return r
+  parse var r head '(' a1 ',' a2 ',' a3 ',' a4 ',' a5 ', "' st '"' tail
+  w = styleWords(l~subWord(2))
+  add = ""
+  if l~upper~space(1)~pos("NOT WS_VISIBLE") > 0, wordPos("HIDDEN", st) = 0 then add = add "HIDDEN"
+  if wordPos("WS_DISABLED", w) > 0, wordPos("DISABLED", st) = 0 then add = add "DISABLED"
+  if add == "" then return r
+  return head"(" || a1"," || a2"," || a3"," || a4"," || a5', "' || (st add)~space || '"' || tail
+
+control1: procedure
   use arg l
   kw = l~word(1)~upper
   rest = l~subWord(2)
@@ -390,6 +403,7 @@ staticStyles: procedure
   w = styleWords(st); r = ""
   if wordPos("SS_CENTER", w) > 0 then r = r "CENTER"        -- (whole words: not SS_CENTERIMAGE)
   if wordPos("SS_RIGHT", w) > 0 then r = r "RIGHT"
+  if wordPos("SS_CENTERIMAGE", w) > 0 then r = r "CENTERIMAGE"   -- (centred down)
   if w~pos("FRAME") > 0 then r = r "FRAME"
   if wordPos("WS_BORDER", w) > 0 then r = r "BORDER"
   if wordPos("SS_SUNKEN", w) > 0 then r = r "SUNKEN"

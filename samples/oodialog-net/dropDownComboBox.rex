@@ -103,6 +103,7 @@ return 0
     list~MouseClick += .net~handler(self, "ONCLICK")        -- ooDialog: connectListViewEvent(IDC_LISTVIEW, "CLICK", onClick)
     list~MouseWheel += .net~handler(self, "ONBEGINSCROLL")
     cb~KeyDown += .net~handler(self, "ONCOMBOKEY")          -- ooDialog: cb~getEditControl~isGrandchild
+    self~wantKeys(cb)                                       -- (Enter and Escape to it, not to the dialog's buttons)
     cb~LostFocus += .net~handler(self, "ONCOMBOLOSTFOCUS")
 
     self~setUpListView(list)

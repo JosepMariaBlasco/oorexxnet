@@ -131,12 +131,16 @@
   c = self~place(id, .net~System~Windows~Forms~Label~new, x, y, cx, cy)
   c~Text = text
   style = style~upper
-  if style~wordPos("RIGHT") > 0 then c~TextAlign = "TopRight"
-  if style~wordPos("CENTER") > 0 then c~TextAlign = "TopCenter"
+  down = (style~wordPos("CENTERIMAGE") > 0)~?("Middle", "Top")   -- (SS_CENTERIMAGE: one line, centred down)
+  across = "Left"
+  if style~wordPos("RIGHT") > 0 then across = "Right"
+  if style~wordPos("CENTER") > 0 then across = "Center"
+  c~TextAlign = down || across
   if style~wordPos("BORDER") > 0 | style~pos("FRAME") > 0 then c~BorderStyle = "FixedSingle"   -- (GRAYFRAME, BLACKFRAME...)
   if style~pos("FRAME") > 0 then self~frame(c)                 -- a frame: behind what it frames
   if style~wordPos("SUNKEN") > 0 then c~BorderStyle = "Fixed3D"
   if style~wordPos("ELLIPSIS") > 0 then c~AutoEllipsis = .true
+  self~common(c, style)
   return 0
 ::method createStaticText
   forward message "CREATESTATIC"
@@ -161,6 +165,7 @@
   if style~wordPos("NOBORDER") > 0 then c~BorderStyle = "None"
   if style~wordPos("RIGHT") > 0 then c~TextAlign = "Right"
   if style~wordPos("CENTER") > 0 then c~TextAlign = "Center"
+  self~common(c, style)
   if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createPushButton
@@ -194,6 +199,7 @@
   use arg id, x, y, cx, cy, style = "", label = "", attributeName
   c = self~place(id, .net~System~Windows~Forms~CheckBox~new, x, y, cx, cy)
   c~Text = label
+  self~common(c, style)
   if arg(8, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createRadioButton
@@ -201,6 +207,7 @@
   use arg id, x, y, cx, cy, style = "", label = "", attributeName
   c = self~place(id, .net~System~Windows~Forms~RadioButton~new, x, y, cx, cy)
   c~Text = label
+  self~common(c, style)
   if \var("RADIOS") then radios = .array~new
   radios~append(.array~of(c, style~upper~wordPos("GROUP") > 0))   -- (GROUP: WS_GROUP, a new group starts)
   if arg(8, "E") then self~dataAttribute(attributeName, id)
@@ -209,6 +216,7 @@
   use arg id, x, y, cx, cy, style = "", text = ""
   c = self~place(id, .net~System~Windows~Forms~GroupBox~new, x, y, cx, cy)
   c~Text = text
+  self~common(c, style)
   self~frame(c)                        -- behind the controls drawn over it
   return 0
 ::method createListBox
@@ -224,6 +232,7 @@
     by = self~py(8000) / 1000                -- height (its tmHeight, the base unit), within a 2-pixel border
     c~Height = (c~Height - 4) % by * by + 4
   end
+  self~common(c, style)
   if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createComboBox
@@ -239,6 +248,7 @@
     otherwise c~DropDownStyle = "DropDown"
   end
   if style~wordPos("SORT") > 0 then c~Sorted = .true
+  self~common(c, style)
   if arg(7, "E") then self~dataAttribute(attributeName, id)
   return 0
 /* An up-down control with AUTOBUDDY and SETBUDDYINT joins the edit control
@@ -300,25 +310,30 @@
   bar = (style~upper~wordPos("VERTICAL") > 0)~?(F~VScrollBar~new, F~HScrollBar~new)
   c = self~place(id, bar, x, y, cx, cy)
   c~LargeChange = 1
+  self~common(c, style)
   return 0
 ::method createMonthCalendar
   use arg id, x, y, cx, cy, style = ""
   c = self~place(id, .net~System~Windows~Forms~MonthCalendar~new, x, y, cx, cy)
   c~MaxSelectionCount = 1
+  self~common(c, style)
   return 0
 ::method createDateTimePicker
   use arg id, x, y, cx, cy, style = ""
-  self~place(id, .net~System~Windows~Forms~DateTimePicker~new, x, y, cx, cy)
+  c = self~place(id, .net~System~Windows~Forms~DateTimePicker~new, x, y, cx, cy)
+  self~common(c, style)
   return 0
 ::method createProgressBar
   use arg id, x, y, cx, cy, style = ""
   c = self~place(id, .net~System~Windows~Forms~ProgressBar~new, x, y, cx, cy)
   if style~upper~wordPos("MARQUEE") > 0 then c~Style = "Marquee"
+  self~common(c, style)
   return 0
 ::method createTrackBar
   use arg id, x, y, cx, cy, style = ""
   c = self~place(id, .net~System~Windows~Forms~TrackBar~new, x, y, cx, cy)
   if style~upper~wordPos("VERTICAL") > 0 then c~Orientation = "Vertical"
+  self~common(c, style)
   return 0
 ::method createListView
   use arg id, x, y, cx, cy, style = ""
@@ -332,6 +347,7 @@
   end
   if style~wordPos("SHOWSELALWAYS") > 0 then c~HideSelection = .false
   if style~wordPos("SINGLESEL") > 0 then c~MultiSelect = .false
+  self~common(c, style)
   return 0
 ::method createTreeView
   use arg id, x, y, cx, cy, style = ""
@@ -340,11 +356,18 @@
   c~ShowLines = style~wordPos("LINES") > 0 | style~wordPos("HASLINES") > 0
   c~ShowPlusMinus = style~wordPos("BUTTONS") > 0 | style~wordPos("HASBUTTONS") > 0
   c~ShowRootLines = style~wordPos("ATROOT") > 0 | style~wordPos("LINESATROOT") > 0
+  self~common(c, style)
   return 0
 ::method createTab
   use arg id, x, y, cx, cy, style = ""
-  self~place(id, .net~System~Windows~Forms~TabControl~new, x, y, cx, cy)
+  c = self~place(id, .net~System~Windows~Forms~TabControl~new, x, y, cx, cy)
+  self~common(c, style)
   return 0
+::method common private                -- (inside) styles any control may have: HIDDEN, DISABLED
+  use arg c, style = ""
+  style = style~upper
+  if style~wordPos("HIDDEN") > 0 then c~Visible = .false
+  if style~wordPos("DISABLED") > 0 then c~Enabled = .false
 
 /* ooDialog's newXxx(id): here the Windows Forms control itself */
 ::method control
@@ -449,6 +472,14 @@
   return self~connectEvent(id, e, methodName)
 ::method connectComboBoxEvent
   forward message "CONNECTLISTBOXEVENT"
+::method connectStaticEvent             -- CLICKED, DBLCLK (ooDialog wants SS_NOTIFY; a .NET Label has them)
+  use arg id, event, methodName
+  select case event~upper
+    when "CLICKED" then e = "Click"
+    when "DBLCLK" then e = "DoubleClick"
+    otherwise e = event
+  end
+  return self~connectEvent(id, e, methodName)
 /* any .NET event of a control, by its .NET name */
 ::method connectEvent
   expose defined deferred
@@ -494,6 +525,16 @@
 ::method scrolling
   expose scroller
   return var("SCROLLER") & scroller~running
+
+/* wantKeys(control [, keys]): Enter and Escape (or the keys named, as
+   .NET's Keys) go to the control's KeyDown, not to the dialog: Windows
+   Forms would otherwise give Enter to the default button (AcceptButton) and
+   Escape to Cancel before the control sees them (ooDialog's isGrandChild
+   and wantReturn get them to the control) */
+::method wantKeys
+  use arg ctl, keys = "Enter Escape"
+  ctl~PreviewKeyDown += .net~handler(.NetDialogInputKeys~new(keys), "PREVIEW")
+  return 0
 
 /* a Windows Forms timer calling methodName every ms milliseconds (stop it: timer~Stop) */
 ::method startTimer
@@ -765,6 +806,7 @@
   do d over deferred; self~sendWith(d[1], d[2]); end
   self~initDialog
   self~applyData
+  if self~isA(.ResizingAdmin) then self~raSetup
 ::method setWindowTitle                -- setWindowTitle(hwnd, text): a window of this program's title
   use strict arg hwnd, text
   .net~System~Windows~Forms~Control~FromHandle(hwnd)~Text = text
@@ -876,7 +918,8 @@
 ::class NetMenuBar public
 ::attribute strip get                  -- the MenuStrip
 ::method init                          -- (ooDialog's arguments are not needed)
-  expose strip popups connected
+  expose strip popups connected attached
+  attached = .nil
   strip = .net~System~Windows~Forms~MenuStrip~new
   popups = .array~new
   connected = .directory~new
@@ -909,9 +952,9 @@
   i = self~find(id)
   if i == .nil then raise syntax 93.900 array("this menu has no item" id)
   return i
-::method connectCommandEvent
-  expose connected
-  use strict arg id, methodName, dialog
+::method connectCommandEvent           -- connectCommandEvent(id, method [, dialog]): the dialog attached to, if omitted
+  expose connected attached
+  use strict arg id, methodName, dialog = (attached)
   self~item(id)~Click += .net~handler(dialog, methodName)
   connected[NetMenuKey(id)] = .true
   return 0
@@ -922,8 +965,9 @@
 ::method uncheck; self~item(arg(1))~Checked = .false; return 0
 ::method isChecked; return self~item(arg(1))~Checked
 ::method attachTo                      -- attachTo(dialog [, pos]): on top of the dialog
-  expose strip connected
+  expose strip connected attached
   use arg dialog
+  attached = dialog
   if \connected~hasIndex("IDOK"), self~find("IDOK") \== .nil then self~connectCommandEvent("IDOK", "OK", dialog)
   if \connected~hasIndex("IDCANCEL"), self~find("IDCANCEL") \== .nil then self~connectCommandEvent("IDCANCEL", "CANCEL", dialog)
   dialog~attachMenu(strip)
@@ -1123,6 +1167,222 @@
   expose outcome
   return outcome
 
+/* ----------------------------------------------------------------- resizing */
+/* ooDialog's ResizingAdmin: a NetDialog that inherits it can be sized by the
+   user, and its controls follow as its defineSizing says, with ooDialog's
+   methods and meaning (oodResizableDialog.cpp's arithmetic). Each edge of a
+   control is pinned to an edge of the dialog, or of a control named before
+   it (its pinToID): STATIONARY keeps its distance to that edge, PROPORTIONAL
+   moves as that window's size changes, MYLEFT (a right edge) and MYTOP (a
+   bottom one) keep the control's own width and height. Every edge is
+   PROPORTIONAL to the dialog unless defineSizing says otherwise (the
+   defaults, defaultLeft... or defaultSizing, are copied to a control when
+   it is first named, and to the ones never named). The dialog cannot be
+   made smaller than it starts (minSize, noMinSize; maxSize). ooDialog adds
+   WS_THICKFRAME: a sizing border. wantSizeEnded([method]): method (default
+   onSizeEnded) once the user lets go. Controls inside others (a ListView's
+   edit control, radio buttons in a group box) move with their parent.     */
+::class ResizingAdmin public mixinclass Object
+::method defineSizing                  -- (to override) the pins: defaultLeft..., controlLeft..., controlSizing...
+  return 0
+::method raState private
+  expose defEdges order edges minSize maxSize sizeEnded
+  if \var("ORDER") then do
+    defEdges = .directory~new
+    do side over .array~of("LEFT", "TOP", "RIGHT", "BOTTOM")
+      defEdges[side] = .array~of("PROPORTIONAL", side, .nil)
+    end
+    order = .array~new                 -- the controls' keys, in the order they were named
+    edges = .directory~new             -- key -> Directory of LEFT TOP RIGHT BOTTOM -> (how, edge, pinTo)
+    minSize = "INITIAL"; maxSize = .nil; sizeEnded = .nil
+  end
+::method raPin private      -- (how, edge, pinTo) checked, for side
+  expose order
+  use strict arg side, how, edge, pinTo, ctrlKey = .nil
+  how = how~upper; edge = edge~upper
+  ok = wordPos(how, "STATIONARY PROPORTIONAL") > 0 | (how == "MYLEFT" & side == "RIGHT") | (how == "MYTOP" & side == "BOTTOM")
+  if \ok then raise syntax 93.900 array("ResizingAdmin: the" side~lower "edge cannot be pinned" how)
+  if wordPos(edge, "LEFT TOP RIGHT BOTTOM XCENTER YCENTER") = 0 then raise syntax 93.900 array("ResizingAdmin: no edge" edge)
+  if pinTo \== .nil then do            -- a control named before this one (ooDialog's rule)
+    k = NetDialogKey(pinTo)
+    p = order~index(k)
+    bad = p == .nil                    -- (Rexx's | evaluates both sides)
+    if \bad, ctrlKey \== .nil then do
+      q = order~index(ctrlKey)
+      if q \== .nil then bad = p > q
+    end
+    if bad then raise syntax 93.900 array("ResizingAdmin: pinToID" pinTo "is not a control named before" ctrlKey)
+    pinTo = k
+  end
+  return .array~of(how, edge, pinTo)
+::method raEntry private    -- a control's edges, made from the defaults the first time
+  expose defEdges order edges
+  use strict arg id
+  self~raState
+  k = NetDialogKey(id)
+  if \edges~hasIndex(k) then do
+    e = .directory~new
+    do side over defEdges~allIndexes; e[side] = defEdges[side]; end
+    edges[k] = e
+    order~append(k)
+  end
+  return edges[k]
+::method defaultSide private
+  expose defEdges
+  use arg side, how, edge, pinTo = .nil
+  self~raState
+  defEdges[side] = self~raPin(side, how, edge, pinTo)
+  return 0
+::method defaultLeft;   use arg how, edge, pinTo = .nil; return self~defaultSide("LEFT", how, edge, pinTo)
+::method defaultTop;    use arg how, edge, pinTo = .nil; return self~defaultSide("TOP", how, edge, pinTo)
+::method defaultRight;  use arg how, edge, pinTo = .nil; return self~defaultSide("RIGHT", how, edge, pinTo)
+::method defaultBottom; use arg how, edge, pinTo = .nil; return self~defaultSide("BOTTOM", how, edge, pinTo)
+::method defaultSizing                 -- defaultSizing([left [, top [, right [, bottom]]]]): Arrays (how, edge [, pinTo])
+  sides = .array~of("LEFT", "TOP", "RIGHT", "BOTTOM")
+  do i = 1 to 4
+    if arg(i, "E") then self~defaultSide(sides[i], arg(i)[1], arg(i)[2], arg(i)[3])
+  end
+  return 0
+::method controlSide private
+  use arg side, id, how, edge, pinTo = .nil
+  e = self~raEntry(id)
+  e[side] = self~raPin(side, how, edge, pinTo, NetDialogKey(id))
+  return 0
+::method controlLeft;   use arg id, how, edge, pinTo = .nil; return self~controlSide("LEFT", id, how, edge, pinTo)
+::method controlTop;    use arg id, how, edge, pinTo = .nil; return self~controlSide("TOP", id, how, edge, pinTo)
+::method controlRight;  use arg id, how, edge, pinTo = .nil; return self~controlSide("RIGHT", id, how, edge, pinTo)
+::method controlBottom; use arg id, how, edge, pinTo = .nil; return self~controlSide("BOTTOM", id, how, edge, pinTo)
+::method controlSizing                 -- controlSizing(id [, left [, top [, right [, bottom]]]])
+  use arg id
+  self~raEntry(id)
+  sides = .array~of("LEFT", "TOP", "RIGHT", "BOTTOM")
+  do i = 1 to 4
+    if arg(i + 1, "E") then self~controlSide(sides[i], id, arg(i + 1)[1], arg(i + 1)[2], arg(i + 1)[3])
+  end
+  return 0
+::method useDefaultSizing              -- the control's edges back to the defaults
+  expose defEdges edges
+  use strict arg id
+  e = self~raEntry(id)
+  do side over defEdges~allIndexes; e[side] = defEdges[side]; end
+  return 0
+::method minSize                       -- in pixels, the dialog's whole window (.nil: none)
+  expose minSize
+  self~raState
+  if minSize == "INITIAL" then return .nil
+  return minSize
+::method "MINSIZE="                    -- anything with width and height (ooDialog's .Size), or a .NET Size
+  expose minSize
+  use strict arg size
+  self~raState
+  minSize = .net~System~Drawing~Size~new(size~width, size~height)
+::method noMinSize
+  expose minSize
+  self~raState
+  minSize = .nil
+  return 0
+::method maxSize
+  expose maxSize
+  self~raState
+  return maxSize
+::method "MAXSIZE="
+  expose maxSize
+  use strict arg size
+  self~raState
+  maxSize = .net~System~Drawing~Size~new(size~width, size~height)
+::method noMaxSize
+  expose maxSize
+  self~raState
+  maxSize = .nil
+  return 0
+::method wantSizeEnded
+  expose sizeEnded
+  use arg methodName = "onSizeEnded"
+  self~raState
+  sizeEnded = methodName
+  return 0
+::method raSetup private    -- (inside) once the controls exist and initDialog has run
+  expose order edges defEdges rects menuH minSize maxSize sizeEnded
+  self~raState
+  self~defineSizing
+  f = self~form
+  cs = f~ClientSize
+  f~FormBorderStyle = "Sizable"         -- (ooDialog: WS_THICKFRAME)
+  f~ClientSize = cs                     -- (the client area kept)
+  menuH = 0
+  if f~MainMenuStrip \== .nil then menuH = f~MainMenuStrip~Height
+  rects = .directory~new                -- key -> .array(control, original l t r b, current l t r b)
+  i = 0
+  do c over f~Controls~makeArray        -- every control of the dialog itself, in the dialog's order
+    if c~Dock~string \== "None" then iterate   -- (a menu bar)
+    k = NetDialogKey(c~Name)
+    if k == "" | rects~hasIndex(k) then do; i += 1; k = "RESIZINGADMIN."i; end
+    if \edges~hasIndex(k) then do      -- not named in defineSizing: the defaults
+      e = .directory~new
+      do side over defEdges~allIndexes; e[side] = defEdges[side]; end
+      edges[k] = e
+      order~append(k)
+    end
+    b = c~Bounds
+    o = .array~of(b~Left, b~Top, b~Right, b~Bottom)
+    rects[k] = .array~of(c, o, o~copy)
+  end
+  rects["RESIZINGADMIN.DIALOG"] = .array~of(.nil, .array~of(0, menuH, f~ClientSize~Width, f~ClientSize~Height), .nil)
+  if minSize == "INITIAL" then f~MinimumSize = f~Size
+  else if minSize \== .nil then f~MinimumSize = minSize
+  if maxSize \== .nil then f~MaximumSize = maxSize
+  f~Resize += .net~handler(self, "RARESIZE")
+  if sizeEnded \== .nil then f~ResizeEnd += .net~handler(self, sizeEnded)
+::method raResize unguarded
+  expose order edges rects menuH
+  use arg f, e
+  if f~WindowState~string == "Minimized" then return
+  dlg = rects["RESIZINGADMIN.DIALOG"]
+  dlg[3] = .array~of(0, menuH, f~ClientSize~Width, f~ClientSize~Height)
+  f~SuspendLayout
+  do k over order
+    r = rects[k]
+    if r == .nil then iterate          -- (named, but not a control of the dialog itself)
+    pins = edges[k]; o = r[2]; cur = r[3]
+    cur[1] = ResizingAdminEdge(1, pins["LEFT"], o, cur, rects)
+    cur[2] = ResizingAdminEdge(2, pins["TOP"], o, cur, rects)
+    cur[3] = ResizingAdminEdge(3, pins["RIGHT"], o, cur, rects)
+    cur[4] = ResizingAdminEdge(4, pins["BOTTOM"], o, cur, rects)
+    r[1]~Bounds = .net~System~Drawing~Rectangle~new(cur[1], cur[2], cur[3] - cur[1], cur[4] - cur[2])
+  end
+  f~ResumeLayout
+  return 0
+
+/* (inside) one edge's new coordinate: side 1 left, 2 top, 3 right, 4 bottom;
+   pin (how, edge, pinTo); o and cur the control's original and current
+   rectangles (left top right bottom) */
+::routine ResizingAdminEdge
+  use arg side, pin, o, cur, rects
+  how = pin[1]
+  if how == "MYLEFT" then return cur[1] + (o[3] - o[1])
+  if how == "MYTOP" then return cur[2] + (o[4] - o[2])
+  key = pin[3]
+  if key == .nil | \rects~hasIndex(key) then key = "RESIZINGADMIN.DIALOG"
+  t = rects[key]
+  tOld = t[2]; tNow = t[3]
+  if how == "STATIONARY" then
+    return o[side] - ResizingAdminCoord(pin[2], tOld) + ResizingAdminCoord(pin[2], tNow)
+  -- PROPORTIONAL: the pinned-to window's size across (left, right) or down (top, bottom)
+  if side // 2 = 1 then do; oldSize = tOld[3] - tOld[1]; newSize = tNow[3] - tNow[1]; end
+  else do; oldSize = tOld[4] - tOld[2]; newSize = tNow[4] - tNow[2]; end
+  if oldSize = 0 then return o[side]
+  return tNow[side] + trunc((o[side] - tOld[side]) * newSize / oldSize)
+::routine ResizingAdminCoord
+  use arg edge, r
+  select case edge
+    when "LEFT" then return r[1]
+    when "TOP" then return r[2]
+    when "RIGHT" then return r[3]
+    when "BOTTOM" then return r[4]
+    when "XCENTER" then return (r[1] + r[3]) % 2
+    otherwise return (r[2] + r[4]) % 2
+  end
+
 ::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
 ::method init
   expose dialog methodName last
@@ -1216,6 +1476,15 @@
 ::method copy
   expose x y
   return .NetPoint~new(x, y)
+
+::class NetDialogInputKeys             -- (inside) wantKeys
+::method init
+  expose keys
+  use arg keys
+::method preview
+  expose keys
+  use arg ctl, e
+  if wordPos(e~KeyCode~string, keys) > 0 then e~IsInputKey = .true
 
 ::class NetDialogNoSelect              -- (inside) a read-only edit control shows its text unselected
 ::method deselect
