@@ -37,6 +37,11 @@
   if arg() > 0 then defaultFont = .array~of(name, size)
   if \var("DEFAULTFONT") then defaultFont = .array~of("MS Shell Dlg 2", 8)
   return defaultFont
+::method defaultIcon class             -- defaultIcon([file]): the icon (an .ico file) of the dialogs made from now on
+  expose defaultIcon                   -- (ooDialog's .application~defaultIcon; .nil: Windows Forms' own)
+  if arg() > 0 then defaultIcon = .net~System~Drawing~Icon~new(arg(1))
+  if \var("DEFAULTICON") then defaultIcon = .nil
+  return defaultIcon
 ::attribute form get                   -- the System.Windows.Forms.Form
 -- ooDialog's constants for the answers of messageDialog and the buttons
 ::constant IDOK 1
@@ -59,13 +64,16 @@
                                        -- stays above it, hides when it is minimized, closes with it (Form.Owner)
 ::attribute exArgs                     -- ooDialog's extra arguments to new: a TabOwnerDlgInfo or a ControlDlgInfo, if given
 ::method init
-  expose controls data pending ending deferred defined ownerDialog
+  expose controls data pending ending deferred defined ownerDialog dataStem connectButtons
   ownerDialog = .nil
   self~exArgs = .nil
+  dataStem = .nil; connectButtons = .false
   do i = 1 to arg()                    -- (wherever ooDialog's new takes it)
     if arg(i, "E") then do
       if arg(i)~isA(.TabOwnerDlgInfo) | arg(i)~isA(.ControlDlgInfo) then self~exArgs = arg(i)~copy
       if arg(i)~isA(.NetDialog), self~isA(.ControlDialog) then ownerDialog = arg(i)   -- (a UserControlDialog's parent)
+      if arg(i)~isA(.Stem) then dataStem = arg(i)   -- ooDialog's dlgData.: the controls' values by id
+      if arg(i)~isA(.String), arg(i)~upper~wordPos("CONNECTBUTTONS") > 0 then connectButtons = .true
     end
   end
   controls = .directory~new            -- id (uppercased) -> control
@@ -115,6 +123,7 @@
     form~StartPosition = "Manual"
     form~Location = D~Point~new(self~px(x), self~py(y))
   end
+  if .NetDialog~defaultIcon \== .nil then form~Icon = .NetDialog~defaultIcon
   form~FormClosing += .net~handler(self, "NETDIALOG.CLOSING")
   return .true                         -- (as ooDialog's: .true, made)
 
@@ -859,6 +868,39 @@
   use strict arg id, value
   call NetDialogSetValue self~control(id), value
   return 0
+/* setDataStem(stem.), getDataStem(stem.): ooDialog's: the controls' values
+   from and into a stem, its tails the controls' ids (IDC_EDIT, 101...) */
+::method setDataStem
+  expose controls
+  use strict arg stem
+  do k over stem~allIndexes
+    c = controls[NetDialogKey(k)]
+    if c \== .nil then call NetDialogSetValue c, stem[k]
+  end
+  return 0
+::method getDataStem
+  expose controls data
+  use strict arg stem
+  do attr over data~allIndexes         -- every control with a value
+    k = NetDialogKey(data[attr])
+    c = controls[k]
+    if c \== .nil then stem[k] = NetDialogValue(c)
+  end
+  return 0
+::method stemIn private                 -- (inside) a dlgData. given to new: into the controls; CONNECTBUTTONS
+  expose dataStem connectButtons controls
+  if dataStem \== .nil then self~setDataStem(dataStem)
+  if \connectButtons then return
+  do k over controls~allIndexes         -- each push button to the method its text names (ooDialog's)
+    if wordPos(k, "IDOK IDCANCEL IDHELP") > 0 then iterate
+    c = controls[k]
+    if \.net~isInstance(c, "System.Windows.Forms.Button") then iterate
+    m = NetMenuMethodName(c~Text)
+    if m \== "", self~hasMethod(m) then c~Click += .net~handler(.NetDialogButtonRelay~new(self, m), "CLICK")
+  end
+::method stemOut private                -- (inside) after OK: the controls' values into the dlgData. given
+  expose dataStem
+  if dataStem \== .nil then self~getDataStem(dataStem)
 ::method addComboEntry
   use strict arg id, text
   return self~control(id)~Items~Add(text) + 1
@@ -1091,6 +1133,7 @@
   if self~ownerDialog \== .nil then r = form~ShowDialog(self~ownerDialog~form)
   else r = form~ShowDialog
   self~snapshot                        -- the data attributes keep their values
+  if r~string == "OK" then self~stemOut
   if var("RUNNER") then do
     do t over runner~timers; t~Stop; end
     if runner~failed \== .false then do
@@ -1130,6 +1173,7 @@
   if self~isA(.TabOwnerDialog) then self~tabOwnerSetup
   self~initDialog
   self~applyData
+  self~stemIn
   if self~isA(.ResizingAdmin) then self~raSetup
 ::method setWindowTitle                -- setWindowTitle(hwnd, text): a window of this program's title
   use strict arg hwnd, text
@@ -1500,6 +1544,14 @@
     it = items[k]
     if .net~isInstance(it, "System.Windows.Forms.ToolStripMenuItem") then it~Checked = it~Equals(chosen)
   end
+
+::class NetDialogButtonRelay           -- (inside) CONNECTBUTTONS: a button's Click, the dialog's method, no arguments
+::method init
+  expose dialog methodName
+  use arg dialog, methodName
+::method click
+  expose dialog methodName
+  dialog~send(methodName)
 
 ::class NetMenuCommandRelay            -- (inside) a menu item's Click: the dialog's method with ooDialog's (id, 0)
 ::method init
@@ -3276,6 +3328,127 @@ syntax:
   expose message title labels preSel max
   if NetDialogAuto("SingleSelection:" message) then return ""
   return singleSelection(message, title, labels, preSel, , max)
+::method focusControl                  -- focusControl(id): (the preselected button has the focus already)
+  return 0
+
+/* ooDialog's other standard dialog classes, on the routines above: new as
+   ooDialog's (a stem's entries from 1; CheckList's checks and MultiInputBox's
+   values at 101, 102...), execute as ooDialog's. Unattended, CheckList and
+   MultiInputBox answer 1 (OK) with what they were given. */
+::class InputBox public                -- new(message, title [, default [, size]]): execute, the text ("": cancelled)
+::method init
+  expose message title default size
+  use arg message, title = "", default = "", size = 100
+::method kind                          -- (inside) NetDialogInput's kind
+  return "TEXT"
+::method execute
+  expose message title default size
+  if NetDialogAuto(self~class~id":" message) then return default
+  return NetDialogAsk(message, title, default, size, self~kind)
+::class PasswordBox public subclass InputBox
+::method kind
+  return "PASSWORD"
+::class IntegerBox public subclass InputBox
+::method kind
+  return "INTEGER"
+
+::class ListChoice public              -- new(message, title, entries. [, lenX [, lenY [, preSel]]]): the entry chosen ("": cancelled)
+::method init
+  expose message title items cx cy preSel
+  use arg message, title, entries, cx = 150, cy = 80, preSel = ""
+  if cx == "" then cx = 150
+  if cy == "" then cy = 80
+  items = NetDialogStemArray(entries, 1)
+::method execute
+  expose message title items cx cy preSel
+  r = listChoice(message, title, items, cx, cy, preSel)
+  if r == .nil then return ""
+  return r
+::class MultiListChoice public         -- the same: the numbers of the entries chosen ("1 3 4"; "": cancelled, or none)
+::method init
+  expose message title items cx cy preSel
+  use arg message, title, entries, cx = 150, cy = 80, preSel = ""
+  if cx == "" then cx = 150
+  if cy == "" then cy = 80
+  items = NetDialogStemArray(entries, 1)
+::method execute
+  expose message title items cx cy preSel
+  if NetDialogAuto("MultiListChoice:" message) then return ""
+  r = NetDialogChoose(message, title, items, .true, cx, cy, preSel)
+  if r == .nil then return ""
+  return r
+
+::class CheckList public               -- new(message, title, labels., checks. [, len [, max]]): 1 (checks. set) or 2
+::method init
+  expose message title labels checks max
+  use arg message, title, labels, checks, len = 0, max = 0
+::method execute
+  expose message title labels checks max
+  items = NetDialogStemArray(labels, 1)
+  states = .array~new
+  do i = 1 to items~items
+    states[i] = checks[100 + i] == 1
+  end
+  if NetDialogAuto("CheckList:" message) then return 1
+  dlg = .NetDialogBoxes~new(message, title, items, states, max, "CHECK")
+  if dlg~execute \= 1 then return 2
+  answer = dlg~answer
+  do i = 1 to items~items
+    checks[100 + i] = answer[i]
+  end
+  return 1
+
+/* MultiInputBox: new(message, title, labels., values. [, len]); after OK, each
+   value is an attribute named from its label, its letters and digits
+   ("Street and City: ": StreetandCity), as ooDialog's */
+::class MultiInputBox public
+::method init
+  expose message title labels values width answers
+  use arg message, title, labels, values, width = 100
+  if width == "" then width = 100
+  answers = .directory~new
+  items = NetDialogStemArray(labels, 1)
+  do i = 1 to items~items
+    if values~hasIndex(100 + i) then answers[NetDialogLabelName(items[i])] = values[100 + i]
+    else answers[NetDialogLabelName(items[i])] = ""
+  end
+::method execute
+  expose message title labels values width answers
+  items = NetDialogStemArray(labels, 1)
+  defaults = .array~new
+  do i = 1 to items~items
+    if values~hasIndex(100 + i) then defaults[i] = values[100 + i]
+    else defaults[i] = ""
+  end
+  if NetDialogAuto("MultiInputBox:" message) then return 1
+  dlg = .NetDialogMultiInput~new(message, title, items, defaults, width)
+  if dlg~execute \= 1 then return 2
+  answer = dlg~answer
+  do i = 1 to items~items
+    answers[NetDialogLabelName(items[i])] = answer[i]
+  end
+  return 1
+::method unknown                       -- the values, by their names
+  expose answers
+  use arg name
+  if answers~hasIndex(name) then return answers[name]
+  raise syntax 97.1 array(self, name)
+
+::routine NetDialogStemArray            -- (inside) a stem's entries from first on, as an Array
+  use arg stem, first
+  a = .array~new
+  do i = first while stem~hasIndex(i)
+    a~append(stem[i])
+  end
+  return a
+::routine NetDialogLabelName            -- (inside) a label's letters and digits, upper case (an attribute's name)
+  use arg label
+  name = ""
+  do i = 1 to label~length
+    c = label~subchar(i)
+    if c~datatype("A") then name ||= c
+  end
+  return name~upper
 
 /* timedMessage(message, title, duration [, earlyReply]): a message that goes away after duration ms */
 ::routine timedMessage public
@@ -3398,7 +3571,10 @@ syntax:
   self~createPushButton("IDCANCEL", cx - 40, cy + 26, 50, 14, , "Cancel")
   list = self~newListBox("list")
   do i over items; list~Items~Add(i); end
-  if preselect \== "" then list~SelectedItem = preselect
+  if multi, preselect \== "" then do i over preselect~makeArray(" ")   -- (multiListChoice: the items' numbers)
+    list~SetSelected(i - 1, .true)
+  end
+  else if preselect \== "" then list~SelectedItem = preselect
   else if items~items > 0 then list~SelectedIndex = 0
 ::method validate
   expose multi
