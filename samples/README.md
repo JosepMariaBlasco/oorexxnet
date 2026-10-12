@@ -58,7 +58,10 @@ ooDialog programs rewritten for Windows Forms, with no ooDialog: the same
 dialogs and behaviour, through `oodnet.cls`, a small package with
 ooDialog's shape (`NetDialog`: create, defineDialog, create* in dialog
 units, connect*Event, execute; and ooDialog's public routines). The porting
-guide, a table from ooDialog to .NET, is `oodialog-net/README.md`.
+guide, a table from ooDialog to .NET, is `oodialog-net/README.md`. Among
+them, the winsystem programs work with other programs' windows (Notepad,
+the Calculator) through .NET's UI Automation, and with the registry, the
+event logs and shortcuts.
 
 ## .NET running Rexx
 

@@ -117,6 +117,34 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `oowalk2.rex` | `oowalk2.rex` | the same, its bitmaps those of a .rc's BITMAP resources |
 | `oodraw.rex` | `oodraw.rex` | drawing through a device context: pens, brushes, rectangles, lines, pixels, arcs, pies, a flood fill |
 | `sample.rex` | `sample.rex` | the samples' launcher: bitmap buttons on a background bitmap, each starting a program here |
+| `registry.rex` | `winsystem\registry.rex` | the registry, .NET's `Microsoft.Win32.Registry`: keys listed, created and deleted, values of each kind; a key saved to a `.reg` file and restored from it |
+| `eventlog.rex` | `winsystem\eventlog.rex` | the event logs, .NET's `EventLog`: records read forwards and backwards, written under a source registered for them; a log cleared after a backup (`EventLogSession`) |
+| `desktop.rex` | `winsystem\desktop.rex` | Program Manager's groups as folders of the Start menu; shortcuts made by WScript.Shell (COM, through the bridge) |
+| `deskicon.rex` | `winsystem\deskicon.rex` | shortcuts on the user's or everybody's desktop: arguments, icon, hot key, window state |
+| `getTheWindow.rex` | `winsystem\getTheWindow.rex` | windows found by part of their title: UI Automation's root element and TreeWalker; what a window can do (its patterns) |
+| `displayWindowTree.rex` | `winsystem\displayWindowTree.rex` | a window picked in a list view, its elements (as UI Automation sees them) in a tree view |
+| `writeWithNotepad.rex` | `winsystem\writeWithNotepad.rex` | Notepad driven: text typed (SendKeys) and read back (TextPattern), the window resized and closed, its Save dialog shown and answered (InvokePattern) |
+| `menuNotepad.rex` | `winsystem\menuNotepad.rex` | Notepad's menus, read by opening them (ExpandCollapsePattern), printed and shown in a tree view |
+| `menuCalc.rex` | `winsystem\menuCalc.rex` | the Calculator's menus, in two of its views (the classic's View menu; today's navigation pane) |
+| `quickCalc.rex` | `winsystem\quickCalc.rex` | two calculations made by pushing the Calculator's buttons, the answers read from its display |
+| `usewmgr.rex` | `winsystem\usewmgr.rex` | the Calculator and Notepad driven: views, answers through .NET's Clipboard, hexadecimal; Notepad minimized, maximized, restored, resized |
+| `quickShowAllMenus.rex` | `winsystem\quickShowAllMenus.rex` | the menus of every window that has one |
+| `displayAnyMenu.rex` | `winsystem\displayAnyMenu.rex` | the menus of a window given by its title, in a tree view |
+
+**winsystem/: other programs' windows.** Those samples use winsystm.cls,
+whose WindowsManager, WindowObject and MenuObject work with other programs'
+windows through their handles, ids and Win32 menus. Here they use .NET's UI
+Automation (`System.Windows.Automation`): a window, or anything in it, is an
+`AutomationElement`, found from the root element, with what it can do as its
+patterns (Invoke, Value, Text, ExpandCollapse, Window, Transform...). Their
+framework, `windowsSystem.frm` (ooDialog's, ported), has the table from one
+to the other and the routines the programs share. UI Automation sees what a
+user sees, so it also drives the programs that draw their own controls (the
+Windows 11 Notepad and Calculator, which winsystm.cls cannot); and it does
+what a user can do: it reads a menu by opening it, and it does not disable,
+hide or retitle another program's windows. The Calculator's buttons are
+pushed by their AutomationIds, which differ between the classic Calculator
+(Windows Server's) and today's: `calcKey` knows both.
 
 More of ooDialog's samples will follow, in batches.
 
@@ -165,7 +193,6 @@ More of ooDialog's samples will follow, in batches.
 | any other event | `self~connectEvent(id, ".NET event name", m)` |
 | `.BinaryMenuBar`, `.PopupMenu`, `menuBar~attachTo(self)` | a `MenuStrip`, `self~menuItem(text, method)`, `self~attachMenu(menu)` |
 | `REPLY` and a loop that updates the dialog | `self~startTimer(ms, method)` (the dialog's own thread; stop it with `timer~Stop`) |
-| `.WindowsClipboard~new~copy(text)` | `.net~System~Windows~Forms~Clipboard~SetText(text)` |
 | `RxCalcSqrt(x)` and RxMath's kin | `.net~System~Math~Sqrt(x)` (trigonometry in radians) |
 | `dlg~execute("SHOWTOP")`: 1 (OK) or 2 (Cancel) | the same |
 | `ok`, `cancel`, `validate`, `leaving`, `initDialog` overridden | the same; `self~ok:super` ends the dialog when `validate` answers `.true` |
@@ -185,7 +212,13 @@ More of ooDialog's samples will follow, in batches.
 | `.CheckList~new(...)`, `.InputBox~new(...)` and the other standard dialog classes; `.application~defaultIcon(file)` | the same classes; `.NetDialog~defaultIcon(file)` |
 | `new(..., dlgData., ...)`, `setDataStem`, `getDataStem`; `CONNECTBUTTONS` | the same (the stem's tails the controls' ids) |
 | `executeAsync`, `endAsyncExecution`; `self~hide`, `show`, `enable`, `disable` | the same (a modeless form; a modal one hidden is made transparent) |
-| `.WindowsRegistry` (winsystm.cls) | `.net~Microsoft~Win32~Registry` |
+| `.WindowsRegistry` (winsystm.cls) | `.net~Microsoft~Win32~Registry` (`Save` and `Restore`: a `.reg` file, as `registry.rex` writes and reads it) |
+| `.WindowsEventLog` | `.net~System~Diagnostics~EventLog`; `Eventing~Reader~EventLogSession` (`IsLogFull`, `ClearLog` with a backup) |
+| `.WindowsProgramManager`: `AddGroup`, `AddItem`, `AddDesktopIcon` | the Start menu's and the desktop's folders (`Environment~GetFolderPath`), shortcuts by `.net~createObject("WScript.Shell")` |
+| `.WindowsManager`, `.WindowObject`: `find(title)`, `desktopWindow`, `firstChild`, `next`, `title`, `wClass`, `coordinates` | UI Automation: `AutomationElement~RootElement`, `FindFirst` with a `PropertyCondition`, `TreeWalker~ControlViewWalker`, `~Current`'s `Name`, `ClassName`, `BoundingRectangle` (`windowsSystem.frm`'s table) |
+| `wnd~menu`, `.MenuObject`; `processMenuCommand(menu, item)`; `sendCommand(id)`, `pushButton(label)` | the window's MenuBar element, its menus opened with their `ExpandCollapsePattern`; `menuCommand`, `pushButton` (a control's `InvokePattern`) in `windowsSystem.frm` |
+| `sendText`, `sendKey`; `minimize`, `maximize`, `restore`, `resize`, `sendSysCommand("Close")` | the element's `SetFocus`, then .NET's `SendKeys`; the window's `WindowPattern` (`SetWindowVisualState`, `Close`) and `TransformPattern` (`Resize`) |
+| `.WindowsClipboard`: `copy`, `paste`, `empty`, `isDataAvailable` | `.net~System~Windows~Forms~Clipboard`: `SetText`, `GetText`, `Clear`, `ContainsText` |
 | `::requires "samplesSetup.rex"` (the sound path), `play("WHISTLE.WAV")` | the same: `samplesSetup.rex` here sets SOUNDPATH, which oodnet.cls's `play` searches |
 
 **Indexers by number and by key** (`ListView.Items`, `SubItems`,
