@@ -224,8 +224,11 @@ control: procedure
     when kw == "EDITTEXT" then return call("createEdit", args[1], shift(args, -1), editStyles(args[6]), , dataName("", args[1]))
     when kw == "PUSHBUTTON" | kw == "DEFPUSHBUTTON" then
       return call("createPushButton", args[2], args, (kw == "DEFPUSHBUTTON")~?("DEFAULT", ""), args[1])
-    when kw == "AUTORADIOBUTTON" | kw == "RADIOBUTTON" then
-      return call("createRadioButton", args[2], args, "", args[1], dataName(args[1], args[2]))
+    when kw == "AUTORADIOBUTTON" | kw == "RADIOBUTTON" then do
+      style = ""
+      if args~hasIndex(7), wordPos("WS_GROUP", styleWords(args[7])) > 0 then style = "GROUP"   -- (a new group starts)
+      return call("createRadioButton", args[2], args, style, args[1], dataName(args[1], args[2]))
+    end
     when kw == "AUTOCHECKBOX" | kw == "CHECKBOX" | kw == "AUTO3STATE" then
       return call("createCheckBox", args[2], args, "", args[1], dataName(args[1], args[2]))
     when kw == "GROUPBOX" then return call("createGroupBox", args[2], args, "", args[1])
@@ -379,13 +382,25 @@ comboStyles: procedure
 
 staticStyles: procedure
   use arg st
-  st = st~upper; r = ""
-  if st~pos("SS_CENTER") > 0 then r = r "CENTER"
-  if st~pos("SS_RIGHT") > 0 then r = r "RIGHT"
-  if st~pos("FRAME") > 0 then r = r "FRAME"
-  if st~pos("WS_BORDER") > 0 then r = r "BORDER"
-  if st~pos("SS_SUNKEN") > 0 then r = r "SUNKEN"
-  if st~pos("ELLIPSIS") > 0 then r = r "ELLIPSIS"    -- (SS_ENDELLIPSIS, SS_WORDELLIPSIS, SS_PATHELLIPSIS)
+  w = styleWords(st); r = ""
+  if wordPos("SS_CENTER", w) > 0 then r = r "CENTER"        -- (whole words: not SS_CENTERIMAGE)
+  if wordPos("SS_RIGHT", w) > 0 then r = r "RIGHT"
+  if w~pos("FRAME") > 0 then r = r "FRAME"
+  if wordPos("WS_BORDER", w) > 0 then r = r "BORDER"
+  if wordPos("SS_SUNKEN", w) > 0 then r = r "SUNKEN"
+  if w~pos("ELLIPSIS") > 0 then r = r "ELLIPSIS"    -- (SS_ENDELLIPSIS, SS_WORDELLIPSIS, SS_PATHELLIPSIS)
+  return r~strip
+
+/* the styles a .rc gives, as words, uppercase, without those it takes away
+   (NOT WS_BORDER) */
+styleWords: procedure
+  use arg st
+  w = st~upper~changeStr("|", " ")~changeStr("(", " ")~changeStr(")", " ")~space
+  r = ""
+  do i = 1 to w~words
+    if w~word(i) == "NOT" then do; i += 1; iterate; end
+    r = r w~word(i)
+  end
   return r~strip
 
 listViewStyles: procedure

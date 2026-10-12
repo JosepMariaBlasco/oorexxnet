@@ -146,12 +146,12 @@ return 0
 
   index = -1
   lastGoodIndex = -1
-  do f over files
-    if \SysFileExists(f) then do
-      say 'Failed to load bitmap:' f
+  do file over files                                      -- (not f: Rexx's F is f)
+    if \SysFileExists(file) then do
+      say 'Failed to load bitmap:' file
       iterate
     end
-    imageList~Images~Add(D~Bitmap~new(f))
+    imageList~Images~Add(D~Bitmap~new(file))
     index = imageList~Images~Count - 1
     stStatus~Text = 'Added image index:' index
     lastGoodIndex = index

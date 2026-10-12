@@ -197,9 +197,12 @@
   if arg(8, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createRadioButton
+  expose radios
   use arg id, x, y, cx, cy, style = "", label = "", attributeName
   c = self~place(id, .net~System~Windows~Forms~RadioButton~new, x, y, cx, cy)
   c~Text = label
+  if \var("RADIOS") then radios = .array~new
+  radios~append(.array~of(c, style~upper~wordPos("GROUP") > 0))   -- (GROUP: WS_GROUP, a new group starts)
   if arg(8, "E") then self~dataAttribute(attributeName, id)
   return 0
 ::method createGroupBox
@@ -296,7 +299,8 @@
   return 0
 ::method createProgressBar
   use arg id, x, y, cx, cy, style = ""
-  self~place(id, .net~System~Windows~Forms~ProgressBar~new, x, y, cx, cy)
+  c = self~place(id, .net~System~Windows~Forms~ProgressBar~new, x, y, cx, cy)
+  if style~upper~wordPos("MARQUEE") > 0 then c~Style = "Marquee"
   return 0
 ::method createTrackBar
   use arg id, x, y, cx, cy, style = ""
@@ -621,31 +625,68 @@
   frames~append(c)
 ::method framesToBack private
   expose frames
-  if \var("FRAMES") then return
   self~groupRadios
+  if \var("FRAMES") then return
   do i = frames~items to 1 by -1
     frames[i]~SendToBack
   end
 
-/* Radio buttons within a group box's rectangle go into the group box: in
-   Windows Forms the radio buttons of one container are one group (Win32
-   groups them by WS_GROUP), and the group box's are its own. */
+/* Radio buttons within a group box's rectangle go into the group box (the
+   smallest, when boxes nest): in Windows Forms the radio buttons of one
+   container are one group (Win32 groups them by WS_GROUP), and the group
+   box's are its own. Where a container has radio buttons of more than one
+   group (a radio button made with GROUP starts one), each group goes into a
+   transparent Panel of its own. */
 ::method groupRadios private
-  expose frames
+  expose frames radios
+  if \var("RADIOS") then return
+  D = .net~System~Drawing
   boxes = .array~new
-  do f over frames
+  if var("FRAMES") then do f over frames
     if .net~isInstance(f, "System.Windows.Forms.GroupBox") then boxes~append(f)
   end
-  if boxes~items = 0 then return
-  do c over self~form~Controls~makeArray
-    if \.net~isInstance(c, "System.Windows.Forms.RadioButton") then iterate
-    do b over boxes
-      if b~Bounds~Contains(c~Bounds) then do
-        self~form~Controls~Remove(c)
-        c~Location = .net~System~Drawing~Point~new(c~Left - b~Left, c~Top - b~Top)
-        b~Controls~Add(c)
-        leave
+  runs = .array~new                    -- for each container (0: the form, else a box's index): its groups of radio buttons
+  do r over radios
+    c = r[1]
+    k = 0; area = 0
+    do i = 1 to boxes~items
+      b = boxes[i]
+      if b~Bounds~Contains(c~Bounds), (k = 0 | b~Width * b~Height < area) then do
+        k = i
+        area = b~Width * b~Height
       end
+    end
+    if k > 0 then do
+      b = boxes[k]
+      self~form~Controls~Remove(c)
+      c~Location = D~Point~new(c~Left - b~Left, c~Top - b~Top)
+      b~Controls~Add(c)
+    end
+    if \runs~hasIndex(k + 1) then runs[k + 1] = .array~of(.array~new)
+    groups = runs[k + 1]
+    if r[2], groups[groups~last]~items > 0 then groups~append(.array~new)
+    groups[groups~last]~append(c)
+  end
+  do k = 1 to runs~last
+    if \runs~hasIndex(k) then iterate
+    groups = runs[k]
+    if groups~items < 2 then iterate
+    if k = 1 then container = self~form
+    else container = boxes[k - 1]
+    do g over groups
+      if g~items = 0 then iterate
+      u = g[1]~Bounds
+      do c over g; u = D~Rectangle~Union(u, c~Bounds); end
+      p = .net~System~Windows~Forms~Panel~new
+      p~BackColor = D~Color~Transparent
+      p~Bounds = u
+      container~Controls~Add(p)
+      do c over g
+        container~Controls~Remove(c)
+        c~Location = D~Point~new(c~Left - u~X, c~Top - u~Y)
+        p~Controls~Add(c)
+      end
+      p~BringToFront
     end
   end
 
@@ -1345,7 +1386,7 @@ syntax:
   if dlg~ShowDialog~string \== "OK" then return 0
   if multi, \save, dlg~FileNames~Length > 1 then do   -- (one file: its name alone, as ooDialog's)
     names = dlg~FileNames
-    r = .net~System~IO~Path~GetDirectoryName(names[0])   -- (a .NET array: from 0)
+    r = .net~System~IO~Path~GetDirectoryName(names[1])   -- (a .NET array is a Rexx Array: from 1)
     do n over names; r = r || sep || .net~System~IO~Path~GetFileName(n); end
     return r
   end
@@ -1423,6 +1464,151 @@ syntax:
   dlg = .NetDialogBoxes~new(message, title, labels, checks, max, "RADIO")
   if dlg~execute \= 1 then return ""      -- (cancelled: "", as ooDialog's)
   return dlg~answer
+
+/* ooDialog's ProgressDialog: new([caption [, message [, min [, max [,
+   step]]]]]), its attributes (msgText, msgHeight, noMsg, noStatus,
+   marqueeMode, marqueePause, canCancel, incrStep, rangeMin, rangeMax,
+   initialStatusText, width, absoluteWidth), begin, increase([n]),
+   updateStatus(text), updateStatusText(text), complete, endNow,
+   setInterruptible(worker): a Cancel button that interrupts the worker
+   (an Alerter: its isCanceled turns .true). ooDialog runs it on a thread of
+   its own; here it is modeless on this one (popup): increase, the status and
+   complete let this thread's events run (Application.DoEvents), so that it
+   paints and its Cancel button works while the program does its work. */
+::class ProgressDialog subclass NetDialog public
+::attribute absoluteWidth
+::attribute canCancel
+::attribute captionText
+::attribute incrStep
+::attribute initialStatusText
+::attribute marqueeMode
+::attribute marqueePause
+::attribute msgHeight
+::attribute msgText
+::attribute noMsg
+::attribute noStatus
+::attribute rangeMax
+::attribute rangeMin
+::attribute width
+::method init
+  expose worker
+  use strict arg capt = "Application Processing ...", msg = "Background processing is taking place.  Please be patient.", -
+                 min = 0, max = 100, incr = 1
+  self~init:super
+  self~captionText = capt; self~msgText = msg
+  self~rangeMin = min; self~rangeMax = max; self~incrStep = incr
+  self~msgHeight = 1; self~noMsg = .false; self~noStatus = .false
+  self~initialStatusText = "Status: "; self~absoluteWidth = .false; self~width = 91
+  self~marqueePause = 100; self~marqueeMode = .false; self~canCancel = .false
+  worker = .nil
+::method begin
+  expose cx cy
+  self~createCenter(10, 10, self~captionText)       -- (the font first: the sizes are in its dialog units)
+  self~calcSizes
+  self~form~ClientSize = .net~System~Drawing~Size~new(self~px(cx), self~py(cy))
+  self~popup
+  self~pump
+  return 0
+::method calcSizes private
+  expose cx cy lineHeight
+  pad = 7
+  if self~noMsg, self~noStatus then t = "Background processing is taking place.  Please be patient."
+  else if \self~noMsg, self~msgHeight < 2 then t = self~msgText
+  else t = "Background processing is taking place.  Please be patient."
+  s = .net~System~Windows~Forms~TextRenderer~MeasureText(t, self~form~Font)
+  bx = self~px(4000) / 1000; by = self~py(8000) / 1000
+  lineHeight = (s~Height * 8 + by - 1) % by
+  cy = pad
+  if \self~noMsg then cy += lineHeight * self~msgHeight
+  if \self~noStatus then cy += pad + lineHeight
+  if cy > pad then cy += pad
+  cy += lineHeight + pad
+  if self~canCancel then cy += pad + 14
+  if self~absoluteWidth then cx = self~width
+  else cx = max((s~Width * 4 + bx - 1) % bx + 2 * pad, 91)
+::method defineDialog
+  expose cx cy lineHeight
+  pad = 7
+  w = cx - 2 * pad
+  y = pad
+  if \self~noMsg then do
+    h = lineHeight * self~msgHeight
+    self~createStaticText(IDC_ST_MSG, pad, y, w, h, , self~msgText)
+    y += h + pad
+  end
+  if \self~noStatus then do
+    self~createStaticText(IDC_ST_STATUS, pad, y, w, lineHeight, , "")
+    y += lineHeight + pad
+  end
+  self~createProgressBar(IDC_PB_MAIN, pad, y, w, lineHeight, self~marqueeMode~?("SMOOTH MARQUEE", "SMOOTH"))
+  y += lineHeight + pad
+  if self~canCancel then self~createPushButton(IDCANCEL, cx - pad - 35, y, 35, 14, , "Cancel")
+::method initDialog
+  expose pb statusBar
+  pb = self~newProgressBar(IDC_PB_MAIN)
+  if self~marqueeMode then pb~MarqueeAnimationSpeed = self~marqueePause
+  else do
+    pb~Minimum = self~rangeMin; pb~Maximum = self~rangeMax; pb~Step = self~incrStep
+    pb~PerformStep
+  end
+  if \self~noStatus then do
+    statusBar = self~newStatic(IDC_ST_STATUS)
+    statusBar~Text = self~initialStatusText
+  end
+::method increase unguarded
+  expose pb
+  use strict arg incr = (self~incrStep)
+  if self~marqueeMode | \var("PB") then return
+  pb~Increment(incr)
+  self~pump
+::method updateStatus unguarded
+  use strict arg text
+  self~doStatus("Status:" text)
+::method updateStatusText unguarded
+  use strict arg text
+  self~doStatus(text)
+::method doStatus unguarded private
+  expose statusBar
+  use strict arg text
+  if self~noStatus | \var("STATUSBAR") then return
+  statusBar~Text = text
+  self~pump
+::method complete unguarded
+  expose pb
+  if \var("PB") then return
+  if self~marqueeMode then pb~Style = "Continuous"   -- (the marquee stops)
+  else pb~Value = self~rangeMax
+  self~pump
+::method endNow unguarded
+  self~endDialog(1)
+  return 0
+::method setInterruptible unguarded
+  expose worker
+  use strict arg worker
+  self~canCancel = .true
+::method ok unguarded                  -- (Enter does nothing)
+::method cancel unguarded              -- Cancel, or the window's [x]: the worker is interrupted, the program ends the dialog
+  expose worker
+  if worker \== .nil then do
+    if worker~interruptible then worker~interrupt
+    return 0
+  end
+  if self~canCancel then return self~cancel:super
+  return 0
+::method pump private
+  .net~System~Windows~Forms~Application~DoEvents
+
+/* ooDialog's Alerter: a worker a ProgressDialog's Cancel interrupts */
+::class Alerter public
+::attribute isCanceled get
+::method init
+  expose isCanceled
+  isCanceled = .false
+::method interruptible unguarded
+  return .true
+::method interrupt unguarded
+  expose isCanceled
+  isCanceled = .true
 
 /* ooDialog's SingleSelection class: new(message, title, entries. [, preSel [, len [, max]]]),
    execute: the number chosen, or "" (cancelled; unattended too) */
