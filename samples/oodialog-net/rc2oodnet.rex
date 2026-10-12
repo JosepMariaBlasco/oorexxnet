@@ -355,6 +355,7 @@ editStyles: procedure
   if st~pos("ES_NUMBER") > 0 then r = r "NUMBER"
   if st~pos("WS_VSCROLL") > 0 then r = r "VSCROLL"
   if st~pos("WS_HSCROLL") > 0 then r = r "HSCROLL"
+  if st~space(1)~pos("NOT WS_BORDER") > 0 then r = r "NOBORDER"
   return r~strip
 
 listStyles: procedure

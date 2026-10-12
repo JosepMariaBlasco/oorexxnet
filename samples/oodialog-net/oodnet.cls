@@ -152,6 +152,7 @@
     c~GotFocus += .net~handler(.NetDialogNoSelect~new, "DESELECT")   -- (Windows Forms selects the text)
   end
   if style~wordPos("PASSWORD") > 0 then c~UseSystemPasswordChar = .true
+  if style~wordPos("NOBORDER") > 0 then c~BorderStyle = "None"
   if style~wordPos("RIGHT") > 0 then c~TextAlign = "Right"
   if style~wordPos("CENTER") > 0 then c~TextAlign = "Center"
   if arg(7, "E") then self~dataAttribute(attributeName, id)
@@ -1261,10 +1262,13 @@ syntax:
    filter: ooDialog's ("Text Files (*.txt)'0'x*.txt'0'x...") or .NET's ("Text|*.txt|...") */
 ::routine fileNameDialog public
   use arg file = "", hwnd, filter = .nil, load = 1, title = "", defExt = "", multi = .false, sep = " "
-  if filter == .nil then filter = "All Files (*.*)" || "0"x || "*.*"
+  if filter == .nil | filter == "" then filter = "All Files (*.*)" || "0"x || "*.*"
+  save = load~upper == "SAVE" | load == 0       -- (as ooDialog's: anything else, "" too, opens)
+  multi = multi == 1 | multi~upper == "MULTI"
+  if sep == "" then sep = " "
   if NetDialogAuto("fileNameDialog:" title) then return 0
   F = .net~System~Windows~Forms
-  dlg = (load = 1 | load~upper == "LOAD")~?(F~OpenFileDialog~new, F~SaveFileDialog~new)
+  dlg = save~?(F~SaveFileDialog~new, F~OpenFileDialog~new)
   dlg~Filter = filter~strip("T", "0"x)~changeStr("0"x, "|")
   if title \== "" then dlg~Title = title
   if defExt \== "" then dlg~DefaultExt = defExt
@@ -1272,11 +1276,11 @@ syntax:
     if .net~System~IO~Directory~Exists(file) then dlg~InitialDirectory = file
     else dlg~FileName = file
   end
-  if multi = 1, .net~isInstance(dlg, "System.Windows.Forms.OpenFileDialog") then dlg~Multiselect = .true
+  if multi, \save then dlg~Multiselect = .true
   if dlg~ShowDialog~string \== "OK" then return 0
-  if multi = 1, .net~isInstance(dlg, "System.Windows.Forms.OpenFileDialog") then do
+  if multi, \save, dlg~FileNames~Length > 1 then do   -- (one file: its name alone, as ooDialog's)
     names = dlg~FileNames
-    r = .net~System~IO~Path~GetDirectoryName(names[1])
+    r = .net~System~IO~Path~GetDirectoryName(names[0])   -- (a .NET array: from 0)
     do n over names; r = r || sep || .net~System~IO~Path~GetFileName(n); end
     return r
   end
@@ -1352,8 +1356,23 @@ syntax:
   checks = .array~new
   checks[default] = .true
   dlg = .NetDialogBoxes~new(message, title, labels, checks, max, "RADIO")
-  if dlg~execute \= 1 then return .nil
+  if dlg~execute \= 1 then return ""      -- (cancelled: "", as ooDialog's)
   return dlg~answer
+
+/* ooDialog's SingleSelection class: new(message, title, entries. [, preSel [, len [, max]]]),
+   execute: the number chosen, or "" (cancelled; unattended too) */
+::class SingleSelection public
+::method init
+  expose message title labels preSel max
+  use arg message, title, entries, preSel = 1, len = 0, max = 0
+  labels = .array~new
+  do i = 1 while entries~hasIndex(i)
+    labels~append(entries[i])
+  end
+::method execute
+  expose message title labels preSel max
+  if NetDialogAuto("SingleSelection:" message) then return ""
+  return singleSelection(message, title, labels, preSel, , max)
 
 /* timedMessage(message, title, duration [, earlyReply]): a message that goes away after duration ms */
 ::routine timedMessage public
