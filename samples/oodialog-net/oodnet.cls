@@ -1565,7 +1565,9 @@
   v = dtp~Value
   dt = .DateTime~new(v~Year, v~Month, v~Day, v~Hour, v~Minute, v~Second)
   r = dialog~send(methodName, dt, text, id, dtp~Handle)
-  if r~isA(.DateTime) then dtp~Value = .net~System~DateTime~new(r~year, r~month, r~day, r~hours, r~minutes, r~seconds)
+  if \r~isA(.DateTime) then return
+  if r~isoDate == dt~isoDate then return    -- (the same: the picker does nothing, as Windows')
+  dtp~Value = .net~System~DateTime~new(r~year, r~month, r~day, r~hours, r~minutes, r~seconds)
 
 ::class NetDialogHelpRelay             -- (inside) connectHelp
 ::method init

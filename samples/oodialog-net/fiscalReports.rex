@@ -843,7 +843,9 @@ return 0
       otherwise nop
     end
   end
-  self~base.WndProc(ref)
+  r = .net~ref(msg)                                        -- (a ref parameter: a .NetRef; its result back to the caller)
+  self~base.WndProc(r)
+  ref~Value = r~value
 
 /* (inside) a call back field's name: the string a pointer at offset ofs points to */
 ::routine field

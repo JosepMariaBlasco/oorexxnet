@@ -310,10 +310,12 @@ return 0
 
   nYY = -1; nMM = -1; nDD = -1; nHH = -1; nMin = -1; nSS = -1
 
+  -- (.NET version) The numbers are taken as they are: the original strips
+  -- their zeros, at both ends (strip( , '0')): 2050 became 205, 10 became 1.
   if slashes == 1 then do
     parse var dateStr nMM '/' nDD .
-    nMM = nMM~strip~strip( , '0')
-    nDD = nDD~strip~strip( , '0')
+    nMM = nMM~strip
+    nDD = nDD~strip
 
     if \ nMM~dataType('W') | \ nDD~dataType('W') then return self~invalid(userStr, dt)
     if nMM < 1 | nMM > 12 then return self~invalid(userStr, dt)
@@ -321,9 +323,9 @@ return 0
   end
   else if slashes == 2 then do
     parse var dateStr nMM '/' nDD '/' nYY .
-    nMM = nMM~strip~strip( , '0')
-    nDD = nDD~strip~strip( , '0')
-    nYY = nYY~strip~strip( , '0')
+    nMM = nMM~strip
+    nDD = nDD~strip
+    nYY = nYY~strip
 
     if \ nMM~dataType('W') | \ nDD~dataType('W') | \ nYY~dataType('W') then return self~invalid(userStr, dt)
     if nMM < 1 | nMM > 12 then return self~invalid(userStr, dt)
@@ -333,8 +335,8 @@ return 0
 
   if colons == 1 then do
     parse var timeStr nHH ':' nMin .
-    nHH = nHH~strip~strip( , '0')
-    nMin = nMin~strip~strip( , '0')
+    nHH = nHH~strip
+    nMin = nMin~strip
 
     if \ nHH~dataType('W') | \ nMin~dataType('W') then return self~invalid(userStr, dt)
     if nHH < 0 | nHH > 23 then return self~invalid(userStr, dt)
@@ -342,9 +344,9 @@ return 0
   end
   else if colons == 2 then do
     parse var timeStr nHH ':' nMin ':' nSS .
-    nHH = nHH~strip~strip( , '0')
-    nMin = nMin~strip~strip( , '0')
-    nSS = nSS~strip~strip( , '0')
+    nHH = nHH~strip
+    nMin = nMin~strip
+    nSS = nSS~strip
 
     if \ nHH~dataType('W') | \ nMin~dataType('W') | \ nSS~dataType('W') then return self~invalid(userStr, dt)
     if nHH < 0 | nHH > 23 then return self~invalid(userStr, dt)
@@ -547,8 +549,9 @@ return 0
   expose dtp
   use strict arg text
   v = dtp~Value
-  r = self~onUserString(.DateTime~new(v~Year, v~Month, v~Day, v~Hour, v~Minute, v~Second), text, IDC_DTP_SYSTIME, dtp~Handle)
-  dtp~Value = .net~System~DateTime~new(r~year, r~month, r~day, r~hours, r~minutes, r~seconds)
+  dt = .DateTime~new(v~Year, v~Month, v~Day, v~Hour, v~Minute, v~Second)
+  r = self~onUserString(dt, text, IDC_DTP_SYSTIME, dtp~Handle)
+  if r~isoDate \== dt~isoDate then dtp~Value = .net~System~DateTime~new(r~year, r~month, r~day, r~hours, r~minutes, r~seconds)
 
 
 ::class 'SystemTimeHelp' subclass UserStringDTP_IDD_HELP

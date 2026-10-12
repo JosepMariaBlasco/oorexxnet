@@ -72,6 +72,16 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `editControl.rex` | `controls\ListView\subitem.editing\editControl.rex` | a list view's subitems edited in place (a TextBox inside the ListView) |
 | `dropDownComboBox.rex` | `controls\ListView\subitem.editing\dropDownComboBox.rex` | the same with a drop-down combo box |
 | `dropDownListComboBox.rex` | `controls\ListView\subitem.editing\dropDownListComboBox.rex` | the same with a drop-down list |
+| `importList.rex` | `controls\ListView\subitem.editing\importList.rex` | a combo box and an edit control inside a list view; two resizable dialogs (ResizingAdmin); a .rc's menu |
+| `customDrawListview.rex` | `controls\ListView\customDrawListview.rex` | rows in colours and fonts of their own (a ListViewItem's ForeColor, BackColor, Font), changed when a row is checked |
+| `toolTip.rex` | `controls\ToolTip\toolTip.rex` | tool tips on buttons (a balloon; one in lines) and on the dialog's quadrants, placed by the program; NEEDTEXT |
+| `manageControlTool.rex` | `controls\ToolTip\manageControlTool.rex` | one tip for every tree-view item: the tree's MouseMove as ooDialog's relay, a timer as the tip's wait |
+| `comboBoxToolTip.rex` | `controls\ToolTip\comboBoxToolTip.rex` | tips for a combo box's items, selection field and button, the list down or up (an owner-drawn ComboBox) |
+| `customizeToolBar.rex` | `controls\ToolBar\customizeToolBar.rex` | a tool bar of images; Windows' Customize Toolbar dialog, with the tool bar's notifications |
+| `upDown.rex` | `controls\upDown.rex` | decimal and hexadecimal NumericUpDowns: range, position, acceleration; an up down browsing records |
+| `userStringDTP.rex` | `controls\userStringDTP.rex` | a date and time picker typed in (USERSTRING); F1; ooDialog's colour numbers; a timer |
+| `fiscalReports.rex` | `controls\fiscalReports.rex` | a date and time picker with call back fields (FORMAT, FORMATQUERY, KEYDOWN): a Rexx class extending DateTimePicker, its WndProc |
+| `treeViewCustomDraw.rex` | `controls\TreeView\treeViewCustomDraw.rex` | a tree view's items in their colours (OwnerDrawText), images, label editing, info tips, items added on expanding, a Rexx sort |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -110,6 +120,11 @@ More of ooDialog's samples will follow, in batches.
 | `upDown~setRange(lo, hi)`, `~setPosition(n)`; an edit with an AUTOBUDDY up-down | `~Minimum = lo`, `~Maximum = hi`, `~Value = n`: one `NumericUpDown`, under both ids |
 | `list~insertColumn(i, text, width)`, `~addRow(...)`, `~addExtendedStyle("FULLROWSELECT GRIDLINES")` | `list~Columns~Add(text, self~px(width))`, a `ListViewItem` with `SubItems`, `list~FullRowSelect = .true`, `~GridLines = .true` |
 | `connectButtonEvent(id, "CLICKED", m)` | the same; `m` gets .NET's `(sender, e)` (ooDialog's: `(id, hwnd)`) |
+| `::class D subclass RcDialog inherit ResizingAdmin`, `defineSizing` with `defaultLeft`..., `controlLeft`..., `controlSizing`, `useDefaultSizing`, `minSize`, `maxSize`, `wantSizeEnded` | the same: `inherit ResizingAdmin` (oodnet.cls's), with ooDialog's pins and arithmetic (STATIONARY, PROPORTIONAL, MYLEFT, MYTOP; to the dialog or a control named before); the dialog gets a sizing border |
+| an edit control or combo box made a child of a list view (`setParent`, `isGrandChild`): Enter, Escape | `self~wantKeys(ctl)`: Enter and Escape go to its `KeyDown`, not to the dialog's default and Cancel buttons |
+| `connectDateTimePickerEvent(id, "DATETIMECHANGE"...)`; `"USERSTRING"` (CANPARSE) | the same (.NET's `ValueChanged`...); USERSTRING: F2 puts an edit control over the picker, the method gets a Rexx `.DateTime` and the text and answers the new `.DateTime` |
+| `connectHelp(m)` (F1); `setControlColor(id, bg, fg)` with ooDialog's colour numbers | the same (.NET's `HelpRequested`; Windows' default palette: 3 dark yellow, 13 red...) |
+| any control's `HIDDEN`, `DISABLED` (a .rc's `NOT WS_VISIBLE`, `WS_DISABLED`) | the same, in every `create*` |
 | `connectListViewEvent(id, "CLICK", m)` | the same (.NET's `MouseClick`: `listView~HitTest(e~X, e~Y)` gives the row and column) |
 | `connectMonthCalendarEvent(id, "SELECT", m)` | the same (.NET's `DateSelected`: `e~Start`, a .NET `DateTime`) |
 | any other event | `self~connectEvent(id, ".NET event name", m)` |
@@ -162,6 +177,5 @@ answer their defaults. The programs override `autoRun` to do what a user
 would (click a few buttons) and print what came out; `samples/check-samples.rex`
 runs them so on Windows, the CI too.
 
-**Not yet in `oodnet.cls`**: resizable dialogs (in .NET: a control's
-`Anchor` and `Dock`), dialogs inside dialogs (ControlDialog). They come with the samples
-that need them.
+**Not yet in `oodnet.cls`**: dialogs inside dialogs (ControlDialog). It
+comes with the samples that need it.

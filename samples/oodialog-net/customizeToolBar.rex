@@ -426,7 +426,7 @@ return 0
   say "(auto) tool bar now:"
   do i = 0 to tb~Items~Count - 1
     it = tb~Items[i]
-    say "(auto)  " i + 1":" it~Tag "-" it~Text
+    say "(auto)  " i + 1":" (it~Tag == .nil)~?("(separator)", it~Tag "-" it~Text)
   end
   say "(auto) events:"
   do i = 0 to listBox~Items~Count - 1
