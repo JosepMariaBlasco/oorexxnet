@@ -232,7 +232,10 @@
   style = style~upper
   select
     when style~wordPos("LIST") > 0 then c~DropDownStyle = "DropDownList"
-    when style~wordPos("SIMPLE") > 0 then c~DropDownStyle = "Simple"
+    when style~wordPos("SIMPLE") > 0 then do
+      c~DropDownStyle = "Simple"
+      c~Height = self~py(cy)              -- (its list shown: the .rc's height)
+    end
     otherwise c~DropDownStyle = "DropDown"
   end
   if style~wordPos("SORT") > 0 then c~Sorted = .true
@@ -280,6 +283,16 @@
     c~Height = b~Height
     c~BringToFront
   end
+  return 0
+/* a tool bar: a .NET ToolStrip where the .rc puts it (its items: ToolStripButton...,
+   ooDialog's TbButton; ~Items~Add / Insert, ~Items~Count: addButtons, buttonCount) */
+::method createToolBar
+  use arg id, x, y, cx, cy, style = ""
+  F = .net~System~Windows~Forms
+  c = self~place(id, F~ToolStrip~new, x, y, cx, cy)
+  c~Dock = "None"
+  c~GripStyle = "Hidden"
+  if style~upper~wordPos("HIDDEN") > 0 then c~Visible = .false
   return 0
 ::method createScrollBar                -- VERTICAL, else horizontal (ooDialog: setRange, setPosition; here ~Minimum, ~Maximum, ~Value)
   use arg id, x, y, cx, cy, style = ""
@@ -357,6 +370,7 @@
 ::method newListView;     forward message "CONTROL"
 ::method newTreeView;     forward message "CONTROL"
 ::method newTab;          forward message "CONTROL"
+::method newToolBar;      forward message "CONTROL"
 
 /* events: ooDialog's names; the method gets .NET's (sender, e) */
 ::method connectButtonEvent

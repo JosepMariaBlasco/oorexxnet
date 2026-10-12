@@ -256,6 +256,11 @@ control: procedure
             otherwise return call("createPushButton", id, geo, "", text)
           end
         end
+        when wordPos(cls, "TOOLBARCLASSNAME TOOLBARWINDOW32") > 0 then do
+          s = ""
+          if st~space(1)~pos("NOT WS_VISIBLE") > 0 then s = "HIDDEN"   -- (made hidden, shown once set up)
+          return call("createToolBar", id, geo, s)
+        end
         when wordPos(cls, "UPDOWN_CLASS MSCTLS_UPDOWN32") > 0 then do
           s = ""
           if st~pos("UDS_AUTOBUDDY") > 0 then s = s "AUTOBUDDY"
