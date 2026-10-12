@@ -1076,14 +1076,14 @@
 ::method defineDialog
     expose sd
 
-    sd = locate()
+    sd = filespec("location", .context~package~name)     -- ooDialog: locate()
 
     -- Watermark bitmap is 164 x 316.  The wizard does not stretch the bitmap,
     -- its size remains constant.  So, the width of the bitmap, in dialog units,
     -- changes as the font changes.  pixel2dlgUnit() will convert the pixel size
     -- of the bitmap to the correct dialog units for the font in use by this
     -- dialog.
-    s = .Size~new(164, 314)
+    s = .NetSize~new(164, 314)                            -- ooDialog: .Size~new(164, 314)
     self~pixel2dlgUnit(s)
 
     x = s~width + 6           -- 6 dlus right of the edge of the watermark bitmap.
@@ -1130,7 +1130,7 @@
 
     if comCtl32Version() < 6 then do                      -- ooDialog: .DlgUtil~comCtl32Version (always 6 here)
       self~createBitmapButton(IDC_PB_TICKET_BMP, x, y, s~width, s~height, "FRAME USEPAL STRETCH GROUP", "Get the Ticket", -
-                              'onGetTicket', sd"rc\ticketWizardTicket.bmp")
+                              'onGetTicket', sd"resources\ticketWizardTicket.bmp")   -- (never: comCtl32Version is 6)
    end
    else do
       self~createPushButton(IDC_PB_TICKET_BMP, x, y, s~width, s~height, "GROUP", "", 'onGetTicket')
