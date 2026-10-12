@@ -157,6 +157,11 @@
 /* the controls, as ooDialog's create* methods (x, y, cx, cy in dialog units) */
 ::method createStatic
   use arg id, x, y, cx, cy, style = "", text = ""
+  if arg(4, "O") | arg(5, "O") then do  -- (no size: the text's, as ooDialog's)
+    size = self~getTextSizeDu(text)
+    if arg(4, "O") then cx = size~width
+    if arg(5, "O") then cy = size~height
+  end
   c = self~place(id, .net~System~Windows~Forms~Label~new, x, y, cx, cy)
   c~Text = text
   style = style~upper
@@ -169,13 +174,13 @@
   if style~pos("FRAME") > 0 then self~frame(c)                 -- a frame: behind what it frames
   if style~wordPos("SUNKEN") > 0 then c~BorderStyle = "Fixed3D"
   if style~wordPos("ELLIPSIS") > 0 then c~AutoEllipsis = .true
-  C = .net~System~Drawing~Color
-  if style~wordPos("WHITERECT") > 0 then c~BackColor = C~White
-  if style~wordPos("BLACKRECT") > 0 then c~BackColor = C~Black
+  colors = .net~System~Drawing~Color          -- (not C: Rexx's names know no case, c is the control)
+  if style~wordPos("WHITERECT") > 0 then c~BackColor = colors~White
+  if style~wordPos("BLACKRECT") > 0 then c~BackColor = colors~Black
   if style~wordPos("GRAYRECT") > 0 then c~BackColor = .net~System~Drawing~SystemColors~ControlDark
   if style~wordPos("WHITEFRAME") > 0 then do   -- (a white line round it)
     c~BorderStyle = "None"
-    c~Paint += .net~handler(.NetDialogFrameLine~new(C~White), "PAINT")
+    c~Paint += .net~handler(.NetDialogFrameLine~new(colors~White), "PAINT")
   end
   self~common(c, style)
   return 0
@@ -1224,25 +1229,29 @@
   return item
 
 /* ooDialog's helpers on controls by id */
-::method getControlData                -- a control's value: an edit's text, a check's 1 / 0, a list's selected item
+::method getControlData unguarded      -- a control's value: an edit's text, a check's 1 / 0, a list's selected item
+  if self~offThread then return self~onThread("GETCONTROLDATA", arg(1, "A"))
   use strict arg id
   return NetDialogValue(self~control(id))
-::method setControlData
+::method setControlData unguarded
+  if self~offThread then return self~onThread("SETCONTROLDATA", arg(1, "A"))
   use strict arg id, value
   call NetDialogSetValue self~control(id), value
   return 0
 /* setDataStem(stem.), getDataStem(stem.): ooDialog's: the controls' values
    from and into a stem, its tails the controls' ids (IDC_EDIT, 101...) */
-::method setDataStem
+::method setDataStem unguarded
   expose controls
+  if self~offThread then return self~onThread("SETDATASTEM", arg(1, "A"))
   use strict arg stem
   do k over stem~allIndexes
     c = controls[NetDialogKey(k)]
     if c \== .nil then call NetDialogSetValue c, stem[k]
   end
   return 0
-::method getDataStem
+::method getDataStem unguarded
   expose controls data
+  if self~offThread then return self~onThread("GETDATASTEM", arg(1, "A"))
   use strict arg stem
   do attr over data~allIndexes         -- every control with a value
     k = NetDialogKey(data[attr])
@@ -2517,11 +2526,11 @@
    [, earlyReply]), execute */
 ::class TimedMessage public
 ::method init
-  expose message title duration earlyReply
-  use arg message, title, duration, earlyReply = .false
+  expose message title duration earlyReply pos
+  use arg message, title, duration, earlyReply = .false, pos = .nil
 ::method execute
-  expose message title duration earlyReply
-  return timedMessage(message, title, duration, earlyReply)
+  expose message title duration earlyReply pos
+  return timedMessage(message, title, duration, earlyReply, pos)
 
 /* ----------------------------------------------------------------- resizing */
 /* ooDialog's ResizingAdmin: a NetDialog that inherits it can be sized by the
@@ -3237,6 +3246,11 @@
 ::method copy
   expose x y
   return .NetPoint~new(x, y)
+::method incr                          -- incr([dx [, dy]]): moved (by 1, 1 if not given)
+  expose x y
+  use arg dx = 1, dy = (dx)
+  x += dx; y += dy
+  return self
 
 ::class NetDialogUserString            -- (inside) a DateTimePicker's USERSTRING
 ::method init
@@ -3961,11 +3975,12 @@ syntax:
   end
   return name~upper
 
-/* timedMessage(message, title, duration [, earlyReply]): a message that goes away after duration ms */
+/* timedMessage(message, title, duration [, earlyReply [, pos]]): a message
+   that goes away after duration ms; pos: its top left on the screen */
 ::routine timedMessage public
-  use arg message, title, duration, earlyReply = .false
+  use arg message, title, duration, earlyReply = .false, pos = .nil
   if duration >= 0, NetDialogAuto("timedMessage:" message) then return 0
-  dlg = .NetDialogTimed~new(message, title, duration)
+  dlg = .NetDialogTimed~new(message, title, duration, pos)
   if duration < 0 then do              -- until the program cancels it: the dialog, shown, at once
     dlg~popup
     return dlg
@@ -4168,9 +4183,13 @@ syntax:
 ::class NetDialogTimed subclass NetDialog   -- (inside) timedMessage
 ::method init
   expose message duration
-  use arg message, title, duration
+  use arg message, title, duration, pos = .nil
   self~init:super
   self~createCenter(200, 40, title)
+  if pos \== .nil then do              -- (its top left there, on the screen)
+    self~form~StartPosition = "Manual"
+    self~form~Location = .net~System~Drawing~Point~new(pos~x, pos~y)
+  end
 ::method defineDialog
   expose message duration timer
   self~createStatic("msg", 10, 14, 180, 20, "CENTER", message)

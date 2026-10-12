@@ -129,6 +129,7 @@ exit   /* leave program */
 
 
 ::method defineDialog
+  forward class (super) continue  -- (.NET version: the .rc's controls, which ooDialog loads before calling defineDialog)
 
   if self~initCode = 0 then do
      -- Additional dialog control items could be added here.  e.g.
