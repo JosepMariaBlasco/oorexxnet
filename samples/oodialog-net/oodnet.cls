@@ -783,6 +783,12 @@
 ::method update
   self~form~Refresh
   return 0
+::method redraw                        -- (ooDialog's: the dialog drawn again)
+  forward message "REDRAWCLIENT"
+::method controlDialogs                -- (inside) the control dialogs started in this one, in that order
+  expose controlDialogs
+  if \var("CONTROLDIALOGS") then controlDialogs = .array~new
+  return controlDialogs
 
 /* connectKeyPress(method, keys [, filter]): those keys, anywhere in the
    dialog, call method with ooDialog's (key, shift, control, alt, info);
@@ -1782,6 +1788,7 @@
   owner~form~Controls~Add(panel)
   panel~BringToFront
   started = .true
+  owner~controlDialogs~append(self)    -- (for its ResizingAdmin's pagedTab)
   self~buildPage
   return 0
 ::method controlDialogActive unguarded    -- (NetDialog's isDialogActive)
@@ -2031,8 +2038,9 @@
 ::method defineSizing                  -- (to override) the pins: defaultLeft..., controlLeft..., controlSizing...
   return 0
 ::method raState private
-  expose defEdges order edges minSize maxSize sizeEnded
+  expose defEdges order edges minSize maxSize sizeEnded pagedTabs
   if \var("ORDER") then do
+    pagedTabs = .array~new             -- the tab controls' keys whose display area the control dialogs fill
     defEdges = .directory~new
     do side over .array~of("LEFT", "TOP", "RIGHT", "BOTTOM")
       defEdges[side] = .array~of("PROPORTIONAL", side, .nil)
@@ -2141,6 +2149,16 @@
   self~raState
   maxSize = .nil
   return 0
+/* pagedTab(tabID, dlgIDs): ooDialog's, for control dialogs used as a tab
+   control's pages: as the dialog is resized, they are sized to the tab
+   control's display area. (Here: the control dialogs started in this dialog;
+   dlgIDs, ooDialog's dlgID attributes, are not looked at.) */
+::method pagedTab
+  expose pagedTabs
+  use strict arg tabID, dlgIDs = .nil
+  self~raState
+  pagedTabs~append(NetDialogKey(tabID))
+  return 0
 ::method wantSizeEnded
   expose sizeEnded
   use arg methodName = "onSizeEnded"
@@ -2189,7 +2207,7 @@
   f~Resize += .net~handler(self, "RARESIZE")
   if sizeEnded \== .nil then f~ResizeEnd += .net~handler(self, sizeEnded)
 ::method raResize unguarded
-  expose order edges rects menuH
+  expose order edges rects menuH pagedTabs
   use arg f, e
   if .net~isInstance(f, "System.Windows.Forms.Form") then if f~WindowState~string == "Minimized" then return
   if f~ClientSize~Width = 0 | f~ClientSize~Height = 0 then return
@@ -2205,6 +2223,12 @@
     cur[3] = ResizingAdminEdge(3, pins["RIGHT"], o, cur, rects)
     cur[4] = ResizingAdminEdge(4, pins["BOTTOM"], o, cur, rects)
     r[1]~Bounds = .net~System~Drawing~Rectangle~new(cur[1], cur[2], cur[3] - cur[1], cur[4] - cur[2])
+  end
+  do k over pagedTabs                  -- the pages over the tab controls' display areas
+    if \rects~hasIndex(k) then iterate
+    tc = rects[k][1]; dr = tc~DisplayRectangle
+    area = .net~System~Drawing~Rectangle~new(tc~Left + dr~X, tc~Top + dr~Y, dr~Width, dr~Height)
+    do d over self~controlDialogs; d~form~Bounds = area; end
   end
   f~ResumeLayout
   return 0
