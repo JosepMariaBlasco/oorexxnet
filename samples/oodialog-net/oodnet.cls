@@ -87,14 +87,15 @@
 /* create(x, y, cx, cy [, title [, style [, dlgClass [, fontName [, fontSize]]]]]),
    as ooDialog's; style: CENTER, MINIMIZEBOX, MAXIMIZEBOX, SIZEBOX, ...      */
 ::method create
-  expose form bx by sizeX sizeY fontName fontSize
-  use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = (.NetDialog~defaultFont[1]), fontSize = (.NetDialog~defaultFont[2])
+  expose form bx by sizeX sizeY fontName fontSize uiThread
+  use arg x, y, cx, cy, title = "", style = "", dlgClass, fontName = (self~dlgFont[1]), fontSize = (self~dlgFont[2])
   sizeX = cx; sizeY = cy
   F = .net~System~Windows~Forms
   D = .net~System~Drawing
   F~Application~EnableVisualStyles
   if .NetDialog~auto then call NetDialogThrow   -- unattended: an error in an event ends the run, no dialog about it
   form = F~Form~new
+  uiThread = .net~System~Environment~CurrentManagedThreadId   -- (the dialog's thread: other threads' calls go there)
   dpi = form~DeviceDpi
   form~Font = NetDialogFont(fontName, fontSize, dpi)
   -- dialog base units, as Windows computes them for a dialog's font (GdiGetCharDimensions):
@@ -144,11 +145,13 @@
 ::method sizeY
   expose sizeY
   return sizeY
-::method px                            -- dialog units to pixels, across
+::method px unguarded                  -- dialog units to pixels, across
   expose bx
+  if \var("BX") then return trunc(arg(1) * self~factorX + 0.5)   -- (before create: the font it will have)
   return trunc(arg(1) * bx / 4 + 0.5)
-::method py                            -- and down
+::method py unguarded                  -- and down
   expose by
+  if \var("BY") then return trunc(arg(1) * self~factorY + 0.5)
   return trunc(arg(1) * by / 8 + 0.5)
 
 /* the controls, as ooDialog's create* methods (x, y, cx, cy in dialog units) */
@@ -166,6 +169,14 @@
   if style~pos("FRAME") > 0 then self~frame(c)                 -- a frame: behind what it frames
   if style~wordPos("SUNKEN") > 0 then c~BorderStyle = "Fixed3D"
   if style~wordPos("ELLIPSIS") > 0 then c~AutoEllipsis = .true
+  C = .net~System~Drawing~Color
+  if style~wordPos("WHITERECT") > 0 then c~BackColor = C~White
+  if style~wordPos("BLACKRECT") > 0 then c~BackColor = C~Black
+  if style~wordPos("GRAYRECT") > 0 then c~BackColor = .net~System~Drawing~SystemColors~ControlDark
+  if style~wordPos("WHITEFRAME") > 0 then do   -- (a white line round it)
+    c~BorderStyle = "None"
+    c~Paint += .net~handler(.NetDialogFrameLine~new(C~White), "PAINT")
+  end
   self~common(c, style)
   return 0
 ::method createStaticText
@@ -298,20 +309,22 @@
    takes the edit's place and both ids. */
 ::method createUpDown
   expose last
-  use arg id, x, y, cx, cy, style = ""
+  use arg id, x, y, cx, cy, style = "", attributeName
   F = .net~System~Windows~Forms
-  if style~upper~wordPos("AUTOBUDDY") > 0, style~upper~wordPos("SETBUDDYINT") > 0, var("LAST"), .net~isInstance(last~ctl, "System.Windows.Forms.TextBox") then do
+  buddyInt = style~upper~wordPos("SETBUDDYINT") > 0 | style~upper~wordPos("BUDDYINT") > 0   -- (the .rc's, createUpDown's)
+  if style~upper~wordPos("AUTOBUDDY") > 0, buddyInt, var("LAST"), .net~isInstance(last~ctl, "System.Windows.Forms.TextBox") then do
     old = last~ctl
     c = F~NumericUpDown~new
     c~Location = old~Location
     c~Size = old~Size
     c~TextAlign = old~TextAlign
-    c~ThousandsSeparator = .true       -- as Windows' up-down shows its buddy's number
+    c~ThousandsSeparator = style~upper~wordPos("NOTHOUSANDS") = 0   -- as Windows' up-down shows its buddy's number
     if style~upper~wordPos("ALIGNLEFT") > 0 then c~UpDownAlign = "Left"
     self~form~Controls~Remove(old)
     self~form~Controls~Add(c)
     self~register(last~id, c)
     self~register(id, c)
+    if arg(7, "E") then self~dataAttribute(attributeName, id)
     return 0
   end
   /* no number in a buddy: Windows Forms has no up-down alone; a small
@@ -723,10 +736,12 @@
    to left, step pixels every sleep milliseconds (a timer: the dialog goes on
    meanwhile); fontStyle BOLD, ITALIC, UNDERLINE; color a .NET Color or an
    ooDialog palette index (0 black). self~scrolling: whether it still runs. */
-::method scrollInControl
+::method scrollInControl unguarded
   expose scroller
+  if self~offThread then return self~onThread("SCROLLINCONTROL", arg(1, "A"))
   use arg id, text, fontName = "MS Shell Dlg 2", fontSize = 8, fontStyle = "", displaceY = 0, step = 4, sleep = 10, color = 0
   if var("SCROLLER") then scroller~stop
+  if arg(2, "O") then return 0         -- (only the id: the scrolling stopped, as ooDialog's)
   st = ""
   do w over fontStyle~upper~makeArray(" ")
     if wordPos(w, "BOLD ITALIC UNDERLINE STRIKEOUT") > 0 then st = st w~left(1) || w~substr(2)~lower
@@ -736,9 +751,357 @@
   color = NetDialogColor(color)
   scroller = .NetDialogScroller~new(self~control(id), text, font, displaceY, step, sleep, color)
   return 0
-::method scrolling
+::method scrolling unguarded
   expose scroller
   return var("SCROLLER") & scroller~running
+
+/* -------------------------------------------------------- other threads */
+/* ooDialog's dialog methods may be called from any Rexx thread (a method
+   started with start, as ooDialog's programs do: an animation, a game's
+   loop). A window belongs to the thread that made it: those below that
+   touch it, called from another thread, run on the dialog's thread
+   (.NetEventThread~runLater, the bridge's) and give their result back;
+   those that only change what it shows return at once, as ooDialog's. */
+::method offThread private unguarded   -- (inside) on another thread than the dialog's (then waits for its window)
+  expose form uiThread
+  if \var("FORM") | \var("UITHREAD") then return .false
+  if .net~System~Environment~CurrentManagedThreadId == uiThread then return .false
+  do while \form~IsHandleCreated & \form~IsDisposed   -- (a thread started in initDialog: the window comes soon)
+    call SysSleep 0.02
+  end
+  return \form~IsDisposed
+::method onThreadLater private unguarded   -- (inside) the same, not waited for (what only changes the window:
+  use arg name, args                        -- a thread holding the object's lock does not wait for its handlers)
+  .NetEventThread~eventThreadFor(self~form)~runLater(self, name, "A", args)
+  return 0
+::method onThread private unguarded    -- (inside) the message run on the dialog's thread, its result
+  use arg name, args
+  m = .NetEventThread~eventThreadFor(self~form)~runLater(self, name, "A", args)
+  r = m~result
+  if m~hasError then do
+    c = m~errorCondition
+    raise syntax 98.900 array("on the dialog's thread:" c~errortext":" c~message)
+  end
+  if m~hasResult then return r
+  return 0
+
+/* ----------------------------------------------- controls, by their ids */
+::method enableControl unguarded       -- enableControl(id), disableControl(id), showControl(id), hideControl(id)
+  if self~offThread then return self~onThreadLater("ENABLECONTROL", arg(1, "A"))
+  self~control(arg(1))~Enabled = .true
+  return 0
+::method disableControl unguarded
+  if self~offThread then return self~onThreadLater("DISABLECONTROL", arg(1, "A"))
+  self~control(arg(1))~Enabled = .false
+  return 0
+::method showControl unguarded
+  if self~offThread then return self~onThreadLater("SHOWCONTROL", arg(1, "A"))
+  self~control(arg(1))~Visible = .true
+  return 0
+::method hideControl unguarded
+  if self~offThread then return self~onThreadLater("HIDECONTROL", arg(1, "A"))
+  self~control(arg(1))~Visible = .false
+  return 0
+::method setControlText unguarded      -- setControlText(id, text), getControlText(id)
+  if self~offThread then return self~onThreadLater("SETCONTROLTEXT", arg(1, "A"))
+  use strict arg id, text
+  self~control(id)~Text = text
+  return 0
+::method getControlText unguarded
+  if self~offThread then return self~onThread("GETCONTROLTEXT", arg(1, "A"))
+  use strict arg id
+  return self~control(id)~Text
+/* resizeControl(id, size | cx, cy [, opts]), moveControl(id, point | x, y [, opts]): in pixels */
+::method resizeControl unguarded
+  if self~offThread then return self~onThread("RESIZECONTROL", arg(1, "A"))
+  use arg id, a, b, opts = ""
+  if a~isA(.String) then size = .net~System~Drawing~Size~new(a, b)
+  else do; size = .net~System~Drawing~Size~new(a~width, a~height); if arg(3, "E") then opts = b; end
+  self~control(id)~Size = size
+  return 0
+::method moveControl unguarded
+  if self~offThread then return self~onThread("MOVECONTROL", arg(1, "A"))
+  use arg id, a, b, opts = ""
+  if a~isA(.String) then pt = .net~System~Drawing~Point~new(a, b)
+  else do; pt = .net~System~Drawing~Point~new(a~x, a~y); if arg(3, "E") then opts = b; end
+  self~control(id)~Location = pt
+  return 0
+::method getControlHandle unguarded    -- (here the control itself: what takes a handle below takes it)
+  use strict arg id
+  return self~control(id)
+::method getWindowRect unguarded       -- getWindowRect(control | form): "left top right bottom", on the screen, in pixels
+  if self~offThread then return self~onThread("GETWINDOWRECT", arg(1, "A"))
+  use strict arg w
+  if \w~isA(.NetObject) then w = self~form
+  if .net~isInstance(w, "System.Windows.Forms.Form") then r = w~Bounds
+  else do
+    p = w~Parent~PointToScreen(w~Location)
+    r = .net~System~Drawing~Rectangle~new(p, w~Size)
+  end
+  return r~Left r~Top r~Right r~Bottom
+::method clearRect unguarded           -- clearRect(control, left, top, right, bottom): painted with its background
+  if self~offThread then return self~onThreadLater("CLEARRECT", arg(1, "A"))
+  use arg w, l, t, r, b
+  g = w~CreateGraphics
+  br = .net~System~Drawing~SolidBrush~new(w~BackColor)
+  g~FillRectangle(br, l, t, r - l, b - t)
+  br~Dispose; g~Dispose
+  return 0
+/* setControlSysColor(id, background [, foreground]): Windows' system colours by number (15: a button's face) */
+::method setControlSysColor unguarded
+  if self~offThread then return self~onThreadLater("SETCONTROLSYSCOLOR", arg(1, "A"))
+  use arg id, bk, fg
+  c = self~control(id)
+  c~BackColor = NetDialogSysColor(bk)
+  if arg(3, "E") then c~ForeColor = NetDialogSysColor(fg)
+  c~Invalidate
+  return 0
+::method factorX unguarded             -- pixels in a dialog unit across (and down: factorY), as ooDialog's
+  expose bx
+  if \var("BX") then return NetDialogBaseUnits(self~dlgFont[1], self~dlgFont[2])[1] / 4
+  return bx / 4
+::method factorY unguarded
+  expose by
+  if \var("BY") then return NetDialogBaseUnits(self~dlgFont[1], self~dlgFont[2])[2] / 8
+  return by / 8
+::method setDlgFont                    -- setDlgFont(name, size): the font create will give the dialog
+  expose dlgFont
+  use strict arg name, size = 8
+  dlgFont = .array~of(name, size)
+  return 0
+::method dlgFont private unguarded
+  expose dlgFont
+  if var("DLGFONT") then return dlgFont
+  return .NetDialog~defaultFont
+/* show, hide (showFast, hideFast: the same): the dialog's window (a modal
+   one is made transparent: hidden, Windows Forms would end its ShowDialog);
+   a control dialog's panel */
+::method show unguarded
+  if self~offThread then return self~onThread("SHOW", arg(1, "A"))
+  if self~isA(.ControlDialog) then return self~controlDialogShow   -- (a mixin's methods come after the superclasses')
+  f = self~form
+  if f~Modal then f~Opacity = 1
+  else f~Visible = .true
+  return 0
+::method hide unguarded
+  if self~offThread then return self~onThread("HIDE", arg(1, "A"))
+  if self~isA(.ControlDialog) then return self~controlDialogHide
+  f = self~form
+  if f~Modal then f~Opacity = 0
+  else f~Visible = .false
+  return 0
+::method showFast unguarded
+  forward message "SHOW"
+::method hideFast unguarded
+  forward message "HIDE"
+::method toTheTop unguarded            -- the dialog in front, active
+  if self~offThread then return self~onThread("TOTHETOP", arg(1, "A"))
+  f = self~form
+  f~TopMost = .true; f~TopMost = .false
+  f~Activate
+  return 0
+::method get unguarded                 -- the dialog's window (ooDialog's handle)
+  return self~form~Handle
+::method getRealPos unguarded          -- the window's position and size, in pixels (a NetPoint, a NetSize)
+  return .NetPoint~new(self~form~Left, self~form~Top)
+::method getRealSize unguarded
+  return .NetSize~new(self~form~Width, self~form~Height)
+::method backgroundBitmap              -- backgroundBitmap(file [, opts]): drawn at the top left, its own size
+  use arg file, opts = ""
+  self~form~BackgroundImage = .net~System~Drawing~Image~FromFile(file)
+  self~form~BackgroundImageLayout = "None"
+  return 0
+::method setDataAttribute unguarded    -- (ooDialog copies an attribute and its control; here they are one)
+  return 0
+::method getDataAttribute unguarded
+  return 0
+/* comboAddDirectory(id, pattern [, attributes]): the files the pattern
+   names (their names), added to the combo box; comboDrop(id): all removed */
+::method comboAddDirectory unguarded
+  if self~offThread then return self~onThread("COMBOADDDIRECTORY", arg(1, "A"))
+  use arg id, pattern, attributes = ""
+  dir = filespec("drive", pattern) || filespec("path", pattern)
+  if dir == "" then dir = "."
+  cb = self~control(id)
+  do f over .net~System~IO~Directory~GetFiles(dir, filespec("name", pattern))
+    cb~Items~Add(filespec("name", f))
+  end
+  return 0
+::method comboDrop unguarded
+  if self~offThread then return self~onThread("COMBODROP", arg(1, "A"))
+  self~control(arg(1))~Items~Clear
+  return 0
+/* createPushButtonGroup(x, y, cx, cy, "text id method ...", bottom, opts): ooDialog's (its code) */
+::method createPushButtonGroup
+  use arg x, y, cx, cy, inp, bottom, opts = ""
+  parse var inp bt bid bfnk newinp
+  if arg(6, "O") then bottom = 0
+  if arg(3, "O") then cx = 40
+  else if cx = 0 then cx = 40
+  if arg(4, "O") then cy = 12
+  else if cy = 0 then cy = 12
+  opts = opts~translate
+  do while bt \= ""
+    if bt~pos("'") > 0 then parse var inp "'"bt"'" bid bfnk newinp
+    else if bt~pos('"') > 0 then parse var inp '"'bt'"' bid bfnk newinp
+    if bfnk = 0 then bfnk = ""
+    if bfnk == "" then self~createPushButton(bid, x, y, cx, cy, opts, bt)
+    else self~createPushButton(bid, x, y, cx, cy, opts, bt, bfnk)
+    n = opts~wordpos("DEFAULT")
+    if n \= 0 then opts = opts~delword(n, 1)
+    if bottom = 0 then y = y + trunc(cy * 1.5); else x = x + trunc(cx * 1.25)
+    inp = newinp
+    parse var inp bt bid bfnk newinp
+  end
+  return 0
+::method createWhiteFrame               -- the static frames and rectangles: white, black, gray
+  use arg id, x, y, cx, cy, style = ""
+  return self~createStatic(id, x, y, cx, cy, style "WHITEFRAME", "")
+::method createGrayFrame
+  use arg id, x, y, cx, cy, style = ""
+  return self~createStatic(id, x, y, cx, cy, style "GRAYFRAME", "")
+::method createWhiteRect
+  use arg id, x, y, cx, cy, style = ""
+  return self~createStatic(id, x, y, cx, cy, style "WHITERECT", "")
+::method createBlackRect
+  use arg id, x, y, cx, cy, style = ""
+  return self~createStatic(id, x, y, cx, cy, style "BLACKRECT", "")
+::method createGrayRect
+  use arg id, x, y, cx, cy, style = ""
+  return self~createStatic(id, x, y, cx, cy, style "GRAYRECT", "")
+
+/* write(x, y, text [, fontName [, fontSize [, fontStyle]]]): text on the
+   dialog's face, at once (as ooDialog's: what next paints the dialog wipes
+   it out); writeToButton(id, ...), writeToControl: on a control's face */
+::method write unguarded
+  if self~offThread then return self~onThreadLater("WRITE", arg(1, "A"))
+  use arg x, y, text, fontName = "System", fontSize = 10, fontStyle = ""
+  return NetDialogWriteOn(self~form, x, y, text, fontName, fontSize, fontStyle)
+::method writeToControl unguarded
+  if self~offThread then return self~onThreadLater("WRITETOCONTROL", arg(1, "A"))
+  use arg id, x, y, text, fontName = "System", fontSize = 10, fontStyle = ""
+  return NetDialogWriteOn(self~control(id), x, y, text, fontName, fontSize, fontStyle)
+::method writeToButton unguarded
+  forward message "WRITETOCONTROL"
+::method scrollInButton unguarded
+  forward message "SCROLLINCONTROL"
+
+/* ---------------------------------------------------------- bitmap buttons */
+/* ooDialog's bitmap buttons: an owner-drawn button (here a Panel) whose face
+   is a bitmap, one for each state (normal, focused, selected: pressed,
+   disabled), drawn at a displacement (setBitmapPosition) or stretched
+   (STRETCH), in a frame (FRAME). A bitmap is a file's name, or with INMEMORY
+   what loadBitmap gave (here a .NET Image); 0 or "": none.
+   createBitmapButton(id, x, y, cx, cy, opts, text, method, normal [, focused
+   [, selected [, disabled]]]); installBitmapButton(id, method, normal ...,
+   opts): an owner-drawn button of a .rc; changeBitmapButton(id, normal ...,
+   opts): its bitmaps changed, and drawn again. */
+::method loadBitmap unguarded          -- loadBitmap(file [, opts]): the bitmap (a .NET Image)
+  use arg file, opts = ""
+  return .net~System~Drawing~Image~FromFile(file)
+::method removeBitmap unguarded
+  use arg image
+  if image~isA(.NetObject) then image~Dispose
+  return 0
+::method createBitmapButton
+  use arg id, x, y, cx = 0, cy = 0, opts = "", text = "", msgToRaise = "", bmp = 0, focus = "", sel = "", disabl = ""
+  self~createPushButton(id, x, y, cx, cy, opts~translate "OWNER", text)
+  return self~installBitmapButton(id, msgToRaise~space(0), bmp, focus, sel, disabl, opts)
+::method installBitmapButton unguarded
+  expose painters
+  if self~offThread then return self~onThread("INSTALLBITMAPBUTTON", arg(1, "A"))
+  use arg id, msgToRaise = "", bmp = 0, focus = "", sel = "", disabl = "", opts = ""
+  if \var("PAINTERS") then painters = .directory~new
+  c = self~control(id)
+  p = .NetBitmapPainter~new(c)
+  painters[NetDialogKey(id)] = p
+  p~set(self~bitmapOf(bmp), self~bitmapOf(focus), self~bitmapOf(sel), self~bitmapOf(disabl), opts)
+  if .net~isInstance(c, "System.Windows.Forms.ButtonBase") then c~FlatStyle = "Standard"   -- (System: no Paint)
+  call NetDialogDoubleBuffered c
+  c~Paint += .net~handler(p, "PAINT")
+  c~MouseDown += .net~handler(p, "DOWN")
+  c~MouseUp += .net~handler(p, "UP")
+  if msgToRaise \== "" then self~connectButtonEvent(id, "CLICKED", msgToRaise)
+  c~Invalidate
+  return 0
+::method changeBitmapButton unguarded
+  if self~offThread then return self~onThreadLater("CHANGEBITMAPBUTTON", arg(1, "A"))
+  use arg id, bmp = 0, focus = "", sel = "", disabl = "", opts = ""
+  p = self~painterOf(id)
+  p~set(self~bitmapOf(bmp), self~bitmapOf(focus), self~bitmapOf(sel), self~bitmapOf(disabl), opts)
+  p~control~Invalidate
+  return 0
+::method setBitmapPosition unguarded   -- setBitmapPosition(id, point | x, y): where the bitmap is drawn, in pixels
+  if self~offThread then return self~onThreadLater("SETBITMAPPOSITION", arg(1, "A"))
+  use arg id, a, b
+  p = self~painterOf(id)
+  if a~isA(.String) then do; p~dx = a; p~dy = b; end
+  else do; p~dx = a~x; p~dy = a~y; end
+  p~control~Invalidate
+  return 0
+::method displaceBitmap unguarded
+  forward message "SETBITMAPPOSITION"
+::method getBitmapPosition unguarded   -- getBitmapPosition(id, point): point~x, point~y set
+  use arg id, pt
+  p = self~painterOf(id)
+  pt~x = p~dx; pt~y = p~dy
+  return 0
+::method getBitmapSizeX unguarded
+  img = self~painterOf(arg(1))~normal
+  if img == .nil then return 0
+  return img~Width
+::method getBitmapSizeY unguarded
+  img = self~painterOf(arg(1))~normal
+  if img == .nil then return 0
+  return img~Height
+/* scrollBitmapFromTo(id, fromX, fromY, toX, toY, stepX, stepY [, delay [, displace]]):
+   the bitmap moved step by step from one place to the other, drawn each
+   time, delay ms apart; displace: it stays there (else back where it was) */
+::method scrollBitmapFromTo unguarded
+  if self~offThread then return self~onThread("SCROLLBITMAPFROMTO", arg(1, "A"))
+  use arg id, fromX, fromY, toX, toY, stepX = 0, stepY = 0, delay = 0, displace = .true
+  if stepX = 0 & stepY = 0 then return 1
+  p = self~painterOf(id)
+  oldX = p~dx; oldY = p~dy
+  x = fromX; y = fromY
+  do forever
+    p~dx = x; p~dy = y
+    p~control~Refresh
+    if delay > 0 then call msSleep delay
+    if \self~isDialogActive then return 0
+    doneX = (stepX = 0) | (stepX > 0 & x >= toX) | (stepX < 0 & x <= toX)
+    doneY = (stepY = 0) | (stepY > 0 & y >= toY) | (stepY < 0 & y <= toY)
+    if doneX & doneY then leave
+    if \doneX then do
+      x += stepX
+      if stepX > 0 then x = min(x, toX); else x = max(x, toX)
+    end
+    if \doneY then do
+      y += stepY
+      if stepY > 0 then y = min(y, toY); else y = max(y, toY)
+    end
+  end
+  if \displace then do; p~dx = oldX; p~dy = oldY; p~control~Invalidate; end
+  return 0
+::method painterOf private unguarded
+  expose painters
+  use arg id
+  if var("PAINTERS") then p = painters[NetDialogKey(id)]
+  else p = .nil
+  if p == .nil then do
+    self~installBitmapButton(id)
+    p = painters[NetDialogKey(id)]
+  end
+  return p
+::method bitmapOf private unguarded    -- (inside) a bitmap argument: a file's name, an Image, 0 / "": none
+  expose bitmapFiles
+  use arg b
+  if b == .nil then return .nil
+  if b~isA(.NetObject) then return b
+  if b == "" | b == 0 then return .nil
+  if \var("BITMAPFILES") then bitmapFiles = .directory~new
+  if \bitmapFiles~hasIndex(b) then bitmapFiles[b] = .net~System~Drawing~Image~FromFile(b)
+  return bitmapFiles[b]
 
 /* wantKeys(control [, keys]): Enter and Escape (or the keys named, as
    .NET's Keys) go to the control's KeyDown, not to the dialog: Windows
@@ -1160,9 +1523,25 @@
   expose modeless
   return var("MODELESS")
 ::method "NETDIALOG.CLOSED" unguarded
+  expose asyncResult
   use arg sender, e
+  asyncResult = (sender~DialogResult~string == "OK")~?(1, 2)
   self~snapshot
   self~leaving
+/* executeAsync([sleep [, show]]): ooDialog's: the dialog runs while the
+   program goes on (there on a thread of its own; here a modeless form, as
+   popup, whose events run while this thread waits: endAsyncExecution,
+   msSleep); endAsyncExecution: waits until it has ended, its result (1 OK,
+   2 Cancel) */
+::method executeAsync unguarded
+  self~popup
+  return 0
+::method endAsyncExecution unguarded
+  expose asyncResult
+  do while \var("ASYNCRESULT")
+    call msSleep 50
+  end
+  return asyncResult
 ::method prepare private               -- (inside) defineDialog, initDialog, the data
   expose form defined deferred
   if \var("FORM") then raise syntax 98.900 array("NetDialog: create (or createCenter) first")
@@ -1194,6 +1573,7 @@
   self~ok
 ::method endDialog unguarded           -- ends the dialog: 1 OK, else Cancel
   expose form ending closing
+  if self~offThread then return self~onThread("ENDDIALOG", arg(1, "A"))   -- (ok, cancel from another thread)
   use arg code = 1
   ending = .true
   form~DialogResult = (code = 1)~?("OK", "Cancel")
@@ -1230,8 +1610,9 @@
   expose data
   use arg name, id
   data[name~upper] = id
-::method unknown
+::method unknown unguarded
   expose data pending controls closed defined
+  if self~offThread then return self~onThread("UNKNOWN", arg(1, "A"))
   use arg name, args
   set = name~right(1) == "="
   attr = set~?(name~left(name~length - 1), name)
@@ -1545,6 +1926,82 @@
     if .net~isInstance(it, "System.Windows.Forms.ToolStripMenuItem") then it~Checked = it~Equals(chosen)
   end
 
+
+/* (inside) a bitmap button's face: its bitmaps, drawn on the control's Paint
+   as ooDialog's drawBitmapButton draws them */
+::class NetBitmapPainter
+::attribute control
+::attribute normal
+::attribute dx unguarded
+::attribute dy unguarded
+::method init
+  expose control dx dy pressed normal focused selected disabled stretch frame
+  use arg control
+  dx = 0; dy = 0; pressed = .false
+  normal = .nil; focused = .nil; selected = .nil; disabled = .nil; stretch = .false; frame = .false
+::method set unguarded
+  expose normal focused selected disabled stretch frame
+  use arg normal, focused, selected, disabled, opts
+  o = opts~upper
+  stretch = o~wordPos("STRETCH") > 0
+  frame = o~wordPos("FRAME") > 0
+::method down unguarded
+  expose pressed control
+  pressed = .true; control~Invalidate
+::method up unguarded
+  expose pressed control
+  pressed = .false; control~Invalidate
+::method paint unguarded
+  expose control dx dy pressed normal focused selected disabled stretch frame
+  use arg sender, e
+  D = .net~System~Drawing
+  g = e~Graphics
+  g~Clear(control~BackColor)
+  w = control~ClientSize~Width; h = control~ClientSize~Height
+  img = normal
+  sel = pressed & control~Enabled
+  if \control~Enabled then do; if disabled \== .nil then img = disabled; end
+  else if sel then do; if selected \== .nil then img = selected; end
+  else if control~Focused then do; if focused \== .nil then img = focused; end
+  x = dx; y = dy
+  if sel & frame then do; x += 3; y += 3; end          -- (a 3D effect)
+  if img \== .nil then do
+    sx = 0; sy = 0
+    right = w + x; bottom = h + y                       -- (the button's rectangle, displaced)
+    if x < 0 then do; sx = -x; x = 0; end
+    if y < 0 then do; sy = -y; y = 0; end
+    if stretch then do; dw = right - x; dh = bottom - y; end
+    else do; dw = img~Width - sx; dh = img~Height - sy; end
+    if dw > 0, dh > 0 then do
+      src = D~Rectangle~new(sx, sy, img~Width - sx, img~Height - sy)
+      if \stretch then src = D~Rectangle~new(sx, sy, dw, dh)
+      g~DrawImage(img, D~Rectangle~new(x, y, dw, dh), src, D~GraphicsUnit~Pixel)
+    end
+  end
+  if frame then do
+    g~DrawRectangle(D~Pens~Black, 0, 0, w - 1, h - 1)
+    grey = D~Pen~new(D~Color~FromArgb(120, 120, 120), .net~single(2))
+    if sel then do
+      g~DrawLine(grey, 2, 2, w - 2, 2); g~DrawLine(grey, 2, h - 2, 2, 1)
+    end
+    else do
+      white = D~Pen~new(D~Color~FromArgb(240, 240, 240), .net~single(2))
+      g~DrawLine(white, 2, 2, w - 2, 2); g~DrawLine(white, 2, h - 2, 2, 1)
+      g~DrawLine(grey, w - 2, 2, w - 2, h - 2); g~DrawLine(grey, 2, h - 2, w - 2, h - 2)
+      white~Dispose
+    end
+    grey~Dispose
+  end
+
+::class NetDialogFrameLine             -- (inside) a static frame's line, in its colour
+::method init
+  expose color
+  use arg color
+::method paint
+  expose color
+  use arg sender, e
+  .net~System~Windows~Forms~ControlPaint~DrawBorder(e~Graphics, sender~ClientRectangle, color, "Solid")
+
 ::class NetDialogButtonRelay           -- (inside) CONNECTBUTTONS: a button's Click, the dialog's method, no arguments
 ::method init
   expose dialog methodName
@@ -1847,17 +2304,13 @@
   expose started
   if \var("STARTED") then return .false
   return \self~form~IsDisposed
-::method show unguarded
+::method controlDialogShow unguarded    -- (NetDialog's show and hide, for a control dialog: its panel)
   self~form~Visible = .true
   self~form~BringToFront
   return 0
-::method hide unguarded
+::method controlDialogHide unguarded
   self~form~Visible = .false
   return 0
-::method showFast unguarded            -- (ooDialog's: shown, drawn later; here the same as show)
-  forward message "SHOW"
-::method hideFast unguarded
-  forward message "HIDE"
 ::method setWindowPos unguarded        -- setWindowPos(hwndAfter, rect [, flags]): rect's left, top, right (the width), bottom (the height)
   use arg after, r, flags = ""
   self~form~Bounds = .net~System~Drawing~Rectangle~new(r~left, r~top, r~right, r~bottom)
@@ -2997,7 +3450,14 @@ syntax:
 ::routine NetDialogSetValue
   use arg c, v
   if .net~isInstance(c, "System.Windows.Forms.CheckBox") | .net~isInstance(c, "System.Windows.Forms.RadioButton") then c~Checked = (v = 1)
-  else if .net~isInstance(c, "System.Windows.Forms.NumericUpDown") | .net~isInstance(c, "System.Windows.Forms.ScrollBar") then c~Value = v
+  else if .net~isInstance(c, "System.Windows.Forms.NumericUpDown") then do
+    if v~dataType("N") then do         -- (a buddy holds any number: the range widened to take it)
+      if v > c~Maximum then c~Maximum = v
+      if v < c~Minimum then c~Minimum = v
+    end
+    c~Value = v
+  end
+  else if .net~isInstance(c, "System.Windows.Forms.ScrollBar") then c~Value = v
   else if .net~isInstance(c, "System.Windows.Forms.ListBox") then c~SelectedItem = v
   else if .net~isInstance(c, "System.Windows.Forms.ComboBox"), c~DropDownStyle~string == "DropDownList" then c~SelectedItem = v
   else c~Text = v
@@ -3434,6 +3894,57 @@ syntax:
   if answers~hasIndex(name) then return answers[name]
   raise syntax 97.1 array(self, name)
 
+
+::routine NetDialogSoundFile           -- (inside) a sound's file: as named, or in a directory of SOUNDPATH (ooDialog's), or Windows' Media
+  use arg file
+  if SysFileExists(file) then return file
+  dirs = value("SOUNDPATH", , "ENVIRONMENT")
+  win = value("WINDIR", , "ENVIRONMENT")
+  dirs = dirs";"win"\Media"
+  do d over dirs~makeArray(";")
+    if d \== "", SysFileExists(d"\"file) then return d"\"file
+  end
+  return file
+::routine NetDialogWriteOn             -- (inside) write, writeToControl: text drawn on a window, at once
+  use arg w, x, y, text, fontName, fontSize, fontStyle
+  st = ""
+  do word over fontStyle~upper~makeArray(" ")
+    if wordPos(word, "BOLD ITALIC UNDERLINE STRIKEOUT") > 0 then st = st word~left(1) || word~substr(2)~lower
+  end
+  if st == "" then st = "Regular"
+  font = NetDialogFont(fontName, fontSize, w~DeviceDpi, st~strip~changeStr(" ", ", "))
+  g = w~CreateGraphics
+  .net~System~Windows~Forms~TextRenderer~DrawText(g, text, font, .net~System~Drawing~Point~new(x, y), w~ForeColor)
+  g~Dispose
+  return 0
+::routine NetDialogDoubleBuffered       -- (inside) a control drawn off screen first (its protected DoubleBuffered, by reflection)
+  use arg c
+  R = .net~System~Reflection
+  flags = .net~System~Enum~Parse(R~BindingFlags~Instance~GetType, "Instance, NonPublic")
+  c~GetType~GetProperty("DoubleBuffered", flags)~SetValue(c, .net~bool(.true))
+  return 0
+::routine NetDialogSysColor            -- (inside) Windows' system colour number n (GetSysColor's), as .NET's
+  use arg n
+  names = .array~of("ScrollBar", "Desktop", "ActiveCaption", "InactiveCaption", "Menu", "Window", "WindowFrame", -
+    "MenuText", "WindowText", "ActiveCaptionText", "ActiveBorder", "InactiveBorder", "AppWorkspace", "Highlight", -
+    "HighlightText", "Control", "ControlDark", "GrayText", "ControlText", "InactiveCaptionText", "ControlLightLight", -
+    "ControlDarkDark", "ControlLight", "InfoText", "Info", "Control", "HotTrack", "GradientActiveCaption", -
+    "GradientInactiveCaption", "MenuHighlight", "MenuBar")
+  if \n~dataType("W") | n < 0 | n >= names~items then n = 15
+  return .net~System~Drawing~Color~FromKnownColor(.net~System~Enum~Parse(.net~System~Drawing~KnownColor~Control~GetType, names[n + 1]))
+::routine NetDialogBaseUnits           -- (inside) a font's dialog base units (x, y), on the screen
+  use arg fontName, fontSize
+  F = .net~System~Windows~Forms
+  D = .net~System~Drawing
+  g = D~Graphics~FromHwnd(.net~as(0, "System.IntPtr"))
+  dpi = trunc(g~DpiY)
+  g~Dispose
+  if fontName~caselessEquals("System") then return .array~of((8 * dpi + 48) % 96, (16 * dpi + 48) % 96)
+  font = NetDialogFont(fontName, fontSize, dpi)
+  flags = F~TextFormatFlags~NoPadding
+  big = D~Size~new(32000, 32000)
+  ext = F~TextRenderer~MeasureText("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", font, big, flags)~Width
+  return .array~of((ext % 26 + 1) % 2, F~TextRenderer~MeasureText("A", font, big, flags)~Height)
 ::routine NetDialogStemArray            -- (inside) a stem's entries from first on, as an Array
   use arg stem, first
   a = .array~new
@@ -3496,9 +4007,11 @@ syntax:
 
 /* play(file [, "YES" | "LOOP"]): a .wav, to its end, or in the background
    ("YES"), or over and over ("LOOP") until another play; .NET's SoundPlayer */
-::routine play public
+::routine play public                  -- play(file [, how]): a .wav file; how YES: not waited for, LOOP: again and again
   use arg file, how = ""
   if NetDialogAuto("play:" file how) then return 0
+  if arg() = 0 | file == "" then return 0     -- (ooDialog's play(): stops one playing; here none plays long)
+  file = NetDialogSoundFile(file)
   p = .net~System~Media~SoundPlayer~new(file)
   select
     when how~upper == "YES" then p~Play
