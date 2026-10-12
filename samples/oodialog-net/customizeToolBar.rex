@@ -290,7 +290,8 @@ return 0
   index = imageList~Images~AddStrip(imageBMP)
   tb~ImageList = imageList                                  -- ooDialog: tb~setImageList(imageList)
 
-  imageBMP~Dispose
+  h = imageList~Handle                                      -- (.NET version) the image list copies the images when it makes its handle:
+  imageBMP~Dispose                                          -- then the bitmap can go
 
 ::method setupListBox private
   expose listBox font maxItems

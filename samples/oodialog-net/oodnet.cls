@@ -473,6 +473,49 @@
   return self~connectEvent(id, e, methodName)
 ::method connectComboBoxEvent
   forward message "CONNECTLISTBOXEVENT"
+/* connectDateTimePickerEvent(id, event, method): DATETIMECHANGE (.NET's
+   ValueChanged), SETFOCUS, KILLFOCUS, DROPDOWN, CLOSEUP; USERSTRING: a .NET
+   DateTimePicker cannot be typed in (Win32's CANPARSE): F2 puts an edit
+   control over it, and Enter (or leaving it) calls method with ooDialog's
+   (dateTime, userString, id, hwnd), dateTime a Rexx .DateTime, the
+   control's; the .DateTime it answers is the control's new value; Escape
+   leaves it as it is */
+::method connectDateTimePickerEvent
+  expose defined deferred
+  use arg id, event, methodName
+  select case event~upper
+    when "DATETIMECHANGE" then e = "ValueChanged"
+    when "SETFOCUS" then e = "GotFocus"
+    when "KILLFOCUS" then e = "LostFocus"
+    when "DROPDOWN" then e = "DropDown"
+    when "CLOSEUP" then e = "CloseUp"
+    when "USERSTRING" then do
+      if \defined then do
+        deferred~append(.array~of("CONNECTDATETIMEPICKEREVENT", .array~of(id, event, methodName)))
+        return 0
+      end
+      dtp = self~control(id)
+      relay = .NetDialogUserString~new(self, dtp, id, methodName)
+      dtp~KeyDown += .net~handler(relay, "KEY")
+      return 0
+    end
+    otherwise e = event
+  end
+  return self~connectEvent(id, e, methodName)
+/* connectHelp(method): F1 (.NET's HelpRequested) */
+::method connectHelp
+  use strict arg methodName
+  self~form~HelpRequested += .net~handler(.NetDialogHelpRelay~new(self, methodName), "HELP")
+  return 0
+/* setControlColor(id, background [, foreground]): ooDialog's colours, an
+   index into Windows' default palette (0 black, 1 dark red, 2 dark green, 3
+   dark yellow... 13 red... 19 white), or .NET Colors */
+::method setControlColor
+  use arg id, bg, fg
+  c = self~control(id)
+  c~BackColor = NetDialogColor(bg)
+  if arg(3, "E") then c~ForeColor = NetDialogColor(fg)
+  return 0
 ::method connectStaticEvent             -- CLICKED, DBLCLK (ooDialog wants SS_NOTIFY; a .NET Label has them)
   use arg id, event, methodName
   select case event~upper
@@ -520,7 +563,7 @@
   end
   if st == "" then st = "Regular"
   font = NetDialogFont(fontName, fontSize, self~form~DeviceDpi, st~strip~changeStr(" ", ", "))
-  if \.net~isInstance(color, "System.Drawing.Color") then color = .net~System~Drawing~Color~Black
+  color = NetDialogColor(color)
   scroller = .NetDialogScroller~new(self~control(id), text, font, displaceY, step, sleep, color)
   return 0
 ::method scrolling
@@ -1479,6 +1522,61 @@
   expose x y
   return .NetPoint~new(x, y)
 
+::class NetDialogUserString            -- (inside) a DateTimePicker's USERSTRING
+::method init
+  expose dialog dtp id methodName box
+  use arg dialog, dtp, id, methodName
+  box = .nil
+::method key                           -- F2 on the picker: the edit control over it
+  expose dialog dtp box
+  use arg sender, e
+  if e~KeyCode~string \== "F2" then return
+  e~Handled = .true
+  if box == .nil then do
+    box = .net~System~Windows~Forms~TextBox~new
+    box~Font = dtp~Font
+    box~AutoSize = .false
+    dtp~Parent~Controls~Add(box)
+    dialog~wantKeys(box)
+    box~KeyDown += .net~handler(self, "BOXKEY")
+    box~LostFocus += .net~handler(self, "BOXLEFT")
+  end
+  box~Bounds = dtp~Bounds
+  box~Text = ""
+  box~Visible = .true
+  box~BringToFront
+  box~Focus
+::method boxKey
+  use arg sender, e
+  k = e~KeyCode~string
+  if k == "Enter" then do; e~SuppressKeyPress = .true; self~done(.true); end
+  else if k == "Escape" then do; e~SuppressKeyPress = .true; self~done(.false); end
+::method boxLeft
+  expose box
+  use arg sender, e
+  if box~Visible then self~done(.true)
+::method done private
+  expose dialog dtp id methodName box
+  use arg accept
+  text = box~Text~strip
+  box~Visible = .false
+  dtp~Focus
+  if \accept | text == "" then return
+  v = dtp~Value
+  dt = .DateTime~new(v~Year, v~Month, v~Day, v~Hour, v~Minute, v~Second)
+  r = dialog~send(methodName, dt, text, id, dtp~Handle)
+  if r~isA(.DateTime) then dtp~Value = .net~System~DateTime~new(r~year, r~month, r~day, r~hours, r~minutes, r~seconds)
+
+::class NetDialogHelpRelay             -- (inside) connectHelp
+::method init
+  expose dialog methodName
+  use arg dialog, methodName
+::method help
+  expose dialog methodName
+  use arg sender, e
+  e~Handled = .true
+  dialog~send(methodName)
+
 ::class NetDialogInputKeys             -- (inside) wantKeys
 ::method init
   expose keys
@@ -1559,6 +1657,17 @@ syntax:
     otherwise face = name
   end
   return D~Font~new(face, .net~single(px), style, "Pixel")
+
+/* (inside) a colour: a .NET Color, or ooDialog's index into Windows'
+   default palette (PALETTEINDEX: its 20 colours) */
+::routine NetDialogColor
+  use arg c
+  if .net~isInstance(c, "System.Drawing.Color") then return c
+  rgb = "0 0 0,128 0 0,0 128 0,128 128 0,0 0 128,128 0 128,0 128 128,192 192 192,192 220 192,166 202 240," || -
+        "255 251 240,160 160 164,128 128 128,255 0 0,0 255 0,255 255 0,0 0 255,255 0 255,0 255 255,255 255 255"
+  if \c~dataType("W") | c < 0 | c > 19 then c = 0
+  parse value rgb~makeArray(",")[c + 1] with r g b
+  return .net~System~Drawing~Color~FromArgb(r, g, b)
 
 ::routine NetDialogTrace               -- (inside) unattended: where it is
   if .NetDialog~auto then say "(auto)" arg(1)
