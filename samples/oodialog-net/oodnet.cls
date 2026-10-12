@@ -44,6 +44,8 @@
 ::constant IDCONTINUE 11
 ::method hwnd                          -- the window's handle (the routines take it, as ooDialog's, and need not)
   return self~form~Handle
+::method isDialogActive unguarded      -- its window still there
+  return \self~form~IsDisposed
 ::attribute initCode                   -- as ooDialog's (0: fine)
 
 ::attribute ownerDialog                -- ooDialog's: a dialog that owns this one (set before it shows): this one
@@ -324,16 +326,42 @@
   c = self~place(id, .net~System~Windows~Forms~DateTimePicker~new, x, y, cx, cy)
   self~common(c, style)
   return 0
-::method createProgressBar
+::method createProgressBar               -- VERTICAL (PBS_VERTICAL, which .NET's ProgressBar has not: added to its window's style), SMOOTH, MARQUEE
   use arg id, x, y, cx, cy, style = ""
-  c = self~place(id, .net~System~Windows~Forms~ProgressBar~new, x, y, cx, cy)
-  if style~upper~wordPos("MARQUEE") > 0 then c~Style = "Marquee"
+  st = style~upper
+  if st~wordPos("VERTICAL") > 0 then do
+    .NetStyledProgressBar~prepare
+    bar = .NetStyledProgressBar~new(4)   -- PBS_VERTICAL
+  end
+  else bar = .net~System~Windows~Forms~ProgressBar~new
+  c = self~place(id, bar, x, y, cx, cy)
+  if st~wordPos("SMOOTH") > 0 then c~Style = "Continuous"
+  if st~wordPos("MARQUEE") > 0 then c~Style = "Marquee"
   self~common(c, style)
   return 0
+/* createTrackBar: VERTICAL; the ticks TOP (or LEFT), BOTH, NOTICKS (else
+   bottom, or right); ENABLESELRANGE (TBS_ENABLESELRANGE, which .NET's
+   TrackBar has not: added to its window's style; TBM_SETSELSTART and
+   TBM_SETSELEND through sendWinIntMsg then show a selection) */
 ::method createTrackBar
   use arg id, x, y, cx, cy, style = ""
-  c = self~place(id, .net~System~Windows~Forms~TrackBar~new, x, y, cx, cy)
-  if style~upper~wordPos("VERTICAL") > 0 then c~Orientation = "Vertical"
+  st = style~upper
+  if st~wordPos("ENABLESELRANGE") > 0 then do
+    .NetStyledTrackBar~prepare
+    bar = .NetStyledTrackBar~new(32)     -- TBS_ENABLESELRANGE
+  end
+  else bar = .net~System~Windows~Forms~TrackBar~new
+  bar~AutoSize = .false                  -- (the .rc's size)
+  bar~Maximum = 100                      -- (Windows' track bar: 0 to 100, a page a fifth of it; .NET's: 0 to 10, 5)
+  bar~LargeChange = 20
+  c = self~place(id, bar, x, y, cx, cy)
+  if st~wordPos("VERTICAL") > 0 then c~Orientation = "Vertical"
+  select
+    when st~wordPos("NOTICKS") > 0 then c~TickStyle = "None"
+    when st~wordPos("BOTH") > 0 then c~TickStyle = "Both"
+    when st~wordPos("TOP") > 0 | st~wordPos("LEFT") > 0 then c~TickStyle = "TopLeft"
+    otherwise nop
+  end
   self~common(c, style)
   return 0
 ::method createListView
@@ -422,6 +450,7 @@
   return 0
 ::method connectListViewEvent
   use arg id, event, methodName
+  if arg(3, "O") then methodName = "on" || event   -- (ooDialog's default: onColumnClick...)
   select case event~upper
     when "CLICK" then e = "MouseClick"
     when "DBLCLK", "ACTIVATE" then e = "DoubleClick"
@@ -521,6 +550,67 @@
   select case event~upper
     when "CLICKED" then e = "Click"
     when "DBLCLK" then e = "DoubleClick"
+    otherwise e = event
+  end
+  return self~connectEvent(id, e, methodName)
+/* connectTabEvent(id, event [, method]): SELCHANGE (.NET's
+   SelectedIndexChanged), SELCHANGING (Selecting), KEYDOWN */
+::method connectTabEvent
+  use arg id, event, methodName
+  if arg(3, "O") then methodName = "on" || event
+  select case event~upper
+    when "SELCHANGE" then e = "SelectedIndexChanged"
+    when "SELCHANGING" then e = "Selecting"
+    when "KEYDOWN" then e = "KeyDown"
+    otherwise e = event
+  end
+  return self~connectEvent(id, e, methodName)
+/* connectTrackBarEvent(id, event [, method]): ENDTRACK (the user lets the
+   thumb go: .NET's MouseUp and KeyUp), POSCHANGED / THUMBPOSITION (its
+   ValueChanged), THUMBTRACK (Scroll); the method gets .NET's (sender, e) */
+::method connectTrackBarEvent
+  use arg id, event, methodName
+  if arg(3, "O") then methodName = "on" || event
+  select case event~upper
+    when "ENDTRACK" then do
+      self~connectEvent(id, "MouseUp", methodName)
+      return self~connectEvent(id, "KeyUp", methodName)
+    end
+    when "POSCHANGED", "THUMBPOSITION" then e = "ValueChanged"
+    when "THUMBTRACK" then e = "Scroll"
+    otherwise e = event
+  end
+  return self~connectEvent(id, e, methodName)
+/* connectTreeViewEvent(id, event [, method]): SELCHANGED (.NET's
+   AfterSelect), SELCHANGING (BeforeSelect), EXPANDING (BeforeExpand),
+   EXPANDED (AfterExpand), BEGINEDIT / ENDEDIT (BeforeLabelEdit /
+   AfterLabelEdit), BEGINDRAG (ItemDrag), KEYDOWN; BEGINDRAG with
+   ooDialog's DefTreeDragHandler: an item dragged onto another one becomes
+   its last child (not onto itself, its parent or one of its children); the
+   target is drop highlighted, opens after a second, and the tree scrolls at
+   its edges */
+::method connectTreeViewEvent
+  expose defined deferred
+  use arg id, event, methodName
+  if arg(3, "O") then methodName = "on" || event
+  ev = event~upper
+  if ev == "BEGINDRAG", methodName~caselessEquals("DefTreeDragHandler") then do
+    if \defined then do
+      deferred~append(.array~of("CONNECTTREEVIEWEVENT", .array~of(id, event, methodName)))
+      return 0
+    end
+    .NetTreeDrag~new(self~control(id))
+    return 0
+  end
+  select case ev
+    when "SELCHANGED" then e = "AfterSelect"
+    when "SELCHANGING" then e = "BeforeSelect"
+    when "EXPANDING" then e = "BeforeExpand"
+    when "EXPANDED" then e = "AfterExpand"
+    when "BEGINEDIT" then e = "BeforeLabelEdit"
+    when "ENDEDIT" then e = "AfterLabelEdit"
+    when "BEGINDRAG", "BEGINRDRAG" then e = "ItemDrag"
+    when "KEYDOWN" then e = "KeyDown"
     otherwise e = event
   end
   return self~connectEvent(id, e, methodName)
@@ -671,11 +761,19 @@
 ::method disableItem
   self~control(arg(1))~Enabled = .false
   return 0
-::method createFontEx                  -- createFontEx(name, size [, additional]): a .NET Font (weight >= 600: bold)
-  expose form
+::method createFontEx                  -- createFontEx(name, size [, additional]): a .NET Font (weight >= 600: bold); additional
+  expose form                          -- a Directory (WEIGHT, ITALIC...) or words: BOLD ITALIC UNDERLINE STRIKEOUT
   use arg name, size = 8, additional = .nil
   style = "Regular"
-  if additional \== .nil then do
+  if additional~isA(.string) then do
+    w = additional~upper
+    st = ""
+    do k over .array~of("Bold", "Italic", "Underline", "Strikeout")
+      if w~wordPos(k~upper) > 0 then st = st k
+    end
+    if st \== "" then style = st~strip~changeStr(" ", ", ")
+  end
+  else if additional \== .nil then do
     if additional~hasIndex("WEIGHT"), additional~weight >= 600 then style = "Bold"
     if additional~hasIndex("ITALIC"), additional~italic == .true then style = style~changeStr("Regular", "") "Italic"
   end
@@ -756,6 +854,7 @@
   do d over deferred; self~sendWith(d[1], d[2]); end
   self~initDialog
   self~applyData
+  if self~isA(.ResizingAdmin) then self~raSetup   -- (a page: its controls follow the tab page's size)
 
 /* Group boxes and frames go behind the other controls once they are all
    made (a control made later would otherwise be behind an opaque GroupBox);
@@ -1279,6 +1378,7 @@
    options: NOAPPLYNOW (no Apply button). OK asks the page shown to
    killActive, then every page shown to apply. */
 ::class NetPropertySheet subclass NetDialog public
+::constant IDC_TAB_IN_PROPSHEET "PROPSHEET.TABS"   -- the tab control's id (ResizingAdmin's sizing names it)
 ::attribute pages get
 ::attribute startPage
 ::method init
@@ -1364,6 +1464,59 @@
 ::method getResult
   expose outcome
   return outcome
+
+/* --------------------------------------------------------- control dialogs */
+/* ooDialog's ControlDialog: a dialog inside another one (its ownerDialog),
+   a page of a tab control's display area, say. A NetDialog that inherits
+   ControlDialog (ooDialog's RcControlDialog, ResControlDialog and
+   UserControlDialog: "subclass ... inherit ControlDialog") shows its
+   controls in a Panel of its owner, once execute is sent (its owner shown,
+   or about to be): defineDialog, initDialog, as any dialog, at the place
+   create gave it, in the owner's coordinates; show, hide, setWindowPos (to
+   a NetRect: left, top, width, height), hwnd, isDialogActive,
+   endExecution(ok) (leaving runs). It cannot end by itself: its owner ends.
+   The panel is its form; self~form~Parent the owner's. */
+::class ControlDialog public mixinclass Object
+::method execute unguarded             -- (no show or icon: it is inside its owner)
+  expose started
+  if var("STARTED") then return 0
+  owner = self~ownerDialog
+  if owner == .nil then raise syntax 98.900 array("ControlDialog: ownerDialog first")
+  panel = .net~System~Windows~Forms~Panel~new
+  x = self~form~Location~X; y = self~form~Location~Y   -- (where create put it)
+  self~hostIn(panel)
+  panel~Bounds = .net~System~Drawing~Rectangle~new(x, y, self~px(self~sizeX), self~py(self~sizeY))
+  owner~form~Controls~Add(panel)
+  panel~BringToFront
+  started = .true
+  self~buildPage
+  return 0
+::method isDialogActive unguarded
+  expose started
+  return var("STARTED") & \self~form~IsDisposed
+::method show unguarded
+  self~form~Visible = .true
+  self~form~BringToFront
+  return 0
+::method hide unguarded
+  self~form~Visible = .false
+  return 0
+::method setWindowPos unguarded        -- setWindowPos(hwndAfter, rect [, flags]): rect's left, top, right (the width), bottom (the height)
+  use arg after, r, flags = ""
+  self~form~Bounds = .net~System~Drawing~Rectangle~new(r~left, r~top, r~right, r~bottom)
+  if flags~upper~wordPos("HIDEWINDOW") > 0 then self~form~Visible = .false
+  else do
+    self~form~Visible = .true
+    self~form~BringToFront             -- (above the tab control: hwndAfter's place)
+  end
+  return 0
+::method endExecution unguarded
+  expose ended
+  use arg ok = .false
+  if var("ENDED") then return 0
+  ended = .true
+  self~leaving
+  return 0
 
 /* ----------------------------------------------------------------- resizing */
 /* ooDialog's ResizingAdmin: a NetDialog that inherits it can be sized by the
@@ -1506,11 +1659,14 @@
   self~raState
   self~defineSizing
   f = self~form
-  cs = f~ClientSize
-  f~FormBorderStyle = "Sizable"         -- (ooDialog: WS_THICKFRAME)
-  f~ClientSize = cs                     -- (the client area kept)
+  page = \.net~isInstance(f, "System.Windows.Forms.Form")   -- (a property sheet's page: its tab page)
+  if \page then do
+    cs = f~ClientSize
+    f~FormBorderStyle = "Sizable"       -- (ooDialog: WS_THICKFRAME)
+    f~ClientSize = cs                   -- (the client area kept)
+  end
   menuH = 0
-  if f~MainMenuStrip \== .nil then menuH = f~MainMenuStrip~Height
+  if \page then if f~MainMenuStrip \== .nil then menuH = f~MainMenuStrip~Height
   rects = .directory~new                -- key -> .array(control, original l t r b, current l t r b)
   i = 0
   do c over f~Controls~makeArray        -- every control of the dialog itself, in the dialog's order
@@ -1527,6 +1683,12 @@
     o = .array~of(b~Left, b~Top, b~Right, b~Bottom)
     rects[k] = .array~of(c, o, o~copy)
   end
+  if page then do                       -- (the page as it was designed: the tab page's size comes later)
+    rects["RESIZINGADMIN.DIALOG"] = .array~of(.nil, .array~of(0, 0, self~px(self~sizeX), self~py(self~sizeY)), .nil)
+    f~Resize += .net~handler(self, "RARESIZE")
+    if f~ClientSize~Width > 0, f~ClientSize~Height > 0 then self~raResize(f, .nil)
+    return
+  end
   rects["RESIZINGADMIN.DIALOG"] = .array~of(.nil, .array~of(0, menuH, f~ClientSize~Width, f~ClientSize~Height), .nil)
   if minSize == "INITIAL" then f~MinimumSize = f~Size
   else if minSize \== .nil then f~MinimumSize = minSize
@@ -1536,7 +1698,8 @@
 ::method raResize unguarded
   expose order edges rects menuH
   use arg f, e
-  if f~WindowState~string == "Minimized" then return
+  if .net~isInstance(f, "System.Windows.Forms.Form") then if f~WindowState~string == "Minimized" then return
+  if f~ClientSize~Width = 0 | f~ClientSize~Height = 0 then return
   dlg = rects["RESIZINGADMIN.DIALOG"]
   dlg[3] = .array~of(0, menuH, f~ClientSize~Width, f~ClientSize~Height)
   f~SuspendLayout
@@ -1801,6 +1964,132 @@
   self~base.WndProc(r)
   ref~Value = r~value
 
+/* (inside) .NET controls with a window style their class has not
+   (PBS_VERTICAL, TBS_ENABLESELRANGE): CreateParams overridden */
+::class NetStyledProgressBar subclass NetObject
+::method prepare class                 -- (once, the first time it is needed)
+  expose extended
+  if var("EXTENDED") then return
+  .net~extend(self, "System.Windows.Forms.ProgressBar")
+  extended = .true
+::method init
+  expose extra
+  use strict arg extra
+  self~init:super
+::method CreateParams
+  expose extra
+  cp = self~CreateParams:super
+  cp~Style = NetBitOr(cp~Style, extra)
+  return cp
+::class NetStyledTrackBar subclass NetObject
+::method prepare class
+  expose extended
+  if var("EXTENDED") then return
+  .net~extend(self, "System.Windows.Forms.TrackBar")
+  extended = .true
+::method init
+  expose extra
+  use strict arg extra
+  self~init:super
+::method CreateParams
+  expose extra
+  cp = self~CreateParams:super
+  cp~Style = NetBitOr(cp~Style, extra)
+  return cp
+::routine NetBitOr                     -- (inside) a | b, for whole numbers (b's bits added where a has not got them)
+  use arg a, b
+  r = a; bit = 1; n = b
+  do while n > 0
+    if n // 2 = 1, (a % bit) // 2 = 0 then r += bit
+    n = n % 2; bit *= 2
+  end
+  return r
+
+/* (inside) ooDialog's DefTreeDragHandler on a .NET TreeView */
+::class NetTreeDrag
+::method init
+  expose tree dragged hover since
+  use arg tree
+  dragged = .nil; hover = .nil; since = 0
+  tree~AllowDrop = .true
+  tree~ItemDrag += .net~handler(self, "ITEMDRAG")
+  tree~DragOver += .net~handler(self, "DRAGOVER")
+  tree~DragDrop += .net~handler(self, "DRAGDROP")
+  tree~DragLeave += .net~handler(self, "DRAGLEAVE")
+::method itemDrag
+  expose tree dragged
+  use arg sender, e
+  dragged = e~Item
+  tree~SelectedNode = dragged
+  tree~DoDragDrop("TreeNode", "Move")
+  self~highlight(.nil)
+  dragged = .nil
+::method canDrop                       -- not on itself, its parent, or one of its children
+  expose dragged
+  use arg target
+  if target == .nil | dragged == .nil then return .false
+  if target~Equals(dragged) then return .false
+  if dragged~Parent \== .nil then if target~Equals(dragged~Parent) then return .false
+  p = target~Parent
+  do while p \== .nil
+    if p~Equals(dragged) then return .false
+    p = p~Parent
+  end
+  return .true
+::method dragOver
+  expose tree hover since
+  use arg sender, e
+  p = tree~PointToClient(.net~System~Drawing~Point~new(e~X, e~Y))
+  target = tree~GetNodeAt(p)
+  if self~canDrop(target) then do
+    e~Effect = "Move"
+    if hover == .nil then new = .true
+    else new = \hover~Equals(target)
+    if new then do
+      self~highlight(target)
+      hover = target
+      since = .net~System~Environment~TickCount
+    end
+    else if .net~System~Environment~TickCount - since > 1000, target~Nodes~Count > 0, \target~IsExpanded then target~Expand   -- (after a second)
+  end
+  else do
+    e~Effect = "None"
+    self~highlight(.nil)
+    hover = .nil
+  end
+  h = tree~ItemHeight                  -- the tree scrolls when the pointer is at its edges
+  if p~Y < h then do
+    top = tree~TopNode
+    if top \== .nil then if top~PrevVisibleNode \== .nil then top~PrevVisibleNode~EnsureVisible
+  end
+  else if p~Y > tree~ClientSize~Height - h then do
+    n = tree~GetNodeAt(.net~System~Drawing~Point~new(1, tree~ClientSize~Height - 1))
+    if n \== .nil then if n~NextVisibleNode \== .nil then n~NextVisibleNode~EnsureVisible
+  end
+::method dragDrop
+  expose tree dragged
+  use arg sender, e
+  target = tree~GetNodeAt(tree~PointToClient(.net~System~Drawing~Point~new(e~X, e~Y)))
+  self~highlight(.nil)
+  if \self~canDrop(target) then return
+  self~move(dragged, target)
+::method move                          -- the item, with its children, as the target's last child
+  expose tree
+  use arg item, target
+  item~Remove
+  target~Nodes~Add(item)
+  tree~SelectedNode = item
+  item~EnsureVisible
+::method dragLeave
+  use arg sender, e
+  self~highlight(.nil)
+::method highlight private             -- TVM_SELECTITEM, TVGN_DROPHILITE: the drop target shown
+  expose tree
+  use arg node
+  h = 0
+  if node \== .nil then h = node~Handle
+  call sendWinIntMsg tree, 4363, 8, h  -- (0x110B)
+
 ::class NetDialogUpDownRelay           -- (inside) DELTAPOS with ooDialog's arguments
 ::method init
   expose dialog methodName last
@@ -2035,7 +2324,7 @@ syntax:
 
 /* (inside) a colour: a .NET Color, or ooDialog's index into Windows'
    default palette (PALETTEINDEX: its 20 colours) */
-::routine NetDialogColor
+::routine NetDialogColor public       -- (public: a program's own drawing may want ooDialog's colours)
   use arg c
   if .net~isInstance(c, "System.Drawing.Color") then return c
   rgb = "0 0 0,128 0 0,0 128 0,128 128 0,0 0 128,128 0 128,0 128 128,192 192 192,192 220 192,166 202 240," || -

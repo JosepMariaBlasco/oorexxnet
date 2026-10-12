@@ -455,6 +455,9 @@ return 0
 ::method autoRun unguarded                               -- (.NET version) unattended: the wheel with each modifier, a radio button, Help
   expose eData
   say "(auto) first line shown:" firstLine(eData)
+  r1 = scrollCommand(eData, "DOWN"); l1 = firstLine(eData)
+  r2 = scrollCommand(eData, "UP"); l2 = firstLine(eData)
+  say "(auto) EM_SCROLL down:" r1~d2x "->" l1", up:" r2~d2x "->" l2
   pos = .NetPoint~new(-30000, -30000)                    -- (off the dialog: "Mouse is anywhere")
   do state over .array~of("None", "Shift", "Control", "Control Shift")
     self~onMouseWheel(state, pos, .nil, -120)

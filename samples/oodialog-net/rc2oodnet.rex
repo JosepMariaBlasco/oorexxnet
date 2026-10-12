@@ -287,8 +287,8 @@ control1: procedure
         end
         when wordPos(cls, "MONTHCAL_CLASS SYSMONTHCAL32") > 0 then return call("createMonthCalendar", id, geo, "")
         when wordPos(cls, "DATETIMEPICK_CLASS SYSDATETIMEPICK32") > 0 then return call("createDateTimePicker", id, geo, "")
-        when wordPos(cls, "PROGRESS_CLASS MSCTLS_PROGRESS32") > 0 then return call("createProgressBar", id, geo, "")
-        when wordPos(cls, "TRACKBAR_CLASS MSCTLS_TRACKBAR32") > 0 then return call("createTrackBar", id, geo, (st~pos("TBS_VERT") > 0)~?("VERTICAL", ""))
+        when wordPos(cls, "PROGRESS_CLASS MSCTLS_PROGRESS32") > 0 then return call("createProgressBar", id, geo, progressStyles(st))
+        when wordPos(cls, "TRACKBAR_CLASS MSCTLS_TRACKBAR32") > 0 then return call("createTrackBar", id, geo, trackBarStyles(st))
         when wordPos(cls, "WC_LISTVIEW SYSLISTVIEW32") > 0 then return call("createListView", id, geo, listViewStyles(st))
         when wordPos(cls, "WC_TREEVIEW SYSTREEVIEW32") > 0 then return call("createTreeView", id, geo, treeViewStyles(st))
         when wordPos(cls, "WC_TABCONTROL SYSTABCONTROL32") > 0 then return call("createTab", id, geo, "")
@@ -436,6 +436,25 @@ listViewStyles: procedure
   if st~pos("LVS_SHOWSELALWAYS") > 0 then r = r "SHOWSELALWAYS"
   if st~pos("LVS_SINGLESEL") > 0 then r = r "SINGLESEL"
   return r
+
+progressStyles: procedure
+  use arg st
+  w = styleWords(st); r = ""
+  if wordPos("PBS_VERTICAL", w) > 0 then r = r "VERTICAL"
+  if wordPos("PBS_SMOOTH", w) > 0 then r = r "SMOOTH"
+  if wordPos("PBS_MARQUEE", w) > 0 then r = r "MARQUEE"
+  return r~strip
+
+trackBarStyles: procedure
+  use arg st
+  w = styleWords(st); r = ""
+  if wordPos("TBS_VERT", w) > 0 then r = r "VERTICAL"
+  if wordPos("TBS_TOP", w) > 0 then r = r "TOP"          -- (TBS_LEFT is the same bit)
+  if wordPos("TBS_LEFT", w) > 0 then r = r "LEFT"
+  if wordPos("TBS_BOTH", w) > 0 then r = r "BOTH"
+  if wordPos("TBS_NOTICKS", w) > 0 then r = r "NOTICKS"
+  if wordPos("TBS_ENABLESELRANGE", w) > 0 then r = r "ENABLESELRANGE"
+  return r~strip
 
 treeViewStyles: procedure
   use arg st
