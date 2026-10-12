@@ -82,6 +82,26 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `userStringDTP.rex` | `controls\userStringDTP.rex` | a date and time picker typed in (USERSTRING); F1; ooDialog's colour numbers; a timer |
 | `fiscalReports.rex` | `controls\fiscalReports.rex` | a date and time picker with call back fields (FORMAT, FORMATQUERY, KEYDOWN): a Rexx class extending DateTimePicker, its WndProc |
 | `treeViewCustomDraw.rex` | `controls\TreeView\treeViewCustomDraw.rex` | a tree view's items in their colours (OwnerDrawText), images, label editing, info tips, items added on expanding, a Rexx sort |
+| `BinaryMenuBar.rex` | `menus\BinaryMenuBar.rex` | a menu bar built in code; items checked, grayed, radio items; connectAllCommandEvents (the methods named from the items' text) |
+| `ScriptMenuBar.rex` | `menus\ScriptMenuBar.rex` | a .rc's menu (`ScriptMenuBarrc.cls`), its popups found by id or position, the commands connected |
+| `UserMenuBar.rex` | `menus\UserMenuBar.rex` | ooDialog's UserMenuBar: addPopup, addItem, addSeparator, complete; a bitmap in the dialog |
+| `ContextMenu.rex` | `menus\ContextMenu.rex` | context menus on the dialog, a list view and its items (connectContextMenu, show); popups taken from a menu bar |
+| `dragNdrop.rex` | `mouse\dragNdrop.rex` | dragging list-view and tree-view items (BEGINDRAG with DefListDragHandler, DefTreeDragHandler: .NET's DoDragDrop); a cursor of its own |
+| `mouseWheel.rex` | `mouse\mouseWheel.rex` | the mouse wheel over the dialog and an edit control, with Shift and Control; EM_SCROLL sent to the edit control |
+| `basicResize.rex` | `resizableDialogs\ResizingAdmin\basicResize.rex` | ResizingAdmin with its defaults: every control proportional |
+| `augmentedResize.rex` | `resizableDialogs\ResizingAdmin\augmentedResize.rex` | ResizingAdmin's pins control by control; minimum and maximum sizes; the sizing ended |
+| `gbStationary.rex` | `resizableDialogs\ResizingAdmin\gbStationary.rex` | group boxes that keep their size, their controls pinned to them |
+| `dlgAreaUDemo.rex` | `resizableDialogs\DialogAreaU\dlgAreaUDemo.rex` | DlgArea and DlgAreaU: controls laid out in areas of the dialog, moved and sized on connectResize |
+| `dlgAreaUDemoTwo.rex` | `resizableDialogs\DialogAreaU\dlgAreaUDemoTwo.rex` | the same with controls that do not resize or do not move (noResizePut, noMovePut) |
+| `dlgAreaUDemoThree.rex` | `resizableDialogs\DialogAreaU\dlgAreaUDemoThree.rex` | DlgAreaU with a dialog of its own areas; WM_SIZING (connectResizing), the sizing ended |
+| `PropertySheetDemo.rex` | `propertysheet.tabControls\PropertySheetDemo.rex` | a property sheet whose pages show a list view, a tree view (dragging), vertical progress bars, track bars, a tab control with an owner-drawn display area |
+| `TabDemo.rex` | `propertysheet.tabControls\TabDemo.rex` | the same pages as control dialogs (ControlDialog) over a tab control's display area; Previous and Next; the tab control's keys |
+| `TabOwnerDemo.rex` | `propertysheet.tabControls\TabOwnerDemo.rex` | TabOwnerDialog: control dialogs managed as a tab control's pages (ManagedTab, TabOwnerDlgInfo, ControlDlgInfo) |
+| `UserTabDemo.rex` | `propertysheet.tabControls\UserTabDemo.rex` | the same with the dialog and its pages built in code; a default font; keys connected (connectKeyPress) |
+| `oodListViews.rex` | `propertysheet.tabControls\oodListViews.rex` | a list view's four views on four tabs; records added and edited in a second dialog; info tips |
+| `ticketWizard.rex` | `propertysheet.tabControls\ticketWizard.rex` | a wizard (Wizard97): header and watermark bitmaps, Back, Next, Finish set by the pages, pages querying each other |
+| `resizablePropertySheetDemo.rex` | `resizableDialogs\ResizingAdmin\PropertySheetDemo.rex` | `PropertySheetDemo.rex` resizable: the sheet and each page with ResizingAdmin |
+| `resizableTabDemo.rex` | `resizableDialogs\ResizingAdmin\TabDemo.rex` | `TabDemo.rex` resizable: the control dialogs sized with the tab control (pagedTab) |
 
 More of ooDialog's samples will follow, in batches.
 
@@ -136,6 +156,14 @@ More of ooDialog's samples will follow, in batches.
 | `ok`, `cancel`, `validate`, `leaving`, `initDialog` overridden | the same; `self~ok:super` ends the dialog when `validate` answers `.true` |
 | data attributes (`createEdit(id, ..., "TLINE")`, then `self~TLine`) | the same |
 | `infoDialog`, `errorDialog`, `askDialog`, `messageDialog`, `inputBox`, `integerBox`, `passwordBox`, `listChoice`, `multiListChoice`, `checkList`, `singleSelection`, `multiInputBox`, `fileNameDialog`, `browseForFolder`, `timedMessage` | the same names, arguments and results; `self~IDOK`... `self~IDCONTINUE` as ooDialog's |
+| `.UserMenuBar~new`, `addPopup`, `addItem`, `addSeparator`, `complete`; `connectAllCommandEvents`; `checkRadio`, `check`, `gray` | the same on a NetMenuBar (the methods named from the items' text, as ooDialog's) |
+| `.Mouse`'s events (`connectWheel`...), dragging with `DefListDragHandler`, `DefTreeDragHandler` | the controls' .NET events (`MouseWheel`, `ItemDrag`, `DragOver`, `DragDrop`); `connectListViewEvent(id, "BEGINDRAG", "DefListDragHandler")`, `connectTreeViewEvent(id, "BEGINDRAG", "DefTreeDragHandler")` as ooDialog's |
+| `sendWinIntMsg(hwnd, msg, wParam, lParam)` (Windows' messages to a control) | `sendWinIntMsg(control, msg, wParam, lParam)` (a public routine of oodnet.cls) |
+| `connectResize`, `connectResizing`, `connectSizeMoveEnded`; `DlgArea`, `DlgAreaU` | the same (.NET's `Resize`, WM_SIZING, `ResizeEnd`; ooDialog's arithmetic) |
+| `::class P subclass ResControlDialog` (a dialog inside another); `TabOwnerDialog` with `ManagedTab`, `TabOwnerDlgInfo`, `ControlDlgInfo` | `::class P subclass ... inherit ControlDialog`, a `Panel` of its owner; `inherit TabOwnerDialog` and the same classes |
+| `ResizingAdmin`'s `pagedTab(tabID, dlgIDs)` | the same: the control dialogs started in the dialog follow the tab control's display area |
+| `PropertySheetDialog` with `WIZARD97` (`AERO`...), pages `subclass UserPSPDialog`, `setWizButtons`, `wizNext`, `wizBack`, `wizFinish`, `querySiblings` | `.NetPropertySheet~new(pages, "WIZARD97", caption)`, pages `subclass UserPSPDialog`: the same methods; `header` and `watermark` (.NET Images), as ooDialog's |
+| `.PlainBaseDialog~setDefaultFont(name, size)` | `.NetDialog~defaultFont(name, size)` |
 
 **Indexers by number and by key** (`ListView.Items`, `SubItems`,
 `Controls`...): a Rexx whole number is a position, from 0 as in .NET
@@ -176,6 +204,3 @@ shows (by default: it ends with OK), and the routines show nothing and
 answer their defaults. The programs override `autoRun` to do what a user
 would (click a few buttons) and print what came out; `samples/check-samples.rex`
 runs them so on Windows, the CI too.
-
-**Not yet in `oodnet.cls`**: dialogs inside dialogs (ControlDialog). It
-comes with the samples that need it.

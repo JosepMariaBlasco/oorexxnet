@@ -1548,7 +1548,7 @@
   return wizard
 ::method defineDialog
   expose pages options tabs wizard
-  if wizard then return self~defineWizard
+  if wizard then do; self~defineWizard; return; end
   F = .net~System~Windows~Forms
   tabs = F~TabControl~new
   self~place("PROPSHEET.TABS", tabs, 7, 7, self~sizeX - 14, self~sizeY - 35)

@@ -951,7 +951,7 @@
   sizes:
     if arg() = 0 then return .array~of(sheetTab~Width, sheetTab~Height, pb~Width, pb~Height, okB~Left, cancelB~Left, okB~Top, okB~Width)
     use arg b
-    return "+"(sheetTab~Width - b[1]) "+"(sheetTab~Height - b[2])"," "+"(pb~Width - b[3]) "+"(pb~Height - b[4])
+    return "+" || (sheetTab~Width - b[1]) "+" || (sheetTab~Height - b[2])"," "+" || (pb~Width - b[3]) "+" || (pb~Height - b[4])
 
 /* (.NET version) ooDialog's TreeView add(): the arguments omitted at first
    give the depth (none: a root), then the text and the image's index */
