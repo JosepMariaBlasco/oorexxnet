@@ -167,10 +167,8 @@ call "OrderMgr\RequiresList.rex"
     iconList~Images~Add(imgProdList)   -- item 1 in iconList (item 2 in records)
     iconList~Images~Add(imgOrderList)  -- item 2 in iconList (item 3 in records)
     iconList~Images~Add(imgOrderForm)  -- item 3 in iconList (item 4 in records)
-    imgCustList~Dispose                -- ooDialog: ~release
-    imgProdList~Dispose
-    imgOrderList~Dispose
-    imgOrderForm~Dispose
+    -- ooDialog: imgCustList~release ...: here the ImageList copies them only when
+    --   the list view makes its window, so they are left to .NET to free
     return
 
   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
