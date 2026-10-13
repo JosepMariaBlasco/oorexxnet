@@ -29,6 +29,9 @@
  *                   --clr installs it anyway. It is always copied to the
  *                   samples folder: a program finds a CLR.CLS next to it
  *                   before any other.
+ *   oodnet.cls:     (Windows) beside rexx, as ooRexx's own .cls files: the
+ *                   ooDialog programs ported to .NET (samples/oodialog-net)
+ *                   find it from any folder.
  *   This program:   copied as oorexxnet-uninstall.rex next to rexx, which
  *                   uninstalls by default, so the unzipped folder can go.
  *   The samples:    in ooRexx's samples folder, under dotnet/ (Windows:
@@ -184,6 +187,17 @@ install:
       say "    program, put the CLR.CLS of the samples folder next to it; or install"
       say "    it anyway with: rexx install --clr"
     end
+  end
+
+  -- oodnet.cls (Windows: ooDialog's shape on Windows Forms) beside rexx, as
+  -- ooRexx's own .cls files: the ported ooDialog programs, and any other,
+  -- find it from any folder with ::requires "oodnet.cls"
+  oodnet = join(join(samplesSrc, "oodialog-net"), "oodnet.cls")
+  if windows, .File~new(oodnet)~exists then do
+    target = join(home, "oodnet.cls")
+    if SysFileCopy(oodnet, target) \= 0 then call denied target
+    done~put(target, "file")
+    say "  installed oodnet.cls in" home
   end
 
   -- the uninstaller, next to rexx

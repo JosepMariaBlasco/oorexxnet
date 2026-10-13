@@ -44,6 +44,8 @@ end
    on Windows, the library path (inside the command: macOS drops DYLD_*
    variables when it starts /bin/sh) elsewhere */
 call env "REXX_PATH", out
+if windows then                                             -- oodnet.cls, for the ooDialog ports in subfolders (installed: beside rexx)
+  call env "REXX_PATH", out || .file~pathSeparator || here || "oodialog-net"
 pathSep = .file~pathSeparator
 if windows then do
   call env "PATH", out || pathSep || env("PATH")
@@ -58,11 +60,16 @@ if windows & office then dirs~append("office")              -- (Office must be i
 if windows & libre then dirs~append("libreoffice")          -- (LibreOffice must be installed)
 if windows then dirs~appendAll(.array~of("oorexx-ole", "oorexx-ole/wmi", "oorexx-ole/adsi", "oorexx-ole/methinfo"))
 if windows then dirs~append("oodialog-net")                -- ooDialog's samples in pure .NET   -- (MS*: Office, AOO_*: LibreOffice)
+if windows then dirs~append("oodialog-net/userGuide")      -- the User Guide's exercises: each folder's programs (not its classes), from the exercise's folder
 count = 0; fails = 0
 do d over dirs
   files = .array~new
-  call sysFileTree here || d~changeStr("/", sep) || sep || "*.rex", "found.", "FO"
-  do i = 1 to found.0; files~append(found.i); end
+  guide = d == "oodialog-net/userGuide"
+  call sysFileTree here || d~changeStr("/", sep) || sep || "*.rex", "found.", guide~?("FOS", "FO")
+  do i = 1 to found.0
+    if guide then if \isProgram(found.i) then iterate   -- (a file of classes: its program requires it)
+    files~append(found.i)
+  end
   do f over files~sort
     if d == "oorexx-ole" then do                              -- AOO_*: LibreOffice; MS*: Office
       n = filespec("name", f)
@@ -74,10 +81,17 @@ do d over dirs
     if filespec("name", f)~caselessAbbrev("measure-dialogs") then iterate
     count += 1
     name = d"/"filespec("name", f)
+    cwd = directory()
+    if guide then do                                        -- from the exercise's folder (ExerciseNN), as the originals expect
+      name = d"/"f~substr(length(here || d) + 2)~changeStr(sep, "/")
+      parse value f~substr(length(here || d) + 2) with exercise (sep)
+      call directory here || d~changeStr("/", sep) || sep || exercise
+    end
     say "=====" name
     if windows then                                         -- a hang ends after 90 s, not the CI's 20 min
       address system 'powershell -NoProfile -ExecutionPolicy Bypass -File "'here'run-with-timeout.ps1" -File "'f'" -Arg auto -Seconds 90'
     else address system libvar'rexx "'f'" auto'
+    call directory cwd
     if rc \= 0 then do
       fails += 1
       say "FAIL" name "(exit status" rc")"
@@ -88,6 +102,14 @@ end
 if fails = 0 then say "samples: all" count "ran"
 else say "samples:" fails "of" count "FAILED"
 exit fails > 0
+
+/* A User Guide program, not a file of classes: it sets .NetDialog~auto */
+isProgram: procedure
+  use arg file
+  s = .stream~new(file)
+  text = s~charIn(1, s~chars)
+  s~close
+  return text~pos(".NetDialog~auto =") > 0
 
 /* An environment variable: its value, or set it */
 env: procedure

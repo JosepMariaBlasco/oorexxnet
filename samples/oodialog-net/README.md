@@ -149,6 +149,30 @@ found by their window class, and the buttons by their AutomationIds, not by
 their titles and labels: the programs work in any language of Windows (the
 originals needed English titles).
 
+### userGuide/: the User Guide's exercises
+
+The programs that go with the *ooDialog User Guide*, in its folders: each
+exercise in its own (`userGuide\Exercise02`...), as the original, whose
+file names repeat from one exercise to the next. Run each from its
+exercise's folder (from Exercise06 on, the originals' `::requires` name
+files there: `Product\ProductView.rex`); they find `oodnet.cls` beside
+rexx.exe, where the installer puts it (in a checkout, with this folder on
+REXX_PATH).
+
+| Here | What it shows |
+|---|---|
+| `Exercise02\HelloWorld.rex`, `WoW.rex`, `WoW2.rex` | the simplest dialog; controls on it; a button connected to a method |
+| `Exercise03\Wow3.rex`, `Startup.rex` | the same, as view, model and data classes; in three files with `.local` |
+| `Exercise04\Startup.rex` | the Customer view: an RcDialog (`CustomerViewrc.cls`) with a menu bar; edit controls made read-only and back |
+| `Exercise04\Extras\DlgData\ASimpleDialog.rex`, `ASimpleDialog2.rex` | a dlgData. stem given to new: values into the controls, and back after OK; the second from a ResDialog's DLL, here the same .rc's class |
+| `Exercise05\Startup.rex` | the Product view: a ResDialog (here `ProductViewrc.cls`), its menu, an About box with a bitmap, validation, numbers-only edit controls (`Support\NumberOnlyEditEx.cls`) |
+
+`NumberOnlyEditEx.cls` (ooDialog's, ported) extends ooDialog's Edit class
+with a mixin; a .NET TextBox cannot inherit one, so here it is an object
+made around the dialog's edit control (`.NumberOnlyEditEx~new(dialog, id)`
+in place of `newEdit(id)`) that passes every other message on to the
+TextBox, and connects its KeyPress as ooDialog's character event.
+
 More of ooDialog's samples will follow, in batches.
 
 ## Porting at a glance
