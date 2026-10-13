@@ -169,6 +169,7 @@ REXX_PATH).
 | `Exercise06\Startup.rex` | the Order Management application: a window of icons (an ImageList, icons dragged about) that opens the Customer, Product and Order components, each a modeless dialog popped up as its child (`popupAsChild`) |
 | `Exercise06\Customer\StartupCustomer.rex`, `StartupCustomerList.rex`, `Product\StartupProduct*.rex`, `Order\StartupOrder*.rex` | each component on its own ("stand-alone"): its list view (.NET's ListView, rows found by HitTest) and the view it opens |
 | `Exercise06\Extras\Popups\Popups.rex`, `OffsetPopups.rex` | four generations of popups, any of them run as the root; the second offsets each from its parent (`getRealPos`, `moveTo`, `ensureVisible`) |
+| `Exercise07\Startup.rex` | the same application on a Model-View framework (`Support\`): an ObjectMgr that makes models and their views, data read from files (`GenericFile`), views on `RcView`, `ResView`, `UdView`; a Person and a Words of Wisdom component; the Message Sender, which sends any message to any component; an order form with two tab pages (control dialogs) |
 
 `NumberOnlyEditEx.cls` (ooDialog's, ported) extends ooDialog's Edit class
 with a mixin; a .NET TextBox cannot inherit one, so here it is an object
@@ -181,6 +182,15 @@ Unattended (`auto`), a dialog shown with `popupAsChild` runs its own
 `waitForChildren`. Where a program asks before it closes (its `cancel`
 overridden with an askDialog whose default is No), the unattended answer is
 that No, and its `autoRun` then ends the dialog as Yes would (`endDialog`).
+
+**RcView and ResView** (Exercise07 on). In ooDialog a view subclasses
+RcView, itself a subclass of RcDialog that reads the .rc when the view is
+made. Here a view must subclass its .rc's class (rc2oodnet's) to get its
+controls, so RcView and ResView are mixins of NetDialog's, which the view
+inherits: `::CLASS CustomerView SUBCLASS CustomerView_IDD_CUST_DIALOG
+INHERIT RcView` for ooDialog's `::CLASS CustomerView SUBCLASS RcView`. Their
+methods, and every `forward class (super)` in them and in the views, are the
+original's: ooRexx finds the next method along the view's own classes.
 
 More of ooDialog's samples will follow, in batches.
 

@@ -803,20 +803,32 @@
 
 /* ----------------------------------------------- controls, by their ids */
 ::method enableControl unguarded       -- enableControl(id), disableControl(id), showControl(id), hideControl(id)
+  expose controls
   if self~offThread then return self~onThreadLater("ENABLECONTROL", arg(1, "A"))
-  self~control(arg(1))~Enabled = .true
+  c = controls[NetDialogKey(arg(1))]
+  if c == .nil then return -1          -- (as ooDialog: an id the dialog has not got is an error code, not a condition)
+  c~Enabled = .true
   return 0
 ::method disableControl unguarded
+  expose controls
   if self~offThread then return self~onThreadLater("DISABLECONTROL", arg(1, "A"))
-  self~control(arg(1))~Enabled = .false
+  c = controls[NetDialogKey(arg(1))]
+  if c == .nil then return -1          -- (as ooDialog: an id the dialog has not got is an error code, not a condition)
+  c~Enabled = .false
   return 0
 ::method showControl unguarded
+  expose controls
   if self~offThread then return self~onThreadLater("SHOWCONTROL", arg(1, "A"))
-  self~control(arg(1))~Visible = .true
+  c = controls[NetDialogKey(arg(1))]
+  if c == .nil then return -1          -- (as ooDialog: an id the dialog has not got is an error code, not a condition)
+  c~Visible = .true
   return 0
 ::method hideControl unguarded
+  expose controls
   if self~offThread then return self~onThreadLater("HIDECONTROL", arg(1, "A"))
-  self~control(arg(1))~Visible = .false
+  c = controls[NetDialogKey(arg(1))]
+  if c == .nil then return -1          -- (as ooDialog: an id the dialog has not got is an error code, not a condition)
+  c~Visible = .false
   return 0
 ::method setControlText unguarded      -- setControlText(id, text), getControlText(id)
   if self~offThread then return self~onThreadLater("SETCONTROLTEXT", arg(1, "A"))
