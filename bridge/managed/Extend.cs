@@ -15,6 +15,11 @@
 // generic too (the base's type parameters and constraints); the Rexx method
 // gets its type arguments after its arguments, as NetTypes.
 //
+// Each type lives in a collectible assembly of its own, and what is known of
+// it (Info: its overrides' slots too) is the type's own: a class made at run
+// time is collected with its type (Members.cs keeps its caches for such a
+// type in tables the type holds).
+//
 // The peer of an instance is set before its constructor runs (the object is
 // made uninitialized, the peer registered, then the constructor invoked on
 // it), so virtual calls made by a base constructor reach Rexx. When an
@@ -83,11 +88,14 @@ public static unsafe class Extend
         public string RexxClass = "", Shown = "";
         public Dictionary<string, List<string>> Bases = new(StringComparer.OrdinalIgnoreCase);   // Rexx name -> trampolines
         public Dictionary<string, string> Events = new(StringComparer.OrdinalIgnoreCase);        // event -> its handlers' field
+        public List<Slot> Slots = new();                                                          // the overrides' (their index in the IL)
     }
 
     static readonly object gate = new();
-    static readonly List<Slot> slots = new();
-    static readonly Dictionary<Type, Info> types = new();
+    // The types made, each in a collectible assembly of its own: collected with
+    // the Rexx class (whose .NetType holds it) and their instances. Info is the
+    // type's own (nothing else here holds the type).
+    static readonly ConditionalWeakTable<Type, Info> types = new();
     static readonly ConditionalWeakTable<object, Peer> peers = new();
 
     /// An instance's pair state (see Lifetime above).
@@ -193,14 +201,13 @@ public static unsafe class Extend
         }
         w.Add('S', "1");
     }
-    static ModuleBuilder? module;
     static int serial;
 
     static readonly MethodInfo dispatch = typeof(Extend).GetMethod(nameof(Dispatch))!;
     static readonly FieldInfo noPeer = typeof(Extend).GetField(nameof(NoPeer))!;
 
     /// Is t a type made by .net~extend?
-    public static bool IsExtended(Type t) { lock (gate) return types.ContainsKey(t); }
+    public static bool IsExtended(Type t) => t.IsCollectible && types.TryGetValue(t, out _);
 
     /// An instance going to Rexx as its Rexx object (record p): its peer
     /// handler, if it has a live one (a crossing: see Lifetime).
@@ -217,7 +224,8 @@ public static unsafe class Extend
     {
         if (!peers.TryGetValue(self, out var p) || p.H.Released || !Callbacks.Started) return NoPeer;
         Slot s;
-        lock (gate) s = slots[slot];
+        if (!types.TryGetValue(self.GetType(), out var info)) return NoPeer;
+        lock (gate) s = info.Slots[slot];
         var all = new object?[args.Length + 1];
         all[0] = s.Name;
         Array.Copy(args, 0, all, 1, args.Length);
@@ -233,7 +241,8 @@ public static unsafe class Extend
     {
         if (!peers.TryGetValue(self, out var p) || p.H.Released || !Callbacks.Started) return NoPeer;
         Slot s;
-        lock (gate) s = slots[slot];
+        if (!types.TryGetValue(self.GetType(), out var info)) return NoPeer;
+        lock (gate) s = info.Slots[slot];
         var all = new object?[args.Length + targs.Length + 1];
         all[0] = s.Name;
         Array.Copy(args, 0, all, 1, args.Length);
@@ -278,9 +287,9 @@ public static unsafe class Extend
         var info = new Info { RexxClass = rexxClass, Shown = $"{rexxClass} extending {string.Join(", ", given.Select(Types.Display))}" };
         lock (gate)
         {
-            module ??= AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("Rexx.Net.Extended"), AssemblyBuilderAccess.Run)
-                                      .DefineDynamicModule("Rexx.Net.Extended");
             var name = "Rexx.Extended." + Clean(rexxClass) + "_" + (++serial);
+            var module = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName(name), AssemblyBuilderAccess.RunAndCollect)
+                                        .DefineDynamicModule(name);
             var tb = module.DefineType(name, TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.BeforeFieldInit, baseType);
             foreach (var i in closure) tb.AddInterfaceImplementation(i);
 
@@ -317,7 +326,7 @@ public static unsafe class Extend
                 string what = $"{rexxClass}~{rn ?? m.Name} ({Types.Display(baseType)}.{m.Name})";
                 if (mine && ok)
                 {
-                    Body(sig, m, NewSlot(rn!, m, what), !m.IsAbstract, $"{Types.Display(baseType)}.{m.Name}: no Rexx peer to call");
+                    Body(sig, m, NewSlot(info, rn!, m, what), !m.IsAbstract, $"{Types.Display(baseType)}.{m.Name}: no Rexx peer to call");
                     if (!m.IsAbstract)
                     {
                         var tr = Trampoline(tb, m);
@@ -373,14 +382,14 @@ public static unsafe class Extend
                     tb.DefineMethodOverride(sig.Builder, m);
                     string what = $"{rexxClass}~{rn ?? m.Name} ({Types.Display(i)}.{m.Name})";
                     if (mine && ok)
-                        Body(sig, m, NewSlot(rn!, m, what), false, $"{Types.Display(i)}.{m.Name}: no Rexx peer to call");
+                        Body(sig, m, NewSlot(info, rn!, m, what), false, $"{Types.Display(i)}.{m.Name}: no Rexx peer to call");
                     else Throw(sig.Builder.GetILGenerator(), evt ? $"{Types.Display(i)}.{m.Name}: this event's accessors are not supported"
                         : mine ? $"{what}: pointer or span parameters, or a result by reference, are not supported"
                         : $"{rexxClass} does not define {rn ?? m.Name}, which {Types.Display(i)} needs");
                 }
 
             created = tb.CreateType()!;
-            types[created] = info;
+            types.AddOrUpdate(created, info);
         }
 
         var all = new Writer();
@@ -413,10 +422,10 @@ public static unsafe class Extend
         !m.GetParameters().Any(p => UnsupportedParameter(p.ParameterType)) && !Unsupported(m.ReturnType) &&
         !(m.IsGenericMethodDefinition && m.GetGenericArguments().Any(g => (g.GenericParameterAttributes & AllowByRefLike) != 0));
 
-    static int NewSlot(string name, MethodInfo m, string what)
+    static int NewSlot(Info info, string name, MethodInfo m, string what)
     {
-        slots.Add(new Slot(name, m.ReturnType, what, m.IsGenericMethodDefinition ? m : null));
-        return slots.Count - 1;
+        info.Slots.Add(new Slot(name, m.ReturnType, what, m.IsGenericMethodDefinition ? m : null));
+        return info.Slots.Count - 1;
     }
 
     // A method of the new type with m's signature: for a generic method, its
@@ -660,7 +669,7 @@ public static unsafe class Extend
     {
         object o;
         Info info;
-        lock (gate) { o = Instance(target); info = types[o.GetType()]; }
+        lock (gate) { o = Instance(target); types.TryGetValue(o.GetType(), out info!); }
         if (!info.Events.TryGetValue(name, out var fieldName))
             throw new BridgeException($"raise.{name}: {info.RexxClass} has no event {name} of an interface");
         var f = o.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -741,7 +750,7 @@ public static unsafe class Extend
         return names;
     }
 
-    static object Instance(Rec r) => Handles.Get(r.Id) is var o && o is not StaticOf && types.ContainsKey(o.GetType()) ? o
+    static object Instance(Rec r) => Handles.Get(r.Id) is var o && o is not StaticOf && IsExtended(o.GetType()) ? o
         : throw new BridgeException("not an instance of a Rexx class extending a .NET class");
 
     /// self~Name, self~Name(args), self~Name = v from the object's own
@@ -804,7 +813,7 @@ public static unsafe class Extend
     {
         object o;
         Info info;
-        lock (gate) { o = Instance(target); info = types[o.GetType()]; }
+        lock (gate) { o = Instance(target); types.TryGetValue(o.GetType(), out info!); }
         var t = o.GetType();
         if (!info.Bases.TryGetValue(name, out var tramps))
             throw new BridgeException($"base.{name}: {info.RexxClass} overrides no {name} with a base implementation");
@@ -843,7 +852,7 @@ public static unsafe class Extend
     public static void Alloc(Rec type, Rec handler, Writer w)
     {
         var t = Handles.Get(type.Id) is StaticOf so ? so.Type : throw new BridgeException("not a type");
-        lock (gate) if (!types.ContainsKey(t)) throw new BridgeException($"{Types.Display(t)} was not made by .net~extend");
+        if (!IsExtended(t)) throw new BridgeException($"{Types.Display(t)} was not made by .net~extend");
         var o = RuntimeHelpers.GetUninitializedObject(t);
         GC.SuppressFinalize(o);                             // until its constructor has run
         var p = new Peer(Callbacks.HandlerOf(handler));
@@ -878,8 +887,7 @@ public static unsafe class Extend
     /// The name Rexx shows: the Rexx class's, and what it extends.
     public static string Display(Type t)
     {
-        Info? info;
-        lock (gate) types.TryGetValue(t, out info);
-        return info?.Shown ?? Types.Display(t);
+        if (t.IsCollectible && types.TryGetValue(t, out var info)) return info.Shown;
+        return Types.Display(t);
     }
 }

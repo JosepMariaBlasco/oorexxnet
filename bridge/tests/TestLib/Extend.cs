@@ -131,6 +131,8 @@ public static class GcProbe
     public static void KeepAction(Action a) { lock (gate) actions.Add(a); }
     public static int RunActions() { Action[] all; lock (gate) all = actions.ToArray(); foreach (var a in all) a(); return all.Length; }
     public static void ClearActions() { lock (gate) actions.Clear(); }
+    /// The types .net~extend made that are still loaded (each in a collectible assembly).
+    public static int ExtendedTypes() => AppDomain.CurrentDomain.GetAssemblies().Count(a => a.GetName().Name!.StartsWith("Rexx.Extended."));
     /// A synchronous use: the comparison called, nothing kept.
     public static string SortWith(Comparison<string> c) { var l = new List<string> { "ccc", "a", "bb" }; l.Sort(c); return string.Join(" ", l); }
 }

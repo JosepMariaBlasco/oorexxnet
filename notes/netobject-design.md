@@ -1297,8 +1297,8 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
   handle, until `.net~detach(o)`.) Now the two collectors release each
   pair, and `.net~detach` is gone: see "The pairs' lifetime" below.
 
-Implementation: `managed/Extend.cs` (Reflection.Emit: a dynamic assembly
-`Rexx.Net.Extended`, one type per class; overrides call
+Implementation: `managed/Extend.cs` (Reflection.Emit: one type per class,
+since 13/10/2026 each in a collectible assembly of its own; overrides call
 `Extend.Dispatch(this, slot, args)`, which answers a sentinel when there is
 no peer, and then the override calls the base or throws; interface members
 as explicit implementations); `net.cls` (`.net~extend`,
@@ -1539,12 +1539,21 @@ handler is held by the thread that took it until its next request
 (`NetNextCall` finds the handler first). `~release` still ends a handler at
 once (its later calls do nothing).
 
-**Not changed (yet).** The managed side's table of extended types
-and its dynamic assembly (`AssemblyBuilderAccess.Run`) keep every extended
-.NET type for good, so a Rexx class made at run time and extended is not
-collected. A .NET application hosting ooRexx that hands such an
-instance to Rexx (`RexxObject`) gives a new plain `.NetObject` for it, as
-before.
+**Classes made at run time.** The managed side kept every type
+`.net~extend` made: a table of them, the overrides' slots in a list of its
+own, one dynamic assembly (`AssemblyBuilderAccess.Run`, never unloaded) for
+all, and the member caches (`Members`: names, indexers, signatures) keyed by
+type. Now each type has a collectible assembly of its own (`RunAndCollect`),
+its `Info` (slots included) is the type's own (a `ConditionalWeakTable`),
+and the member caches keep a collectible type's entries in tables the type
+itself holds. So a Rexx class made at run time and extended
+(`.NetObject~subclass`, then `.net~extend`) is collected with its .NET type
+once nothing holds the class or its instances: the class holds the
+`.NetType` (`netExtension`), and that holds the type. A class defined by
+`::CLASS` lives as long as its package, as before.
+
+A .NET application hosting ooRexx that hands an instance of such a class to
+Rexx (`RexxObject`) gives a new plain `.NetObject` for it, as before.
 
 Tests: `tests/lifetime.rex` (19 for the pairs), forcing both collectors (garbage for
 Rexx's, `GC.Collect` for .NET's: `TestLib`'s `GcProbe`): pairs dropped by
@@ -1559,5 +1568,7 @@ kept by .NET alone, held and called, then released when .NET lets them go;
 one Rexx holds, given again after .NET let it go, the same handler; a
 queued call whose handler both sides dropped, still dispatched, then
 released. And `tests/lifetime-end.rex`, run by `lifetime.rex` as a program
-of its own (29 in all): at its end, one pair Rexx holds and ten .NET holds
-alone run their `UNINIT` once each, their overrides working.
+of its own: at its end, one pair Rexx holds and ten .NET holds alone run
+their `UNINIT` once each, their overrides working. And five classes made at
+run time and extended, collected with their types (the `::CLASS` ones live
+on). `tests/lifetime.rex`: 32 in all.

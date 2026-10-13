@@ -132,7 +132,22 @@ drop c
 call collect
 call ok "... dispatched, then released", .runs .targets, "1 0"
 
--- 9. the end of the program: the pairs still alive are over, UNINIT once each
+-- 9. classes made at run time and extended: collected with their .NET types
+kept = probe~ExtendedTypes             -- Sq, Plain (::CLASS: they live with the program)
+do i = 1 to 5
+  c = .NetObject~subclass("DYN"i)
+  c~define("AREA", "return" i)
+  .net~extend(c, "RexxNetTests.Shape")
+  o = c~new
+  r = o~Report
+end
+call ok "classes made at run time, extended: their .NET types", probe~ExtendedTypes - kept r, "5 shape: 5"
+drop c o
+call collect
+call ok "... collected with the classes and their instances", probe~ExtendedTypes, kept
+call ok "the ::CLASS ones live on", .Sq~new(6)~Report, "<sq: 36>"
+
+-- 10. the end of the program: the pairs still alive are over, UNINIT once each
 parse source . . me
 cmd = 'rexx "'me~left(me~lastPos(.file~separator))'lifetime-end.rex" "'testlib'"'
 address system cmd with output stem out.

@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Rexx.Net;
 
@@ -30,10 +31,18 @@ public sealed class MemberSet
 public static class Members
 {
     static readonly ConcurrentDictionary<(Type, bool, string, bool), MemberSet?> cache = new();
+    // A collectible type's (a Rexx class extending a .NET class: Extend.cs) are
+    // kept by the type itself, so that the caches do not keep it alive.
+    static readonly ConditionalWeakTable<Type, ConcurrentDictionary<(bool, string, bool), MemberSet?>> collectible = new();
 
     /// The members named `name` (caselessly unless exact), or null.
-    public static MemberSet? Find(Type t, bool isStatic, string name, bool exact) =>
-        cache.GetOrAdd((t, isStatic, exact ? name : name.ToUpperInvariant(), exact), k => Lookup(k.Item1, k.Item2, name, k.Item4));
+    public static MemberSet? Find(Type t, bool isStatic, string name, bool exact)
+    {
+        var key = exact ? name : name.ToUpperInvariant();
+        if (t.IsCollectible)
+            return collectible.GetValue(t, _ => new()).GetOrAdd((isStatic, key, exact), k => Lookup(t, k.Item1, name, k.Item3));
+        return cache.GetOrAdd((t, isStatic, key, exact), k => Lookup(k.Item1, k.Item2, name, k.Item4));
+    }
 
     static MemberSet? Lookup(Type t, bool isStatic, string name, bool exact)
     {
@@ -203,10 +212,14 @@ public static class Members
     }
 
     static readonly ConcurrentDictionary<Type, PropertyInfo[]> indexers = new();
+    static readonly ConditionalWeakTable<Type, PropertyInfo[]> collectibleIndexers = new();
 
     /// The public indexers of an object's type (the default member: Item, or
     /// what [IndexerName] calls it, e.g. String's Chars), seen as C# sees them.
-    public static PropertyInfo[] Indexers(Type t) => indexers.GetOrAdd(t, x =>
+    public static PropertyInfo[] Indexers(Type t) =>
+        t.IsCollectible ? collectibleIndexers.GetValue(t, FindIndexers) : indexers.GetOrAdd(t, FindIndexers);
+
+    static PropertyInfo[] FindIndexers(Type x)
     {
         var all = AllMembers(x, BindingFlags.Public | BindingFlags.Instance).OfType<PropertyInfo>()
                   .Where(p => p.GetIndexParameters().Length > 0).ToList();
@@ -220,7 +233,7 @@ public static class Members
             foreach (var a in y.GetCustomAttributes(typeof(DefaultMemberAttribute), false))
                 defaults.Add(((DefaultMemberAttribute)a).MemberName);
         }
-    });
+    }
 
     // A method hidden by one of the same signature in a derived class is left out.
     static IEnumerable<MethodInfo> MostDerived(IEnumerable<MethodInfo> ms)
@@ -250,8 +263,11 @@ public static class Members
     }
 
     static readonly ConcurrentDictionary<MethodBase, Sig> sigs = new();
+    static readonly ConditionalWeakTable<MethodBase, Sig> collectibleSigs = new();
 
-    public static Sig SigOf(MethodBase m) => sigs.GetOrAdd(m, x =>
+    public static Sig SigOf(MethodBase m) => m.IsCollectible ? collectibleSigs.GetValue(m, MakeSig) : sigs.GetOrAdd(m, MakeSig);
+
+    static Sig MakeSig(MethodBase x)
     {
         var ps = x.GetParameters();
         int n = ps.Length;
@@ -265,7 +281,7 @@ public static class Members
         };
         if (s.HasParams) s.ParamsElement = ps[n - 1].ParameterType.GetElementType();
         return s;
-    });
+    }
 
     /// The best of `candidates` for the arguments, with the converted
     /// argument array. Throws if none fits or there is a tie.
