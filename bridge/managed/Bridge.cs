@@ -94,12 +94,14 @@ public static unsafe class Bridge
     public static void Release(int id) => Handles.Release(id);
 
     /// rexxnet's callback (a Rexx handler's call), its free, and what tells
-    /// it that a pair is over (Extend.cs, Lifetime).
+    /// it that a pair is over (Extend.cs, Lifetime) or that nothing in .NET
+    /// can call a handler any more (Callbacks.cs, Lifetime).
     [UnmanagedCallersOnly]
-    public static void Init(IntPtr callback, IntPtr free, IntPtr dead)
+    public static void Init(IntPtr callback, IntPtr free, IntPtr dead, IntPtr gone)
     {
         Callbacks.Init(callback, free);
         Extend.SetDead(dead);
+        Callbacks.SetGone(gone);
     }
 
     /// net.cls's NetObject and NetType classes (global references), from
@@ -118,6 +120,7 @@ public static unsafe class Bridge
     public static byte[] Handle(ReadOnlySpan<byte> request)
     {
         var w = new Writer();
+        Callbacks.NewRequest();
         int mark = Extend.Mark();                           // the instances this answer takes to Rexx (crossings)
         try
         {

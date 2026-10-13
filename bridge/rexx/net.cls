@@ -139,7 +139,9 @@
  * sends the message with the call's arguments; .net~eventLoop does that
  * until .net~stopEventLoop. Option "latest" (implies "queued") keeps at most
  * one call of the handler waiting, the newest. handler~release: its later
- * calls do nothing (queued ones are dropped).
+ * calls do nothing (queued ones are dropped). A handler is held for .NET
+ * while something there can call it (a delegate, a queued call): nothing
+ * to release by hand.
  *
  * COM objects (Windows, .net~createObject): their events work the same way
  * (excel~SheetChange += h, .net~addHandler(excel, "SheetChange", h)...);

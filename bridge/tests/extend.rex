@@ -131,7 +131,7 @@ lam = E~Lambda(E~Constant(.net~int32(42)))
 r = v~Visit(lam)
 call ok "ExpressionVisitor.VisitLambda<T>", v~seen (r == lam) r~Compile~DynamicInvoke, "System.Func<System.Int32> 1 42"
 
--- (the lifetime of the instances, released by the two collectors: tests/extend-gc.rex)
+-- (the lifetime of the instances, released by the two collectors: tests/lifetime.rex)
 
 -- errors of .net~extend
 call err "not a NetObject subclass", ".net~extend(.Plain, 'RexxNetTests.Shape')", "must be a subclass of NetObject"

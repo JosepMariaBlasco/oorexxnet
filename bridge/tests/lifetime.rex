@@ -1,9 +1,10 @@
-/* ooRexx/.NET bridge: the lifetime of the instances of Rexx classes extending
-   .NET classes (.net~extend). Each instance is a pair, its Rexx object and its
-   .NET object, which lives while Rexx holds the one or .NET the other; the two
-   collectors release it, with nothing done by hand. Both collectors are
-   forced: Rexx's by making garbage, .NET's by GC.Collect (GcProbe). Run by
-   tests/run.sh with TestLib's path. */
+/* ooRexx/.NET bridge: lifetimes the two garbage collectors decide, with
+   nothing done by hand. The instances of Rexx classes extending .NET classes
+   (.net~extend): each is a pair, its Rexx object and its .NET object, which
+   lives while Rexx holds the one or .NET the other. And handlers
+   (.net~handler): held for .NET while something there can call them. Both
+   collectors are forced: Rexx's by making garbage, .NET's by GC.Collect
+   (GcProbe). Run by tests/run.sh with TestLib's path. */
 parse arg testlib
 .local~fails = 0; .local~count = 0; .local~uninits = 0
 x = .net~load(testlib)
@@ -92,9 +93,48 @@ call collect
 call ok "stress: 300 moved, all released at the end, UNINIT once each", .uninits, 300
 call ok "stress: no handles left", .net~handleCount - start, 0
 
+-- 8. handlers: held for .NET while something there can call them
+.local~targets = 0                     -- live Target objects (their UNINIT counts down)
+do i = 1 to 50                         -- a synchronous use, the handler dropped by Rexx
+  r = probe~SortWith(.net~handler(.Target~new, "COMPARE"))
+end
+call collect
+call ok "handlers used once, dropped by Rexx: released", .targets r, "0 a bb ccc"
+do i = 1 to 30                         -- kept by .NET alone
+  probe~KeepAction(.net~handler(.Target~new, "RUN"))
+end
+call collect
+call ok "handlers kept by .NET alone: held", .targets, 30
+.local~runs = 0
+call ok "... and .NET calls them", probe~RunActions .runs, "30 30"
+probe~ClearActions                     -- then .NET lets them go
+call collect
+call ok "then dropped by .NET: released", .targets, 0
+h = .net~handler(.Target~new, "COMPARE")    -- held by Rexx, given many times
+do i = 1 to 20; r = probe~SortWith(h); call collect; end
+call ok "a handler Rexx holds, given again after .NET let it go", .targets r, "1 a bb ccc"
+lst = .net~new(.net~type("System.Collections.Generic.List<string>"))
+lst~Add("bb"); lst~Add("a")
+lst~Sort(h)
+call ok "... still the same handler", lst~Item(0) .targets, "a 1"
+drop h
+call collect
+call ok "then dropped by Rexx too: released", .targets, 0
+q = .net~handler(.Target~new, "RUN", "queued")   -- queued: the queue holds it
+probe~KeepAction(q); x = probe~RunActions; probe~ClearActions
+drop q
+call collect
+call ok "a queued call, its handler dropped by both: still held", .targets .net~queuedCalls, "1 1"
+.local~runs = 0
+c = .net~nextEvent(1)
+c~dispatch
+drop c
+call collect
+call ok "... dispatched, then released", .runs .targets, "1 0"
+
 say
-if .fails = 0 then say "extend-gc: all" .count "tests passed"
-else say "extend-gc:" .fails "of" .count "tests FAILED"
+if .fails = 0 then say "lifetime: all" .count "tests passed"
+else say "lifetime:" .fails "of" .count "tests FAILED"
 exit .fails > 0
 
 ok: procedure
@@ -138,6 +178,22 @@ collect: procedure
   self~init:super("plain")
 ::method Area
   return 1
+
+::class Target                          -- a handler's target, counted while alive
+::method init
+  self~class~alive(1)
+::method uninit
+  self~class~alive(-1)
+::method alive class                    -- (guarded)
+  use arg n
+  .local~targets += n
+::method compare unguarded
+  use arg a, b
+  return sign(a~length - b~length)
+::method run unguarded
+  self~class~ran
+::method ran class
+  .local~runs += 1
 
 ::class Mover
 ::method run unguarded

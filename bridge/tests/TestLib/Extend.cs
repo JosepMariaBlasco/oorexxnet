@@ -108,7 +108,7 @@ public static class ExtendProbe
     }
 }
 
-/// For tests/extend-gc.rex: .NET holding instances of Rexx classes alone,
+/// For tests/lifetime.rex: .NET holding instances of Rexx classes and handlers alone,
 /// and its collector run.
 public static class GcProbe
 {
@@ -126,6 +126,11 @@ public static class GcProbe
     {
         for (int i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
     }
-    /// Keeps them one at a time from another thread, while Rexx runs.
-    public static void KeepLater(object o, int ms) => Task.Run(async () => { await Task.Delay(ms); Keep(o); });
+    /// Delegates (Rexx handlers) kept by .NET alone, and called.
+    static readonly List<Action> actions = new();
+    public static void KeepAction(Action a) { lock (gate) actions.Add(a); }
+    public static int RunActions() { Action[] all; lock (gate) all = actions.ToArray(); foreach (var a in all) a(); return all.Length; }
+    public static void ClearActions() { lock (gate) actions.Clear(); }
+    /// A synchronous use: the comparison called, nothing kept.
+    public static string SortWith(Comparison<string> c) { var l = new List<string> { "ccc", "a", "bb" }; l.Sort(c); return string.Join(" ", l); }
 }

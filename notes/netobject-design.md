@@ -230,7 +230,8 @@ handled `System.EventHandler` only.
   returns at once (`default` of its type); a Rexx thread takes it with
   `.net~nextEvent` / `.net~eventLoop`. Option `latest` as in `.js`.
 - Lifetime: pinned from the first time it goes to .NET until
-  `handler~release` or the end of the program (as `.js`).
+  `handler~release` or the end of the program (as `.js`). (Since
+  13/10/2026: or until nothing in .NET can call it: "The pairs' lifetime".)
 
 **Verified (08/10/2026, `smoke/callbacks/`, ooRexx 5.3.0 r13254, .NET 8 and
 10):** while a Rexx thread is inside a native call (a .NET call sleeping
@@ -493,7 +494,8 @@ Built as designed (Callbacks, decision 4):
   `.net~queuedCalls` (diagnostics). The queue lives on the managed side; a
   Rexx thread waiting in `nextEvent` holds no interpreter lock.
 - **Lifetime**: a handler is kept (global references in `rexxnet`) from the
-  first time it goes to .NET until `handler~release`.
+  first time it goes to .NET until `handler~release` (since 13/10/2026: or
+  until nothing in .NET can call it, "The pairs' lifetime" below).
 
 Settled while building it:
 
@@ -1453,7 +1455,7 @@ porting table is in that folder's README). Decisions and traps found:
   than an emulation of ooDialog's GDI methods, which would teach nothing
   about .NET.
 
-## The pairs' lifetime: the collectors decide (13/10/2026)
+## The pairs' lifetime, and handlers': the collectors decide (13/10/2026)
 
 Asked for: no bridge should need the programmer to break the link between
 an instance of a Rexx class extending a class of the other side and its
@@ -1506,8 +1508,23 @@ Rexx class itself (`cls~netExtension`), not in a table of `.net`'s, which
 held every extended class. A failed construction leaves no pair
 (`extAbandon`): its handle goes as any proxy's.
 
-**Not changed (yet).** `.net~handler`s stay pinned until `~release` (also
-the delegates made for them); the managed side's table of extended types
+**Handlers, by the same principle.** A `.net~handler` was pinned (global
+references in `rexxnet`, and its delegates in a table of the managed side)
+from the first time it went to .NET until `~release`: the program had to
+release what it no longer needed. Now its `RexxHandler` is held only by what
+can call it: its delegates (their closure; the cache of delegates is the
+handler's own), the queue, a COM event sink, a posted call. When .NET
+collects it, its finalizer tells `rexxnet` (`handlerGone`, queued: no API
+call from the finalizer thread), which lets the handler go with the next
+request. A program that still holds the `.NetHandler` can give it again: a
+new `RexxHandler`. Each `H` record carries `rexxnet`'s count of the times
+the handler went to .NET, and `handlerGone` the last count its
+`RexxHandler` saw, so that one given meanwhile keeps it. A queued call's
+handler is held by the thread that took it until its next request
+(`NetNextCall` finds the handler first). `~release` still ends a handler at
+once (its later calls do nothing).
+
+**Not changed (yet).** The managed side's table of extended types
 and its dynamic assembly (`AssemblyBuilderAccess.Run`) keep every extended
 .NET type for good, so a Rexx class made at run time and extended is not
 collected. At the end of the program, ooRexx runs every pending `UNINIT`,
@@ -1516,11 +1533,16 @@ but a pair still alive then is not over: its class's `UNINIT` does not run
 instance to Rexx (`RexxObject`) gives a new plain `.NetObject` for it, as
 before.
 
-Tests: `tests/extend-gc.rex` 19, forcing both collectors (garbage for
+Tests: `tests/lifetime.rex` (19 for the pairs), forcing both collectors (garbage for
 Rexx's, `GC.Collect` for .NET's: `TestLib`'s `GcProbe`): pairs dropped by
 both sides are released, their `UNINIT` once each, their handles too; held
 by .NET alone they live and .NET calls their overrides (also from a thread
 of its own); held by Rexx alone; taken back by Rexx; a class with no
 `UNINIT`; five rounds between the sides; four Rexx threads moving 300
 objects back and forth while both collectors run, all released at the end.
-`tests/extend.rex` 66 (its three `.net~detach` tests gone).
+`tests/extend.rex` 66 (its three `.net~detach` tests gone). Handlers, in
+the same `tests/lifetime.rex` (28 in all): used once and dropped, released;
+kept by .NET alone, held and called, then released when .NET lets them go;
+one Rexx holds, given again after .NET let it go, the same handler; a
+queued call whose handler both sides dropped, still dispatched, then
+released.

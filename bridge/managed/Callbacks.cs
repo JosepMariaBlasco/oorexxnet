@@ -26,6 +26,16 @@
 // call and returns its type's default at once; a Rexx thread takes the calls
 // with .net~nextEvent / .net~eventLoop. "latest" keeps at most one call of
 // the handler waiting, the newest.
+//
+// Lifetime: rexxnet holds a .NetHandler (global references) from the time it
+// goes to .NET until nothing in .NET can call it any more: the RexxHandler is
+// held only by what can call it (its delegates, which keep it in their
+// closure; the queue; a COM event sink; a posted call), and its finalizer
+// tells rexxnet (gone, with the count of its times to .NET it saw: one made
+// meanwhile keeps it) that it can let it go, with its next request. A Rexx
+// program that still holds the .NetHandler can give it again: a new
+// RexxHandler. handler~release still ends it at once. A pair's peer handler
+// (Extend.cs) is not one of these.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -37,13 +47,19 @@ using System.Threading.Tasks;
 
 namespace Rexx.Net;
 
-/// A .NetHandler, as the managed side knows it.
+/// A .NetHandler, as the managed side knows it. What can call it holds it
+/// (its delegates, the queue, a COM sink, a posted call); when nothing does,
+/// .NET collects it, and its finalizer tells rexxnet, which lets the Rexx
+/// handler go (Callbacks, "Lifetime").
 public sealed class RexxHandler
 {
     public readonly int Id;
-    public readonly bool Queued, Latest;
+    public readonly bool Queued, Latest, Peer;
     internal volatile bool Released;
-    internal RexxHandler(int id, bool queued, bool latest) { Id = id; Queued = queued; Latest = latest; }
+    internal int Seen;                                      // rexxnet's count of its times to .NET, the last seen
+    internal readonly Dictionary<Type, Delegate> Delegates = new();   // (Callbacks.gate)
+    internal RexxHandler(int id, bool queued, bool latest, bool peer) { Id = id; Queued = queued; Latest = latest; Peer = peer; }
+    ~RexxHandler() { if (!Peer) Callbacks.Gone(this); }
 }
 
 public static unsafe class Callbacks
@@ -63,43 +79,55 @@ public static unsafe class Callbacks
     // ------------------------------------------------------------- handlers
 
     static readonly object gate = new();
-    static readonly Dictionary<int, RexxHandler> handlers = new();
-    static readonly Dictionary<(int, Type), Delegate> delegates = new();
+    static readonly Dictionary<int, WeakReference<RexxHandler>> handlers = new();
+    static delegate* unmanaged<int, int, void> nativeGone;  // rexxnet: a handler nothing in .NET can call (no API call there)
+    [ThreadStatic] static RexxHandler? lastTaken;           // the last queued call's, until NetNextCall's NetHandlerOf (NextEvent)
 
-    /// The handler of a request record H.
+    /// A new request on this thread: NetNextCall has its handler by now.
+    internal static void NewRequest() => lastTaken = null;
+
+    internal static void SetGone(IntPtr f) => nativeGone = (delegate* unmanaged<int, int, void>)f;
+
+    /// The handler of a request record H: "id\toptions\tcount".
     public static RexxHandler HandlerOf(Rec r)
     {
-        int tab = r.Text.IndexOf('\t');
-        int id = int.Parse(tab < 0 ? r.Text : r.Text.Substring(0, tab));
+        var f = r.Text.Split('\t');
+        int id = int.Parse(f[0]);
+        var opts = f.Length > 1 ? f[1].Split(' ', StringSplitOptions.RemoveEmptyEntries) : Array.Empty<string>();
+        int seen = f.Length > 2 ? int.Parse(f[2]) : 0;
         lock (gate)
         {
-            var opts = tab < 0 ? Array.Empty<string>() : r.Text.Substring(tab + 1).Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (!handlers.TryGetValue(id, out var h))
+            if (!handlers.TryGetValue(id, out var wr) || !wr.TryGetTarget(out var h))
             {
                 bool latest = opts.Contains("latest");
-                h = new RexxHandler(id, latest || opts.Contains("queued"), latest);
-                handlers[id] = h;
+                h = new RexxHandler(id, latest || opts.Contains("queued"), latest, opts.Contains("peer"));
+                handlers[id] = new WeakReference<RexxHandler>(h);
             }
+            if (seen > h.Seen) h.Seen = seen;
             if (opts.Contains("released")) h.Released = true;      // released before it ever came here
             return h;
         }
     }
 
-    /// A pair's peer handler, its pair over: forgotten (with its delegates).
-    internal static void Forget(int id)
+    // (the finalizer thread)
+    internal static void Gone(RexxHandler h)
     {
         lock (gate)
-        {
-            handlers.Remove(id);
-            foreach (var k in delegates.Keys.Where(k => k.Item1 == id).ToList()) delegates.Remove(k);
-        }
+            if (handlers.TryGetValue(h.Id, out var wr) && (!wr.TryGetTarget(out var now) || now == h)) handlers.Remove(h.Id);
+        if (!h.Released && nativeGone != null) nativeGone(h.Id, h.Seen);
+    }
+
+    /// A pair's peer handler, its pair over: forgotten.
+    internal static void Forget(int id)
+    {
+        lock (gate) handlers.Remove(id);
     }
 
     /// handler~release: its later calls do nothing (and those queued go).
     public static void Release(int id)
     {
         lock (gate)
-            if (handlers.TryGetValue(id, out var h)) h.Released = true;
+            if (handlers.TryGetValue(id, out var wr) && wr.TryGetTarget(out var h)) h.Released = true;
         lock (queueGate)
         {
             for (var n = queue.First; n != null;)
@@ -119,9 +147,9 @@ public static unsafe class Callbacks
     {
         lock (gate)
         {
-            if (delegates.TryGetValue((h.Id, d), out var del)) return del;
+            if (h.Delegates.TryGetValue(d, out var del)) return del;
             del = Build(h, d);
-            delegates[(h.Id, d)] = del;
+            h.Delegates[d] = del;
             return del;
         }
     }
@@ -261,6 +289,7 @@ public static unsafe class Callbacks
             }
         }
         if (p == null) { w.Add('N', ""); return; }
+        lastTaken = p.Handler;                              // held until this thread's next request (NetNextCall's NetHandlerOf first)
         var args = new Writer();
         foreach (var a in p.Args) Conv.ToRexx(args, a);
         var pair = new Writer();

@@ -30,7 +30,7 @@ try {
     $env:PATH = "$Out;$env:PATH"
     Push-Location $Out
     try {
-        foreach ($t in 'phase1', 'phase2', 'phase3', 'bothways', 'clr', 'eventthread', 'extend', 'extend-gc', 'com') {
+        foreach ($t in 'phase1', 'phase2', 'phase3', 'bothways', 'clr', 'eventthread', 'extend', 'lifetime', 'com') {
             & rexx.exe (Join-Path $here "$t.rex") $testlib
             if ($LASTEXITCODE) { $rc = 1 }
         }
