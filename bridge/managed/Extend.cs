@@ -864,11 +864,13 @@ public static unsafe class Extend
         w.Add('V', "");
     }
 
-    /// Its construction failed: no pair (its handle goes as any proxy's).
+    /// Its construction failed, or its interpreter instance ended: no pair
+    /// (its handle goes as any proxy's). Nothing if its object is gone.
     public static void Abandon(Rec target)
     {
         object o;
-        lock (gate) o = Instance(target);
+        try { lock (gate) o = Instance(target); }
+        catch (BridgeException) { return; }
         if (peers.TryGetValue(o, out var p)) { Callbacks.Release(p.H.Id); Callbacks.Forget(p.H.Id); }
         peers.Remove(o);
     }

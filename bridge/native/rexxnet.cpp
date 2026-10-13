@@ -239,7 +239,12 @@ template <class Ctx> static void findClasses(Ctx *c)
 //    Rexx holds it again: a new sentinel (NETARM), and the pin dropped.
 // The Rexx object has no UNINIT of its own meanwhile (its class's runs once,
 // at the end), and each round has a new sentinel (an object's UNINIT runs
-// only once). received counts the crossings that arrived; peerWeak carries it,
+// only once). When its interpreter instance ends (ooRexx then collects with
+// the program gone, and runs the UNINITs: a .NetInstanceEnd in .local says
+// so, NetInstanceEnding), every pair of that instance is over, as any Rexx
+// object with an UNINIT: those only .NET holds at once, the others when their
+// sentinel's UNINIT runs (endPair: the .NET object, if still alive, then
+// runs its base's implementations). received counts the crossings that arrived; peerWeak carries it,
 // and the managed side ignores it when one is still on its way.
 // No API call is made with tablesLock held: one may run UNINIT methods, on
 // this thread, that need it.
@@ -251,11 +256,21 @@ struct Handler
     RexxObjectPtr pin = NULLOBJECT;
     size_t received = 0, armed = 0, sentinel = 0;   // crossings arrived; when the sentinel was made; its number
     int regs = 0;                                   // (not a pair's) its times to .NET
+    bool ending = false;                            // (a pair's) its instance ends: its UNINIT running
 };
 static std::mutex tablesLock;
 static std::map<int, Handler> handlers;
 static std::atomic<int> nextHandler{1};
 static std::vector<int> deadPeers;                  // pairs over, for drainDead
+// (an instance as its programs' contexts see it: the UNINITs of its end may
+// run with another one)
+static std::vector<RexxInstance *> endingInstances; // instances ending (NetInstanceEnding)
+
+static bool instanceEnding(RexxInstance *i)         // (tablesLock held)
+{
+    for (auto e : endingInstances) if (e == i) return true;
+    return false;
+}
 static std::vector<std::pair<int, int>> goneHandlers;   // handlers .NET can no longer call (id, count seen), for drainDead
 static std::atomic<bool> anyDead{false};
 
@@ -304,7 +319,7 @@ static RexxObjectPtr peerCrossing(RexxThreadContext *c, int id)
         Handler &pe = it->second;
         pe.received++;
         obj = pe.target;
-        if (pe.net) { pe.net = false; pin = pe.pin; pe.pin = NULLOBJECT; }
+        if (pe.net && !pe.ending) { pe.net = false; pin = pe.pin; pe.pin = NULLOBJECT; }
     }
     if (pin != NULLOBJECT)
     {
@@ -750,6 +765,49 @@ RexxRoutine1(RexxObjectPtr, NetHandlerDrop, int, id)
     return NULLOBJECT;
 }
 
+// A pair over because its instance ends: its class's UNINIT (its overrides
+// still reach it meanwhile), then no peer for its .NET object any more (if it
+// is still alive: NETFINAL), its handle, and its entry here.
+static void endPair(RexxThreadContext *c, int id, RexxObjectPtr obj)
+{
+    c->SendMessage0(obj, "NETFINAL");
+    if (c->CheckCondition()) c->ClearCondition();
+    RexxObjectPtr pin = NULLOBJECT;
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        auto it = handlers.find(id);
+        if (it != handlers.end() && it->second.peer) { pin = it->second.pin; handlers.erase(it); }
+    }
+    if (pin != NULLOBJECT) c->ReleaseGlobalReference(pin);
+}
+
+// NetInstanceId(): this instance, for its .NetInstanceEnd.
+RexxRoutine0(RexxStringObject, NetInstanceId)
+{
+    return context->String(std::to_string((uintptr_t)context->threadContext->instance).c_str());
+}
+
+// NetInstanceEnding(instance id): that interpreter instance ends
+// (.NetInstanceEnd's UNINIT): its pairs are over.
+RexxRoutine1(int, NetInstanceEnding, CSTRING, which)
+{
+    RexxThreadContext *c = context->threadContext;
+    RexxInstance *inst = (RexxInstance *)(uintptr_t)strtoull(which, nullptr, 10);
+    std::vector<std::pair<int, RexxObjectPtr>> over;              // id, the Rexx object (pinned)
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        if (!instanceEnding(inst)) endingInstances.push_back(inst);
+        for (auto &h : handlers)
+            if (h.second.peer && h.second.net && !h.second.ending && h.second.inst == inst)
+            {
+                h.second.ending = true;
+                over.push_back({h.first, h.second.target});
+            }
+    }
+    for (auto &p : over) endPair(c, p.first, p.second);
+    return 0;
+}
+
 // NetPeerArm(handler id): a new sentinel's number (Rexx holds the pair's Rexx object).
 RexxRoutine1(size_t, NetPeerArm, int, id)
 {
@@ -770,6 +828,7 @@ RexxRoutine3(CSTRING, NetPeerUninit, RexxObjectPtr, self, int, id, size_t, senti
     RexxObjectPtr pin = c->RequestGlobalReference(self);    // made first (no API call with the lock), dropped if unused
     const char *answer = "";
     size_t received = 0;
+    bool ending = false;
     {
         std::lock_guard<std::mutex> g(tablesLock);
         auto it = handlers.find(id);
@@ -777,11 +836,13 @@ RexxRoutine3(CSTRING, NetPeerUninit, RexxObjectPtr, self, int, id, size_t, senti
         {
             Handler &pe = it->second;
             if (sentinel != pe.sentinel || pe.net) answer = "";
+            else if (instanceEnding(pe.inst)) { ending = true; pe.ending = true; }   // its instance ends: over
             else if (pe.received != pe.armed) answer = "REARM";
             else { pe.pin = pin; pin = NULLOBJECT; pe.net = true; received = pe.received; answer = "KEEP"; }
         }
     }
     if (pin != NULLOBJECT) c->ReleaseGlobalReference(pin);
+    if (ending) endPair(c, id, self);
     if (answer[0] == 'K')
     {
         // .NET to hold its object weakly, unless a crossing is still on its way
@@ -951,6 +1012,8 @@ RexxRoutineEntry rexxnet_routines[] = {
     REXX_TYPED_ROUTINE(NetHandlerDrop, NetHandlerDrop),
     REXX_TYPED_ROUTINE(NetPeerArm, NetPeerArm),
     REXX_TYPED_ROUTINE(NetPeerUninit, NetPeerUninit),
+    REXX_TYPED_ROUTINE(NetInstanceEnding, NetInstanceEnding),
+    REXX_TYPED_ROUTINE(NetInstanceId, NetInstanceId),
     REXX_LAST_ROUTINE() };
 RexxPackageEntry rexxnet_package_entry = {
     STANDARD_PACKAGE_HEADER REXX_INTERPRETER_5_0_0, "rexxnet", "0.1",

@@ -132,6 +132,20 @@ drop c
 call collect
 call ok "... dispatched, then released", .runs .targets, "1 0"
 
+-- 9. the end of the program: the pairs still alive are over, UNINIT once each
+parse source . . me
+cmd = 'rexx "'me~left(me~lastPos(.file~separator))'lifetime-end.rex" "'testlib'"'
+address system cmd with output stem out.
+got = 0; bad = 0
+do i = 1 to out.0
+  if out.i~word(1) == "uninit" then do
+    got += 1
+    parse var out.i . "sq:" v
+    if \datatype(v~strip, "W") | v~strip = 0 then bad += 1
+  end
+end
+call ok "at the end: all 11 pairs over, UNINIT once each, their overrides working", got bad, "11 0"
+
 say
 if .fails = 0 then say "lifetime: all" .count "tests passed"
 else say "lifetime:" .fails "of" .count "tests FAILED"

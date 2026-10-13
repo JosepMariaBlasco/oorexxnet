@@ -100,7 +100,8 @@
  * Each instance is a pair, the Rexx object and its .NET object, which lives
  * while Rexx holds the one or .NET the other: the bridge lets both
  * collectors release it (nothing to do by hand). The class's UNINIT, if it
- * has one, runs once, when the pair is over (the .NET object is gone then).
+ * has one, runs once, when the pair is over: the .NET object is gone, or
+ * the program (the interpreter instance) ends.
  * (The extended .NetType is kept by the Rexx class itself.)
  *
  * Errors: a Rexx error in Rexx code that the .NET code called, which that code lets
@@ -194,6 +195,7 @@ syntax: raise propagate
   netuninit = self~instanceMethod("UNINIT")
   if netuninit == .NetObject~method("UNINIT") then netuninit = .nil
   self~setMethod("UNINIT", "nop")      -- (an object's own UNINIT cannot be removed)
+  if \.local~hasEntry("NET.INSTANCEEND") then .local~"NET.INSTANCEEND" = .NetInstanceEnd~new
   self~netArm
   return
 syntax:
@@ -206,7 +208,7 @@ syntax:
   expose netpeer netsentinel
   netsentinel = .NetPeerSentinel~new(self, netpeer~id, NetPeerArm(netpeer~id))
   return self
-::method netFinal unguarded          -- for the bridge: the pair is over: its class's UNINIT, and the handle
+::method netFinal unguarded          -- for the bridge: the pair is over: its class's UNINIT, its peer, its handle
   expose netuninit netsentinel
   drop netsentinel
   if var("NETUNINIT") then if netuninit \== .nil then do
@@ -216,6 +218,9 @@ syntax:
     self~run:.Object(u)
   end
 syntax:
+  signal on syntax name released       -- (its .NET object may be gone)
+  call NetRequest "extAbandon", self   -- (if it lives on: the instance ends) its base's implementations from now on
+released:
   self~netRelease
 ::method netRelease unguarded external "LIBRARY rexxnet net_uninit"
 ::method "NET.OVERRIDE" unguarded    -- an overridden .NET member called: the Rexx method (.net~extend)
@@ -745,6 +750,16 @@ syntax: raise propagate
 ::method uninit
   expose peer id n
   if NetPeerUninit(peer, id, n) == "REARM" then peer~netArm
+
+/** In .local: its UNINIT runs when the interpreter instance ends, and then
+    the pairs of the instance are over (rexxnet.cpp, "Pairs"). */
+::class NetInstanceEnd
+::method init
+  expose id
+  id = NetInstanceId()
+::method uninit
+  expose id
+  call NetInstanceEnding id
 
 /** An event of a .NET object or type: o~Click += handler, o~Click -= handler. */
 ::class NetEvent public
