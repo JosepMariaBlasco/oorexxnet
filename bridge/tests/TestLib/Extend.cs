@@ -107,3 +107,25 @@ public static class ExtendProbe
         catch (Exception e) { return e.GetType().Name; }
     }
 }
+
+/// For tests/extend-gc.rex: .NET holding instances of Rexx classes alone,
+/// and its collector run.
+public static class GcProbe
+{
+    static readonly List<object> kept = new();
+    static readonly object gate = new();
+    public static void Keep(object o) { lock (gate) kept.Add(o); }
+    public static int Count { get { lock (gate) return kept.Count; } }
+    public static object Take(int i) { lock (gate) return kept[i]; }
+    public static void Clear() { lock (gate) kept.Clear(); }
+    /// Report() of each one kept: their overrides, called by .NET.
+    public static string Reports() { lock (gate) return string.Join(",", kept.OfType<Shape>().Select(s => s.Report())); }
+    /// The same from another thread (not a Rexx thread).
+    public static string ReportsElsewhere() => Task.Run(Reports).Result;
+    public static void Collect()
+    {
+        for (int i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
+    }
+    /// Keeps them one at a time from another thread, while Rexx runs.
+    public static void KeepLater(object o, int ms) => Task.Run(async () => { await Task.Delay(ms); Keep(o); });
+}

@@ -258,7 +258,7 @@ public sealed unsafe partial class RexxInterpreter
                 (nint)(delegate* unmanaged<nint, byte*, int, int*, byte*>)&Bridge.Request,
                 (nint)(delegate* unmanaged<byte*, void>)&Bridge.Free,
                 (nint)(delegate* unmanaged<int, void>)&Bridge.Release,
-                (nint)(delegate* unmanaged<nint, nint, void>)&Bridge.Init,
+                (nint)(delegate* unmanaged<nint, nint, nint, void>)&Bridge.Init,
                 (nint)(delegate* unmanaged<nint, nint, nint, nint, void>)&Bridge.Classes);
             if (!Callbacks.Started) return;          // rexxnet had started a runtime of its own first
             c.RegisterLibrary("rexxnet", ((delegate* unmanaged<nint>)getPackage)());

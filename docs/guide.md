@@ -613,9 +613,11 @@ a bb ccc dddd
 
 An abstract member with no method throws `NotImplementedException` when .NET
 calls it; an override's Rexx error is a `RexxException` in .NET, and raised
-again as it was if it comes back to Rexx. The .NET object and your object
-keep each other alive: `.net~detach(o)` ends the link (.NET's calls then go
-to the base's implementations, and `o` can be collected). An interface's
+again as it was if it comes back to Rexx. Each instance is a pair, your
+object and its .NET object, that lives while Rexx holds the one or .NET the
+other: the bridge lets both garbage collectors release it, with nothing to
+do by hand, and your class's `UNINIT`, if it has one, runs once, when the
+pair is over (its .NET object is gone by then). An interface's
 event (`INotifyPropertyChanged.PropertyChanged`, what WPF's binding listens
 to) is an event of the new type: .NET code and Rexx (`o~PropertyChanged +=
 handler`) subscribe to it, and the object's own methods raise it with

@@ -1290,18 +1290,16 @@ new type as a `.NetType`, shown as `MYCLASS extending base`.
   superclass's methods with `:super`, as usual. `base.Name` stays.
   tests/extend.rex 69 (`SquareS`: the same tests as `Square` with
   `:super`).
-- **Lifetime.** The .NET object holds its Rexx object (the handler's
-  global reference) and the Rexx object holds its .NET object (the handle):
-  both live until `.net~detach(o)`, which ends the link: the overrides run
-  the base's implementations again (abstract ones throw), the instance
-  comes back from .NET as a plain `.NetObject`, and `o` can be collected.
-  As handlers, which are pinned until `~release`.
+- **Lifetime.** (As first built: the .NET object held its Rexx object, the
+  handler's global reference, and the Rexx object its .NET object, the
+  handle, until `.net~detach(o)`.) Now the two collectors release each
+  pair, and `.net~detach` is gone: see "The pairs' lifetime" below.
 
 Implementation: `managed/Extend.cs` (Reflection.Emit: a dynamic assembly
 `Rexx.Net.Extended`, one type per class; overrides call
 `Extend.Dispatch(this, slot, args)`, which answers a sentinel when there is
 no peer, and then the override calls the base or throws; interface members
-as explicit implementations); `net.cls` (`.net~extend`, `.net~detach`,
+as explicit implementations); `net.cls` (`.net~extend`,
 `NetObject~init`'s construction, the private methods);
 `native/rexxnet.cpp` (record `p`).
 
@@ -1454,3 +1452,75 @@ porting table is in that folder's README). Decisions and traps found:
   its Paint; the ports draw with System.Drawing (Graphics, Pen, Font) rather
   than an emulation of ooDialog's GDI methods, which would teach nothing
   about .NET.
+
+## The pairs' lifetime: the collectors decide (13/10/2026)
+
+Asked for: no bridge should need the programmer to break the link between
+an instance of a Rexx class extending a class of the other side and its
+object there (`.net~detach`): a public class may be used by programs that
+cannot know when to do it. ooRexx/WASM did it first (`.js~detach` gone, the
+same day); this is the same scheme, and `.net~detach` is gone too.
+
+**The cycle.** It is per instance, not between the classes: the Rexx object
+held its .NET object (its handle, in `Handles`), and the .NET object held
+the Rexx object (its peer handler, a global reference in `rexxnet`, plus
+net.cls's own table of peers). Each collector saw only its half.
+
+**The scheme.** A pair lives while Rexx holds the Rexx object or .NET holds
+the .NET object, and the link that keeps the other half alive points one way
+at a time:
+
+- **Rexx holds the Rexx object.** It holds its .NET object (the handle);
+  `rexxnet` knows the Rexx object (its peer handler's entry, option `peer`)
+  without holding it.
+- **Rexx no longer holds it.** A sentinel says so: a `.NetPeerSentinel`,
+  which only the Rexx object holds and which holds it, so its `UNINIT` runs
+  when the Rexx object could go (a new one each round: an object's `UNINIT`
+  runs only once). `rexxnet` then holds the Rexx object (a global
+  reference) and asks the managed side (`peerWeak`) to hold the .NET object
+  weakly: its handle holds it through a `WeakReference`, and a finalizable
+  companion tied to it by a `ConditionalWeakTable` tells `rexxnet` when
+  .NET collects it. Then the pair is over: with the next request (any Rexx
+  thread) the class's `UNINIT` runs, the handle is released and the global
+  reference dropped. From the finalizer thread nothing calls the ooRexx
+  API: it only queues the pair.
+- **It goes to Rexx again** (record `p`, or an override's call: a
+  crossing). The managed side holds the object again, and `rexxnet` lets
+  the Rexx object go, with a new sentinel.
+
+The Rexx object has no `UNINIT` of its own meanwhile (net.cls replaces it
+with an empty one when the instance is made, and keeps the class's): the
+class's `UNINIT` runs once, when the pair is over.
+
+**Races.** Both sides count crossings: the managed side those it sends,
+`rexxnet` those that arrive; `peerWeak` carries the latter, and is ignored
+while one is still on its way (that one makes `rexxnet` let go of the Rexx
+object again). A crossing that never reaches Rexx is taken back: an answer
+replaced by an error (`Bridge.Handle`), a callback that found no
+interpreter (answered `X` "u"); if it had made the object held again, it is
+weak again. No ooRexx API call is made with a lock of the bridge held, on
+either side: an API call may run `UNINIT` methods on the same thread.
+
+**Other changes.** The `.NetType` that `.net~extend` makes is kept by the
+Rexx class itself (`cls~netExtension`), not in a table of `.net`'s, which
+held every extended class. A failed construction leaves no pair
+(`extAbandon`): its handle goes as any proxy's.
+
+**Not changed (yet).** `.net~handler`s stay pinned until `~release` (also
+the delegates made for them); the managed side's table of extended types
+and its dynamic assembly (`AssemblyBuilderAccess.Run`) keep every extended
+.NET type for good, so a Rexx class made at run time and extended is not
+collected. At the end of the program, ooRexx runs every pending `UNINIT`,
+but a pair still alive then is not over: its class's `UNINIT` does not run
+(as in ooRexx/WASM). A .NET application hosting ooRexx that hands such an
+instance to Rexx (`RexxObject`) gives a new plain `.NetObject` for it, as
+before.
+
+Tests: `tests/extend-gc.rex` 19, forcing both collectors (garbage for
+Rexx's, `GC.Collect` for .NET's: `TestLib`'s `GcProbe`): pairs dropped by
+both sides are released, their `UNINIT` once each, their handles too; held
+by .NET alone they live and .NET calls their overrides (also from a thread
+of its own); held by Rexx alone; taken back by Rexx; a class with no
+`UNINIT`; five rounds between the sides; four Rexx threads moving 300
+objects back and forth while both collectors run, all released at the end.
+`tests/extend.rex` 66 (its three `.net~detach` tests gone).

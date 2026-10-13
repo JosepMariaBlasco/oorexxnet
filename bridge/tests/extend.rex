@@ -131,13 +131,7 @@ lam = E~Lambda(E~Constant(.net~int32(42)))
 r = v~Visit(lam)
 call ok "ExpressionVisitor.VisitLambda<T>", v~seen (r == lam) r~Compile~DynamicInvoke, "System.Func<System.Int32> 1 42"
 
--- .net~detach: no more calls into Rexx; virtual members are the base's again
-d = .Square~new(5)
-.net~detach(d)
-call ok "detached: base Describe",   probe~Fail(d), "NotImplementedException"
-call ok "detached: back from .NET is a plain proxy", probe~Same(d)~class~id, "NETOBJECT"
-call ok "detached: the same object", probe~Same(d) == d, 1
-.net~detach(d)                       -- twice: nothing
+-- (the lifetime of the instances, released by the two collectors: tests/extend-gc.rex)
 
 -- errors of .net~extend
 call err "not a NetObject subclass", ".net~extend(.Plain, 'RexxNetTests.Shape')", "must be a subclass of NetObject"

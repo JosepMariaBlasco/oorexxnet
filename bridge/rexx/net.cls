@@ -97,8 +97,11 @@
  * parameter by reference (ref, out) comes as a Rexx.Net.ComRef: ref~Value
  * = x gives the caller a new value. An
  * abstract member with no method throws NotImplementedException.
- * .net~detach(o) ends the link: .NET's calls go to the base's
- * implementations again, and o can be collected.
+ * Each instance is a pair, the Rexx object and its .NET object, which lives
+ * while Rexx holds the one or .NET the other: the bridge lets both
+ * collectors release it (nothing to do by hand). The class's UNINIT, if it
+ * has one, runs once, when the pair is over (the .NET object is gone then).
+ * (The extended .NetType is kept by the Rexx class itself.)
  *
  * Errors: a Rexx error in Rexx code that the .NET code called, which that code lets
  * through, is raised again here as it was.
@@ -177,17 +180,42 @@
   return
 syntax: raise propagate
 ::method construct private          -- .MyClass~new(args), MyClass extending a .NET class
-  expose netid netdisplay
+  expose netid netdisplay netpeer netuninit
   use arg type, args
   signal on syntax
-  h = .NetHandler~new(self, "NET.OVERRIDE")
-  parse value NetRequest("extAlloc", type, h) with netid "09"x netdisplay
-  .net~extendedPeer(self, h)
+  netpeer = .NetHandler~new(self, "NET.OVERRIDE")
+  netpeer~netPeer                      -- not kept by the bridge: see "Lifetime" in managed/Extend.cs
+  parse value NetRequest("extAlloc", type, netpeer) with netid "09"x netdisplay
   call NetRequest "extInit", self, args  -- its virtual members already reach this object
+  -- a pair: its class's UNINIT runs when the pair is over (netFinal), not
+  -- when Rexx no longer holds the object (a sentinel tells the bridge that)
+  netuninit = self~instanceMethod("UNINIT")
+  if netuninit == .NetObject~method("UNINIT") then netuninit = .nil
+  self~setMethod("UNINIT", "nop")      -- (an object's own UNINIT cannot be removed)
+  self~netArm
   return
 syntax:
-  if var("NETID") then .net~detach(self)
+  if var("NETID") then do              -- no pair: its handle goes as any proxy's
+    call NetRequest "extAbandon", self
+    call NetHandlerDrop netpeer~id
+  end
   raise propagate
+::method netArm unguarded            -- for the bridge: a new sentinel for a pair's Rexx object (Rexx holds it)
+  expose netpeer netsentinel
+  netsentinel = .NetPeerSentinel~new(self, netpeer~id, NetPeerArm(netpeer~id))
+  return self
+::method netFinal unguarded          -- for the bridge: the pair is over: its class's UNINIT, and the handle
+  expose netuninit netsentinel
+  drop netsentinel
+  if var("NETUNINIT") then if netuninit \== .nil then do
+    u = netuninit
+    drop netuninit
+    signal on syntax
+    self~run:.Object(u)
+  end
+syntax:
+  self~netRelease
+::method netRelease unguarded external "LIBRARY rexxnet net_uninit"
 ::method "NET.OVERRIDE" unguarded    -- an overridden .NET member called: the Rexx method (.net~extend)
   use arg name
   forward to (self) message (name) arguments (arg(2, "A"))
@@ -255,6 +283,13 @@ syntax: raise propagate
 syntax: raise propagate
 ::method unknown unguarded           external "LIBRARY rexxnet net_unknown"
 ::method uninit unguarded            external "LIBRARY rexxnet net_uninit"
+::method netExtension class unguarded  -- the .NetType this class extends (.net~extend), or .nil
+  expose netextension                    -- (kept in the class itself: nothing else holds the class)
+  if var("NETEXTENSION") then return netextension
+  return .nil
+::method "NETEXTENSION=" class unguarded
+  expose netextension
+  use strict arg netextension
 -- Rexx's Object methods whose names .NET uses often: the .NET member wins.
 ::method start unguarded
   if NetRequest("has", self, "START") then forward message "UNKNOWN" arguments (.array~of("START", arg(1, "A")))
@@ -405,19 +440,13 @@ syntax: raise propagate
 
 /** .net: the root namespace and the bridge's helpers. */
 ::class NetGlobal public subclass NetNamespace
-::method init
-  expose extended peers
-  extended = .IdentityTable~new        -- Rexx class -> the .NetType made for it (.net~extend)
-  peers = .IdentityTable~new           -- instance -> its peer .NetHandler (until .net~detach)
-  forward class (super)
 ::method extend unguarded            -- .net~extend(class, base type or interface [, interfaces...]): see the header
-  expose extended
   signal on syntax
   if arg() < 2 then raise syntax 93.903 array(2)
   use arg cls
   if \cls~isA(.Class) then raise syntax 98.900 array(".net~extend: the first argument must be a Rexx class, found" cls)
   if \cls~isSubclassOf(.NetObject) then raise syntax 98.900 array(".net~extend:" cls~id "must be a subclass of NetObject")
-  if extended~hasIndex(cls) then raise syntax 98.900 array(".net~extend:" cls~id "already extends" extended[cls])
+  if cls~netExtension \== .nil then raise syntax 98.900 array(".net~extend:" cls~id "already extends" cls~netExtension)
   types = arg(2, "A")
   do t over types
     if \t~isA(.NetType) & \t~isA(.String) then raise syntax 98.900 array(".net~extend: a type must be a .NetType or a name, found" t)
@@ -454,7 +483,7 @@ syntax: raise propagate
     self~forwarder(base, name, "extBase", name)
   end
   cls~inherit(base)
-  extended[cls] = r[1]
+  cls~netExtension = r[1]
   return r[1]
 syntax: raise propagate
 ::method forwarder private
@@ -467,29 +496,14 @@ syntax: raise propagate
   m~setUnguarded
   cls~define(name, m)
 ::method extendedType unguarded      -- the .NetType a Rexx class (or its nearest superclass) extends, or .nil
-  expose extended
   use strict arg cls
   c = cls
   do while c \== .NetObject & c \== .Object
-    t = extended[c]
+    t = c~netExtension
     if t \== .nil then return t
     c = c~superClass
   end
   return .nil
-::method extendedPeer unguarded       -- (instance, handler), from NetObject~init: remembered until .net~detach
-  expose peers
-  use strict arg o, h
-  peers[o] = h
-::method detach unguarded            -- .net~detach(o): o's .NET object no longer calls o's methods (see the header)
-  expose peers
-  signal on syntax
-  use strict arg o
-  h = peers~remove(o)
-  if h == .nil then return
-  call NetRequest "extDetach", o
-  h~release
-  return
-syntax: raise propagate
 ::method makeString unguarded
   return "the .NET root namespace (.net)"
 ::method string unguarded            -- .net~string(x): x forced to System.String
@@ -706,6 +720,9 @@ syntax: raise propagate
   if wordPos("latest", opts) > 0 & wordPos("queued", opts) = 0 then opts = opts "queued"
   options = opts~strip
   id = NetHandlerNew()
+::method netPeer unguarded           -- for the bridge: a pair's peer handler (rexxnet.cpp, "Pairs": not kept)
+  expose options
+  options = "peer"
 ::method release unguarded           -- no more calls from .NET (queued ones are dropped)
   expose id released
   released = .true
@@ -715,6 +732,17 @@ syntax: raise propagate
   expose target message options
   if options == "" then return "a NetHandler ("target"~"message")"
   return "a NetHandler ("target"~"message", "options")"
+
+/** A pair's sentinel: only its Rexx object holds it, and it holds the Rexx
+    object, so that its UNINIT runs when Rexx no longer holds the Rexx
+    object (rexxnet.cpp, "Pairs"); a new one each round. */
+::class NetPeerSentinel
+::method init
+  expose peer id n
+  use strict arg peer, id, n
+::method uninit
+  expose peer id n
+  if NetPeerUninit(peer, id, n) == "REARM" then peer~netArm
 
 /** An event of a .NET object or type: o~Click += handler, o~Click -= handler. */
 ::class NetEvent public

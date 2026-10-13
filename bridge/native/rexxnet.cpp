@@ -102,7 +102,7 @@ static void rexxThreadApartment() {}
 typedef unsigned char *(CORECLR_DELEGATE_CALLTYPE *request_fn)(RexxThreadContext *, const unsigned char *, int, int *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *free_fn)(unsigned char *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *release_fn)(int);
-typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *);
+typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *, void *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
 
 static request_fn mRequest;
@@ -115,6 +115,7 @@ static RexxInstance *instance;          // for AttachThread (set on the first re
 
 static unsigned char *rexxCallback(int handler, int flags, const unsigned char *req, int len, int *outLen);
 static void nativeFree(unsigned char *p) { free(p); }
+static void peerDead(int id);
 
 static void loadClr()
 {
@@ -167,7 +168,7 @@ static void loadClr()
     };
     if (!getAll() && (loadAssembly(assembly.c_str(), nullptr, nullptr) != 0 || !getAll()))
     { loadError = "cannot load Rexx.Net.dll (next to rexxnet?)"; mRequest = nullptr; return; }
-    mInit((void *)rexxCallback, (void *)nativeFree);
+    mInit((void *)rexxCallback, (void *)nativeFree, (void *)peerDead);
 }
 
 // Host mode (a .NET application hosting ooRexx through Rexx.Net): the managed
@@ -186,7 +187,7 @@ REXXNET_EXPORT void RexxNetRegister(void *request, void *freeFn, void *release, 
     std::call_once(clrOnce, [=] {
         mRequest = (request_fn)request; mFree = (free_fn)freeFn; mRelease = (release_fn)release;
         mClasses = (classes_fn)classes;
-        ((init_fn)init)((void *)rexxCallback, (void *)nativeFree);
+        ((init_fn)init)((void *)rexxCallback, (void *)nativeFree, (void *)peerDead);
     });
 }
 
@@ -212,12 +213,44 @@ template <class Ctx> static void findClasses(Ctx *c)
 
 // The .NetHandlers that have gone to .NET, by id: kept (global references)
 // until handler~release.
-struct Handler { RexxObjectPtr handler, target; std::string message; RexxInstance *inst; };
+//
+// Pairs. The peer handler of an instance of a Rexx class extending a .NET
+// class (option "peer": its target is the instance's Rexx object, which holds
+// it) is not kept: the pair, its Rexx object and its .NET object, lives while
+// Rexx holds the one or .NET the other, and the link that keeps the other half
+// alive points one way at a time (managed/Extend.cs, Lifetime):
+//  - Rexx holds the Rexx object: it holds its .NET object (its handle), and
+//    here the Rexx object is known (target) but not held;
+//  - when Rexx no longer holds it, its sentinel says so (NetPeerUninit: a
+//    .NetPeerSentinel, which only the Rexx object holds and which holds it,
+//    so that its UNINIT runs when the Rexx object could go): it is held here
+//    (pin), and .NET holds its object weakly (peerWeak): .NET's collector
+//    decides. If it collects it (peerDead, on its finalizer thread: no API
+//    call), the pair is over: with the next request (drainDead) the class's
+//    UNINIT runs (NETFINAL), the handle is released and the pin dropped. If
+//    the object goes to Rexx again (p, or an override's call: a crossing),
+//    Rexx holds it again: a new sentinel (NETARM), and the pin dropped.
+// The Rexx object has no UNINIT of its own meanwhile (its class's runs once,
+// at the end), and each round has a new sentinel (an object's UNINIT runs
+// only once). received counts the crossings that arrived; peerWeak carries it,
+// and the managed side ignores it when one is still on its way.
+// No API call is made with tablesLock held: one may run UNINIT methods, on
+// this thread, that need it.
+struct Handler
+{
+    RexxObjectPtr handler, target; std::string message; RexxInstance *inst;
+    bool peer = false;                              // a pair's (not held: see above)
+    bool net = false;                               // only .NET holds the pair (pin holds the Rexx object)
+    RexxObjectPtr pin = NULLOBJECT;
+    size_t received = 0, armed = 0, sentinel = 0;   // crossings arrived; when the sentinel was made; its number
+};
 static std::mutex tablesLock;
 static std::map<int, Handler> handlers;
 static std::atomic<int> nextHandler{1};
+static std::vector<int> deadPeers;                  // pairs over, for drainDead
+static std::atomic<bool> anyDead{false};
 
-static void registerHandler(RexxThreadContext *c, int id, RexxObjectPtr h)
+static void registerHandler(RexxThreadContext *c, int id, RexxObjectPtr h, bool peer)
 {
     {
         std::lock_guard<std::mutex> g(tablesLock);
@@ -225,9 +258,68 @@ static void registerHandler(RexxThreadContext *c, int id, RexxObjectPtr h)
     }
     RexxObjectPtr target = c->SendMessage0(h, "TARGET");
     std::string message = c->ObjectToStringValue(c->SendMessage0(h, "MESSAGE"));
-    Handler e{c->RequestGlobalReference(h), c->RequestGlobalReference(target), message, c->instance};
+    Handler e{peer ? h : c->RequestGlobalReference(h), peer ? target : c->RequestGlobalReference(target), message, c->instance};
+    e.peer = peer;
     std::lock_guard<std::mutex> g(tablesLock);
-    if (!handlers.emplace(id, e).second) { c->ReleaseGlobalReference(e.handler); c->ReleaseGlobalReference(e.target); }
+    if (!handlers.emplace(id, e).second && !peer) { c->ReleaseGlobalReference(e.handler); c->ReleaseGlobalReference(e.target); }
+}
+
+// A pair's .NET object goes to Rexx (p, or an override's call): its Rexx
+// object, held by Rexx again; NULLOBJECT if id is no pair (any more).
+static RexxObjectPtr peerCrossing(RexxThreadContext *c, int id)
+{
+    RexxObjectPtr obj, pin = NULLOBJECT;
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        auto it = handlers.find(id);
+        if (it == handlers.end() || !it->second.peer) return NULLOBJECT;
+        Handler &pe = it->second;
+        pe.received++;
+        obj = pe.target;
+        if (pe.net) { pe.net = false; pin = pe.pin; pe.pin = NULLOBJECT; }
+    }
+    if (pin != NULLOBJECT)
+    {
+        // a new sentinel (NETARM answers the object: a local reference of
+        // this call) before the pin goes
+        RexxObjectPtr o = c->SendMessage0(obj, "NETARM");
+        if (c->CheckCondition()) c->ClearCondition();
+        if (o != NULLOBJECT) obj = o;
+        c->ReleaseGlobalReference(pin);
+    }
+    return obj;
+}
+
+// .NET collected a pair's object (its finalizer thread): over, for drainDead.
+static void peerDead(int id)
+{
+    std::lock_guard<std::mutex> g(tablesLock);
+    deadPeers.push_back(id);
+    anyDead = true;
+}
+
+// The pairs that are over: their class's UNINIT, their handle, their pin.
+static void drainDead(RexxThreadContext *c)
+{
+    if (!anyDead.exchange(false)) return;
+    std::vector<std::pair<RexxObjectPtr, RexxObjectPtr>> over;    // the Rexx object, its pin
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        for (int id : deadPeers)
+        {
+            auto it = handlers.find(id);
+            if (it == handlers.end() || !it->second.peer || !it->second.net) continue;
+            over.push_back({it->second.target, it->second.pin});
+            handlers.erase(it);
+        }
+        deadPeers.clear();
+    }
+    for (auto &p : over)
+    {
+        c->SendMessage0(p.first, "NETFINAL");
+        if (c->CheckCondition()) c->ClearCondition();
+        c->ReleaseGlobalReference(p.second);
+    }
 }
 
 // Rexx conditions that ended a callback, kept so that if they come back out
@@ -273,7 +365,7 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
         int id = atoi(c->ObjectToStringValue(c->SendMessage0(o, "ID")));
         std::string options = c->ObjectToStringValue(c->SendMessage0(o, "OPTIONS"));
         if (c->SendMessage0(o, "RELEASED") == c->True()) options += " released";   // still its delegate, for -=
-        else registerHandler(c, id, o);
+        else registerHandler(c, id, o, options == "peer");
         record(out, 'H', std::to_string(id) + '\t' + options);
         return true;
     }
@@ -413,9 +505,8 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             return NULLOBJECT;
         case 'p':                                   // an instance of a Rexx class extending a .NET class: its Rexx object
         {
-            std::lock_guard<std::mutex> g(tablesLock);
-            auto it = handlers.find(atoi(payload.c_str()));
-            return it == handlers.end() ? c->Nil() : it->second.target;
+            RexxObjectPtr o = peerCrossing(c, atoi(payload.c_str()));
+            return o == NULLOBJECT ? c->Nil() : o;
         }
         case 'e':                                   // a .NetEvent: its owner and name
         {
@@ -491,6 +582,7 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
     static thread_local bool entered = false;
     if (!entered) { entered = true; rexxThreadApartment(); }
     std::call_once(clrOnce, loadClr);
+    drainDead(c);
     if (!mRequest)
     {
         c->RaiseException1(Rexx_Error_Execution_user_defined, c->String((".NET: " + loadError).c_str()));
@@ -612,9 +704,54 @@ RexxRoutine1(RexxObjectPtr, NetHandlerDrop, int, id)
         e = it->second;
         handlers.erase(it);
     }
+    if (e.peer) { if (e.pin) context->ReleaseGlobalReference(e.pin); return NULLOBJECT; }
     context->ReleaseGlobalReference(e.handler);
     context->ReleaseGlobalReference(e.target);
     return NULLOBJECT;
+}
+
+// NetPeerArm(handler id): a new sentinel's number (Rexx holds the pair's Rexx object).
+RexxRoutine1(size_t, NetPeerArm, int, id)
+{
+    std::lock_guard<std::mutex> g(tablesLock);
+    auto it = handlers.find(id);
+    if (it == handlers.end() || !it->second.peer) return 0;
+    it->second.armed = it->second.received;
+    return ++it->second.sentinel;
+}
+
+// NetPeerUninit(object, handler id, sentinel): the sentinel's UNINIT, run when
+// Rexx no longer held the object. "KEEP": now only .NET holds it (pinned here,
+// weak there); "REARM": a crossing came meanwhile, so Rexx may hold it: a new
+// sentinel; "" for an old sentinel, or no pair.
+RexxRoutine3(CSTRING, NetPeerUninit, RexxObjectPtr, self, int, id, size_t, sentinel)
+{
+    RexxThreadContext *c = context->threadContext;
+    RexxObjectPtr pin = c->RequestGlobalReference(self);    // made first (no API call with the lock), dropped if unused
+    const char *answer = "";
+    size_t received = 0;
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        auto it = handlers.find(id);
+        if (it != handlers.end() && it->second.peer)
+        {
+            Handler &pe = it->second;
+            if (sentinel != pe.sentinel || pe.net) answer = "";
+            else if (pe.received != pe.armed) answer = "REARM";
+            else { pe.pin = pin; pin = NULLOBJECT; pe.net = true; received = pe.received; answer = "KEEP"; }
+        }
+    }
+    if (pin != NULLOBJECT) c->ReleaseGlobalReference(pin);
+    if (answer[0] == 'K')
+    {
+        // .NET to hold its object weakly, unless a crossing is still on its way
+        std::string req;
+        record(req, 'S', "peerWeak");
+        if (encode(c, self, req)) { record(req, 'S', std::to_string(received)); request(c, req); }
+        if (c->CheckCondition()) c->ClearCondition();
+    }
+    drainDead(c);
+    return answer;
 }
 
 static unsigned char *answer(const std::string &r, int *outLen)
@@ -739,7 +876,14 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
     }
     RexxThreadContext *tc = nullptr;
     RexxInstance *in = h.inst ? h.inst : instance;
-    if (!h.target || !in || !in->AttachThread(&tc)) return answer("X0:", outLen);
+    if (!h.target || !in || !in->AttachThread(&tc)) return answer("X1:u", outLen);   // u: it never reached Rexx
+    drainDead(tc);
+    if (h.peer)                                     // an override: a crossing (its Rexx object held by Rexx again)
+    {
+        RexxObjectPtr o = peerCrossing(tc, id);
+        if (o == NULLOBJECT) { tc->DetachThread(); return answer("X1:u", outLen); }
+        h.target = o;
+    }
     std::string out;
     char tag; std::string payload;
     parseRecord(req, (size_t)len, 0, tag, payload);
@@ -765,6 +909,8 @@ RexxRoutineEntry rexxnet_routines[] = {
     REXX_TYPED_ROUTINE(NetHandlerNew, NetHandlerNew),
     REXX_TYPED_ROUTINE(NetHandlerOf, NetHandlerOf),
     REXX_TYPED_ROUTINE(NetHandlerDrop, NetHandlerDrop),
+    REXX_TYPED_ROUTINE(NetPeerArm, NetPeerArm),
+    REXX_TYPED_ROUTINE(NetPeerUninit, NetPeerUninit),
     REXX_LAST_ROUTINE() };
 RexxPackageEntry rexxnet_package_entry = {
     STANDARD_PACKAGE_HEADER REXX_INTERPRETER_5_0_0, "rexxnet", "0.1",

@@ -43,8 +43,8 @@
 //   stopLoops                                          -> V (.net~stopEventLoop)
 //   releaseHandler S id                                -> V
 //   queued                                             -> S calls waiting in the queue
-//   extend, extAlloc, extInit, extMember, extBase, extDetach: Rexx classes
-//            extending .NET classes (Extend.cs)
+//   extend, extAlloc, extInit, extMember, extBase, extAbandon, extRaise,
+//            peerWeak: Rexx classes extending .NET classes (Extend.cs)
 // A send whose member is an event (o~Click) answers e "id\tkind\tdisplay\tname"
 // (the target's handle, for a .NetEvent). An exception whose chain holds a
 // RexxException from a Rexx callback answers C "conditionId\tmessage":
@@ -93,9 +93,14 @@ public static unsafe class Bridge
     [UnmanagedCallersOnly]
     public static void Release(int id) => Handles.Release(id);
 
-    /// rexxnet's callback (a Rexx handler's call) and its free.
+    /// rexxnet's callback (a Rexx handler's call), its free, and what tells
+    /// it that a pair is over (Extend.cs, Lifetime).
     [UnmanagedCallersOnly]
-    public static void Init(IntPtr callback, IntPtr free) => Callbacks.Init(callback, free);
+    public static void Init(IntPtr callback, IntPtr free, IntPtr dead)
+    {
+        Callbacks.Init(callback, free);
+        Extend.SetDead(dead);
+    }
 
     /// net.cls's NetObject and NetType classes (global references), from
     /// rexxnet or from a host that loaded net.cls: a .NetObject that reaches
@@ -113,14 +118,17 @@ public static unsafe class Bridge
     public static byte[] Handle(ReadOnlySpan<byte> request)
     {
         var w = new Writer();
+        int mark = Extend.Mark();                           // the instances this answer takes to Rexx (crossings)
         try
         {
             var r = Wire.Parse(request);
             Dispatch(r[0].Text, r, w);
             if (ComEvents.TakePending() is Exception pe) throw pe;   // a COM event's handler failed meanwhile
+            Extend.Commit(mark);
         }
         catch (Exception e)
         {
+            Extend.Rollback(mark);                          // that answer is not sent
             ComEvents.TakePending();
             if (Callbacks.RexxCause(e) is RexxException re)       // a Rexx error in a callback: raise it again
             {
@@ -239,7 +247,8 @@ public static unsafe class Bridge
             case "extInit": Extend.Init(r[1], r[2].Items, w); break;
             case "extMember": Extend.Member(r[1], r[2].Text, r[3].Items, w); break;
             case "extBase": Extend.Base(r[1], r[2].Text, r[3].Items, w); break;
-            case "extDetach": Extend.Detach(r[1]); w.Add('V', ""); break;
+            case "extAbandon": Extend.Abandon(r[1]); w.Add('V', ""); break;
+            case "peerWeak": Extend.Weaken(r[1], long.Parse(r[2].Text), w); break;
             case "extRaise": Extend.Raise(r[1], r[2].Text, r[3].Items, w); break;
             default: throw new BridgeException("unknown operation " + op);
         }

@@ -10,8 +10,8 @@
 // through the callbacks' machinery (Callbacks.Call: a RexxHandler whose
 // object is the peer and whose message is NET.OVERRIDE, which forwards to the
 // method). An abstract member with no Rexx method throws
-// NotImplementedException. A virtual member whose peer is gone (.net~detach)
-// runs the base implementation again. A generic method's override is
+// NotImplementedException. A virtual member whose peer is gone (the pair is
+// over: see Lifetime) runs the base implementation again. A generic method's override is
 // generic too (the base's type parameters and constraints); the Rexx method
 // gets its type arguments after its arguments, as NetTypes.
 //
@@ -28,6 +28,25 @@
 // implementation of an overridden member, non-virtually, through a private
 // trampoline that the type has for each.
 //
+// Lifetime. An instance is a pair, its Rexx object and its .NET object, which
+// lives while Rexx holds the one or .NET the other. Neither collector sees
+// both halves, so the link that keeps the other half alive points one way at
+// a time (rexxnet.cpp, "Pairs", has the Rexx side):
+//  - while Rexx holds the Rexx object, it holds its .NET object (its handle);
+//    rexxnet knows the Rexx object without holding it;
+//  - when Rexx no longer holds it (the UNINIT of a sentinel that only the
+//    Rexx object holds), rexxnet holds it (a global reference) and asks for
+//    the .NET object to be held weakly (peerWeak): the handle holds it weakly,
+//    and a finalizable Companion tied to it (a ConditionalWeakTable) tells
+//    rexxnet when .NET collects it (Dead): the pair is over;
+//  - when it goes to Rexx again (record p, or an override's call: a
+//    crossing), it is held again (Cross), and rexxnet lets the Rexx object
+//    go, with a new sentinel.
+// Sent counts the crossings; peerWeak carries those rexxnet received, and is
+// ignored when one is still on its way. A crossing that never reached Rexx
+// (its response dropped for an error, a callback that found no interpreter)
+// is taken back (Rollback), and the object is weak again if it was.
+//
 // Operations (Bridge.Dispatch):
 //   extend    S class name, A [S name | O type]..., A [S Rexx method names]
 //             -> A [O the new type, A protected member names, A base. names, A raise. names]
@@ -35,7 +54,8 @@
 //   extInit   O object, A args         -> V (its constructor, chosen by the args)
 //   extMember O object, S name, A args -> the result ("Name=": a set)
 //   extBase   O object, S name, A args -> the result
-//   extDetach O object                 -> V
+//   extAbandon O object                -> V (its construction failed: no pair)
+//   peerWeak  O object, S crossings    -> S 1 (held weakly now) / 0 (a crossing on its way)
 //   extRaise  O object, S event, A args -> V (raise.Name: an interface's event raised)
 using System;
 using System.Collections.Generic;
@@ -48,7 +68,7 @@ using System.Threading;
 
 namespace Rexx.Net;
 
-public static class Extend
+public static unsafe class Extend
 {
     /// What Dispatch answers when there is no Rexx peer to call (the
     /// override then runs the base implementation, or throws).
@@ -68,7 +88,111 @@ public static class Extend
     static readonly object gate = new();
     static readonly List<Slot> slots = new();
     static readonly Dictionary<Type, Info> types = new();
-    static readonly ConditionalWeakTable<object, RexxHandler> peers = new();
+    static readonly ConditionalWeakTable<object, Peer> peers = new();
+
+    /// An instance's pair state (see Lifetime above).
+    sealed class Peer
+    {
+        public readonly RexxHandler H;
+        public int Handle;                                  // its handle (the Rexx object's netId)
+        public long Sent;                                   // crossings to Rexx
+        public long WeakAt = -1;                            // Sent when made weak; -1: held
+        public Companion? C;
+        public Peer(RexxHandler h) { H = h; }
+    }
+
+    /// Tied to a weakly held instance: finalized when .NET collects it.
+    sealed class Companion
+    {
+        public readonly int Id;
+        public volatile bool Cancelled;
+        public Companion(int id) { Id = id; }
+        ~Companion() { if (!Cancelled) Dead(Id); }
+    }
+
+    static readonly ConditionalWeakTable<object, Companion> companions = new();
+    static readonly object pairGate = new();
+    static delegate* unmanaged<int, void> nativeDead;       // rexxnet: a pair is over (no API call there)
+
+    internal static void SetDead(IntPtr f) => nativeDead = (delegate* unmanaged<int, void>)f;
+
+    static void Dead(int id)                                // (the finalizer thread)
+    {
+        Callbacks.Forget(id);
+        if (nativeDead != null) nativeDead(id);
+    }
+
+    // The crossings made on this thread whose records have not reached Rexx
+    // yet (a stack: nested requests and callbacks have their own part).
+    [ThreadStatic] static List<(Peer P, long WeakAt)>? crossings;      // WeakAt: the pair's before it
+
+    internal static int Mark() => crossings?.Count ?? 0;
+
+    /// What was sent since mark reached Rexx.
+    internal static void Commit(int mark)
+    {
+        if (crossings != null && crossings.Count > mark) crossings.RemoveRange(mark, crossings.Count - mark);
+    }
+
+    /// What was sent since mark never reached Rexx: not counted, and an
+    /// object made weak before is weak again (rexxnet still holds its peer).
+    internal static void Rollback(int mark)
+    {
+        if (crossings == null) return;
+        for (int i = crossings.Count - 1; i >= mark; i--)
+        {
+            var (p, weakAt) = crossings[i];
+            lock (pairGate)
+            {
+                p.Sent--;
+                if (weakAt >= 0 && p.WeakAt < 0 && p.Sent == weakAt) MakeWeak(p);
+            }
+        }
+        Commit(mark);
+    }
+
+    // An instance goes to Rexx: held, counted.
+    static void Cross(object o, Peer p)
+    {
+        long weakAt;
+        lock (pairGate)
+        {
+            weakAt = p.WeakAt;
+            if (weakAt >= 0)
+            {
+                p.WeakAt = -1;
+                if (p.C != null) { p.C.Cancelled = true; GC.SuppressFinalize(p.C); p.C = null; }
+                companions.Remove(o);
+                Handles.SetWeak(p.Handle, false);
+            }
+            p.Sent++;
+        }
+        (crossings ??= new()).Add((p, weakAt));
+    }
+
+    // (pairGate held)
+    static void MakeWeak(Peer p)
+    {
+        object o;
+        try { o = Handles.Get(p.Handle); } catch (BridgeException) { return; }
+        p.WeakAt = p.Sent;
+        p.C = new Companion(p.H.Id);
+        companions.AddOrUpdate(o, p.C);
+        Handles.SetWeak(p.Handle, true);
+    }
+
+    /// peerWeak: Rexx no longer holds the instance's Rexx object.
+    public static void Weaken(Rec target, long received, Writer w)
+    {
+        var o = Handles.Get(target.Id);
+        if (!peers.TryGetValue(o, out var p)) throw new BridgeException("not an instance of a Rexx class extending a .NET class");
+        lock (pairGate)
+        {
+            if (p.Sent != received || p.WeakAt >= 0) { w.Add('S', "0"); return; }
+            MakeWeak(p);
+        }
+        w.Add('S', "1");
+    }
     static ModuleBuilder? module;
     static int serial;
 
@@ -78,21 +202,28 @@ public static class Extend
     /// Is t a type made by .net~extend?
     public static bool IsExtended(Type t) { lock (gate) return types.ContainsKey(t); }
 
-    /// The peer handler of an instance, if it has a live one.
-    internal static RexxHandler? PeerOf(object o) =>
-        peers.TryGetValue(o, out var h) && !h.Released ? h : null;
+    /// An instance going to Rexx as its Rexx object (record p): its peer
+    /// handler, if it has a live one (a crossing: see Lifetime).
+    internal static RexxHandler? CrossingOf(object o)
+    {
+        if (!peers.TryGetValue(o, out var p) || p.H.Released) return null;
+        Cross(o, p);
+        return p.H;
+    }
 
     /// The body of every override. Public for the emitted code only.
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static object? Dispatch(object self, int slot, object?[] args)
     {
-        if (!peers.TryGetValue(self, out var h) || h.Released || !Callbacks.Started) return NoPeer;
+        if (!peers.TryGetValue(self, out var p) || p.H.Released || !Callbacks.Started) return NoPeer;
         Slot s;
         lock (gate) s = slots[slot];
         var all = new object?[args.Length + 1];
         all[0] = s.Name;
         Array.Copy(args, 0, all, 1, args.Length);
-        return Callbacks.Call(h, all, s.Ret, s.What);
+        int mark = Mark();
+        Cross(self, p);
+        return Callbacks.Call(p.H, all, s.Ret, s.What, mark);
     }
 
     /// The body of an override of a generic method: its type arguments go to
@@ -100,14 +231,17 @@ public static class Extend
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static object? DispatchGeneric(object self, int slot, object?[] args, Type[] targs)
     {
-        if (!peers.TryGetValue(self, out var h) || h.Released || !Callbacks.Started) return NoPeer;
+        if (!peers.TryGetValue(self, out var p) || p.H.Released || !Callbacks.Started) return NoPeer;
         Slot s;
         lock (gate) s = slots[slot];
         var all = new object?[args.Length + targs.Length + 1];
         all[0] = s.Name;
         Array.Copy(args, 0, all, 1, args.Length);
         for (int i = 0; i < targs.Length; i++) all[args.Length + 1 + i] = StaticOf.For(targs[i]);
-        return Callbacks.Call(h, all, s.Def!.MakeGenericMethod(targs).ReturnType, s.What);
+        var ret = s.Def!.MakeGenericMethod(targs).ReturnType;
+        int mark = Mark();
+        Cross(self, p);
+        return Callbacks.Call(p.H, all, ret, s.What, mark);
     }
 
     // ------------------------------------------------------------ the type
@@ -712,8 +846,10 @@ public static class Extend
         lock (gate) if (!types.ContainsKey(t)) throw new BridgeException($"{Types.Display(t)} was not made by .net~extend");
         var o = RuntimeHelpers.GetUninitializedObject(t);
         GC.SuppressFinalize(o);                             // until its constructor has run
-        peers.AddOrUpdate(o, Callbacks.HandlerOf(handler));
-        w.Add('S', Handles.Add(o) + "\t" + Display(t));
+        var p = new Peer(Callbacks.HandlerOf(handler));
+        p.Handle = Handles.Add(o);
+        peers.AddOrUpdate(o, p);
+        w.Add('S', p.Handle + "\t" + Display(t));
     }
 
     /// Runs the constructor that fits args on the instance.
@@ -728,9 +864,13 @@ public static class Extend
         w.Add('V', "");
     }
 
-    public static void Detach(Rec target)
+    /// Its construction failed: no pair (its handle goes as any proxy's).
+    public static void Abandon(Rec target)
     {
-        lock (gate) peers.Remove(Instance(target));
+        object o;
+        lock (gate) o = Instance(target);
+        if (peers.TryGetValue(o, out var p)) { Callbacks.Release(p.H.Id); Callbacks.Forget(p.H.Id); }
+        peers.Remove(o);
     }
 
     /// The name Rexx shows: the Rexx class's, and what it extends.

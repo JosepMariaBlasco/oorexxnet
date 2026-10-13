@@ -85,6 +85,16 @@ public static unsafe class Callbacks
         }
     }
 
+    /// A pair's peer handler, its pair over: forgotten (with its delegates).
+    internal static void Forget(int id)
+    {
+        lock (gate)
+        {
+            handlers.Remove(id);
+            foreach (var k in delegates.Keys.Where(k => k.Item1 == id).ToList()) delegates.Remove(k);
+        }
+    }
+
     /// handler~release: its later calls do nothing (and those queued go).
     public static void Release(int id)
     {
@@ -139,16 +149,17 @@ public static unsafe class Callbacks
     /// The body of every handler delegate. Public for the compiled
     /// expressions only.
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static object? Call(RexxHandler h, object?[] args, Type ret) => Call(h, args, ret, null);
+    public static object? Call(RexxHandler h, object?[] args, Type ret) => Call(h, args, ret, null, -1);
 
     /// The same, for an override of a Rexx class extending a .NET class
-    /// (Extend.cs): what names the method, in errors about its result.
+    /// (Extend.cs): what names the method, in errors about its result;
+    /// mark: Extend.Mark() before the override's own crossing (-1: none).
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static object? Call(RexxHandler h, object?[] args, Type ret, string? what)
+    public static object? Call(RexxHandler h, object?[] args, Type ret, string? what, int mark)
     {
-        if (h.Released) return Default(ret);
-        if (h.Queued) { Enqueue(h, args); return Default(ret); }
-        if (native == null) return Default(ret);
+        if (mark < 0) mark = Extend.Mark();
+        if (h.Released || native == null) { Extend.Rollback(mark); return Default(ret); }
+        if (h.Queued) { Extend.Rollback(mark); Enqueue(h, args); return Default(ret); }
 
         var list = new Writer();
         foreach (var a in args) Conv.ToRexx(list, a);
@@ -163,6 +174,8 @@ public static unsafe class Callbacks
         Rec r;
         try { r = Wire.Parse(new ReadOnlySpan<byte>(resp, len))[0]; }
         finally { nativeFree(resp); }
+        if (r.Tag == 'X' && r.Text == "u") Extend.Rollback(mark);   // it never reached Rexx
+        else Extend.Commit(mark);
 
         switch (r.Tag)
         {
