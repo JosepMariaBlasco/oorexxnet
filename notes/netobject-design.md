@@ -1521,7 +1521,10 @@ round, in any order). Each runs its class's `UNINIT` with its overrides
 still reaching it (its entry is kept, marked ending, so a crossing does not
 re-arm it); then its .NET object, which may live on in .NET (a .NET
 application hosting ooRexx), has no peer any more (`extAbandon`): its
-overrides run the base's implementations.
+overrides run the base's implementations. (ooRexx/WASM's `.js~extend` does
+not do this yet: there a pair still alive at the end does not run its
+`UNINIT`. The reason to differ: a program that relied on `UNINIT` at the
+end, as with any Rexx object, keeps working.)
 
 **Handlers, by the same principle.** A `.net~handler` was pinned (global
 references in `rexxnet`, and its delegates in a table of the managed side)
