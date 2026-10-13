@@ -170,6 +170,7 @@ REXX_PATH).
 | `Exercise06\Customer\StartupCustomer.rex`, `StartupCustomerList.rex`, `Product\StartupProduct*.rex`, `Order\StartupOrder*.rex` | each component on its own ("stand-alone"): its list view (.NET's ListView, rows found by HitTest) and the view it opens |
 | `Exercise06\Extras\Popups\Popups.rex`, `OffsetPopups.rex` | four generations of popups, any of them run as the root; the second offsets each from its parent (`getRealPos`, `moveTo`, `ensureVisible`) |
 | `Exercise07\Startup.rex` | the same application on a Model-View framework (`Support\`): an ObjectMgr that makes models and their views, data read from files (`GenericFile`), views on `RcView`, `ResView`, `UdView`; a Person and a Words of Wisdom component; the Message Sender, which sends any message to any component; an order form with two tab pages (control dialogs) |
+| `Exercise08\Startup.rex` | the framework's last form: views on the `View` and `Component` mixins, an EventMgr (the application closing tells the order forms), and drag and drop between views: a Customer or a Product view dragged onto an order form fills it in (`DragMgr`) |
 
 `NumberOnlyEditEx.cls` (ooDialog's, ported) extends ooDialog's Edit class
 with a mixin; a .NET TextBox cannot inherit one, so here it is an object
@@ -191,6 +192,18 @@ inherits: `::CLASS CustomerView SUBCLASS CustomerView_IDD_CUST_DIALOG
 INHERIT RcView` for ooDialog's `::CLASS CustomerView SUBCLASS RcView`. Their
 methods, and every `forward class (super)` in them and in the views, are the
 original's: ooRexx finds the next method along the view's own classes.
+
+**Drag and drop between views** (Exercise08). ooDialog's DragMgr drags by
+hand with `.Mouse`: capture, cursors, and the window under the pointer
+(`windowFromPoint`, `mapWindowPoints`). Here the source's MouseDown,
+MouseMove and MouseUp reach the view's `dmOnLBdown`, `dmOnMove` and
+`dmOnLBup` with ooDialog's arguments, and DragMgr uses Windows Forms' drag
+and drop (DoDragDrop once the pointer has gone further than the drag size,
+a target's DragOver and DragDrop, the source's GiveFeedback for the
+cursors), keeping the original's tables, method names and checks. A target
+takes drops over its controls too. Unattended runs cannot move a real
+mouse: the order form's `autoRun` drops a Customer and a Product view on
+itself with DragMgr's `drop`, which a real drop calls too.
 
 More of ooDialog's samples will follow, in batches.
 

@@ -960,6 +960,9 @@
     f~Location = .net~System~Drawing~Point~new(x, y)
   end
   return 0
+::method clientRect unguarded          -- ooDialog's: the client area, a NetRect (0, 0, width, height) in pixels
+  r = self~form~ClientRectangle
+  return .NetRect~new(r~Left, r~Top, r~Right, r~Bottom)
 ::method getRealSize unguarded
   return .NetSize~new(self~form~Width, self~form~Height)
 ::method backgroundBitmap              -- backgroundBitmap(file [, opts]): drawn at the top left, its own size
@@ -3613,6 +3616,10 @@
 ::method copy
   expose x y
   return .NetPoint~new(x, y)
+::method inRect                        -- inRect(rect): ooDialog's: inside rect (left and top in, right and bottom out)
+  expose x y
+  use strict arg r
+  return x >= r~left & x < r~right & y >= r~top & y < r~bottom
 ::method incr                          -- incr([dx [, dy]]): moved (by 1, 1 if not given)
   expose x y
   use arg dx = 1, dy = (dx)
