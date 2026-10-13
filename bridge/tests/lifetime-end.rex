@@ -2,6 +2,7 @@
    (held by Rexx, or by .NET alone) is over: its class's UNINIT runs once,
    and its overrides still work meanwhile. Prints one line per UNINIT. */
 parse arg testlib
+testlib = testlib~strip~strip("B", '"')      -- (on Windows the quotes come with it)
 x = .net~load(testlib)
 probe = .net~RexxNetTests~GcProbe
 .net~extend(.Sq, "RexxNetTests.Shape")
