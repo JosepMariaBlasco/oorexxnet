@@ -620,9 +620,11 @@ return .false
  * (.NET version) winsystm.cls's pushButton(label) and sendCommand(id): a
  * button, radio button or check box of a window pushed, found by its label
  * (or, with "ID", by its AutomationId: a classic dialog's control id).  The
- * control's InvokePattern, SelectionItemPattern or TogglePattern.
+ * control's InvokePattern, SelectionItemPattern or TogglePattern.  A disabled
+ * control is not pushed (UI Automation would refuse: today's Calculator's MC
+ * while nothing is in its memory).
  *
- * @return  True if the control was found.
+ * @return  True if the control was found, enabled, and pushed.
  */
 ::routine pushButton public
   use strict arg wnd, label, by = "NAME"
@@ -633,6 +635,7 @@ return .false
   else cond = A~PropertyCondition~new(AE~NameProperty, label~changeStr("&", ""), A~PropertyConditionFlags~IgnoreCase)
   ctl = wnd~FindFirst(A~TreeScope~Descendants, cond)
   if ctl == .nil then return .false
+  if \ctl~Current~IsEnabled then return .false
   r = .net~ref
   select
     when ctl~TryGetCurrentPattern(A~InvokePattern~Pattern, r) then r~value~Invoke
