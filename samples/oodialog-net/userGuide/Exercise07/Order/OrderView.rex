@@ -85,7 +85,7 @@
            11Jan13: Commented-out 'say' instructions.
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-::CLASS OrderView SUBCLASS OrderView_IDD_ORDER_DIALOG INHERIT RcView PUBLIC				-- Ex07   -- ooDialog: SUBCLASS RcView
+::CLASS OrderView SUBCLASS OrderView_IDD_ORDER_DIALOG PUBLIC INHERIT RcView				-- Ex07   -- ooDialog: SUBCLASS RcView
 
   ::METHOD newInstance CLASS PUBLIC
     use strict arg idModel, rootDlg					-- Ex07

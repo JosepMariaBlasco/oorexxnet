@@ -88,7 +88,7 @@
 
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-::CLASS CustomerListView SUBCLASS CustomerListView_IDD_CUSTLIST_DIALOG INHERIT RcView PUBLIC   -- ooDialog: SUBCLASS RcView
+::CLASS CustomerListView SUBCLASS CustomerListView_IDD_CUSTLIST_DIALOG PUBLIC INHERIT RcView   -- ooDialog: SUBCLASS RcView
 
   /*----------------------------------------------------------------------------
     Class Methods

@@ -84,7 +84,7 @@
 
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-::CLASS OrderListView SUBCLASS OrderListView_IDD_ORDLIST_LISTVIEW INHERIT RcView PUBLIC   -- ooDialog: SUBCLASS RcView
+::CLASS OrderListView SUBCLASS OrderListView_IDD_ORDLIST_LISTVIEW PUBLIC INHERIT RcView   -- ooDialog: SUBCLASS RcView
 
   /*----------------------------------------------------------------------------
     Class Methods

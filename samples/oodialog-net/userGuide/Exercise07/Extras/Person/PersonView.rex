@@ -76,7 +76,7 @@
 ::REQUIRES "PersonViewrc.cls"              -- ooDialog: ::REQUIRES "ooDialog.cls"
 ::REQUIRES "Support\RcView.rex"
 
-::CLASS 'PersonView' SUBCLASS PersonView_IDD_DIALOG1 INHERIT RcView PUBLIC   -- ooDialog: SUBCLASS RcView
+::CLASS 'PersonView' SUBCLASS PersonView_IDD_DIALOG1 PUBLIC INHERIT RcView   -- ooDialog: SUBCLASS RcView
 
   /*----------------------------------------------------------------------------
     newInstance - creates an instance of the View:

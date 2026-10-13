@@ -84,7 +84,7 @@
 
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-::CLASS OrderFormView SUBCLASS OrderFormView_IDD_ORDFORM_DIALOG INHERIT RcView PUBLIC   -- ooDialog: SUBCLASS RcView
+::CLASS OrderFormView SUBCLASS OrderFormView_IDD_ORDFORM_DIALOG PUBLIC INHERIT RcView   -- ooDialog: SUBCLASS RcView
 
   ::ATTRIBUTE tabContent
 

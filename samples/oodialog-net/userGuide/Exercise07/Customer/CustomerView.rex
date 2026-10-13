@@ -104,7 +104,7 @@
 
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-  ::CLASS CustomerView SUBCLASS CustomerView_IDD_CUST_DIALOG INHERIT RcView PUBLIC			       -- v03-00   -- ooDialog: SUBCLASS RcView
+  ::CLASS CustomerView SUBCLASS CustomerView_IDD_CUST_DIALOG PUBLIC INHERIT RcView			       -- v03-00   -- ooDialog: SUBCLASS RcView
   /*----------------------------------------------------------------------------
     Class Methods
     - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */

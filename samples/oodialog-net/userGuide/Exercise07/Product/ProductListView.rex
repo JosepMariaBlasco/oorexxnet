@@ -85,7 +85,7 @@
                     Standalone operation removed (not now needed).
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-::CLASS ProductListView SUBCLASS ProductListView_IDD_PRODLIST_DIALOG INHERIT RcView PUBLIC   -- ooDialog: SUBCLASS RcView
+::CLASS ProductListView SUBCLASS ProductListView_IDD_PRODLIST_DIALOG PUBLIC INHERIT RcView   -- ooDialog: SUBCLASS RcView
 
   /*----------------------------------------------------------------------------
     Class Methods

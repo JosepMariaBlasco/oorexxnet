@@ -95,7 +95,7 @@
 
   = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-::CLASS ProductView SUBCLASS ProductView_IDD_PRODUCT_VIEW INHERIT ResView PUBLIC   -- ooDialog: SUBCLASS ResView
+::CLASS ProductView SUBCLASS ProductView_IDD_PRODUCT_VIEW PUBLIC INHERIT ResView   -- ooDialog: SUBCLASS ResView
 
   ::ATTRIBUTE dialogState PRIVATE	-- States are: 'closable' or 'inUpdate".
 
