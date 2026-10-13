@@ -928,6 +928,26 @@
   return self~form~Handle
 ::method getRealPos unguarded          -- the window's position and size, in pixels (a NetPoint, a NetSize)
   return .NetPoint~new(self~form~Left, self~form~Top)
+/* moveTo(point [, opts]): ooDialog's: the window to point (a NetPoint), in
+   pixels; also before it shows (initDialog): then it shows there, not
+   centred */
+::method moveTo unguarded
+  use arg pos, opts = ""
+  self~form~StartPosition = "Manual"
+  self~form~Location = .net~System~Drawing~Point~new(pos~x, pos~y)
+  return 0
+/* ensureVisible: ooDialog's: the window moved, if need be, to be all on its
+   screen's working area */
+::method ensureVisible unguarded
+  f = self~form
+  area = .net~System~Windows~Forms~Screen~FromRectangle(f~Bounds)~WorkingArea
+  x = max(area~Left, min(f~Left, area~Right - f~Width))
+  y = max(area~Top, min(f~Top, area~Bottom - f~Height))
+  if x \= f~Left | y \= f~Top then do
+    f~StartPosition = "Manual"
+    f~Location = .net~System~Drawing~Point~new(x, y)
+  end
+  return 0
 ::method getRealSize unguarded
   return .NetSize~new(self~form~Width, self~form~Height)
 ::method backgroundBitmap              -- backgroundBitmap(file [, opts]): drawn at the top left, its own size
@@ -1636,6 +1656,10 @@
       form~Dispose
       raise syntax 98.900 array("NetDialog (auto):" runner~failed)
     end
+    if .NetDialog~autoFailures~items > 0 then do   -- (a child's: popupAsChild)
+      form~Dispose
+      raise syntax 98.900 array("NetDialog (auto):" .NetDialog~autoFailures[1])
+    end
   end
   self~leaving
   form~Dispose
@@ -1652,6 +1676,39 @@
   if self~ownerDialog \== .nil then form~Owner = self~ownerDialog~form
   form~Show
   return 0
+/* popupAsChild(parent [, show [, sleep [, icon]]]): ooDialog's: a modeless
+   dialog that the parent dialog owns: it stays above it, is minimized with
+   it, and closes with it. Unattended, its autoRun runs soon after it shows,
+   as an executed dialog's does; an error in it ends it, and the dialog the
+   program executed then ends with that error. */
+::method popupAsChild unguarded
+  use arg parent
+  self~ownerDialog = parent
+  r = self~popup
+  if .NetDialog~auto then do
+    runner = .NetDialogAutoRun~new(self)
+    t = .net~System~Windows~Forms~Timer~new
+    t~Interval = 1200
+    t~Tick += .net~handler(runner, "TICK")
+    runner~timers = .array~of(t)
+    t~Start
+    say "(auto) showing" self~form~Text
+  end
+  return r
+/* waitForChildren([seconds]): (.NET version, for an autoRun) the dialogs
+   this one owns (popupAsChild) waited for, this thread's events running,
+   until they have all closed or seconds (20) have passed: .true if they did */
+::method waitForChildren unguarded
+  use arg seconds = 20
+  sw = .net~System~Diagnostics~Stopwatch~StartNew
+  do while self~form~OwnedForms~items > 0 & sw~ElapsedMilliseconds < seconds * 1000
+    call msSleep 100
+  end
+  return self~form~OwnedForms~items = 0
+::method autoFailures class            -- (inside) unattended: what went wrong in the dialogs' autoRun
+  expose autoFailures
+  if \var("AUTOFAILURES") then autoFailures = .array~new
+  return autoFailures
 ::method isModeless private
   expose modeless
   return var("MODELESS")
@@ -3681,6 +3738,7 @@
 ::method tick
   expose dialog failed
   self~timers[1]~Stop
+  if \dialog~isDialogActive then return   -- (a child closed with its parent first)
   say "(auto) running" dialog~form~Text
   signal on syntax
   dialog~autoRun
@@ -3688,6 +3746,7 @@
 syntax:
   c = condition("O")
   failed = "autoRun: Error" c~code":" c~message
+  .NetDialog~autoFailures~append(failed)
   .error~say(failed)
   if c~traceback \== .nil then do line over c~traceback; .error~say(line); end
   dialog~endDialog(2)

@@ -166,12 +166,21 @@ REXX_PATH).
 | `Exercise04\Startup.rex` | the Customer view: an RcDialog (`CustomerViewrc.cls`) with a menu bar; edit controls made read-only and back |
 | `Exercise04\Extras\DlgData\ASimpleDialog.rex`, `ASimpleDialog2.rex` | a dlgData. stem given to new: values into the controls, and back after OK; the second from a ResDialog's DLL, here the same .rc's class |
 | `Exercise05\Startup.rex` | the Product view: a ResDialog (here `ProductViewrc.cls`), its menu, an About box with a bitmap, validation, numbers-only edit controls (`Support\NumberOnlyEditEx.cls`) |
+| `Exercise06\Startup.rex` | the Order Management application: a window of icons (an ImageList, icons dragged about) that opens the Customer, Product and Order components, each a modeless dialog popped up as its child (`popupAsChild`) |
+| `Exercise06\Customer\StartupCustomer.rex`, `StartupCustomerList.rex`, `Product\StartupProduct*.rex`, `Order\StartupOrder*.rex` | each component on its own ("stand-alone"): its list view (.NET's ListView, rows found by HitTest) and the view it opens |
+| `Exercise06\Extras\Popups\Popups.rex`, `OffsetPopups.rex` | four generations of popups, any of them run as the root; the second offsets each from its parent (`getRealPos`, `moveTo`, `ensureVisible`) |
 
 `NumberOnlyEditEx.cls` (ooDialog's, ported) extends ooDialog's Edit class
 with a mixin; a .NET TextBox cannot inherit one, so here it is an object
 made around the dialog's edit control (`.NumberOnlyEditEx~new(dialog, id)`
 in place of `newEdit(id)`) that passes every other message on to the
 TextBox, and connects its KeyPress as ooDialog's character event.
+
+Unattended (`auto`), a dialog shown with `popupAsChild` runs its own
+`autoRun` too; a parent's `autoRun` waits for its children with
+`waitForChildren`. Where a program asks before it closes (its `cancel`
+overridden with an askDialog whose default is No), the unattended answer is
+that No, and its `autoRun` then ends the dialog as Yes would (`endDialog`).
 
 More of ooDialog's samples will follow, in batches.
 
