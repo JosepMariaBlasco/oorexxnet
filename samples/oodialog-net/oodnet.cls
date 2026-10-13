@@ -1684,7 +1684,7 @@
 ::method popupAsChild unguarded
   use arg parent
   self~ownerDialog = parent
-  r = self~popup
+  r = self~popup:.NetDialog            -- (a dialog of the program's may have a method popup of its own)
   if .NetDialog~auto then do
     runner = .NetDialogAutoRun~new(self)
     t = .net~System~Windows~Forms~Timer~new

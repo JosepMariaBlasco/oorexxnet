@@ -269,7 +269,10 @@ names that ooDialog would give them: the start of a port of an RcDialog.
 `rexx rc2oodnet.rex -cls file.rc` writes `filerc.cls`, with a class for each
 dialog (`File_100`, `File_101`...), each a NetDialog that creates itself and
 its controls: the program's RcDialog subclasses it and keeps the rest of its
-code, as the tutorial's programs here do (`employe1rc.cls`...).
+code, as the tutorial's programs here do (`employe1rc.cls`...). The .rc's
+controls are made by that class's `defineDialog`: a program's RcDialog that
+has a `defineDialog` of its own (ooDialog calls it after loading the .rc)
+starts it with `forward class (super) continue`.
 
 A control `oodnet.cls` has no `create*` for: make it and place it with
 `self~place(id, control, x, y, cx, cy)` (private: from the dialog's own

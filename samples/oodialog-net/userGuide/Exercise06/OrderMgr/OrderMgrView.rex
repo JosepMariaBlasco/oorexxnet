@@ -109,6 +109,7 @@ call "OrderMgr\RequiresList.rex"
 
   /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ::METHOD defineDialog
+    forward class (super) continue     -- (.NET version) the .rc's controls, made by the superclass's defineDialog
     say "OrderMgrView-defineDialog-01."
 
 
