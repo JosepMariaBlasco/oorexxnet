@@ -68,8 +68,10 @@
  * TransformPattern and closed with its WindowPattern; the Don't Save button
  * is pushed with its InvokePattern. The Save dialog is that button's window:
  * in the classic Notepad a dialog of its own, in the Windows 11 Notepad a
- * part of its window. A Notepad that keeps unsaved text itself (Windows 11's,
- * restoring its last session) closes without asking: the program says so.
+ * part of its window. The Windows 11 Notepad restores its last session's
+ * unsaved text: the program types into a new tab then, and closes that tab
+ * (Ctrl+W), which asks; closing the window would not. If Notepad closes
+ * without asking, the program says so.
  * Unattended (argument "auto"): no pause to read the text, the dialogs show
  * nothing.)
  *
@@ -114,8 +116,9 @@ j = resizeWindow(np, 650, 500)                           -- ooDialog: np~resize(
 call focusOn np                                          -- ooDialog: np~ToForeground
 
 -- Get the text area: the edit window, the first (and perhaps only) child
--- window of the classic Notepad.
-editWnd = findTextArea(np)                               -- ooDialog: np~FirstChild
+-- window of the classic Notepad (.NET version: an empty one: a new tab in a
+-- Windows 11 Notepad that restored its last session's text).
+editWnd = notepadTextArea(np)                            -- ooDialog: np~FirstChild
 if editWnd == .nil then do
   msg = "Could not find the text area of Notepad." || '0d0a0d0a'x || -
         "This sample will have to abort."
@@ -157,8 +160,9 @@ buttonName = "Don't Save"
 -- Pause a little bit to allow the user to read the text.
 if \.NetDialog~auto then j = SysSleep(5)
 
--- Close Notepad as its Close button would: its WindowPattern's Close.
-windowPattern(np)~Close                                  -- ooDialog: np~SendSysCommand("Close")
+-- Close Notepad as its Close button would: its WindowPattern's Close (the
+-- Windows 11 Notepad: our tab, which asks; its window may not).
+call closeNotepad np                                     -- ooDialog: np~SendSysCommand("Close")
 
 /* When Notepad closes, it will put up a dialog asking if we want to save the
  * changes we just wrote to a file.  We will wait a second for the dialog and
@@ -176,10 +180,12 @@ j = SysSleep(1)
 button = .nil
 signal on syntax name gone                               -- (Notepad closed: UI Automation's ElementNotAvailableException)
 do 10 while button == .nil
+  if \windowExists(np) then signal gone
   button = discardButton(np)
   if button == .nil then j = SysSleep(.3)
 end
 signal off syntax
+if button == .nil, \windowExists(np) then signal gone
 if button \== .nil then do
   fg = windowOf(button)                                  -- ooDialog: fg = winMgr~ForegroundWindow
   j = SysSleep(.1)
@@ -191,6 +197,11 @@ if button \== .nil then do
   -- Push the Don't Save button, which has the effect of closing Notepad
   -- automatically.
   button~GetCurrentPattern(A~InvokePattern~Pattern)~Invoke   -- ooDialog: fg~focusItem(button), button~SendKey("SPACE")
+
+  -- (.NET version) A Windows 11 Notepad with other tabs (restored ones) is
+  -- still open: its window is closed (Notepad keeps them).
+  j = SysSleep(.5)
+  if windowExists(np) then windowPattern(np)~Close
 end
 else do
   msg = 'Could not locate the' buttonName 'button used to ' || '0d0a'x || -

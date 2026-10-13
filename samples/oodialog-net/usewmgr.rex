@@ -291,8 +291,9 @@ syntax:
   call focusOn np                                        -- ooDialog: np~toForeground
 
   -- The text area: the edit window, the first (and perhaps only) child window
-  -- of the classic Notepad.
-  npe = findTextArea(np)                                 -- ooDialog: np~firstChild
+  -- of the classic Notepad (an empty one: a new tab in a Windows 11 Notepad
+  -- that restored its last session's text).
+  npe = notepadTextArea(np)                              -- ooDialog: np~firstChild
   if npe == .nil then return windowFailure("Notepad")
 
   -- sendText() types text into a window: SendKeys, once the window has the
@@ -350,8 +351,9 @@ syntax:
 
   call pause 2
 
-  -- Close Notepad as its Close button would.
-  wp~Close                                               -- ooDialog: np~sendSysCommand("Close")
+  -- Close Notepad as its Close button would (the Windows 11 Notepad: our tab,
+  -- which asks; its window may not).
+  call closeNotepad np                                   -- ooDialog: np~sendSysCommand("Close")
 
   -- Wait for the dialog that asks whether to save the changes: Notepad's
   -- descendant (as UI Automation shows it), whose Don't Save button we push.
@@ -359,13 +361,19 @@ syntax:
   button = .nil
   signal on syntax name gone                             -- (Notepad closed: it did not ask)
   do 10 while button == .nil
+    if \windowExists(np) then signal gone
     button = discardButton(np)
     if button == .nil then call SysSleep .3
   end
   signal off syntax
+  if button == .nil, \windowExists(np) then signal gone
   if button \== .nil then do
     -- Push the Don't Save button, which closes Notepad.
     button~GetCurrentPattern(.net~System~Windows~Automation~InvokePattern~Pattern)~Invoke   -- ooDialog: fg~focusItem(button), button~SendKey("SPACE")
+    -- (A Windows 11 Notepad with other tabs, restored ones, is still open:
+    -- its window is closed; Notepad keeps them.)
+    call SysSleep .5
+    if windowExists(np) then wp~Close
   end
   else do
     msg = 'Could not locate the' buttonName 'button used to ' || '0d0a'x || -

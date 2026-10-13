@@ -421,6 +421,81 @@ return prgPathName
   end
   return .nil
 
+/** notepadTextArea()
+ * (.NET version) Notepad's text area to type into, empty. The Windows 11
+ * Notepad restores its last session: a new window may show the text left
+ * unsaved in it. Then a new tab (its AddButton) is opened for ours, and the
+ * restored text is left as it is (it may be its user's).
+ *
+ * @return  The text area (a Document or Edit element), or .nil.
+ */
+::routine notepadTextArea public
+  use strict arg np
+
+  A = .net~System~Windows~Automation
+  AE = A~AutomationElement
+  area = findTextArea(np)
+  if area == .nil then return .nil
+  if textOf(area) == "" then return area
+  add = np~FindFirst(A~TreeScope~Descendants, A~PropertyCondition~new(AE~AutomationIdProperty, "AddButton"))
+  if add == .nil then return area                         -- (the classic Notepad)
+  add~GetCurrentPattern(A~InvokePattern~Pattern)~Invoke
+  isDoc = A~PropertyCondition~new(AE~ControlTypeProperty, A~ControlType~Document)
+  do 10
+    j = SysSleep(.3)
+    do d over np~FindAll(A~TreeScope~Descendants, isDoc)
+      if textOf(d) == "" then return d
+    end
+  end
+  return .nil
+
+/* (.NET version) The text of a text area (its TextPattern, else its
+   ValuePattern), without line ends: "" for an empty one (a rich edit control
+   always holds one). */
+::routine textOf
+  use strict arg area
+  A = .net~System~Windows~Automation
+  r = .net~ref
+  if area~TryGetCurrentPattern(A~TextPattern~Pattern, r) then text = r~value~DocumentRange~GetText(-1)
+  else if area~TryGetCurrentPattern(A~ValuePattern~Pattern, r) then text = r~value~Current~Value
+  else return ""
+  return text~changeStr('0d'x, "")~changeStr('0a'x, "")
+
+/** closeNotepad()
+ * (.NET version) Closes what was typed into Notepad, as its user would. The
+ * classic Notepad: its window (its WindowPattern's Close), which asks whether
+ * to save the text. The Windows 11 Notepad: its tab (Ctrl+W). Closing that
+ * Notepad's window does not ask when Notepad keeps unsaved text itself (it
+ * restores its last session); closing a tab asks.
+ */
+::routine closeNotepad public
+  use strict arg np
+
+  A = .net~System~Windows~Automation
+  tabs = np~FindFirst(A~TreeScope~Descendants, A~PropertyCondition~new(A~AutomationElement~AutomationIdProperty, "Tabs"))
+  if tabs == .nil then do
+    windowPattern(np)~Close
+    return
+  end
+  call focusOn np
+  .net~System~Windows~Forms~SendKeys~SendWait("^w")
+  return
+
+/** windowExists()
+ * (.NET version) Whether a top-level window is still open.
+ */
+::routine windowExists public
+  use strict arg wnd
+
+  A = .net~System~Windows~Automation
+  signal on syntax                     -- (UI Automation's ElementNotAvailableException)
+  id = runtimeId(wnd)
+  do w over A~AutomationElement~RootElement~FindAll(A~TreeScope~Children, A~Condition~TrueCondition)
+    if runtimeId(w) == id then return .true
+  end
+syntax:
+  return .false
+
 /** getWindowTree()
  * Constructs a data structure that represents the entire element hierarchy of
  * a window.
@@ -1319,15 +1394,29 @@ return newRoot
   labels  = ". + - * / = C MC MR MS HEX DEC GRADS"
   classicIds = "84 93 94 92 91 121 81 122 123 124 313 314 323"
   modernIds = "decimalSeparatorButton plusButton minusButton multiplyButton divideButton" -
-              "equalButton clearButton ClearMemoryButton MemRecall memButton hexButton decimalButton gradsButton"
+              "equalButton clearButton ClearMemoryButton MemRecall memButton hexButton decimalButton gradButton"
   do i = 1 to labels~words
     classic[labels~word(i)] = classicIds~word(i)
     modern[labels~word(i)] = modernIds~word(i)
   end
   k = key~upper
   if \classic~hasIndex(k) then return .false
+  if isModernCalc(calc), k == "GRADS" then return calcGrads(calc)
   if isModernCalc(calc) then return pushButton(calc, modern[k], "ID")
   return pushButton(calc, classic[k], "ID")
+
+/* (.NET version) Today's Calculator has no Grads radio button: its one angle
+   button shows the unit, and pushing it goes to the next one (degButton,
+   radButton, gradButton). */
+::routine calcGrads
+  use strict arg calc
+  A = .net~System~Windows~Automation
+  do 3
+    if calc~FindFirst(A~TreeScope~Descendants, A~PropertyCondition~new(A~AutomationElement~AutomationIdProperty, "gradButton")) \== .nil then return .true
+    if \pushButton(calc, "degButton", "ID") then if \pushButton(calc, "radButton", "ID") then return .false
+    j = SysSleep(.3)
+  end
+  return .false
 
 /** calcDisplay()
  * (.NET version) The number the Calculator shows: the classic's display
@@ -1349,14 +1438,16 @@ return newRoot
 
 /** calcView()
  * (.NET version) The Calculator's view: Standard, Scientific or Programmer
- * (told from its keys: Degrees in the scientific view, Hex in the
+ * (told from its keys: the angle unit in the scientific view, Hex in the
  * programmer's).
  */
 ::routine calcView public
   use strict arg calc
 
   A = .net~System~Windows~Automation
-  if isModernCalc(calc) then ids = .array~of("hexButton", "degreesButton radiansButton gradsButton")
+  -- (today's Calculator: one angle button, degButton, radButton or gradButton
+  -- as the unit changes, in the group ScientificAngleOperators)
+  if isModernCalc(calc) then ids = .array~of("hexButton", "ScientificAngleOperators degButton radButton gradButton")
   else ids = .array~of("313", "321")
   views = .array~of("Programmer", "Scientific")
   do i = 1 to 2
