@@ -113,7 +113,7 @@ say "Deleted."
   if workDir \== "" then link~WorkingDirectory = workDir
   if hotKey \== "" then link~Hotkey = "Ctrl+Alt+" || hotKey
   caseOf = run~upper                               -- 1 normal, 3 maximized, 7 minimized
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
+  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
     when "MAX", "MAXIMIZED" then link~WindowStyle = 3
     when "MIN", "MINIMIZED" then link~WindowStyle = 7
     otherwise nop
@@ -135,7 +135,7 @@ say "Deleted."
   group = name
   psi = .net~System~Diagnostics~ProcessStartInfo~new("explorer.exe", '"' || self~groupPath(name) || '"')
   caseOf = how~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
+  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
     when "MAX" then psi~WindowStyle = "Maximized"
     when "MIN" then psi~WindowStyle = "Minimized"
     otherwise nop

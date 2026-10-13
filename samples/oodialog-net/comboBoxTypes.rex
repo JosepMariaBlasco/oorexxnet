@@ -139,7 +139,7 @@
     use arg sender, e                                   -- (.NET version) ooDialog: use arg id
 
     caseOf = sender~Name
-    select case caseOf                                   -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
+    select case caseOf                                   -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
       when "IDC_RB_NONE" then do
           do cb over .array~of(cbSimple, cbDropDown, cbDropDownList)   -- ooDialog: removeFullColor
             cb~ResetBackColor

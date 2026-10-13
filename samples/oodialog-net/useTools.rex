@@ -255,7 +255,7 @@
    use arg sender, e
 
    caseOf = sender~Name
-   select case caseOf                                    -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
+   select case caseOf                                    -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
       when "IDC_PB_LOCKMODULE"    then self~ownerDialog~lockModule
       when "IDC_PB_LOCKPROJECT"   then self~ownerDialog~lockProject
       when "IDC_PB_SPLITMODULE"   then self~ownerDialog~splitModule

@@ -102,9 +102,10 @@ The bridge works around it (a global reference to its built-in packages:
 
 ## `select-case-gc.diff` (13/10/2026, against trunk r13269): SELECT CASE
 
-One file: `interpreter/instructions/SelectInstruction.cpp`. **Unreported
-yet** (draft: `sf-bug-report-select-case.md`; reproducer:
-`select-case-repro.rex`).
+Reported as **#2114** (<https://sourceforge.net/p/oorexx/bugs/2114/>,
+13/10/2026), from `sf-bug-report-select-case.md`. One file:
+`interpreter/instructions/SelectInstruction.cpp`; reproducer:
+`select-case-repro.rex`.
 
 **Problem.** `RexxInstructionSelectCase::execute` creates the instruction's
 `DoBlock`, then evaluates the CASE expression, and only then anchors the
@@ -119,6 +120,6 @@ CASE value while the expression is evaluated, as the DO instructions do.
 
 **Until it is fixed**, this repository's programs evaluate the CASE
 expression into a variable first (`caseOf = expr`, `select case caseOf`):
-a plain variable allocates nothing. `git grep "SELECT CASE: unreported"`
+a plain variable allocates nothing. `git grep "SELECT CASE: #2114"`
 finds them.
 

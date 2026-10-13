@@ -52,7 +52,7 @@ forceClr = .false; fromDir = ""
 do while args \= ""
   parse var args word args
   caseOf = word~lower
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
+  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
     when "install", "uninstall", "status" then command = word~lower
     when "--clr", "-clr" then forceClr = .true
     when "--from", "-from" then do

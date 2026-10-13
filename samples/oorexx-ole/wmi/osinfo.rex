@@ -160,7 +160,7 @@ end
   if arg(3, "exists") then do
     -- we can process some information display a more human-readable form
     caseOf = arg(3)
-    select case caseOf                                   -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
+    select case caseOf                                   -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
       when "MEMORY" then do
         -- memory sizes are returned in units of kilobytes
         content = content % 1024 "MB"
