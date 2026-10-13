@@ -306,9 +306,9 @@ return 0
   list~CheckBoxes = .true
   list~AllowColumnReorder = .true
 
-  list~Columns~Add("Row (Column 1)", self~px(95))        -- ooDialog: list~InsertColumn(0, "Row (Column 1)", 95)
-  list~Columns~Add("Column 2", self~px(95))
-  list~Columns~Add("Column 3", self~px(95))
+  list~Columns~Add("Row (Column 1)", self~px(95), "Left")        -- ooDialog: list~InsertColumn(0, "Row (Column 1)", 95)
+  list~Columns~Add("Column 2", self~px(95), "Left")
+  list~Columns~Add("Column 3", self~px(95), "Left")
 
   list~BeginUpdate
   do i = 1 to 200

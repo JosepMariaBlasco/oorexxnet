@@ -149,10 +149,10 @@
     --say "ProductListView-initDialog-01"; say
     lvProducts = self~newListView("IDC_PRODLIST_LISTVIEW");
     lvProducts~GridLines = .true; lvProducts~FullRowSelect = .true   -- ooDialog: ~addExtendedStyle("GRIDLINES FULLROWSELECT")
-    lvProducts~Columns~Add("Number", 60)   -- ooDialog: ~insertColumnPX
-    lvProducts~Columns~Add("Name", 160)   -- ooDialog: ~insertColumnPX
-    lvProducts~Columns~Add("Price", 50)   -- ooDialog: ~insertColumnPX
-    lvProducts~Columns~Add("UOM", 40)   -- ooDialog: ~insertColumnPX
+    lvProducts~Columns~Add("Number", 60, "Left")   -- ooDialog: ~insertColumnPX
+    lvProducts~Columns~Add("Name", 160, "Left")   -- ooDialog: ~insertColumnPX
+    lvProducts~Columns~Add("Price", 50, "Left")   -- ooDialog: ~insertColumnPX
+    lvProducts~Columns~Add("UOM", 40, "Left")   -- ooDialog: ~insertColumnPX
     self~connectListViewEvent("IDC_PRODLIST_LISTVIEW","CLICK",itemSelected)
     self~connectListViewEvent("IDC_PRODLIST_LISTVIEW","ACTIVATE",openItem)
     self~connectButtonEvent("IDC_PRODLIST_SHOWPRODUCT","CLICKED",showProduct)

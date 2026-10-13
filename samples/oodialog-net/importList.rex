@@ -316,9 +316,9 @@ return 0
    listView~FullRowSelect = .true                           -- ooDialog: addExtendedStyle("FULLROWSELECT GRIDLINES HEADERDRAGDROP")
    listView~GridLines = .true
    listView~AllowColumnReorder = .true
-   listView~Columns~Add("Option", optsize)                  -- ooDialog: insertColumnPX(0, "Option", optsize, "LEFT")
-   listView~Columns~Add("Backup Filename to Import", impsize)
-   listView~Columns~Add("Import To:", baksize)
+   listView~Columns~Add("Option", optsize, "Left")                  -- ooDialog: insertColumnPX(0, "Option", optsize, "LEFT")
+   listView~Columns~Add("Backup Filename to Import", impsize, "Left")
+   listView~Columns~Add("Import To:", baksize, "Left")
 
    comboBox~Items~Add("Import")
    comboBox~Items~Add("Replace")

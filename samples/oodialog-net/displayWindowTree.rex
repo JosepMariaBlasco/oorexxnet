@@ -102,7 +102,7 @@ end
 
   -- One column, as wide as the list view, less a vertical scroll bar.
   width = listView~ClientSize~Width - .net~System~Windows~Forms~SystemInformation~VerticalScrollBarWidth
-  listView~Columns~Add("Window Title", width)
+  listView~Columns~Add("Window Title", width, "Left")
 
   self~connectButtonEvent(IDC_PB_SHOW, "CLICKED", onShow)
   self~connectButtonEvent(IDC_PB_QUIT, "CLICKED", onQuit)

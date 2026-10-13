@@ -120,11 +120,11 @@ return 0
     list~CheckBoxes = .true
     list~AllowColumnReorder = .true
 
-    list~Columns~Add("Line text", self~px(75))   -- ooDialog: list~InsertColumn(0, "Line text", 75): dialog units
-    list~Columns~Add("Line number", self~px(55))
-    list~Columns~Add("Numbers", self~px(50))
+    list~Columns~Add("Line text", self~px(75), "Left")   -- ooDialog: list~InsertColumn(0, "Line text", 75): dialog units
+    list~Columns~Add("Line number", self~px(55), "Left")
+    list~Columns~Add("Numbers", self~px(50), "Left")
     do 9
-      list~Columns~Add("Characters", self~px(55))
+      list~Columns~Add("Characters", self~px(55), "Left")
     end
 
     self~connectButtonEvent(IDC_PB_SORT_INTERN, 'CLICKED', onSortInternally)

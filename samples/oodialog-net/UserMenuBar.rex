@@ -652,6 +652,7 @@ return 0
    sd = filespec("location", .context~package~name)      -- ooDialog: .application~srcDir
    picture = self~newStatic(IDC_ST_BITMAP)
    bitmap = .net~System~Drawing~Image~FromFile(sd"resources\UserMenuBar.bmp")   -- ooDialog: .Image~getImage(...)
+   picture~FlatStyle = "Standard"   -- (.NET version) an image: Windows Forms' drawing
    picture~Image = .net~System~Drawing~Bitmap~new(bitmap, picture~Size)        -- ooDialog: setImage (SS_REALSIZECONTROL: to the control's size)
 
    font = self~createFontEx("Ariel", 14)

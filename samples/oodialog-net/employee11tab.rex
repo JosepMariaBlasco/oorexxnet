@@ -770,12 +770,12 @@
     lv~GridLines = .true
     lv~FullRowSelect = .true
 
-    lv~Columns~Add("Name", self~px(50))                  -- ooDialog: lv~insertColumn(0, "Name", 50)
-    lv~Columns~Add("City", self~px(40))
-    lv~Columns~Add("Position", self~px(40))
-    lv~Columns~Add("Gender", self~px(30))
-    lv~Columns~Add("Marital Status", self~px(30))
-    lv~Columns~Add("Employment Classification", self~px(40))
+    lv~Columns~Add("Name", self~px(50), "Left")                  -- ooDialog: lv~insertColumn(0, "Name", 50)
+    lv~Columns~Add("City", self~px(40), "Left")
+    lv~Columns~Add("Position", self~px(40), "Left")
+    lv~Columns~Add("Gender", self~px(30), "Left")
+    lv~Columns~Add("Marital Status", self~px(30), "Left")
+    lv~Columns~Add("Employment Classification", self~px(40), "Left")
 
     do i = 1 to self~empCount
       self~addEmployeeRow(lv, self~employees[i])

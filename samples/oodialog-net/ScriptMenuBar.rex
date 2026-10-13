@@ -73,9 +73,9 @@ return 0
   menuBar~connectAllCommandEvents
 
   lv = self~newListView(IDC_LV)
-  lv~Columns~Add("First Name", 70)                       -- ooDialog: lv~insertColumnPX(0, "First Name", 70)
-  lv~Columns~Add("Last Name", 90)
-  lv~Columns~Add("Profession", 120)
+  lv~Columns~Add("First Name", 70, "Left")                       -- ooDialog: lv~insertColumnPX(0, "First Name", 70)
+  lv~Columns~Add("Last Name", 90, "Left")
+  lv~Columns~Add("Profession", 120, "Left")
 
   do row over .array~of(.array~of("Bill", "Gates", "Philanthropist"), .array~of("Steve", "Jobs", "Salesman"), -
                         .array~of("Ron", "McCarthy", "Plumber"), .array~of("Greg", "Allen", "Truck Driver"))
@@ -218,6 +218,7 @@ return 0
    sd = filespec("location", .context~package~name)      -- ooDialog: .application~srcDir
    picture = self~newStatic(IDC_ST_BITMAP)
    bitmap = .net~System~Drawing~Image~FromFile(sd"resources\UserMenuBar.bmp")   -- ooDialog: .Image~getImage(...)
+   picture~FlatStyle = "Standard"   -- (.NET version) an image: Windows Forms' drawing
    picture~Image = .net~System~Drawing~Bitmap~new(bitmap, picture~Size)        -- ooDialog: setImage (SS_REALSIZECONTROL: to the control's size)
 
    font = self~createFontEx("Ariel", 14)

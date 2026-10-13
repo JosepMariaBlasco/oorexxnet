@@ -144,9 +144,9 @@
     lvCustomers = self~newListView("IDC_CUSTLIST_LIST");
     lvCustomers~Sorting = "Ascending"  -- (.NET version) the .rc's LVS_SORTASCENDING
     lvCustomers~GridLines = .true; lvCustomers~FullRowSelect = .true   -- ooDialog: ~addExtendedStyle("GRIDLINES FULLROWSELECT")
-    lvCustomers~Columns~Add("Number", 60)   -- ooDialog: ~insertColumnPX
-    lvCustomers~Columns~Add("Name", 220)   -- ooDialog: ~insertColumnPX
-    lvCustomers~Columns~Add("Zip", 80)   -- ooDialog: ~insertColumnPX
+    lvCustomers~Columns~Add("Number", 60, "Left")   -- ooDialog: ~insertColumnPX
+    lvCustomers~Columns~Add("Name", 220, "Left")   -- ooDialog: ~insertColumnPX
+    lvCustomers~Columns~Add("Zip", 80, "Left")   -- ooDialog: ~insertColumnPX
     self~connectListViewEvent("IDC_CUSTLIST_LIST","CLICK",itemSelected)		-- Single click
     self~connectButtonEvent("IDC_CUSTLIST_SHOWCUST","CLICKED",showCustomer)
     self~connectListViewEvent("IDC_CUSTLIST_LIST","ACTIVATE",openItem)	 	-- Double-click

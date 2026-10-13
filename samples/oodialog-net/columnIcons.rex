@@ -162,10 +162,10 @@
 ::method populateList private
     use strict arg list
 
-    list~Columns~Add("Title", 150)     -- ooDialog: list~InsertColumnPx(0, "Title", 150)
-    list~Columns~Add("Name", 75)
-    list~Columns~Add("Last", 100)
-    list~Columns~Add("e-mail", 150)
+    list~Columns~Add("Title", 150, "Left")     -- ooDialog: list~InsertColumnPx(0, "Title", 150)
+    list~Columns~Add("Name", 75, "Left")
+    list~Columns~Add("Last", 100, "Left")
+    list~Columns~Add("e-mail", 150, "Left")
 
     -- ooDialog: addExtendedStyle("FULLROWSELECT UNDERLINEHOT ONECLICKACTIVATE SUBITEMIMAGES HEADERDRAGDROP")
     list~FullRowSelect = .true

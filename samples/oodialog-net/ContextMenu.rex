@@ -548,9 +548,9 @@ return 0
   listView~FullRowSelect = .true                         -- ooDialog: listView~addExtendedStyle("FULLROWSELECT DOUBLEBUFFER GRIDLINES")
   listView~GridLines = .true                             -- (a .NET ListView is double buffered when it needs it)
 
-  listView~Columns~Add('First Name', 68)                 -- ooDialog: listView~insertColumnPX(1, 'First Name', 68)
-  listView~Columns~Add('Last Name', 70)
-  listView~Columns~Add('Profession', 102)
+  listView~Columns~Add('First Name', 68, "Left")                 -- ooDialog: listView~insertColumnPX(1, 'First Name', 68)
+  listView~Columns~Add('Last Name', 70, "Left")
+  listView~Columns~Add('Profession', 102, "Left")
 
   do r over nArray
     listView~Items~Add(.net~System~Windows~Forms~ListViewItem~new(.array~of(r~fName, r~lName, r~profession)))

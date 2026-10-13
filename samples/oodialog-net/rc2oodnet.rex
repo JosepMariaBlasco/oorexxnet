@@ -286,7 +286,15 @@ control1: procedure
           return call("createUpDown", id, geo, s~strip)
         end
         when wordPos(cls, "MONTHCAL_CLASS SYSMONTHCAL32") > 0 then return call("createMonthCalendar", id, geo, "")
-        when wordPos(cls, "DATETIMEPICK_CLASS SYSDATETIMEPICK32") > 0 then return call("createDateTimePicker", id, geo, "")
+        when wordPos(cls, "DATETIMEPICK_CLASS SYSDATETIMEPICK32") > 0 then do
+          s = ""
+          if st~pos("DTS_LONGDATEFORMAT") > 0 then s = s "LONG"
+          if st~pos("DTS_TIMEFORMAT") > 0 then s = s "TIME"
+          if st~pos("DTS_UPDOWN") > 0 then s = s "UPDOWN"
+          if st~pos("DTS_SHOWNONE") > 0 then s = s "SHOWNONE"
+          if st~pos("DTS_RIGHTALIGN") > 0 then s = s "RIGHT"
+          return call("createDateTimePicker", id, geo, s~strip)
+        end
         when wordPos(cls, "PROGRESS_CLASS MSCTLS_PROGRESS32") > 0 then return call("createProgressBar", id, geo, progressStyles(st))
         when wordPos(cls, "TRACKBAR_CLASS MSCTLS_TRACKBAR32") > 0 then return call("createTrackBar", id, geo, trackBarStyles(st))
         when wordPos(cls, "WC_LISTVIEW SYSLISTVIEW32") > 0 then return call("createListView", id, geo, listViewStyles(st))

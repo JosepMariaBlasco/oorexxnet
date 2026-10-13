@@ -551,12 +551,12 @@
   if smallIcons <> .nil then lv~SmallImageList = smallIcons   -- ooDialog: lv~setImageList(smallIcons, SMALL)
   if normalIcons <> .nil then lv~LargeImageList = normalIcons -- ooDialog: lv~setImageList(normalIcons, NORMAL)
 
-  lv~Columns~Add("Name", self~px(50))                    -- ooDialog: lv~insertColumn(0, "Name", 50) (dialog units)
-  lv~Columns~Add("Street", self~px(60))
-  lv~Columns~Add("City", self~px(50))
-  lv~Columns~Add("State", self~px(20))
-  lv~Columns~Add("Zip Code", self~px(30))
-  lv~Columns~Add("Age", self~px(20))
+  lv~Columns~Add("Name", self~px(50), "Left")                    -- ooDialog: lv~insertColumn(0, "Name", 50) (dialog units)
+  lv~Columns~Add("Street", self~px(60), "Left")
+  lv~Columns~Add("City", self~px(50), "Left")
+  lv~Columns~Add("State", self~px(20), "Left")
+  lv~Columns~Add("Zip Code", self~px(30), "Left")
+  lv~Columns~Add("Age", self~px(20), "Left")
 
   do r over records
     self~addRecord(r, .false)

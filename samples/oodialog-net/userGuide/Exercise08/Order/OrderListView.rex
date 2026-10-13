@@ -147,10 +147,10 @@
     --say "OrderListView-initDialog-01"; say
     lvOrders = self~newListView("IDC_ORDLIST_LIST");
     lvOrders~GridLines = .true; lvOrders~FullRowSelect = .true   -- ooDialog: ~addExtendedStyle("GRIDLINES FULLROWSELECT")
-    lvOrders~Columns~Add("OrderNo", 60)   -- ooDialog: ~insertColumnPX
-    lvOrders~Columns~Add("CustNo", 80)   -- ooDialog: ~insertColumnPX
-    lvOrders~Columns~Add("CustName", 130)   -- ooDialog: ~insertColumnPX
-    lvOrders~Columns~Add("Date", 80)   -- ooDialog: ~insertColumnPX
+    lvOrders~Columns~Add("OrderNo", 60, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrders~Columns~Add("CustNo", 80, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrders~Columns~Add("CustName", 130, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrders~Columns~Add("Date", 80, "Left")   -- ooDialog: ~insertColumnPX
     self~connectListViewEvent("IDC_ORDLIST_LIST","CLICK",itemSelected)
     self~connectListViewEvent("IDC_ORDLIST_LIST","ACTIVATE",openItem)	-- double-click
     self~connectButtonEvent("IDC_ORDLIST_SHOWORDER","CLICKED",showOrder)

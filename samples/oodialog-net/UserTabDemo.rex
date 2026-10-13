@@ -685,7 +685,7 @@
     s = lvSelf~Size                                       -- ooDialog: lvSelf~getRealSize
     width = s~Width - (.net~System~Windows~Forms~SystemInformation~VerticalScrollBarWidth * 2)   -- ooDialog: .SM~cxVscroll
 
-    lvSelf~Columns~Add("Description", width)             -- ooDialog: lvSelf~insertColumnPx(0, "Description", s~width)
+    lvSelf~Columns~Add("Description", width, "Left")             -- ooDialog: lvSelf~insertColumnPx(0, "Description", s~width)
 
     do d over descriptions
       lvSelf~Items~Add(d)                                 -- ooDialog: lvSelf~addRow( , , d)
@@ -698,7 +698,7 @@
     s = lvFamily~Size
     width = s~Width - (.net~System~Windows~Forms~SystemInformation~VerticalScrollBarWidth * 2)
 
-    lvFamily~Columns~Add("Description", width)
+    lvFamily~Columns~Add("Description", width, "Left")
 
     do d over descriptions
       lvFamily~Items~Add(d)

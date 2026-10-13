@@ -128,11 +128,11 @@
     lv = self~newListView(IDC_LV_MAIN)
 
     -- Set the column headers
-    lv~Columns~Add("Symbol", self~px(40))                -- ooDialog: lv~insertColumn(0, "Symbol", 40) (dialog units)
-    lv~Columns~Add("Quote", self~px(50))
-    lv~Columns~Add("Year high", self~px(50))
-    lv~Columns~Add("Year low", self~px(50))
-    lv~Columns~Add("Description", self~px(120))
+    lv~Columns~Add("Symbol", self~px(40), "Left")                -- ooDialog: lv~insertColumn(0, "Symbol", 40) (dialog units)
+    lv~Columns~Add("Quote", self~px(50), "Left")
+    lv~Columns~Add("Year high", self~px(50), "Left")
+    lv~Columns~Add("Year low", self~px(50), "Left")
+    lv~Columns~Add("Description", self~px(120), "Left")
 
     -- Set the images for the items in the list-view.  The list-view control was
     -- created without the SHAREIMAGES styles, so it takes care of releasing the

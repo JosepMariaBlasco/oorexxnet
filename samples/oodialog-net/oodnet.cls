@@ -174,6 +174,15 @@
   if style~pos("FRAME") > 0 then self~frame(c)                 -- a frame: behind what it frames
   if style~wordPos("SUNKEN") > 0 then c~BorderStyle = "Fixed3D"
   if style~wordPos("ELLIPSIS") > 0 then c~AutoEllipsis = .true
+  -- a static of plain text is drawn by Windows (FlatStyle System), as ooDialog's: a text that fits the
+  -- original's static fits it here (Windows Forms' own drawing pads the text, and cuts its end off); not
+  -- on a property sheet's page (a TabPage: its themed background is Windows Forms'). An image, colours,
+  -- or a Paint of the program's need FlatStyle "Standard" first (oodnet.cls's own methods see to it).
+  plain = .true
+  do w over style~makeArray(" ")
+    if wordPos(w, "LEFT RIGHT CENTER NOTIFY GROUP TABSTOP HIDDEN DISABLED TEXT NOPREFIX SIMPLE LEFTNOWORDWRAP") = 0 then plain = .false
+  end
+  if plain, \.net~isInstance(self~form, "System.Windows.Forms.TabPage") then c~FlatStyle = "System"
   colors = .net~System~Drawing~Color          -- (not C: Rexx's names know no case, c is the control)
   if style~wordPos("WHITERECT") > 0 then c~BackColor = colors~White
   if style~wordPos("BLACKRECT") > 0 then c~BackColor = colors~Black
@@ -379,9 +388,20 @@
   c~MaxSelectionCount = 1
   self~common(c, style)
   return 0
+/* createDateTimePicker(id, x, y, cx, cy [, style]): as ooDialog's, the
+   short date unless style says LONG or TIME (Windows' DTS_SHORTDATEFORMAT is
+   its default; .NET's DateTimePicker's is the long date); UPDOWN, SHOWNONE
+   (a check box), RIGHT (the calendar aligned to the right) */
 ::method createDateTimePicker
   use arg id, x, y, cx, cy, style = ""
   c = self~place(id, .net~System~Windows~Forms~DateTimePicker~new, x, y, cx, cy)
+  st = style~upper
+  c~Format = "Short"
+  if st~wordPos("LONG") > 0 then c~Format = "Long"
+  if st~wordPos("TIME") > 0 then c~Format = "Time"
+  if st~wordPos("UPDOWN") > 0 then c~ShowUpDown = .true
+  if st~wordPos("SHOWNONE") > 0 then c~ShowCheckBox = .true
+  if st~wordPos("RIGHT") > 0 then c~DropDownAlign = "Right"
   self~common(c, style)
   return 0
 ::method createProgressBar               -- VERTICAL (PBS_VERTICAL, which .NET's ProgressBar has not: added to its window's style), SMOOTH, MARQUEE
@@ -647,6 +667,7 @@
 ::method setControlColor
   use arg id, bg, fg
   c = self~control(id)
+  call NetDialogOwnDrawing c           -- (Windows Forms' drawing: the colours)
   c~BackColor = NetDialogColor(bg)
   if arg(3, "E") then c~ForeColor = NetDialogColor(fg)
   return 0
@@ -730,7 +751,9 @@
     deferred~append(.array~of("CONNECTEVENT", .array~of(id, netEvent, methodName)))
     return 0
   end
-  .net~addHandler(self~control(id), netEvent, .net~handler(self, methodName))
+  c = self~control(id)
+  if netEvent~caselessEquals("Paint") then call NetDialogOwnDrawing c   -- (the program draws it)
+  .net~addHandler(c, netEvent, .net~handler(self, methodName))
   return 0
 
 /* owner drawing: methodName gets .NET's Paint (sender, e): e~Graphics draws
@@ -880,6 +903,7 @@
   if self~offThread then return self~onThreadLater("SETCONTROLSYSCOLOR", arg(1, "A"))
   use arg id, bk, fg
   c = self~control(id)
+  call NetDialogOwnDrawing c
   c~BackColor = NetDialogSysColor(bk)
   if arg(3, "E") then c~ForeColor = NetDialogSysColor(fg)
   c~Invalidate
@@ -1070,7 +1094,7 @@
   key = NetDialogKey(id)
   if dcs~hasIndex(key) then return dcs[key]
   c = self~control(id)
-  if .net~isInstance(c, "System.Windows.Forms.ButtonBase") then c~FlatStyle = "Standard"   -- (System: no Paint)
+  call NetDialogOwnDrawing c           -- (System: no Paint)
   dc = .NetDC~new(c)
   dcs[key] = dc
   c~Paint += .net~handler(dc, "PAINT")
@@ -1179,7 +1203,7 @@
   p = .NetBitmapPainter~new(c)
   painters[NetDialogKey(id)] = p
   p~set(self~bitmapOf(bmp), self~bitmapOf(focus), self~bitmapOf(sel), self~bitmapOf(disabl), opts)
-  if .net~isInstance(c, "System.Windows.Forms.ButtonBase") then c~FlatStyle = "Standard"   -- (System: no Paint)
+  call NetDialogOwnDrawing c           -- (System: no Paint)
   call NetDialogDoubleBuffered c
   c~Paint += .net~handler(p, "PAINT")
   c~MouseDown += .net~handler(p, "DOWN")
@@ -2671,6 +2695,8 @@
   x = self~form~Location~X; y = self~form~Location~Y   -- (where create put it)
   self~hostIn(panel)
   panel~Bounds = .net~System~Drawing~Rectangle~new(x, y, self~px(self~sizeX), self~py(self~sizeY))
+  panel~Visible = .false               -- (as ooDialog's: a control dialog's template has no WS_VISIBLE; setWindowPos
+                                       -- with SHOWWINDOW, or show, shows it)
   owner~form~Controls~Add(panel)
   panel~BringToFront
   started = .true
@@ -2821,6 +2847,7 @@
   tc~SizeChanged += .net~handler(self, "PLACE")
   start = max(1, min(mt~startPage, pages~items))
   self~bring(start)
+  pages[start]~show
   showing = start
   if start > 1 then tc~SelectedIndex = start - 1
 ::method bring private                  -- page i made, if it is not yet, and placed over the display area
@@ -3554,6 +3581,7 @@
   use arg ctl, text, font, y, step, sleep, color
   x = ctl~ClientSize~Width
   paint = .net~handler(self, "PAINT")
+  call NetDialogOwnDrawing ctl
   ctl~Paint += paint
   timer = .net~System~Windows~Forms~Timer~new
   timer~Interval = max(1, sleep)
@@ -3825,6 +3853,11 @@ syntax:
   parse value rgb~makeArray(",")[c + 1] with r g b
   return .net~System~Drawing~Color~FromArgb(r, g, b)
 
+::routine NetDialogOwnDrawing          -- (inside) a control drawn by Windows (FlatStyle System) given back to Windows Forms' drawing
+  use arg c                            -- (a Paint, an image or colours of its own: System has none of them)
+  if .net~isInstance(c, "System.Windows.Forms.ButtonBase") | .net~isInstance(c, "System.Windows.Forms.Label") then
+    if c~FlatStyle~string == "System" then c~FlatStyle = "Standard"
+  return
 ::routine NetDialogTrace               -- (inside) unattended: where it is
   if .NetDialog~auto then say "(auto)" arg(1)
 

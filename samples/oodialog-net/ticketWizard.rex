@@ -718,6 +718,7 @@
   staticImage = self~newStatic(IDC_ST_MOVIE_BMP)          -- (a PictureBox)
   size = staticImage~Size                                 -- ooDialog: staticImage~getRealSize
   image = .net~System~Drawing~Bitmap~new(.net~System~Drawing~Image~FromFile(sd'resources\ticketWizardMovie.bmp'), size)   -- ooDialog: .Image~getImage(..., BITMAP, size)
+  staticImage~FlatStyle = "Standard"   -- (.NET version) an image: Windows Forms' drawing
   staticImage~Image = image                               -- ooDialog: staticImage~setImage(image)
 
   filmArray = .array~new(20)

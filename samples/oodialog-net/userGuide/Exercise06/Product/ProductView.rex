@@ -491,6 +491,7 @@
     file = .net~System~Drawing~Bitmap~new(bmpFile)
     image = .net~System~Drawing~Bitmap~new(file, stImage~Size)
     file~Dispose
+    stImage~FlatStyle = "Standard"   -- (.NET version) an image: Windows Forms' drawing
     stImage~Image = image					  -- ooDialog: ~setImage(image)
     font = self~createFontEx("Ariel", 12)			  -- Create up a largish font with which to display text and ...
     self~newStatic(IDC_PRODABT_STATIC2)~Font = font		  -- ... set the static text to use that font.   ooDialog: ~setFont(font)

@@ -407,10 +407,10 @@
     expose tabControl
     lvOrderItems = self~newListView("IDC_ORDLINES_LIST")
     lvOrderItems~GridLines = .true; lvOrderItems~FullRowSelect = .true   -- ooDialog: ~addExtendedStyle("GRIDLINES FULLROWSELECT")
-    lvOrderItems~Columns~Add("ProdNo", 60)   -- ooDialog: ~insertColumnPX
-    lvOrderItems~Columns~Add("Product Name", 180)   -- ooDialog: ~insertColumnPX
-    lvOrderItems~Columns~Add("Qty", 40)   -- ooDialog: ~insertColumnPX
-    lvOrderItems~Columns~Add("Amount", 60)   -- ooDialog: ~insertColumnPX
+    lvOrderItems~Columns~Add("ProdNo", 60, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrderItems~Columns~Add("Product Name", 180, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrderItems~Columns~Add("Qty", 40, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrderItems~Columns~Add("Amount", 60, "Left")   -- ooDialog: ~insertColumnPX
     --say "OrderLinesDlg-initDialog-01."
 
     -- Test an edit field:

@@ -738,8 +738,8 @@
 
     lvOrderItems = self~newListView("IDC_ORDLINES_LIST")
     lvOrderItems~GridLines = .true; lvOrderItems~FullRowSelect = .true   -- ooDialog: ~addExtendedStyle("GRIDLINES FULLROWSELECT")
-    lvOrderItems~Columns~Add("ProdNo", 50)   -- ooDialog: ~insertColumnPX
-    lvOrderItems~Columns~Add("Product Name", 150)   -- ooDialog: ~insertColumnPX
+    lvOrderItems~Columns~Add("ProdNo", 50, "Left")   -- ooDialog: ~insertColumnPX
+    lvOrderItems~Columns~Add("Product Name", 150, "Left")   -- ooDialog: ~insertColumnPX
     lvOrderItems~Columns~Add("UOM", 40, "Right")   -- ooDialog: ~insertColumnPX
     lvOrderItems~Columns~Add("Qty", 40, "Right")   -- ooDialog: ~insertColumnPX
     lvOrderItems~Columns~Add("Amount", 60, "Right")   -- ooDialog: ~insertColumnPX

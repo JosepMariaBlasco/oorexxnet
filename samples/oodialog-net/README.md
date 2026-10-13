@@ -302,11 +302,18 @@ A control `oodnet.cls` has no `create*` for: make it and place it with
 methods), or add it to `self~form~Controls` yourself. `self~px(n)` and
 `self~py(n)` turn dialog units into pixels.
 
-**Buttons are drawn by Windows** (`FlatStyle` System), as ooDialog's: a
-text that fits the original's button stays on one line (Windows Forms' own
-buttons wrap it, their margins being wider). A button that shows an image
-list, an image or colours needs `button~FlatStyle = "Standard"` first
-(`employe7.rex` does so).
+**Buttons and static texts are drawn by Windows** (`FlatStyle` System), as
+ooDialog's: a text that fits the original's button stays on one line
+(Windows Forms' own buttons wrap it, their margins being wider), and a
+static text that fits the original's static is not cut short (Windows
+Forms' own labels pad it). A button or a static that shows an image list,
+an image or colours, or that the program draws on, needs
+`control~FlatStyle = "Standard"` first (`employe7.rex` does so;
+oodnet.cls's own methods, setControlColor, connectDraw and the device
+contexts, see to it). Statics with a frame, a colour, an ellipsis or a
+centred image, and those on a property sheet's page, are Windows Forms'
+own. A date and time picker shows the short date, as Windows' does, unless
+its style says LONG or TIME.
 
 **Sizes, measured.** `rexx measure-dialogs.rex [build-dir]` (Windows, with
 ooDialog: ooRexx for Windows has it) opens some of ooDialog's sample dialogs

@@ -164,9 +164,9 @@
     -- Each Order Item consists of ProdNo, ProdName, Qty:
     orderItems = orderControls[lvOrderItems]
     orderItems~GridLines = .true; orderItems~FullRowSelect = .true   -- ooDialog: ~addExtendedStyle("GRIDLINES FULLROWSELECT")
-    orderItems~Columns~Add("Product No.", 110)   -- ooDialog: ~insertColumnPX
-    orderItems~Columns~Add("Product Name", 160)   -- ooDialog: ~insertColumnPX
-    orderItems~Columns~Add("Quantity", 85)   -- ooDialog: ~insertColumnPX
+    orderItems~Columns~Add("Product No.", 110, "Left")   -- ooDialog: ~insertColumnPX
+    orderItems~Columns~Add("Product Name", 160, "Left")   -- ooDialog: ~insertColumnPX
+    orderItems~Columns~Add("Quantity", 85, "Left")   -- ooDialog: ~insertColumnPX
     self~connectListViewEvent("IDC_ORDER_ITEMS","ACTIVATE",showProduct)	-- double-click
 
     --font = self~createFontEx("Ariel", 10)

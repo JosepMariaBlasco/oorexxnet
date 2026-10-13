@@ -26,7 +26,7 @@
   self~create(0, 0, 272, 278, "Order Form", "CENTER", , "Ms Shell Dlg", 8)
 
 ::method defineDialog                  -- the .rc's controls
-  self~createDateTimePicker(IDC_ORDFORM_DATE, 185, 9, 70, 15, "")
+  self~createDateTimePicker(IDC_ORDFORM_DATE, 185, 9, 70, 15, "RIGHT")
   self~createEdit(IDC_ORDFORM_ORDNO, 50, 9, 40, 14, "", "IDC_ORDFORM_ORDNO")
   self~createStatic(IDC_STATIC, 10, 12, 32, 8, "", "Order No.")
   self~createStatic(IDC_STATIC, 158, 12, 16, 8, "", "Date")

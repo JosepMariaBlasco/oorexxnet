@@ -74,9 +74,9 @@
   list~GridLines = .true
   list~CheckBoxes = .true
   list~AllowColumnReorder = .true      -- HEADERDRAGDROP
-  list~Columns~Add("Row (Column 1)", self~px(75))
-  list~Columns~Add("Column 2", self~px(70))
-  list~Columns~Add("Column 3", self~px(70))
+  list~Columns~Add("Row (Column 1)", self~px(75), "Left")
+  list~Columns~Add("Column 2", self~px(70), "Left")
+  list~Columns~Add("Column 3", self~px(70), "Left")
   list~BeginUpdate                     -- (.NET version) 200 rows, drawn once
   do i = 1 to 200
     item = .net~System~Windows~Forms~ListViewItem~new("Line" i)
