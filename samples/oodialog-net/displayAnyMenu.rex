@@ -69,11 +69,16 @@
  * The prompt is WinSystemDlgs_IDD_USER_PROMPT, from winSystemDlgsrc.cls; the
  * MenuDetailer reads the window's menus by opening them, as a user would.
  * Unattended (argument "auto"): Notepad is started, its title typed into the
- * prompt, its menu shown, and it is closed at the end.)
+ * prompt (its title in Windows' language: found by its window class), its
+ * menu shown, and it is closed at the end.)
  */
 
 .NetDialog~auto = arg(1)~strip~caselessEquals("auto")    -- (.NET version) unattended
-if .NetDialog~auto then call startProgram getPathToSystemExe("notepad.exe")
+if .NetDialog~auto then do                               -- (.NET version) unattended: Notepad, its title
+  call startProgram getPathToSystemExe("notepad.exe")
+  np = findNotepadWindow()
+  if np \== .nil then .local~autoTitle = np~Current~Name  -- (in Windows' language)
+end
 
 -- Prompt the user for a window title
 dlg = .UserPrompt~new                                    -- ooDialog: .UserPrompt~new(sd"winSystemDlgs.rc", IDD_USER_PROMPT)
@@ -180,6 +185,6 @@ return 0
 
 ::method autoRun                       -- (.NET version) unattended: Notepad's title typed, then OK
   edit = self~newEdit(IDC_EDIT_NAME)
-  edit~Text = "Untitled - Notepad"
+  edit~Text = .local~autoTitle                         -- Notepad's title, found by its window class
   say "(auto) title:" edit~Text
   self~ok

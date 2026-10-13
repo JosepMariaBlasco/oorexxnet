@@ -91,7 +91,7 @@ call startProgram calcExe                                -- ooDialog: "start" ca
 -- It takes some finite period of time for an application to start.  This can
 -- vary substantially depending on the system load.  findTheWindow() allows for
 -- this, but will eventually time out if the window can not be located.
-calc = findTheWindow("Calculator")
+calc = findCalcWindow()                                  -- ooDialog: findTheWindow("Calculator")
 if calc == .nil then do
   msg = "Could not find the Calculator application window." || '0d0a0d0a'x || -
         "This example program will have to abort."

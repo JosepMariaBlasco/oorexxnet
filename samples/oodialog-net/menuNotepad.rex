@@ -94,7 +94,7 @@ end
 
 call startProgram notepadExe                             -- ooDialog: "start" notepadExe
 
-np = findTheWindow("Untitled - Notepad")
+np = findNotepadWindow()                                 -- ooDialog: findTheWindow("Untitled - Notepad")
 if np == .nil then do
   msg = "Could not find the Notepad application window." || '0d0a0d0a'x || -
         "This sample with have to abort."

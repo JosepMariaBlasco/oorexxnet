@@ -100,7 +100,7 @@ call startProgram notepadExe                             -- ooDialog: "start" no
 -- eventually time out.  Again, we let the user know why we are quitting if we
 -- do.
 
-np = findTheWindow("Untitled - Notepad")
+np = findNotepadWindow()                                 -- ooDialog: findTheWindow("Untitled - Notepad")
 if np == .nil then do
   msg = "Could not find the Notepad application window." || '0d0a0d0a'x || -
         "This sample will have to abort."
@@ -149,11 +149,10 @@ if editWnd~TryGetCurrentPattern(A~TextPattern~Pattern, r) then do
   say "Notepad has" lines~items "lines; the first:" lines[1]
 end
 
--- The Save dialog's button that discards the text.  Its name has no '&': UI
--- Automation names a control without its mnemonic; findDescendent ignores case
--- (Windows 11's Notepad says "Don't save").
-if isVistaOrLater() then buttonName = "Don't Save"
-else buttonName = "No"
+-- The Save dialog's button that discards the text: discardButton() finds it by
+-- its AutomationId, whatever Windows' language (the original: by its name,
+-- "Do&n't Save", "&No" before Vista).
+buttonName = "Don't Save"
 
 -- Pause a little bit to allow the user to read the text.
 if \.NetDialog~auto then j = SysSleep(5)
@@ -177,7 +176,7 @@ j = SysSleep(1)
 button = .nil
 signal on syntax name gone                               -- (Notepad closed: UI Automation's ElementNotAvailableException)
 do 10 while button == .nil
-  button = findDescendent(np, buttonName)
+  button = discardButton(np)
   if button == .nil then j = SysSleep(.3)
 end
 signal off syntax

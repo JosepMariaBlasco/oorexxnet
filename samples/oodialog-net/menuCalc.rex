@@ -146,7 +146,7 @@ return 0
  */
 ::routine getCalcWindow
 
-  calcWnd = findTheWindow("Calculator")
+  calcWnd = findCalcWindow()                             -- ooDialog: findTheWindow("Calculator")
   if calcWnd == .nil then do
     msg = "Could not find the Calculator application window." || '0d0a0d0a'x || -
           "This sample with have to abort."

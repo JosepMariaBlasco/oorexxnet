@@ -144,7 +144,10 @@ Windows 11 Notepad and Calculator, which winsystm.cls cannot); and it does
 what a user can do: it reads a menu by opening it, and it does not disable,
 hide or retitle another program's windows. The Calculator's buttons are
 pushed by their AutomationIds, which differ between the classic Calculator
-(Windows Server's) and today's: `calcKey` knows both.
+(Windows Server's) and today's: `calcKey` knows both. Notepad and the Calculator are
+found by their window class, and the buttons by their AutomationIds, not by
+their titles and labels: the programs work in any language of Windows (the
+originals needed English titles).
 
 More of ooDialog's samples will follow, in batches.
 

@@ -66,7 +66,7 @@
   .NetDialog~auto = arg(1)~strip~caselessEquals("auto")  -- (.NET version) unattended
   if .NetDialog~auto then do
     call startProgram getPathToSystemExe("notepad.exe")
-    np = findTheWindow("Untitled - Notepad")
+    np = findNotepadWindow()
   end
 
   -- The desktop window is UI Automation's root element.

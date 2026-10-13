@@ -344,8 +344,82 @@ return prgPathName
  */
 ::routine startProgram public
   use strict arg prgPathName
-  .net~System~Diagnostics~Process~Start(prgPathName)
+  -- The top-level windows there were before, so that findNotepadWindow() and
+  -- findCalcWindow() can tell the new one.
+  A = .net~System~Windows~Automation
+  before = .set~new
+  do w over A~AutomationElement~RootElement~FindAll(A~TreeScope~Children, A~Condition~TrueCondition)
+    before~put(runtimeId(w))
+  end
+  .local~windowsSystem.before = before
+  -- Through the shell, as "start" did: the program inherits nothing of ours
+  -- (a redirected output file, which it would keep open while it runs).
+  psi = .net~System~Diagnostics~ProcessStartInfo~new(prgPathName)
+  psi~UseShellExecute = .true
+  .net~System~Diagnostics~Process~Start(psi)
   return 0
+
+/** findNotepadWindow(), findCalcWindow()
+ * (.NET version) Notepad's and the Calculator's window, found by their window
+ * class, not by their title: the title is in Windows' language ("Untitled -
+ * Notepad", "Sin título: Bloc de notas"; "Calculator", "Calculadora"). A
+ * window that startProgram() did not see before is preferred: one already
+ * open is taken only when no new one appears. The Calculator: the classic's
+ * class is CalcFrame; today's, an app, is in an ApplicationFrameWindow (as
+ * every app is), the one whose display is CalculatorResults.
+ *
+ * @return  The window (an AutomationElement), or .nil.
+ */
+::routine findNotepadWindow public
+  use arg loops = 25, pause = .2
+  return findAppWindow("Notepad", "", loops, pause)
+
+::routine findCalcWindow public
+  use arg loops = 25, pause = .2
+  return findAppWindow("CalcFrame ApplicationFrameWindow", "CalculatorResults", loops, pause)
+
+::routine findAppWindow
+  use strict arg classes, frameMark, loops, pause
+  A = .net~System~Windows~Automation
+  AE = A~AutomationElement
+  before = .local~windowsSystem.before
+  if before == .nil then before = .set~new
+  old = .nil
+  do loops
+    do w over AE~RootElement~FindAll(A~TreeScope~Children, A~Condition~TrueCondition)
+      c = w~Current~ClassName
+      if classes~wordPos(c) == 0 then iterate
+      if c == "ApplicationFrameWindow" then do      -- (an app: is it the one?)
+        mark = A~PropertyCondition~new(AE~AutomationIdProperty, frameMark)
+        if w~FindFirst(A~TreeScope~Descendants, mark) == .nil then iterate
+      end
+      if \before~hasIndex(runtimeId(w)) then return w
+      old = w
+    end
+    j = SysSleep(pause)
+  end
+  return old
+
+/** discardButton()
+ * (.NET version) The button of Notepad's "save the changes?" question that
+ * discards them, among the window's descendants: by its AutomationId, which
+ * does not depend on Windows' language (the classic Notepad's task dialog:
+ * CommandButton_7, its IDNO; the Windows 11 Notepad: SecondaryButton), else
+ * by its English name. .nil if there is none (yet).
+ */
+::routine discardButton public
+  use strict arg wnd
+  A = .net~System~Windows~Automation
+  AE = A~AutomationElement
+  do aid over .array~of("CommandButton_7", "SecondaryButton")
+    b = wnd~FindFirst(A~TreeScope~Descendants, A~PropertyCondition~new(AE~AutomationIdProperty, aid))
+    if b \== .nil then return b
+  end
+  do name over .array~of("Don't Save", "No")
+    b = findDescendent(wnd, name)
+    if b \== .nil then if b~Current~ControlType~ProgrammaticName == "ControlType.Button" then return b
+  end
+  return .nil
 
 /** getWindowTree()
  * Constructs a data structure that represents the entire element hierarchy of
@@ -1218,7 +1292,8 @@ return newRoot
  * classic Calculator (Windows 7's, still on Windows Server) the control ids
  * (its own: Windows XP's, which the original used, differ); in today's
  * Calculator (an app: its window's class is ApplicationFrameWindow) names
- * like num1Button. calcKey() knows both, by the key's label.
+ * like num1Button. calcKey() knows both, by the key's label. Neither depends
+ * on Windows' language, nor does findCalcWindow().
  */
 ::routine isModernCalc public
   use strict arg calc
@@ -1264,9 +1339,10 @@ return newRoot
   else aid = "150"
   display = calc~FindFirst(A~TreeScope~Descendants, A~PropertyCondition~new(A~AutomationElement~AutomationIdProperty, aid))
   if display == .nil then return ""
-  text = display~Current~Name
-  if text~caselessAbbrev("Display is ") then text = text~substr(12)
-  return text~strip
+  -- (today's says "Display is 160", in Windows' language: the number is its
+  -- last word)
+  text = display~Current~Name~strip
+  return text~word(text~words)
 
 /** calcView()
  * (.NET version) The Calculator's view: Standard, Scientific or Programmer

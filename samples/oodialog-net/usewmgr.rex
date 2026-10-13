@@ -148,7 +148,7 @@ return 0
 
   -- Find the Calculator Window, if we don't find it, then end this portion of
   -- the demonstration.
-  calc = findTheWindow("Calculator")
+  calc = findCalcWindow()
   if calc == .nil then return windowFailure("Calculator")
 
   -- Make the calculator the top-most window.
@@ -162,7 +162,7 @@ return 0
   /* The original's Calculator made a new window when its view changed: it
    * found it again after each change.  We do too: it does no harm.
    */
-  calc = findTheWindow("Calculator")
+  calc = findCalcWindow()
   if calc == .nil then return windowFailure("Calculator")
   call focusOn calc
 
@@ -176,11 +176,11 @@ return 0
   /* Switch between Scientific and Standard view */
   call calcSetView calc, "Standard"                      -- ooDialog: calc~ProcessMenuCommand("&View","S&tandard")
   call pause 2
-  calc = findTheWindow("Calculator")
+  calc = findCalcWindow()
   if calc == .nil then return windowFailure("Calculator")
   call calcSetView calc, "Scientific"
   call pause 2
-  calc = findTheWindow("Calculator")
+  calc = findCalcWindow()
   if calc == .nil then return windowFailure("Calculator")
 
   -- The original changed the Calculator's title here: "Calculator - Open
@@ -284,7 +284,7 @@ syntax:
   -- Start the Notepad program.
   call startProgram notePrg                              -- ooDialog: "start" notePrg
 
-  np = findTheWindow("Untitled - Notepad")
+  np = findNotepadWindow()                               -- ooDialog: findTheWindow("Untitled - Notepad")
   if np == .nil then return windowFailure("Notepad")
 
   -- Move Notepad to foreground.
@@ -343,10 +343,10 @@ syntax:
   j = sendKeyWithPause(npe, "RETURN")
   call sendText npe, "The show is over. Good bye in 3 seconds!"
 
-  -- The Save dialog's button that discards the text (UI Automation names it
-  -- without its '&'; findDescendent ignores case: Windows 11 says "Don't save").
-  if isVistaOrLater() then buttonName = "Don't Save"
-  else buttonName = "No"
+  -- The Save dialog's button that discards the text: discardButton() finds it by
+  -- its AutomationId, whatever Windows' language (the original: by its name,
+  -- "Do&n't Save", "&No" before Vista).
+  buttonName = "Don't Save"
 
   call pause 2
 
@@ -359,7 +359,7 @@ syntax:
   button = .nil
   signal on syntax name gone                             -- (Notepad closed: it did not ask)
   do 10 while button == .nil
-    button = findDescendent(np, buttonName)
+    button = discardButton(np)
     if button == .nil then call SysSleep .3
   end
   signal off syntax
