@@ -157,7 +157,7 @@ end
     return
 
   -- see if the information needs to be processed or simply displayed
-  if arg(3, "exists") then
+  if arg(3, "exists") then do
     -- we can process some information display a more human-readable form
     caseOf = arg(3)
     select case caseOf                                   -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
@@ -172,6 +172,7 @@ end
       end
       otherwise -- use array to translate information
         content = arg(3)[content + 1]
+    end
   end
   say left(desc, 30) content
 
