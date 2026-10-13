@@ -98,16 +98,61 @@
  *        ::method myOwnMethodName unguarded
  *          use arg char, isShift, isCtrl, isAlt, misc, control
  *          forward  message 'onChar' to (control)
+ *
+ *  (.NET version, for ooDialog programs ported to Windows Forms through
+ *  oodnet.cls. A .NET TextBox cannot inherit a Rexx mixin, so step 2's
+ *  object is made by this class around the dialog's edit control:
+ *
+ *      editObject = .NumberOnlyEditEx~new(self, IDC_EDIT)   -- ooDialog: self~newEdit(IDC_EDIT)
+ *
+ *  and everything else sent to it goes to the TextBox (ReadOnly, Text...).
+ *  connectCharEvent connects the TextBox's KeyPress to the dialog's method,
+ *  with ooDialog's arguments (the character's code, isShift, isCtrl, isAlt,
+ *  misc, the object); a .false from it (from onChar) stops the character.
+ *  KeyPress sees characters only, never the arrow or Delete keys, so misc
+ *  is always "". The original replied .false and then showed the balloon;
+ *  here the balloon is shown first, then .false is returned: after a reply
+ *  the method would go on on another thread, and a window is only shown
+ *  from its own.)
  */
 
-  -- Extend the .Edit control by inheriting the .NumberOnlyEditEx mixin class.
+  -- ooDialog: .Edit~inherit(.NumberOnlyEditEx, .EditControl): a TextBox
+  -- cannot inherit it; each object of the class holds one instead.
 
-  .Edit~inherit(.NumberOnlyEditEx, .EditControl)
+::requires 'oodnet.cls'                -- ooDialog: ::requires 'ooDialog.cls', 'winsystm.cls'
 
-::requires 'ooDialog.cls'
-::requires 'winsystm.cls'
+::class 'NumberOnlyEditEx' public      -- ooDialog: public mixinclass object
 
-::class 'NumberOnlyEditEx' public mixinclass object
+-- (.NET version) new(dialog, id): the dialog's edit control id, held
+::method init
+  expose dialog edit
+  use strict arg dialog, id
+  edit = dialog~newEdit(id)
+
+::attribute edit get                   -- (.NET version) the TextBox
+
+-- (.NET version) the rest is the TextBox's: ReadOnly, Text, Focus...
+::method unknown unguarded
+  expose edit
+  use arg name, args
+  forward to (edit) message (name) arguments (args)
+
+-- (.NET version) ooDialog's Edit~connectCharEvent(methodName): the TextBox's
+-- KeyPress to the dialog's method
+::method connectCharEvent
+  expose dialog edit
+  use strict arg methodName
+  edit~KeyPress += .net~handler(.NumberOnlyEditExChar~new(dialog, methodName, self), "KEYPRESS")
+  return 0
+
+-- (.NET version) ooDialog's getText and showBalloon, on the TextBox
+::method getText private unguarded
+  expose edit
+  return edit~Text
+::method showBalloon private unguarded
+  expose dialog edit
+  use arg title, text, icon
+  return dialog~showBalloon(edit, title, text, icon)
 
 -- Users of the signed decimal number only edit control must invoke
 -- initDecimalOnly() first to assign decimal places and specify if the sign
@@ -121,7 +166,7 @@
   else signOk = .false
 
   initialized = .true
-  clipBoard = .WindowsClipboard~new
+  clipBoard = .net~System~Windows~Forms~Clipboard   -- ooDialog: .WindowsClipboard~new
 
 -- The onChar() method should be inovked at every character event.  Returning
 -- true allows the character, returning false disallows the character.  When a

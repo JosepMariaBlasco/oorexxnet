@@ -436,6 +436,10 @@ say "ProductView-updateProduct-01."
         "price" prodControls[ecProdPrice]~Text "UOM" prodControls[ecUOM]~Text
     menuBar~item(IDM_PROD_UPDATE)~PerformClick
     say "(auto) in update: name read-only" prodControls[ecProdName]~ReadOnly", Save enabled" prodControls[pbSaveChanges]~Enabled
+    prodControls[ecProdPrice]~Focus                          -- a letter typed: refused, with a balloon
+    prodControls[ecProdPrice]~SelectionStart = 0
+    .net~System~Windows~Forms~SendKeys~SendWait("x")
+    say "(auto) after typing x, the price is" prodControls[ecProdPrice]~Text
     prodControls[pbSaveChanges]~PerformClick                -- nothing changed
     prodControls[ecProdPrice]~Text = prodControls[ecProdPrice]~Text * 10
     prodControls[pbSaveChanges]~PerformClick                -- the ratio: not saved
