@@ -99,3 +99,26 @@ patch; ooRexx's test suite (test/trunk r13268, native API tests included):
 24143 tests, the same 9 environment-related failures with and without it.
 The bridge works around it (a global reference to its built-in packages:
 `RexxInterpreter.BothWays.cs`, `SetUpNet`).
+
+## `select-case-gc.diff` (13/10/2026, against trunk r13269): SELECT CASE
+
+One file: `interpreter/instructions/SelectInstruction.cpp`. **Unreported
+yet** (draft: `sf-bug-report-select-case.md`; reproducer:
+`select-case-repro.rex`).
+
+**Problem.** `RexxInstructionSelectCase::execute` creates the instruction's
+`DoBlock`, then evaluates the CASE expression, and only then anchors the
+block in the activation. A garbage collection during the evaluation (any
+CASE expression that allocates: a message, a string BIF) sweeps the block,
+which the activation then uses: the object heap is corrupted, and the
+program later crashes (SIGSEGV / 0xC0000005) or hangs, often far from the
+SELECT. The reproducer crashes trunk r13269 within a second.
+
+**Fix.** `Protected<DoBlock>` for the block and a `ProtectedObject` for the
+CASE value while the expression is evaluated, as the DO instructions do.
+
+**Until it is fixed**, this repository's programs evaluate the CASE
+expression into a variable first (`caseOf = expr`, `select case caseOf`):
+a plain variable allocates nothing. `git grep "SELECT CASE: unreported"`
+finds them.
+

@@ -239,7 +239,8 @@ return 0
 ::routine valueText
   use strict arg key, name
   v = key~GetValue(name, "", .net~Microsoft~Win32~RegistryValueOptions~DoNotExpandEnvironmentNames)
-  select case key~GetValueKind(name)~string
+  caseOf = key~GetValueKind(name)~string
+  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
     when "Binary" then return .net~System~Convert~ToHexString(v)
     when "MultiString" then return v~makeString("L", " | ")
     otherwise return v
@@ -281,7 +282,8 @@ syntax:
       if name == "" then line = "@="
       else line = '"' || regQuote(name) || '"='
       v = key~GetValue(name, .nil, NoExpand)
-      select case key~GetValueKind(name)~string
+      caseOf = key~GetValueKind(name)~string
+      select case caseOf                                 -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
         when "String" then line ||= '"' || regQuote(v) || '"'
         when "DWord" then do
           if v < 0 then v += 4294967296                 -- (.NET gives an Int32)

@@ -138,7 +138,8 @@ return 0
   if icon \== "" then link~IconLocation = icon || "," || iconNr
   if workDir \== "" then link~WorkingDirectory = workDir
   if hotKey \== "" then link~Hotkey = "Ctrl+Alt+" || hotKey~upper
-  select case run~upper                               -- 1 normal, 3 maximized, 7 minimized
+  caseOf = run~upper                               -- 1 normal, 3 maximized, 7 minimized
+  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
     when "MAXIMIZED" then link~WindowStyle = 3
     when "MINIMIZED" then link~WindowStyle = 7
     otherwise nop

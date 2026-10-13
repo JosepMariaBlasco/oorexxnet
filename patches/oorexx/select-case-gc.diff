@@ -1,0 +1,19 @@
+--- interpreter/instructions/SelectInstruction.cpp
++++ interpreter/instructions/SelectInstruction.cpp
+@@ -364,11 +364,14 @@
+ 
+     // create an active DO block, which marks that we have an active SELECT
+     // in case someone tries do SIGNAL into the middle of the instruction.
+-    DoBlock *doblock = new DoBlock (context, this);
++    // It must be protected: evaluating the CASE expression can run any code,
++    // and a garbage collection then would reclaim the block before it is
++    // anchored in the context by newBlockInstruction().
++    Protected<DoBlock> doblock = new DoBlock (context, this);
+ 
+     // evaluate the CASE instruction and store in the doblock so the WHEN
+     // instructions can retrieve it.
+-    RexxObject *caseResult = caseExpr->evaluate(context, stack);
++    ProtectedObject caseResult = caseExpr->evaluate(context, stack);
+     context->traceKeywordResult(GlobalNames::CASE, caseResult);
+ 
+     // set the block to the top of the context stack.

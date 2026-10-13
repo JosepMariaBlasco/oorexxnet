@@ -295,7 +295,8 @@
 
   lastTab = tabControl~TabCount - 1                       -- ooDialog: tabControl~items
 
-  select case e~KeyCode~string                            -- ooDialog: vKey == .VK~N...
+  caseOf = e~KeyCode~string                            -- ooDialog: vKey == .VK~N...
+  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: unreported)
     when "N" then self~onNext
     when "P" then self~onPrevious
     when "Home" then self~goTo(tabControl, 0)
