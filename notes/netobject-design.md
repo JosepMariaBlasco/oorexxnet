@@ -1508,6 +1508,21 @@ Rexx class itself (`cls~netExtension`), not in a table of `.net`'s, which
 held every extended class. A failed construction leaves no pair
 (`extAbandon`): its handle goes as any proxy's.
 
+**The end of the program.** When an interpreter instance ends, ooRexx
+collects once more with the program gone and runs the `UNINIT`s it finds
+(also of objects in `.local`): every Rexx object with an `UNINIT` gets it.
+So does every pair still alive, as it did when the pairs were pinned: a
+`.NetInstanceEnd` in `.local` (made with the first pair, holding its
+instance's id as the instance's programs see it: the end's `UNINIT`s may
+run with another context) says that the instance ends
+(`NetInstanceEnding`). Then the pairs that only .NET holds are over at
+once, and those Rexx held when their sentinel's `UNINIT` runs (in the same
+round, in any order). Each runs its class's `UNINIT` with its overrides
+still reaching it (its entry is kept, marked ending, so a crossing does not
+re-arm it); then its .NET object, which may live on in .NET (a .NET
+application hosting ooRexx), has no peer any more (`extAbandon`): its
+overrides run the base's implementations.
+
 **Handlers, by the same principle.** A `.net~handler` was pinned (global
 references in `rexxnet`, and its delegates in a table of the managed side)
 from the first time it went to .NET until `~release`: the program had to
@@ -1527,9 +1542,7 @@ once (its later calls do nothing).
 **Not changed (yet).** The managed side's table of extended types
 and its dynamic assembly (`AssemblyBuilderAccess.Run`) keep every extended
 .NET type for good, so a Rexx class made at run time and extended is not
-collected. At the end of the program, ooRexx runs every pending `UNINIT`,
-but a pair still alive then is not over: its class's `UNINIT` does not run
-(as in ooRexx/WASM). A .NET application hosting ooRexx that hands such an
+collected. A .NET application hosting ooRexx that hands such an
 instance to Rexx (`RexxObject`) gives a new plain `.NetObject` for it, as
 before.
 
@@ -1545,4 +1558,6 @@ the same `tests/lifetime.rex` (28 in all): used once and dropped, released;
 kept by .NET alone, held and called, then released when .NET lets them go;
 one Rexx holds, given again after .NET let it go, the same handler; a
 queued call whose handler both sides dropped, still dispatched, then
-released.
+released. And `tests/lifetime-end.rex`, run by `lifetime.rex` as a program
+of its own (29 in all): at its end, one pair Rexx holds and ten .NET holds
+alone run their `UNINIT` once each, their overrides working.

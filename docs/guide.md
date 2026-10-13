@@ -617,7 +617,8 @@ again as it was if it comes back to Rexx. Each instance is a pair, your
 object and its .NET object, that lives while Rexx holds the one or .NET the
 other: the bridge lets both garbage collectors release it, with nothing to
 do by hand, and your class's `UNINIT`, if it has one, runs once, when the
-pair is over (its .NET object is gone by then). An interface's
+pair is over: when .NET has collected its object, or at the end of the
+program. An interface's
 event (`INotifyPropertyChanged.PropertyChanged`, what WPF's binding listens
 to) is an event of the new type: .NET code and Rexx (`o~PropertyChanged +=
 handler`) subscribe to it, and the object's own methods raise it with
