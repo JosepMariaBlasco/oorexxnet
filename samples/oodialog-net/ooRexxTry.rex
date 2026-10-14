@@ -735,13 +735,13 @@ return iarray
     code_input~Text = 'say "selected"' || .endOfLine || 'say 1/0'
     code_input~Select(0, 14)                                  -- only the first line
     self~RunIt
-    say "(auto) the selection:" say_input~Lines[0] "/" errors_input~Text
+    say "(auto) the selection:" say_input~Lines[1] "/" errors_input~Text
     code_input~Select(0, 0)
     self~RunIt
-    say "(auto) an error:" errors_input~Lines[0] "/" errors_input~Lines[2]
+    say "(auto) an error:" errors_input~Lines[1] "/" errors_input~Lines[3]
     args_input~Text = '1 +'
     self~RunIt
-    say "(auto) a bad argument:" errors_input~Lines[0]
+    say "(auto) a bad argument:" errors_input~Lines[1]
     self~ClipBoard(55)
     say "(auto)" errors_input~Text":" .net~System~Windows~Forms~Clipboard~GetText~makeArray[1]
     self~onFontMenuClick(31)
