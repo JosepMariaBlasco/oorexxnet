@@ -1924,14 +1924,20 @@
 /* ooDialog's UserMenuBar: addPopup(id, text [, opts [, helpID]]),
    addItem(id, text [, opts [, method]]), addSeparator(id [, opts]),
    complete; opts: DEFAULT (bold), GRAYED, DISABLED, CHECKED, RADIO (a check
-   mark here: .NET's menu items have no bullet), END (ignored: the popups
-   end where the next one starts) */
+   mark here: .NET's menu items have no bullet), END: the last at its level,
+   as in ooDialog (and Win32's menu templates): after an item or separator
+   with END the popup it is in ends, and so does each popup above it that
+   was added with END. So a popup added inside another one is a submenu. */
 ::method addPopup
-  expose current
+  expose current levels
   use arg id, text, opts = "", helpID
-  current = .NetPopupMenu~new(id)
-  self~insertPopup(, id, current, text)
-  call NetMenuState current~item, opts
+  if \var("LEVELS") then levels = .array~new   -- the open popups, innermost last: (popup, its END)
+  popup = .NetPopupMenu~new(id)
+  if levels~isEmpty then self~insertPopup(, id, popup, text)
+  else levels~lastItem[1]~insertPopup(, id, popup, text)
+  call NetMenuState popup~item, opts
+  levels~append(.array~of(popup, opts~upper~wordPos("END") > 0))
+  current = popup
   return .true
 ::method addItem
   expose current queued
@@ -1939,13 +1945,23 @@
   if \var("CURRENT") then raise syntax 93.900 array("NetMenuBar: addItem before addPopup")
   current~insertItem(, id, text, opts)
   if arg(4, "E") then queued~append(.array~of(id, methodName))
+  if opts~upper~wordPos("END") > 0 then self~endLevel
   return .true
 ::method addSeparator
   expose current
   use arg id, opts = ""
   if \var("CURRENT") then raise syntax 93.900 array("NetMenuBar: addSeparator before addPopup")
   current~insertSeparator(, id)
+  if opts~upper~wordPos("END") > 0 then self~endLevel
   return .true
+::method endLevel private              -- (inside) the current popup ends, and those above it added with END
+  expose current levels
+  do while \levels~isEmpty
+    last = levels~lastItem
+    levels~delete(levels~last)
+    if \last[2] then leave
+  end
+  if \levels~isEmpty then current = levels~lastItem[1]
 ::method complete                      -- (nothing to do: the menu is ready as it is built)
   return .true
 ::method insertPopup

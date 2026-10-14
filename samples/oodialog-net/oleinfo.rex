@@ -611,7 +611,8 @@ badArgument:                                        -- (.NET version) an argumen
 ::method Init
   expose outarray
   use arg rvalue, outarray
-  InitRet = self~init:super
+  self~init:super
+  InitRet = 0                                            -- (.NET version: NetDialog's init returns nothing)
   /* (.NET version) its .rc dialog: the superclass, from oleinforc.cls */
 
   self~data400=rvalue~string

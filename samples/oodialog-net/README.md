@@ -132,6 +132,7 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `displayAnyMenu.rex` | `winsystem\displayAnyMenu.rex` | the menus of a window given by its title, in a tree view |
 | `sysinfo.rex` | `sysinfo\sysinfo.rex` | WMI's classes and their instances (`.net~getObject("WinMgmts:")`), asked by a thread of the program's own, shown on the dialog's thread |
 | `oleinfo.rex` | `oleinfo\oleinfo.rex` | a browser of COM objects: their methods, properties and events (`.net~getKnownMethods`, `getKnownEvents`), invoked with arguments typed in (out parameters as .NetRefs); the registry's ProgIDs |
+| `ooRexxTry.rex` | `ooRexxTry\ooRexxTry.rex` | Rexx code tried out: arguments and code typed in, run as a Routine, its SAYs caught by a Stream subclass; DlgAreaU resizing; a menu bar with submenus (UserMenuBar's END); the clipboard; settings in an .ini file |
 
 **winsystem/: other programs' windows.** Those samples use winsystm.cls,
 whose WindowsManager, WindowObject and MenuObject work with other programs'
@@ -259,7 +260,7 @@ More of ooDialog's samples will follow, in batches.
 | `ok`, `cancel`, `validate`, `leaving`, `initDialog` overridden | the same; `self~ok:super` ends the dialog when `validate` answers `.true` |
 | data attributes (`createEdit(id, ..., "TLINE")`, then `self~TLine`) | the same |
 | `infoDialog`, `errorDialog`, `askDialog`, `messageDialog`, `inputBox`, `integerBox`, `passwordBox`, `listChoice`, `multiListChoice`, `checkList`, `singleSelection`, `multiInputBox`, `fileNameDialog`, `browseForFolder`, `timedMessage` | the same names, arguments and results; `self~IDOK`... `self~IDCONTINUE` as ooDialog's |
-| `.UserMenuBar~new`, `addPopup`, `addItem`, `addSeparator`, `complete`; `connectAllCommandEvents`; `checkRadio`, `check`, `gray` | the same on a NetMenuBar (the methods named from the items' text, as ooDialog's) |
+| `.UserMenuBar~new`, `addPopup`, `addItem`, `addSeparator`, `complete`; `connectAllCommandEvents`; `checkRadio`, `check`, `gray` | the same on a NetMenuBar (the methods named from the items' text, as ooDialog's; `END` closes a popup, so one added inside another is a submenu) |
 | `.Mouse`'s events (`connectWheel`...), dragging with `DefListDragHandler`, `DefTreeDragHandler` | the controls' .NET events (`MouseWheel`, `ItemDrag`, `DragOver`, `DragDrop`); `connectListViewEvent(id, "BEGINDRAG", "DefListDragHandler")`, `connectTreeViewEvent(id, "BEGINDRAG", "DefTreeDragHandler")` as ooDialog's |
 | `sendWinIntMsg(hwnd, msg, wParam, lParam)` (Windows' messages to a control) | `sendWinIntMsg(control, msg, wParam, lParam)` (a public routine of oodnet.cls) |
 | `connectResize`, `connectResizing`, `connectSizeMoveEnded`; `DlgArea`, `DlgAreaU` | the same (.NET's `Resize`, WM_SIZING, `ResizeEnd`; ooDialog's arithmetic) |
