@@ -130,6 +130,8 @@ originals, whose headers they keep. `oodnet.cls` is under the Apache License
 | `usewmgr.rex` | `winsystem\usewmgr.rex` | the Calculator and Notepad driven: views, answers through .NET's Clipboard, hexadecimal; Notepad minimized, maximized, restored, resized |
 | `quickShowAllMenus.rex` | `winsystem\quickShowAllMenus.rex` | the menus of every window that has one |
 | `displayAnyMenu.rex` | `winsystem\displayAnyMenu.rex` | the menus of a window given by its title, in a tree view |
+| `sysinfo.rex` | `sysinfo\sysinfo.rex` | WMI's classes and their instances (`.net~getObject("WinMgmts:")`), asked by a thread of the program's own, shown on the dialog's thread |
+| `oleinfo.rex` | `oleinfo\oleinfo.rex` | a browser of COM objects: their methods, properties and events (`.net~getKnownMethods`, `getKnownEvents`), invoked with arguments typed in (out parameters as .NetRefs); the registry's ProgIDs |
 
 **winsystem/: other programs' windows.** Those samples use winsystm.cls,
 whose WindowsManager, WindowObject and MenuObject work with other programs'
