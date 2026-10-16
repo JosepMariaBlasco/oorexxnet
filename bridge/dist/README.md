@@ -28,6 +28,9 @@ yours. Nothing needs to be compiled.
 
 ## Installing
 
+(On Windows, the release's `oorexxnet-…-setup.exe` does all this with a
+wizard, and adds Start menu shortcuts and an uninstaller in Settings > Apps.)
+
 Unzip anywhere, open a terminal in the unzipped folder `rexxnet` and run
 
     rexx install

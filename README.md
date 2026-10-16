@@ -48,8 +48,20 @@ both directions feature by feature, every example run and checked
 
 ## Installing (without building)
 
-Each [release](https://github.com/JosepMariaBlasco/oorexxnet/releases) has
-a zip of binaries, `rexxnet-….zip`, for Windows (x64), Linux (x64) and
+**On Windows**, each [release](https://github.com/JosepMariaBlasco/oorexxnet/releases)
+has an installer, `oorexxnet-…-setup.exe`: it installs the bridge into an
+installed ooRexx (5 or later, 64-bit), with its samples in ooRexx's samples
+folder (under `dotnet`), shortcuts in ooRexx's Start menu folder (the guide,
+the samples), and an uninstaller in Settings > Apps. It needs .NET 8 or
+later, with its Desktop Runtime (x64) for Windows Forms: when they are
+missing it says so and gives the link to Microsoft's download page. It is not
+signed: Windows may say "Windows protected your PC" (More info, then Run
+anyway), as for ooRexx's own installer. Silently: `oorexxnet-…-setup.exe /S
+[/CLR] [/D=folder of ooRexx]`, the log in `%TEMP%\oorexxnet-install.log`.
+It runs the zip's `install.rex` (below), whose checks and messages are the
+same.
+
+**On any system**, each release has a zip of binaries, `rexxnet-….zip`, for Windows (x64), Linux (x64) and
 macOS (Apple silicon) at once. With ooRexx 5 (64-bit) and .NET 8 or later
 installed (on Windows, the .NET Desktop Runtime), unzip it, open a terminal
 in the folder `rexxnet` and run
@@ -168,9 +180,16 @@ CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
   and its installer (`bridge/dist/install.rex`; `--from DIR` installs a
   build folder instead). The CI then installs it on each system and runs a
   sample.
+- **Windows installer** (`bridge/windows-installer.sh ZIP [DEST]`, NSIS 3:
+  `makensis` on Windows, or `apt install nsis`): `oorexxnet-VERSION-setup.exe`
+  from the binary zip's Windows part; `bridge/dist/windows/oorexxnet.nsi` is
+  a thin wrapper around `install.rex` (it finds ooRexx and .NET, runs it, and
+  adds the Start menu shortcuts, the entry in Settings > Apps and an
+  uninstaller). The CI builds it, installs ooRexx with its own installer and
+  then the bridge with this one (silently), runs a sample, and uninstalls it.
 - **Releases**: a tag `vX.Y.Z[-suffix]` makes the CI publish the package to
-  nuget.org (trusted publishing) and a GitHub release with the package and
-  the zip: [releases](https://github.com/JosepMariaBlasco/oorexxnet/releases).
+  nuget.org (trusted publishing) and a GitHub release with the package,
+  the zip and the Windows installer: [releases](https://github.com/JosepMariaBlasco/oorexxnet/releases).
 
 ## Related work
 

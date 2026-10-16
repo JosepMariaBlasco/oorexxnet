@@ -62,7 +62,7 @@ for n in "${natives[@]}"; do
   fi
 done
 # the installer, the check, the README, the guide
-cp "$here/dist/install.rex" "$here/dist/check.rex" "$dir/"
+cp "$here/dist/install.rex" "$here/dist/check.rex" "$repo/LICENSE" "$dir/"
 sed -e "s/@DATE@/$(date +%Y-%m-%d)/" -e "s/@COMMIT@/$commit/" -e "s/@VERSION@/$version/" \
   "$here/dist/README.md" > "$dir/README.md"
 cp "$repo/docs/guide.md" "$repo/notes/clr-compat.md" "$dir/docs/"

@@ -240,9 +240,98 @@ jobs:
           rexx oorexxnet-uninstall
           if [ -e "$samples" ]; then echo "the samples are still there"; exit 1; fi
 
+  # The Windows installer (bridge/windows-installer.sh: NSIS, a wrapper around
+  # install.rex), from the binary zip; then tried as a user would: ooRexx from
+  # its own installer, ours silently, a sample from elsewhere with no
+  # variables, the shortcuts and the entry in Settings > Apps, its uninstaller
+  windows-installer:
+    needs: nuget
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v7
+        with:
+          name: binaries
+          path: ${{ runner.temp }}/zip
+      - name: NSIS
+        run: |
+          if ! command -v makensis && [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
+            choco install nsis -y --no-progress
+          fi
+      - name: Build the installer
+        run: bridge/windows-installer.sh "$RUNNER_TEMP"/zip/rexxnet-*.zip "$RUNNER_TEMP/dist"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: installer
+          path: ${{ runner.temp }}/dist/*.exe
+      - name: ooRexx r${{ env.OOREXX_REV }} (its installer, silent)
+        shell: pwsh
+        run: |
+          $exe = "$env:RUNNER_TEMP\oorexx-setup.exe"
+          curl.exe -sSfL --retry 3 -o $exe "https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/oorexx-5.3.0-$env:OOREXX_REV.windows.x86_64.exe"
+          # not Start-Process -Wait: it waits for the descendants too, and
+          # rexx.exe leaves ooRexx's rxapi.exe running
+          $p = Start-Process $exe -ArgumentList '/S' -PassThru
+          $p.WaitForExit()
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          & "C:\Program Files\ooRexx\rexx.exe" -v
+      - name: Install (silent)
+        shell: pwsh
+        run: |
+          # the PATH a new session has, with ooRexx's folder that its installer added
+          $env:PATH = [Environment]::GetEnvironmentVariable('PATH', 'Machine') + ';' + $env:PATH
+          $exe = (Get-ChildItem "$env:RUNNER_TEMP\dist\*.exe").FullName
+          $p = Start-Process $exe -ArgumentList '/S' -PassThru
+          $p.WaitForExit()
+          Get-Content "$env:TEMP\oorexxnet-install.log"
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+      - name: Installed, with no variables
+        run: |
+          R="/c/Program Files/ooRexx"
+          export PATH="$R:$PATH"
+          unset REXX_PATH
+          cd "$RUNNER_TEMP"
+          rexx oorexxnet-uninstall status
+          rexx "$(cygpath -w "$R/samples/dotnet/rexx/01-basics.rex")"
+          printf 'say .net~System~Environment~Version~ToString\n::requires "net.cls"\n' > v.rex
+          rexx v.rex
+          test -f "$R/rexxnet.dll" && test -f "$R/net.cls" && test -f "$R/oodnet.cls" && test -f "$R/uninstall-oorexxnet.exe"
+          test -f "$R/samples/dotnet/guide.md"
+          SM="/c/ProgramData/Microsoft/Windows/Start Menu/Programs/Open Object Rexx"
+          ls -R "$SM" | grep -i "\.NET"
+          test -f "$SM/ooRexx Documentation/ooRexx and .NET - Guide.lnk"
+          test -f "$SM/ooRexx Samples/ooRexx and .NET samples.lnk"
+          test -f "$SM/Uninstall ooRexx-.NET.lnk"
+          reg query 'HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\ooRexxNet' /reg:32
+      - name: Uninstall (silent)
+        shell: pwsh
+        run: |
+          # _?=: wait for it (it would copy itself to TEMP and return at once)
+          $p = Start-Process "C:\Program Files\ooRexx\uninstall-oorexxnet.exe" -ArgumentList '/S', '_?=C:\Program Files\ooRexx' -PassThru
+          $p.WaitForExit()
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          Remove-Item "C:\Program Files\ooRexx\uninstall-oorexxnet.exe"   # _?= leaves it
+      - name: Uninstalled
+        run: |
+          R="/c/Program Files/ooRexx"
+          # (not "! test ...": bash -e does not stop on a negated command)
+          for f in rexxnet.dll net.cls oodnet.cls Rexx.Net.dll oorexxnet-uninstall.rex oorexxnet-installed.txt samples/dotnet; do
+            if [ -e "$R/$f" ]; then echo "still there: $f"; exit 1; fi
+          done
+          if ls -R "/c/ProgramData/Microsoft/Windows/Start Menu/Programs/Open Object Rexx" | grep -i "\.NET"; then exit 1; fi
+          if reg query 'HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\ooRexxNet' /reg:32; then exit 1; fi
+          test -f "$R/rexx.exe"           # ooRexx itself untouched
+
   publish:
     if: github.ref_type == 'tag'
-    needs: [nuget, install]
+    needs: [nuget, install, windows-installer]
     runs-on: ubuntu-24.04
     timeout-minutes: 20                   # a hang fails here, not after 6 hours
     permissions:
@@ -259,6 +348,10 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: binaries
+          path: zip
+      - uses: actions/download-artifact@v7
+        with:
+          name: installer
           path: zip
       # Trusted publishing: no stored API key; nuget.org's policy names this
       # repository and build.yml, and gives a key valid for an hour
@@ -277,11 +370,13 @@ jobs:
         run: |
           pre=(); case "$GITHUB_REF_NAME" in *-*) pre=(--prerelease) ;; esac
           cat > notes.md <<'NOTES'
-          **To use .NET from Rexx, download `rexxnet-….zip`** (below, under Assets): one package for Windows (x64), Linux (x64) and macOS (Apple silicon). Unzip it, open a terminal in the folder `rexxnet` and run `rexx install` (as administrator on Windows, `sudo` on Linux and macOS, when ooRexx is in a system folder): it installs the bridge into that ooRexx, with its samples (in ooRexx's samples folder, under `dotnet`), and checks it. Its `README.md` says more, and how to use it without installing.
+          **On Windows, the simplest is `oorexxnet-…-setup.exe`** (below, under Assets): it installs the bridge into an installed ooRexx (64-bit), with its samples and shortcuts in ooRexx's Start menu folder, and an uninstaller in Settings > Apps. It needs .NET 8 or later (the .NET Desktop Runtime, x64, for Windows Forms), from https://dotnet.microsoft.com/download/dotnet. It is not signed: Windows may say "Windows protected your PC" (More info, then Run anyway), as it does for ooRexx's own installer.
+
+          **To use .NET from Rexx on any system, download `rexxnet-….zip`** (below, under Assets): one package for Windows (x64), Linux (x64) and macOS (Apple silicon). Unzip it, open a terminal in the folder `rexxnet` and run `rexx install` (as administrator on Windows, `sudo` on Linux and macOS, when ooRexx is in a system folder): it installs the bridge into that ooRexx, with its samples (in ooRexx's samples folder, under `dotnet`), and checks it. Its `README.md` says more, and how to use it without installing.
 
           The `.nupkg` is the NuGet package, for .NET programs (C#, PowerShell...) that run Rexx code: a .NET project gets it with `dotnet add package Rexx.Net --prerelease`. Rexx programs do not need it. The `.snupkg` holds its debugging symbols.
 
           NOTES
           sed -i 's/^          //' notes.md
           gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" "${pre[@]}" \
-            --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes nupkg/* zip/*.zip
+            --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes nupkg/* zip/*.zip zip/*.exe
