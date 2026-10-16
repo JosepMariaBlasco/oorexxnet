@@ -399,15 +399,19 @@ public static class Conv
     {
         value = null;
         if (s.Length == 0) return false;
+        // a Rexx number may have blanks after its sign ("- 7")
+        if (s.Length > 1 && (s[0] == '+' || s[0] == '-') && s[1] == ' ') s = s[0] + s.Substring(1).TrimStart();
         const NumberStyles st = NumberStyles.Float;
         if (to == typeof(double))
         {
             if (!double.TryParse(s, st, Inv, out var d)) return false;
+            if (double.IsInfinity(d) && HasDigit(s)) return false;     // "1E999": too large, not Infinity
             value = d; return true;
         }
         if (to == typeof(float))
         {
             if (!float.TryParse(s, st, Inv, out var f)) return false;
+            if (float.IsInfinity(f) && HasDigit(s)) return false;
             value = f; return true;
         }
         if (to == typeof(decimal))
@@ -415,24 +419,29 @@ public static class Conv
             if (!decimal.TryParse(s, st, Inv, out var m)) return false;
             value = m; return true;
         }
-        // Integers: plain digits through long / ulong (fast), else through
-        // BigInteger or decimal ("1E3", "18446744073709551615", "7.0"). Range
-        // checks without exceptions: an overload test that fails must be cheap
-        // (Math.Max tries 13 overloads; an OverflowException costs ~10 µs).
+        // Integers: plain digits through long (fast), else exactly through
+        // TryWhole ("1E3", "18446744073709551615", "7.0"; not "1E-999", which
+        // is no whole number). Range checks without exceptions: an overload
+        // test that fails must be cheap (Math.Max tries 13 overloads; an
+        // OverflowException costs ~10 µs).
         BigInteger b;
         if (long.TryParse(s, NumberStyles.AllowLeadingSign, Inv, out var l)) b = l;
-        else if (BigInteger.TryParse(s, NumberStyles.AllowLeadingSign, Inv, out b)) { }
-        else if (decimal.TryParse(s, st, Inv, out var m) && decimal.Truncate(m) == m) b = new BigInteger(m);
-        else return false;
+        else if (!TryWhole(s, out b)) return false;
         value = IntegerOf(b, to);
         return value != null;
+    }
+
+    static bool HasDigit(string s)
+    {
+        foreach (var c in s) if (char.IsAsciiDigit(c)) return true;
+        return false;
     }
 
     // A Rexx number that is a whole number, exactly, as a BigInteger: digits
     // of any length, a sign (blanks after it allowed), a fraction of zeros,
     // an exponent ("1E40", "12.5E1"). Anything else (a fraction, not a
     // number) is false.
-    static bool TryWhole(string s, out BigInteger b)
+    internal static bool TryWhole(string s, out BigInteger b)
     {
         b = BigInteger.Zero;
         if (s.Length > 1 && (s[0] == '+' || s[0] == '-')) s = s[0] + s.Substring(1).TrimStart();
@@ -477,7 +486,7 @@ public static class Conv
     }
 
     // b as the integer type `to`, or null if it does not fit.
-    static object? IntegerOf(BigInteger b, Type to)
+    internal static object? IntegerOf(BigInteger b, Type to)
     {
         if (to == typeof(ulong) || to == typeof(nuint))
         {

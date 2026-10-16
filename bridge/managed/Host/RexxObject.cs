@@ -459,14 +459,26 @@ public static class RexxConvert
         if (t == typeof(TimeSpan)) return TimeSpan.Parse(s, Inv);
         if (t == typeof(Guid)) return Guid.Parse(s);
         var n = Number(s);
-        if (t == typeof(double)) return n is double d ? d : (double)(decimal)n;
-        if (t == typeof(float)) return n is double d2 ? (float)d2 : (float)(decimal)n;
+        if (t == typeof(double))
+        {
+            double d = n is double x ? x : (double)(decimal)n;
+            return double.IsInfinity(d) ? throw new InvalidCastException($"{s} is too large for a Double") : d;
+        }
+        if (t == typeof(float))
+        {
+            float f = n is double x2 ? (float)x2 : (float)(decimal)n;
+            return float.IsInfinity(f) ? throw new InvalidCastException($"{s} is too large for a Single") : f;
+        }
         if (t == typeof(decimal)) return n is decimal m ? m : throw new InvalidCastException($"{s} is too large for a Decimal");
-        if (n is not decimal whole || decimal.Truncate(whole) != whole)
-            throw new InvalidCastException($"{s} is not a whole number, as a {t.Name} needs");
-        try { return Convert.ChangeType(whole, t, Inv); }
-        catch (OverflowException) { throw new InvalidCastException($"{s} does not fit in a {t.Name}"); }
-        catch (InvalidCastException) { throw new InvalidCastException($"a Rexx string cannot become a {t.Name}"); }
+        if (t == typeof(System.Numerics.BigInteger) || Conv.IsNumber(t))
+        {
+            // exactly: "1E-999" is no whole number (a decimal would read it as 0)
+            if (!Conv.TryWhole(s.Trim(), out var whole))
+                throw new InvalidCastException($"{s} is not a whole number, as a {t.Name} needs");
+            if (t == typeof(System.Numerics.BigInteger)) return whole;
+            return Conv.IntegerOf(whole, t) ?? throw new InvalidCastException($"{s} does not fit in a {t.Name}");
+        }
+        throw new InvalidCastException($"a Rexx string cannot become a {t.Name}");
     }
 
     /// Rexx's logical values: 1 and 0 (blanks around allowed); nothing else.

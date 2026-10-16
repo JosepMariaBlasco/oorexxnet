@@ -251,6 +251,14 @@ call ok "BigInteger: an exponent",  bi~Add("1E40", "-12.5E1")~ToString, "9999999
 call ok "BigInteger: sign, zeros",  bi~Add("- 7", "3.000")~ToString bi~Add("0E-5", 0)~ToString, "-4 0"
 call err "BigInteger: not whole",   "x = .net~System~Numerics~BigInteger~Add(2.5, 1)", "accepts"
 call ok "BigInteger: Math.Max still int", .net~System~Math~Max(3, 7), 7
+-- numbers at the edges (the conversion probe of oorexx-bridges): exactly, or not at all
+e = .net~System~Linq~Enumerable
+call ok "a sign and blanks: '- 7' an int", .net~invoke(e, "Repeat<int>", "- 7", 1)~makeArray[1], -7
+call ok "... and a double",                .net~invoke(e, "Repeat<double>", "- 7", 1)~makeArray[1], -7
+call err "1E-999 is no whole number",      "x = .net~invoke(.net~System~Linq~Enumerable, 'Repeat<int>', '1E-999', 1)", "accepts"
+call err "1E999 is too large for a double", "x = .net~invoke(.net~System~Linq~Enumerable, 'Repeat<double>', '1E999', 1)", "accepts"
+call ok "but Infinity is a double",        .net~invoke(e, "Repeat<double>", "Infinity", 1)~makeArray[1], "Infinity"
+call ok "1E3 still a whole number",        .net~invoke(e, "Repeat<long>", "1E3", 1)~makeArray[1], 1000
 
 say
 if .fails = 0 then say "phase 2: all" .count "tests passed"

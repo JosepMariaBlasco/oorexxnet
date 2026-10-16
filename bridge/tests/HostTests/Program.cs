@@ -61,6 +61,12 @@ static partial class Program
         Throws<InvalidCastException>("too large",  () => rexx.Run<byte>("return 300"), "does not fit");
         Throws<InvalidCastException>("not logical", () => rexx.Run<bool>("return 'yes'"), "not a Rexx logical value");
         Throws<InvalidCastException>("not a number", () => rexx.Run<int>("return 'abc'"), "not a Rexx number");
+        // the edges (oorexx-bridges' conversion probe): exactly, or not at all
+        Throws<InvalidCastException>("1E-999 is no whole number", () => rexx.Run<int>("return '1E-999'"), "not a whole number");
+        Throws<InvalidCastException>("1E999 is too large for a double", () => rexx.Run<double>("return '1E999'"), "too large");
+        Ok("a sign and blanks: '- 7'", rexx.Run<int>("return '- 7'"), -7);
+        Ok("1E3 is 1000", rexx.Run<long>("return '1E3'"), 1000L);
+        Ok("BigInteger, exactly", rexx.Run<System.Numerics.BigInteger>("numeric digits 40; return 2 ** 100").ToString(), "1267650600228229401496703205376");
         Ok(".nil -> null",           rexx.Run("return .nil") == null, true);
         Ok("Run<int[]>: an Array copied", string.Join(",", rexx.Run<int[]>("return .array~of(1, '2', 3)")), "1,2,3");
         Ok("Run<List<string>>",      string.Join(",", rexx.Run<List<string>>("return .array~of('a', 'b')")), "a,b");
