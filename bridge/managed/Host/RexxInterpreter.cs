@@ -373,7 +373,9 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             case double d: return c.Str(d.ToString("R", Inv));
             case float f: return c.Str(f.ToString("R", Inv));
             case decimal m: return c.Str(m.ToString(Inv));
-            case sbyte or byte or short or ushort or int or uint or long or ulong or nint or nuint or System.Numerics.BigInteger:
+            case Half h: return c.Str(h.ToString(Inv));
+            case sbyte or byte or short or ushort or int or uint or long or ulong or nint or nuint
+                 or Int128 or UInt128 or System.Numerics.BigInteger:
                 return c.Str(Convert.ToString(v, Inv)!);
         }
         if (ReferenceEquals(v, RexxValue.Omitted)) throw new ArgumentException("RexxValue.Omitted is only for arguments");

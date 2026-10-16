@@ -25,7 +25,8 @@
 //   31     a Rexx string to DateTime, DateTimeOffset, TimeSpan, Guid
 //   +1 per item when a Rexx Array becomes an array; +2 for a List<T> or an
 //   interface; a params array expanded: +1
-// .NET -> Rexx: strings, numbers (culture-invariant), bools (1/0), chars and
+// .NET -> Rexx: strings, numbers (culture-invariant; BigInteger, Int128,
+// UInt128 and Half too), bools (1/0), chars and
 // enums (their names) as Rexx strings, null as .nil, void as nothing; a
 // RexxObject as the Rexx object itself (X), a RexxString as its string;
 // everything else by reference (a handle).
@@ -530,7 +531,9 @@ public static class Conv
             case double d: w.Add('S', d.ToString("R", Inv)); return;
             case float f: w.Add('S', f.ToString("R", Inv)); return;
             case decimal m: w.Add('S', m.ToString(Inv)); return;
-            case sbyte or byte or short or ushort or int or uint or long or ulong or nint or nuint:
+            case Half h: w.Add('S', h.ToString(Inv)); return;
+            case sbyte or byte or short or ushort or int or uint or long or ulong or nint or nuint
+                 or Int128 or UInt128 or BigInteger:              // every integer type: all its digits
                 w.Add('S', System.Convert.ToString(v, Inv)!); return;
             case RexxString rs: w.Add('S', rs.Value); return;
             case RexxObject ro: w.Add('X', RexxInterpreter.Lend(ro)); return;   // the Rexx object itself

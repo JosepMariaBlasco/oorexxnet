@@ -245,12 +245,23 @@ call ok "File async round trip", .net~System~IO~File~ReadAllTextAsync(file)~awai
 bi = .net~System~Numerics~BigInteger
 f = bi~One
 do i = 2 to 30; f = bi~Multiply(f, i); end
-call ok "BigInteger: whole numbers", f~ToString, "265252859812191058636308480000000"
-call ok "BigInteger: many digits",  bi~Add("123456789012345678901234567890", 1)~ToString, "123456789012345678901234567891"
-call ok "BigInteger: an exponent",  bi~Add("1E40", "-12.5E1")~ToString, "9999999999999999999999999999999999999875"
-call ok "BigInteger: sign, zeros",  bi~Add("- 7", "3.000")~ToString bi~Add("0E-5", 0)~ToString, "-4 0"
+call ok "BigInteger: whole numbers", f, "265252859812191058636308480000000"
+call ok "BigInteger: many digits",  bi~Add("123456789012345678901234567890", 1), "123456789012345678901234567891"
+call ok "BigInteger: an exponent",  bi~Add("1E40", "-12.5E1"), "9999999999999999999999999999999999999875"
+call ok "BigInteger: sign, zeros",  bi~Add("- 7", "3.000") bi~Add("0E-5", 0), "-4 0"
 call err "BigInteger: not whole",   "x = .net~System~Numerics~BigInteger~Add(2.5, 1)", "accepts"
 call ok "BigInteger: Math.Max still int", .net~System~Math~Max(3, 7), 7
+-- .NET -> Rexx: BigInteger, Int128 and UInt128 are Rexx numbers with all
+-- their digits, Half a Rexx number; Complex stays a NetObject
+call ok "BigInteger result: a Rexx number", bi~Pow(2, 70), "1180591620717411303424"
+numeric digits 40
+call ok "BigInteger result: Rexx arithmetic", bi~Pow(2, 70) / 2**60 + 1, 1025
+numeric digits
+a = .net~System~Array~CreateInstance(bi, 2); a[1] = 2; a[2] = "1E25"
+call ok "BigInteger in a NetArray", a[2] a~makeString("L", " "), "10000000000000000000000000 2 10000000000000000000000000"
+call ok "Int128, UInt128", .net~System~Int128~MaxValue .net~System~UInt128~MinValue, "170141183460469231731687303715884105727 0"
+call ok "Half", .net~System~Half~MaxValue .net~System~Half~Epsilon~datatype("N"), "65500 1"
+call ok "Complex stays a NetObject", .net~typeOf(.net~System~Numerics~Complex~One), "System.Numerics.Complex"
 -- numbers at the edges (the conversion probe of oorexx-bridges): exactly, or not at all
 e = .net~System~Linq~Enumerable
 call ok "a sign and blanks: '- 7' an int", .net~invoke(e, "Repeat<int>", "- 7", 1)~makeArray[1], -7

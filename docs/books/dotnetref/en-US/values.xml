@@ -150,13 +150,13 @@ System.Int32 System.Decimal
 <thead><row><entry>.NET</entry><entry>Rexx</entry></row></thead>
 <tbody>
 <row><entry><literal>string</literal>, <literal>char</literal></entry><entry>a string</entry></row>
-<row><entry>every numeric type</entry><entry>a string with the number, culture-invariant: whole numbers with all their digits, a <literal>double</literal> or <literal>float</literal> as its shortest round-trip form (<literal>NaN</literal>, <literal>Infinity</literal> and <literal>-Infinity</literal> as such), a <literal>decimal</literal> with its digits</entry></row>
+<row><entry>every numeric type, <literal>BigInteger</literal>, <literal>Int128</literal>, <literal>UInt128</literal> and <literal>Half</literal> included</entry><entry>a string with the number, culture-invariant: whole numbers with all their digits (a <literal>BigInteger</literal> of any size), a <literal>double</literal> or <literal>float</literal> as its shortest round-trip form (<literal>NaN</literal>, <literal>Infinity</literal> and <literal>-Infinity</literal> as such), a <literal>decimal</literal> with its digits</entry></row>
 <row><entry><literal>bool</literal></entry><entry><literal>1</literal> or <literal>0</literal> (&true; or &false;)</entry></row>
 <row><entry><literal>null</literal></entry><entry>&nil;</entry></row>
 <row><entry>an enum value</entry><entry>a <classname>NetEnum</classname>, whose string value is its name (<xref linkend="clsNetEnum"/>)</entry></row>
 <row><entry>an array</entry><entry>a <classname>NetArray</classname>, which behaves as a Rexx Array, from 1 (<xref linkend="collectionsArrays"/>)</entry></row>
 <row><entry>a Rexx object that had gone to .NET (a <classname>RexxObject</classname>)</entry><entry>the Rexx object itself</entry></row>
-<row><entry>any other object (structs, collections, delegates, tasks, types)</entry><entry>a <classname>NetObject</classname>, by reference; a type is a <classname>NetType</classname></entry></row>
+<row><entry>any other object (structs, <literal>Complex</literal> among them, collections, delegates, tasks, types)</entry><entry>a <classname>NetObject</classname>, by reference; a type is a <classname>NetType</classname></entry></row>
 </tbody>
 </tgroup>
 </table>
@@ -172,6 +172,8 @@ say m~Sqrt(2) m~PI
 say .net~System~Double~NaN .net~System~Double~PositiveInfinity
 say .net~System~Int64~MaxValue .net~System~UInt64~MaxValue
 say 1/3 .net~System~Decimal~Divide(1, 3)
+x = .net~System~Numerics~BigInteger~Pow(2, 100)        -- a Rexx number, all its digits
+numeric digits 40; say x x + 1 x~datatype("W"); numeric digits
 say .net~System~Environment~GetEnvironmentVariable("NO_SUCH_VARIABLE") == .nil
 
 ::requires "net.cls"</programlisting>
@@ -179,6 +181,7 @@ say .net~System~Environment~GetEnvironmentVariable("NO_SUCH_VARIABLE") == .nil
 NaN Infinity
 9223372036854775807 18446744073709551615
 0.333333333 0.3333333333333333333333333333
+1267650600228229401496703205376 1267650600228229401496703205377 1
 1</screen>
 </example>
 </section>

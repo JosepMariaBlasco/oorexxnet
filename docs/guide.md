@@ -192,8 +192,8 @@ say .net~typeOf(b) .net~unbox(b)
 System.Int16 5
 ```
 
-**From .NET**, strings, numbers, `bool`s (`1` / `0`) and `char`s come back as
-Rexx strings, `null` as `.nil`; enums as `.NetEnum`s and arrays as
+**From .NET**, strings, numbers (`BigInteger`, `Int128` and `UInt128` with
+all their digits), `bool`s (`1` / `0`) and `char`s come back as Rexx strings, `null` as `.nil`; enums as `.NetEnum`s and arrays as
 `.NetArray`s (sections 4 and 5); everything else as a `.NetObject`, **by
 reference**: nothing is copied, the same .NET object gives a proxy that is
 `==` to the earlier one, and it goes back to .NET as itself. `say` shows what

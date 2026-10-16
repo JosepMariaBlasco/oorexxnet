@@ -141,7 +141,9 @@ are not visible to reflection: their members go through `IDispatch`
 
 - `string` → string; `char` → one-character string;
 - integers, `float`, `double` (round-trip), `decimal` → Rexx number strings,
-  culture-invariant; `NaN` / `Infinity` as such;
+  culture-invariant; `NaN` / `Infinity` as such; `BigInteger`, `Int128`,
+  `UInt128` and `Half` too, since 16/10/2026 (see "Big integers as Rexx
+  numbers");
 - `bool` → `1` / `0`; `null` → `.nil`;
 - **enums → a `.NetEnum`** (since 09/10/2026; before, their name): an
   object whose string value is its name (`"Yes"`, flags `"Bold, Italic"`);
@@ -1589,3 +1591,20 @@ bridge error (no .NET exception: no such type, no overload fits) has `[1]`
 only. The 97.1 of an unknown member keeps ooRexx's own layout (`[1]` the
 object, `[2]` the name) and the bridge's `[3]`, a `MissingMemberException`.
 Tests in `phase1.rex` (144).
+
+## Big integers as Rexx numbers (16/10/2026)
+
+Before, a `BigInteger` result (and an `Int128`, `UInt128` or `Half`) came to
+Rexx as a `.NetObject`: `x + 1` was 97.1, and the digits needed
+`x~ToString`. A Rexx string has no size limit, and Rexx computes with any
+number of digits under `NUMERIC DIGITS`, so these types now come as number
+strings, as every other numeric type: integers with all their digits, `Half`
+by its shortest form. The other direction was already exact (a whole Rexx
+number to a `BigInteger` parameter, any length). What is lost: calling
+`BigInteger`'s instance methods on a result (`IsEven`, `GetBitLength`); its
+static ones take the number back (`BigInteger.Log(x)`), and `.net~as` or a
+`.NetTyped` keeps a value as a `BigInteger` when an overload needs it.
+`Complex` stays a `.NetObject` (it is no Rexx number). Python's bridge does
+the same with Python's `int`; the comparison table of `oorexx-bridges`, row
+7. Converted in `Convert.ToRexx`, the host's `RexxInterpreter.ToRexx` and
+the unboxing of `.net~unbox`. Tests in `phase2.rex` (164).

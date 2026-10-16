@@ -94,11 +94,11 @@ its own. A culture as the first argument formats in that culture's way.</para>
 <programlisting language="rexx">bi = .net~System~Numerics~BigInteger
 f = bi~One
 do i = 2 to 30; f = bi~Multiply(f, i); end      -- Rexx numbers go as BigIntegers
-say "30! =" f~ToString
-big = bi~Pow(2, 200)~ToString
+say "30! =" f                                   -- the result: a Rexx number
+big = bi~Pow(2, 200)
 say "2**200 has" big~length "digits:" big~left(20)"..."
 numeric digits 70
-say "In Rexx:" bi~Parse(big)~ToString / 2**190
+say "In Rexx:" big / 2**190
 d = .net~System~Decimal
 say d~Divide(1, 3) d~Round(d~Divide(2, 3), 4)
 
@@ -110,10 +110,10 @@ In Rexx: 1024
 </example>
 <para><emphasis role="bold">How it works.</emphasis> <literal>System.Numerics.BigInteger</literal> has no size limit.
 A Rexx whole number goes to a <literal>BigInteger</literal> parameter
-exactly, with all its digits; a <literal>BigInteger</literal> comes to Rexx as
-a <classname>NetObject</classname>, whose <methodname>ToString</methodname>
-gives the digits, which Rexx computes with under a large enough
-<literal>NUMERIC DIGITS</literal>. .NET's <literal>decimal</literal> has 28
+exactly, with all its digits, and a <literal>BigInteger</literal> result
+comes to Rexx as a number with all its digits, which Rexx computes with under
+a large enough <literal>NUMERIC DIGITS</literal> (as <literal>Int128</literal>
+and <literal>UInt128</literal>). .NET's <literal>decimal</literal> has 28
 digits and decimal rounding: <methodname>Decimal.Divide</methodname> and
 <methodname>Decimal.Round</methodname>.</para>
 <para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>.</para>

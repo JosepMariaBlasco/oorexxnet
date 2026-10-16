@@ -185,7 +185,7 @@ Later, possibly through Rexx's own `sendWith` if it carries named arguments
 | .NET | Rexx |
 |---|---|
 | `string`, `char` | a String |
-| `int`, `long`, `double`, `decimal`, every numeric type | a String with the number, culture-invariant (`double`: round-trip, `NaN`/`Infinity` as such) |
+| `int`, `long`, `double`, `decimal`, every numeric type (`BigInteger`, `Int128`, `UInt128`, `Half`) | a String with the number, culture-invariant (`double`: round-trip, `NaN`/`Infinity` as such) |
 | `bool` | `1` / `0` (`.true` / `.false`) |
 | `null` | `.nil` |
 | a `RexxObject` | the Rexx object itself |

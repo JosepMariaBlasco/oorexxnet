@@ -540,7 +540,8 @@ public static unsafe class Bridge
     static void Unbox(Rec r, Writer w)
     {
         var o = r.Tag == 'O' ? Handles.Get(r.Id) : null;
-        if (o is string || o is Enum || (o != null && (o.GetType().IsPrimitive || o is decimal))) Conv.ToRexx(w, o);
+        if (o is string || o is Enum || (o != null && (o.GetType().IsPrimitive || o is decimal or Half or Int128 or UInt128
+                                                       or System.Numerics.BigInteger))) Conv.ToRexx(w, o);
         else w.Add('V', "");
     }
 
