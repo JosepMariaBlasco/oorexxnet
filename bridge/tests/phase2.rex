@@ -241,6 +241,17 @@ file = .net~System~IO~Path~GetTempFileName
 call ok "File async round trip", .net~System~IO~File~ReadAllTextAsync(file)~await, "hola"
 .net~System~IO~File~Delete(file)
 
+-- a Rexx whole number to a BigInteger parameter: exactly, any length
+bi = .net~System~Numerics~BigInteger
+f = bi~One
+do i = 2 to 30; f = bi~Multiply(f, i); end
+call ok "BigInteger: whole numbers", f~ToString, "265252859812191058636308480000000"
+call ok "BigInteger: many digits",  bi~Add("123456789012345678901234567890", 1)~ToString, "123456789012345678901234567891"
+call ok "BigInteger: an exponent",  bi~Add("1E40", "-12.5E1")~ToString, "9999999999999999999999999999999999999875"
+call ok "BigInteger: sign, zeros",  bi~Add("- 7", "3.000")~ToString bi~Add("0E-5", 0)~ToString, "-4 0"
+call err "BigInteger: not whole",   "x = .net~System~Numerics~BigInteger~Add(2.5, 1)", "accepts"
+call ok "BigInteger: Math.Max still int", .net~System~Math~Max(3, 7), 7
+
 say
 if .fails = 0 then say "phase 2: all" .count "tests passed"
 else say "phase 2:" .fails "of" .count "tests FAILED"

@@ -19,6 +19,8 @@
 //   25, 26 a Rexx string to RexxString, to RexxObject (a RexxString): after
 //          string, object and the numbers, so that an overload taking one
 //          of those wins
+//   27     a Rexx string that is a whole number to BigInteger (exactly, any
+//          number of digits, an exponent too: "1E40")
 //   30     a Rexx string to bool, char, char[], an enum
 //   31     a Rexx string to DateTime, DateTimeOffset, TimeSpan, Guid
 //   +1 per item when a Rexx Array becomes an array; +2 for a List<T> or an
@@ -368,6 +370,11 @@ public static class Conv
             if (t == "0" || t.Equals("false", StringComparison.OrdinalIgnoreCase)) { value = false; return 30; }
             return Fail;
         }
+        if (to == typeof(BigInteger))
+        {
+            if (TryWhole(s.Trim(), out var big)) { value = big; return 27; }
+            return Fail;
+        }
         if (to == typeof(char)) { if (s.Length == 1) { value = s[0]; return 30; } return Fail; }
         if (to == typeof(char[])) { value = s.ToCharArray(); return 30; }
         if (to.IsEnum)
@@ -419,6 +426,54 @@ public static class Conv
         else return false;
         value = IntegerOf(b, to);
         return value != null;
+    }
+
+    // A Rexx number that is a whole number, exactly, as a BigInteger: digits
+    // of any length, a sign (blanks after it allowed), a fraction of zeros,
+    // an exponent ("1E40", "12.5E1"). Anything else (a fraction, not a
+    // number) is false.
+    static bool TryWhole(string s, out BigInteger b)
+    {
+        b = BigInteger.Zero;
+        if (s.Length > 1 && (s[0] == '+' || s[0] == '-')) s = s[0] + s.Substring(1).TrimStart();
+        int i = 0;
+        bool negative = false;
+        if (i < s.Length && (s[i] == '+' || s[i] == '-')) negative = s[i++] == '-';
+        int start = i;
+        while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
+        string whole = s.Substring(start, i - start), fraction = "";
+        if (i < s.Length && s[i] == '.')
+        {
+            int f = ++i;
+            while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
+            fraction = s.Substring(f, i - f);
+        }
+        if (whole.Length + fraction.Length == 0) return false;
+        int exponent = 0;
+        if (i < s.Length && (s[i] == 'e' || s[i] == 'E'))
+        {
+            i++;
+            int e = i;
+            if (i < s.Length && (s[i] == '+' || s[i] == '-')) i++;
+            int d = i;
+            while (i < s.Length && char.IsAsciiDigit(s[i])) i++;
+            if (i == d || !int.TryParse(s.AsSpan(e, i - e), NumberStyles.AllowLeadingSign, Inv, out exponent)) return false;
+        }
+        if (i != s.Length) return false;
+        string digits = whole + fraction;               // the value is digits * 10^(exponent - fraction.Length)
+        int scale = exponent - fraction.Length;
+        if (scale < 0)
+        {
+            int drop = Math.Min(-scale, digits.Length);  // the digits dropped must be zeros
+            for (int k = digits.Length - drop; k < digits.Length; k++) if (digits[k] != '0') return false;
+            digits = digits.Substring(0, digits.Length - drop);
+            scale += drop;
+            if (scale < 0) { b = BigInteger.Zero; return digits.Trim('0').Length == 0; }
+        }
+        if (scale > 100000) return false;               // (a number no one means)
+        b = digits.Length == 0 ? BigInteger.Zero : BigInteger.Parse(digits, Inv) * BigInteger.Pow(10, scale);
+        if (negative) b = -b;
+        return true;
     }
 
     // b as the integer type `to`, or null if it does not fit.
