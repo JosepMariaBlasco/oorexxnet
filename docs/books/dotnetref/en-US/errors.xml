@@ -20,7 +20,7 @@ goes back to the side it came from, it is raised there as it was.</para>
 <colspec colwidth="1*"/><colspec colwidth="4*"/>
 <thead><row><entry>Condition</entry><entry>When, and what it carries</entry></row></thead>
 <tbody>
-<row><entry>SYNTAX 98.900</entry><entry>A .NET exception, thrown by the .NET code that Rexx called: the message is <computeroutput>.NET error: </computeroutput><replaceable>type</replaceable><computeroutput>: </computeroutput><replaceable>message</replaceable>, and <computeroutput>condition("O")~additional[2]</computeroutput> is the exception itself, a <classname>NetObject</classname>. A <literal>TargetInvocationException</literal> or an <literal>AggregateException</literal> with one exception is unwrapped: the exception is the one the code threw. Also the bridge's own errors (no such type, no overload accepts the arguments, an ambiguous name), without an exception.</entry></row>
+<row><entry>SYNTAX 98.900</entry><entry>A .NET exception, thrown by the .NET code that Rexx called: the message is <computeroutput>.NET error: </computeroutput><replaceable>type</replaceable><computeroutput>: </computeroutput><replaceable>message</replaceable>, and <computeroutput>condition("O")~additional[2]</computeroutput> is the exception itself, a <classname>NetObject</classname>, and <computeroutput>[3]</computeroutput> its .NET stack trace, as text (the layout of the ooRexx bridges: <computeroutput>[1]</computeroutput> the message, <computeroutput>[2]</computeroutput> the host's exception, <computeroutput>[3]</computeroutput> the host's traceback). A <literal>TargetInvocationException</literal> or an <literal>AggregateException</literal> with one exception is unwrapped: the exception is the one the code threw. Also the bridge's own errors (no such type, no overload accepts the arguments, an ambiguous name), without an exception.</entry></row>
 <row><entry>SYNTAX 97.1</entry><entry>A message that is no member of the .NET object, as for any Rexx object: <literal>Object ... does not understand message ...</literal>. <computeroutput>additional[1]</computeroutput> is the object, <computeroutput>[2]</computeroutput> the message's name as Rexx sent it, and <computeroutput>[3]</computeroutput> a <literal>System.MissingMemberException</literal> that says what was looked for.</entry></row>
 <row><entry>SYNTAX 93.9xx</entry><entry>A wrong position for a <classname>NetArray</classname>, as for a Rexx Array (<xref linkend="collectionsArrays"/>).</entry></row>
 <row><entry>the condition as it was</entry><entry>A Rexx condition raised in a handler or an override that .NET called, if .NET lets it out of the call that Rexx made (<xref linkend="eventsErrors"/>); also a <classname>RexxException</classname> thrown by .NET code that Rexx called, which came from Rexx code that .NET code ran (<xref linkend="bothways"/>).</entry></row>
@@ -39,6 +39,7 @@ syntax:
   c = condition("O")
   say c~code .net~typeOf(c~additional[2])
   say c~message
+  say c~additional~items (c~additional[3]~pos("at System.") &gt; 0)   -- [3]: the stack trace
   signal on syntax name second
   x = .net~System~Text~StringBuilder~new~NoSuchThing
 second:
@@ -49,6 +50,7 @@ second:
 ::requires "net.cls"</programlisting>
 <screen>98.900 System.FormatException
 .NET error: System.FormatException: The input string 'abc' was not in a correct format.
+3 1
 97.1 NOSUCHTHING System.MissingMemberException
 System.Text.StringBuilder has no public instance member "NOSUCHTHING"</screen>
 </example>

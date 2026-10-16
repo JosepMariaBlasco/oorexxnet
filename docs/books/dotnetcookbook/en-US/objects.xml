@@ -134,7 +134,7 @@ message: Could not find a part of the p...
 is an IOException: 1</screen>
 </example>
 <para><emphasis role="bold">How it works.</emphasis> A .NET exception is SYNTAX 98.900 in Rexx, and the exception itself is
-<computeroutput>condition("O")~additional[2]</computeroutput>: its type
+<computeroutput>condition("O")~additional[2]</computeroutput>, and its stack trace is <computeroutput>additional[3]</computeroutput>: its type
 (<computeroutput>.net~typeOf</computeroutput>), its <methodname>Message</methodname>,
 and whether it is of a family (<computeroutput>.net~isInstance(e, "System.IO.IOException")</computeroutput>,
 as C#'s <literal>catch (IOException)</literal>).</para>

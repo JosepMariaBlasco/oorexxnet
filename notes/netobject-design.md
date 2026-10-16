@@ -1575,3 +1575,17 @@ of its own: at its end, one pair Rexx holds and ten .NET holds alone run
 their `UNINIT` once each, their overrides working. And five classes made at
 run time and extended, collected with their types (the `::CLASS` ones live
 on). `tests/lifetime.rex`: 32 in all.
+
+## The .NET stack trace in additional[3] (16/10/2026)
+
+The ooRexx bridges agreed on one layout for a host exception in Rexx
+(`JosepMariaBlasco/oorexx-bridges`, topic "Rexx errors in the host",
+decided 16/10/2026): `condition("O")~additional` is `[1]` the message, `[2]`
+the host's exception object, `[3]` the host's traceback as text, and the
+condition stays SYNTAX 98.900. The .NET bridge had `[1]` and `[2]` already;
+the response record `E` now also carries the exception's `StackTrace`
+(tabs as blanks, no carriage returns), which `rexxnet` puts in `[3]`. A
+bridge error (no .NET exception: no such type, no overload fits) has `[1]`
+only. The 97.1 of an unknown member keeps ooRexx's own layout (`[1]` the
+object, `[2]` the name) and the bridge's `[3]`, a `MissingMemberException`.
+Tests in `phase1.rex` (144).

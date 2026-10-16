@@ -615,11 +615,19 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         }
         case 'E':
         {
-            std::string id = field(payload, 0), message = payload.substr(payload.find('\t', payload.find('\t') + 1) + 1);
+            // id, type, the .NET stack trace, the message (the rest: it may hold tabs).
+            // additional: [1] the message, [2] the exception, [3] its stack trace
+            // (the bridges' common layout: oorexx-bridges, rexx-errors-in-the-host)
+            size_t t1 = payload.find('\t'), t2 = payload.find('\t', t1 + 1), t3 = payload.find('\t', t2 + 1);
+            std::string id = field(payload, 0), trace = payload.substr(t2 + 1, t3 - t2 - 1), message = payload.substr(t3 + 1);
             if (!message.empty() && message.back() == '.') message.pop_back();   // 98.900 adds its own
-            RexxArrayObject info = c->NewArray(2);
+            RexxArrayObject info = c->NewArray(id != "0" ? 3 : 1);
             c->ArrayPut(info, c->String(message.c_str()), 1);
-            if (id != "0") c->ArrayPut(info, newProxy(c, cls.netObject, id, field(payload, 1)), 2);
+            if (id != "0")
+            {
+                c->ArrayPut(info, newProxy(c, cls.netObject, id, field(payload, 1)), 2);
+                c->ArrayPut(info, c->String(trace.c_str()), 3);
+            }
             c->RaiseException(Rexx_Error_Execution_user_defined, info);
             return NULLOBJECT;
         }

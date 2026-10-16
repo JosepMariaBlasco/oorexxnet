@@ -66,7 +66,8 @@
  * Rexx object (a Directory, a Stem, an instance of a Rexx class...) goes by
  * reference, a Rexx.Net.RexxObject that .NET can keep and send messages to,
  * and comes back as itself. A .NET exception is SYNTAX 98.900 ".NET error:
- * Type: message"; the exception is condition("O")~additional[2]. A name
+ * Type: message"; the exception is condition("O")~additional[2], its .NET
+ * stack trace (text) additional[3]. A name
  * that is no member of the .NET object is SYNTAX 97.1, as for any Rexx
  * object ("Object ... does not understand message ..."): additional[1] is
  * the object, [2] the message name, [3] a System.MissingMemberException.

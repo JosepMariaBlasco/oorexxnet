@@ -152,9 +152,11 @@ public static unsafe class Bridge
             if (e is NoMemberException nm)
                 w.Add('U', Handles.Add(nm.Missing) + "\t" + Types.Display(nm.Missing.GetType()) + "\t" + nm.MessageName);
             else if (e is RexxSyntaxException rx) w.Add('Y', rx.Code + "\t" + string.Join("\t", rx.Substitutions));
-            else if (e is BridgeException) w.Add('E', "0\t\t" + e.Message);
-            else w.Add('E', Handles.Add(e) + "\t" + Types.Display(e.GetType()) + "\t.NET error: " +
+            else if (e is BridgeException) w.Add('E', "0\t\t\t" + e.Message);
+            else w.Add('E', Handles.Add(e) + "\t" + Types.Display(e.GetType()) + "\t" +
+                            (e.StackTrace ?? "").Replace('\t', ' ').Replace("\r", "") + "\t.NET error: " +
                             e.GetType().FullName + ": " + e.Message);
+            // (E: handle, type, the .NET stack trace (additional[3]), the message)
         }
         return w.ToArray();
     }

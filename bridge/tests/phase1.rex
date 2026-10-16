@@ -225,10 +225,17 @@ parseError:
   call ok "exception: code",      c~code, "98.900"
   call ok "exception: message",   c~message, ".NET error: System.FormatException: The input string 'abc' was not in a correct format."
   call ok "exception: object",    c~additional[2]~GetType~FullName, "System.FormatException"
+  -- [3] the .NET stack trace (the bridges' common layout, decided 16/10/2026)
+  call ok "exception: [3] the stack trace", c~additional~items (c~additional[3]~pos("at System.") > 0) -
+    (c~additional[3] == c~additional[2]~StackTrace~changeStr("0d"x, "")), "3 1 1"
 signal on syntax name throwError
 p~Throw
 throwError:
   call ok "exception from test",  condition("O")~message, ".NET error: System.InvalidOperationException: boom."
+signal on syntax name bridgeError
+x = .net~System~NoSuchType
+bridgeError:
+  call ok "bridge error: [1] only",  condition("O")~additional~items, 1
 signal off syntax
 call err "bridge error, no object", "x = .net~System~NoSuchType", "no .NET namespace or type"
 call err "open generic new",    "x = .net~System~Collections~Generic~List~new", "open generic"

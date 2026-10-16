@@ -491,7 +491,8 @@ say m~completed m~result .NetEventThread~current
 ## 7. Errors
 
 An exception thrown by .NET code is **SYNTAX 98.900** ".NET error: Type:
-message", with the exception (a `.NetObject`) in `condition("O")~additional[2]`.
+message", with the exception (a `.NetObject`) in `condition("O")~additional[2]`
+and its .NET stack trace (text) in `additional[3]`.
 A name that is no member of the object is **97.1**, as for any Rexx object,
 with a `MissingMemberException` in `additional[3]`. A wrong array index is a
 Rexx Array's error (93.9xx).
