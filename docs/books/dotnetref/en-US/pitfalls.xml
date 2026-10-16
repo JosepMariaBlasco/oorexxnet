@@ -1,0 +1,75 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE appendix PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<appendix id="pitfalls"><title>Pitfalls</title>
+<indexterm><primary>pitfalls</primary></indexterm>
+<para>The bridge's rules are few, and each follows from a difference between
+Rexx and .NET. These are the places where they surprise.</para>
+<variablelist>
+<varlistentry><term>A Rexx string prefers a string parameter</term>
+<listitem><para><computeroutput>.net~System~Convert~ToBoolean(1)</computeroutput>
+calls <literal>ToBoolean(string)</literal>, which wants
+<literal>"True"</literal>, and fails; <computeroutput>sb~Append("007")</computeroutput>
+appends <literal>007</literal>. Force the type the call means:
+<computeroutput>.net~int32(1)</computeroutput> (<xref linkend="valuesForced"/>).
+Indexers are the exception: a whole number is a position
+(<xref linkend="collectionsIndexers"/>).</para></listitem></varlistentry>
+<varlistentry><term>Arrays count from 1, lists from 0</term>
+<listitem><para>A .NET array is a Rexx Array: <computeroutput>bytes[1]</computeroutput>
+is its first element. A <literal>List</literal> keeps .NET's indexing:
+<computeroutput>list[0]</computeroutput>. .NET's own members of an array
+(<methodname>GetValue</methodname>, <methodname>IndexOf</methodname>) count
+from 0, as .NET documents them.</para></listitem></varlistentry>
+<varlistentry><term>say shows the proxy, not .NET's text</term>
+<listitem><para><computeroutput>say sb</computeroutput> shows
+<computeroutput>a NetObject (System.Text.StringBuilder #12)</computeroutput>;
+<computeroutput>say sb~ToString</computeroutput> shows its text. An enum value
+and an array are the exceptions: they show their name and their
+elements.</para></listitem></varlistentry>
+<varlistentry><term>Rexx's methods win, but for six names</term>
+<listitem><para><methodname>class</methodname>, <methodname>isA</methodname>,
+<methodname>objectName</methodname>, <methodname>hashCode</methodname> and the
+other methods of Rexx's <classname>Object</classname> and of
+<classname>NetObject</classname> are Rexx's: a .NET member with such a name is
+reached with <computeroutput>.net~invoke(o, "Name")</computeroutput>.
+<methodname>start</methodname>, <methodname>send</methodname>,
+<methodname>copy</methodname>, <methodname>run</methodname>,
+<methodname>request</methodname> and <methodname>string</methodname> go to
+.NET when it has them (<xref linkend="msgObjectMethods"/>).</para></listitem></varlistentry>
+<varlistentry><term>A struct is a copy</term>
+<listitem><para><computeroutput>form~Location~X = 5</computeroutput> changes a
+copy; set the whole value (<xref linkend="msgStructs"/>).</para></listitem></varlistentry>
+<varlistentry><term>Task.Run(handler) returns nothing</term>
+<listitem><para>A handler fits a delegate that returns nothing before one that
+returns a value, so <literal>Task.Run</literal> takes it as an
+<literal>Action</literal>. <computeroutput>.net~as(h, "System.Func&lt;int&gt;")</computeroutput>
+chooses the other (<xref linkend="eventsHandlers"/>).</para></listitem></varlistentry>
+<varlistentry><term>A handler that waits for its object's guard</term>
+<listitem><para>A handler called from another thread waits while its object
+runs a guarded method; a window's object waiting in
+<literal>Application.Run</literal>, or a loop, keeps it waiting for ever. Make
+handler methods <literal>UNGUARDED</literal> (<xref linkend="eventsThreads"/>).</para></listitem></varlistentry>
+<varlistentry><term>await on a user interface thread</term>
+<listitem><para>Awaiting a task that needs the user interface's thread, on
+that thread, never ends (<xref linkend="eventsTasks"/>).</para></listitem></varlistentry>
+<varlistentry><term>One Rexx method for every overload</term>
+<listitem><para>A Rexx class that extends a .NET class overrides every
+overload of a name with one method: <methodname>Write</methodname> of a
+<literal>TextWriter</literal> gets a <literal>char</literal>, a
+<literal>string</literal>, a <literal>char[]</literal>, a format and its
+arguments. Look at what arrives (<xref linkend="extendExtend"/>).</para></listitem></varlistentry>
+<varlistentry><term>.local names that are classes</term>
+<listitem><para>An entry of <literal>.local</literal> named as a Rexx class
+(<literal>LIST</literal>, <literal>ARRAY</literal>, <literal>FILE</literal>) is
+hidden by the class: <literal>.list</literal> is Rexx's
+<classname>List</classname>. A .NET host should give its objects other names
+(<xref linkend="clsRexxInterpreter"/>).</para></listitem></varlistentry>
+<varlistentry><term>Run takes a routine's source</term>
+<listitem><para><computeroutput>rexx.Run(".directory~new")</computeroutput>
+runs that expression as a command; a routine returns its value:
+<computeroutput>rexx.Run("return .directory~new")</computeroutput>.</para></listitem></varlistentry>
+</variablelist>
+</appendix>

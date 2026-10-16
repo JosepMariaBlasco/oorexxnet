@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!--
+    ooRexx and .NET: Reference.
+
+    Licensed under the Apache License, Version 2.0.
+
+    Built with ooRexx's documentation tools (docs/trunk/tools/bldoc_orx):
+    see scripts/build-books.sh.  Every <example> that holds a program and a
+    <screen> with its output is run and checked by docs/check-books.rex.
+-->
+<book>
+	<xi:include href="Book_Info.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="Preface.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="intro.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="messages.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="values.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="collections.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="classes.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="events.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="eventthread.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="errors.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="extend.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="com.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="host.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="hostenv.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="bothways.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="clrcls.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="platforms.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="pitfalls.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="guarantees.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="relation.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<index />
+</book>

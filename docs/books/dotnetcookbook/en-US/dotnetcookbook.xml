@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!--
+    ooRexx and .NET: Cookbook.
+
+    Licensed under the Apache License, Version 2.0.
+
+    Built with ooRexx's documentation tools (docs/trunk/tools/bldoc_orx):
+    see scripts/build-books.sh.  Every <example> that holds a program and a
+    <screen> with its output is run and checked by docs/check-books.rex.
+-->
+<book>
+	<xi:include href="Book_Info.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="Preface.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="start.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="everyday.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="collections.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="objects.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="callbacks.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="extending.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="windows.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="fromnet.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<xi:include href="knowing.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+	<index />
+</book>

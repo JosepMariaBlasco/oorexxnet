@@ -1,0 +1,216 @@
+/* ooRexx and .NET: Reference. The syntax diagrams, in the W3C EBNF of the
+   Railroad Diagram Generator (as ooRexx's books): scripts/build-books.sh
+   with DIAGRAMS=1 makes one SVG per production, named as the production.
+   Licensed under the Apache License, Version 2.0. */
+
+net_name ::= name
+
+net_addhandler ::= 'addHandler(' object ',' event ',' handler ')'
+
+net_as ::= 'as(' value ',' type ')'
+
+net_box ::= 'box(' type ',' value ')'
+
+net_createobject ::= 'createObject(' progid ( ',' language )? ')'
+
+net_eventloop ::= 'eventLoop'
+
+net_events ::= 'events(' object ')'
+
+net_extend ::= 'extend(' class ',' base ( ',' interface )* ')'
+
+net_forced ::= typename '(' value ')'
+
+net_get ::= 'get(' object ',' name ')'
+
+net_getactiveobject ::= 'getActiveObject(' progid ( ',' language )? ')'
+
+net_getconstant ::= 'getConstant(' object ( ',' name )? ')'
+
+net_getknownevents ::= 'getKnownEvents(' object ')'
+
+net_getknownmethods ::= 'getKnownMethods(' object ')'
+
+net_getobject ::= 'getObject(' moniker ( ',' language )? ')'
+
+net_handlecount ::= 'handleCount'
+
+net_handler ::= 'handler(' object ',' message ( ',' options )? ')'
+
+net_invoke ::= 'invoke(' object ',' name ( ',' argument )* ')'
+
+net_isinstance ::= 'isInstance(' object ',' type ')'
+
+net_load ::= 'load(' ( name | path ) ')'
+
+net_members ::= 'members(' object ')'
+
+net_named ::= 'named(' name ',' value ')'
+
+net_namespace ::= 'namespace(' name ')'
+
+net_new ::= 'new(' type ( ',' argument )* ')'
+
+net_nextevent ::= 'nextEvent' ( '(' seconds ')' )?
+
+net_null ::= 'null'
+
+net_queuedcalls ::= 'queuedCalls'
+
+net_ref ::= 'ref' ( '(' value ')' )?
+
+net_releaseobject ::= 'releaseObject(' object ')'
+
+net_removehandler ::= 'removeHandler(' object ',' event ',' handler ')'
+
+net_set ::= 'set(' object ',' name ',' value ')'
+
+net_stopeventloop ::= 'stopEventLoop'
+
+net_type ::= 'type(' ( name | typeobject | generic ( ',' typearg )+ ) ')'
+
+net_typeobject ::= 'typeObject(' object ')'
+
+net_typeof ::= 'typeOf(' object ')'
+
+net_unbox ::= 'unbox(' object ')'
+
+netobject_new ::= 'new(' ( netobject | argument ( ',' argument )* )? ')'
+
+netobject_member ::= name ( '(' argument ( ',' argument )* ')' )?
+
+netobject_memberset ::= name '=' value
+
+netobject_atget ::= '[' index ( ',' index )* ']'
+
+netobject_putset ::= '[' index ( ',' index )* ']' '=' value
+
+netobject_comparison ::= ( '==' | '\==' | '=' | '\=' | '<>' | '><' ) other
+
+netobject_await ::= 'await'
+
+netobject_hashcode ::= 'hashCode'
+
+netobject_makearray ::= 'makeArray'
+
+netobject_makestring ::= 'makeString'
+
+netobject_string ::= 'string'
+
+netobject_supplier ::= 'supplier'
+
+netobject_objectmethods ::= ( 'start' | 'send' | 'copy' | 'run' | 'request' ) ( '(' argument ( ',' argument )* ')' )?
+
+netobject_netextension ::= 'netExtension'
+
+nettype_new ::= 'new' ( '(' argument ( ',' argument )* ')' )?
+
+nettype_member ::= name ( '(' argument ( ',' argument )* ')' )?
+
+netarray_atget ::= '[' index ( ',' index )* ']'
+
+netarray_at ::= 'at(' ( index ( ',' index )* | array ) ')'
+
+netarray_putset ::= '[' index ( ',' index )* ']' '=' item
+
+netarray_put ::= 'put(' item ',' ( index ( ',' index )* | array ) ')'
+
+netarray_putstrict ::= 'putStrict(' type ',' item ',' ( index ( ',' index )* | array ) ')'
+
+netarray_items ::= 'items'
+
+netarray_size ::= 'size'
+
+netarray_dimension ::= 'dimension' ( '(' n ')' )?
+
+netarray_makearray ::= 'makeArray'
+
+netarray_supplier ::= 'supplier'
+
+netarray_makestring ::= ( 'makeString' | 'toString' ) ( '(' format ( ',' separator )? ')' )?
+
+netenum_name ::= 'name'
+
+netenum_ordinal ::= ( 'ordinal' | 'value' )
+
+netenum_equal ::= ( '=' | '\=' | '<>' | '><' ) ( name | number | netenum )
+
+netenum_strict ::= ( '==' | '\==' ) ( name | netenum )
+
+netenum_string ::= ( 'string' | 'makeString' )
+
+netenum_hashcode ::= 'hashCode'
+
+netnamespace_member ::= name
+
+netnamespace_string ::= ( 'string' | 'makeString' )
+
+netref_new ::= 'new' ( '(' value ')' )?
+
+netref_value ::= 'value'
+
+netref_valueset ::= 'value' '=' value
+
+nettyped_kind ::= 'kind'
+
+nettyped_value ::= 'value'
+
+nethandler_target ::= 'target'
+
+nethandler_message ::= 'message'
+
+nethandler_options ::= 'options'
+
+nethandler_release ::= 'release'
+
+nethandler_released ::= 'released'
+
+netevent_plus ::= ( '+' | '-' ) handler
+
+netevent_owner ::= 'owner'
+
+netevent_name ::= 'name'
+
+netcall_handler ::= 'handler'
+
+netcall_arguments ::= 'arguments'
+
+netcall_target ::= 'target'
+
+netcall_message ::= 'message'
+
+netcall_dispatch ::= 'dispatch'
+
+eventthread_runlater ::= ( 'runLater(' | 'runLaterPush(' | 'runLaterLatest(' | 'runLaterLatestPush(' ) target ',' message ( ',' '"I"' ( ',' argument )* | ',' '"A"' ',' array )? ')'
+
+eventthread_eventthreadfor ::= 'eventThreadFor(' target ')'
+
+eventthread_isclassevent ::= 'isEventThread'
+
+eventthread_default ::= 'default'
+
+eventthread_current ::= 'current'
+
+eventthread_threads ::= 'threads'
+
+eventthread_kind ::= 'kind'
+
+eventthread_id ::= 'id'
+
+eventthread_isevent ::= 'isEventThread'
+
+guimessage_completed ::= 'completed'
+
+guimessage_result ::= 'result'
+
+guimessage_hasresult ::= 'hasResult'
+
+guimessage_haserror ::= 'hasError'
+
+guimessage_errorcondition ::= 'errorCondition'
+
+guimessage_target ::= 'target'
+
+guimessage_messagename ::= 'messageName'
+
+guimessage_arguments ::= ( 'arguments' | 'hasArguments' )

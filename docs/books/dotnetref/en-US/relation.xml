@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE appendix PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<appendix id="relation"><title>Relation to BSF4ooRexx and the Sister Bridges</title>
+<indexterm><primary>BSF4ooRexx</primary></indexterm>
+<para>The bridge was asked for by Rony G. Flatscher, the author of
+BSF4ooRexx, the bridge between ooRexx and Java, and follows its conventions
+where .NET allows it: .NET arrays as Rexx Arrays from 1, as
+<literal>BSF_ARRAY_REFERENCE</literal>; enum values as objects; <methodname>box</methodname>
+and <methodname>unbox</methodname> with its indicators; the
+<classname>RexxObject</classname> methods <methodname>SendMessage</methodname>
+... <methodname>SendMessage5</methodname> and <methodname>SendMessageScope</methodname>,
+as <literal>RexxProxy</literal>'s; the prefixes of the standard streams; and
+the event thread's classes, from <literal>BSF.CLS</literal>.</para>
+
+<table id="tabBsf" frame="all" pgwide="1">
+<title>BSF4ooRexx (Java) and ooRexx/.NET</title>
+<tgroup cols="2">
+<colspec colwidth="1*"/><colspec colwidth="1*"/>
+<thead><row><entry>BSF4ooRexx</entry><entry>ooRexx/.NET</entry></row></thead>
+<tbody>
+<row><entry><computeroutput>bsf.import("java.lang.Math")</computeroutput></entry><entry><computeroutput>.net~System~Math</computeroutput>, <computeroutput>.net~type("System.Math")</computeroutput></entry></row>
+<row><entry><computeroutput>.bsf~new("java.lang.StringBuilder")</computeroutput></entry><entry><computeroutput>.net~System~Text~StringBuilder~new</computeroutput>, <computeroutput>.net~new(type, ...)</computeroutput></entry></row>
+<row><entry><computeroutput>o~bsf.dispatch(name)</computeroutput></entry><entry><computeroutput>.net~invoke(o, "Name", ...)</computeroutput> (and <methodname>start</methodname>, <methodname>send</methodname>... go to .NET when it has them)</entry></row>
+<row><entry>Java arrays as Rexx Arrays, from 1</entry><entry>the same: <classname>NetArray</classname></entry></row>
+<row><entry><literal>java.util.List</literal>: <computeroutput>get(0)</computeroutput></entry><entry>the same: <computeroutput>list[0]</computeroutput></entry></row>
+<row><entry>Java enums as objects</entry><entry><classname>NetEnum</classname></entry></row>
+<row><entry><methodname>box</methodname>, <methodname>unbox</methodname></entry><entry><computeroutput>.net~box(type, x)</computeroutput>, <computeroutput>.net~unbox(o)</computeroutput></entry></row>
+<row><entry><computeroutput>BsfCreateRexxProxy(obj, , "java.awt.event.ActionListener")</computeroutput></entry><entry><computeroutput>.net~handler(obj, "MESSAGE")</computeroutput>, any delegate type; a Rexx class that implements an interface: <computeroutput>.net~extend(.MyClass, interface)</computeroutput></entry></row>
+<row><entry><classname>AbstractGUIThread</classname>, <classname>FxGUIThread</classname>, <classname>GUIMessage</classname></entry><entry><classname>AbstractEventThread</classname>, <classname>NetEventThread</classname>, <classname>GUIMessage</classname></entry></row>
+<row><entry><literal>RexxProxy</literal> in Java</entry><entry><classname>RexxObject</classname> in .NET</entry></row>
+<row><entry>an unknown member: an error naming it</entry><entry>SYNTAX 97.1, as for any Rexx object</entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<para><emphasis role="bold">The sister bridges.</emphasis> ooRexx/WASM's
+<classname>JSObject</classname> (ooRexx in the browser) and ooRexx/Python share
+the shape: one entry object (&net; as <literal>.js</literal> and
+<literal>.py</literal>), proxies by reference, names in any case with an exact
+form, handlers with the same queued model, and Rexx classes that extend
+classes of the other side. ooRexx/.NET departs from them where .NET differs:
+names are caseless with the member that starts in uppercase winning (.NET's
+convention; <literal>.js</literal> prefers lowercase), an unknown member is an
+error rather than <literal>.js~undefined</literal>, and the exact access and
+introspection are methods of &net; rather than of the proxies, because
+<literal>[]</literal> is .NET's indexer and <methodname>Invoke</methodname> one
+of .NET's commonest member names. The design notes mark every such difference
+with <emphasis role="bold">&#916;</emphasis>.</para>
+</appendix>

@@ -1,0 +1,495 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="host"><title>.NET Using ooRexx: the Rexx.Net API</title>
+<indexterm><primary>Rexx.Net</primary></indexterm>
+<indexterm><primary>.NET</primary><secondary>running Rexx</secondary></indexterm>
+
+<para>A .NET program runs Rexx code through the assembly
+<filename>Rexx.Net.dll</filename>: it references the NuGet package
+<literal>Rexx.Net</literal> (<command>dotnet add package Rexx.Net --prerelease</command>),
+or the assembly of a build or of an installation. An installed ooRexx 5,
+64-bit, is a prerequisite: the assembly finds <filename>librexx</filename>
+(<filename>rexx.dll</filename> on Windows) itself, through the
+<command>rexx</command> on the <envar>PATH</envar> or the system's places. Its
+public types are in the namespace <literal>Rexx.Net</literal>. This chapter
+describes the interpreter and the objects; <xref linkend="hostenv"/>, what
+the application gives the Rexx code (commands, streams, functions) and how it
+stops it. The signatures are C#'s; VB.NET, F# and PowerShell use the same
+types.</para>
+
+<example id="ex.host-basics">
+<title>Running Rexx code from C#</title>
+<programlisting language="csharp">using System;
+using System.IO;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+Console.WriteLine(rexx.Run&lt;int&gt;("use arg a, b; return a + b", 2, 3));
+string path = Path.Combine(Path.GetTempPath(), "book-join.rex");
+File.WriteAllText(path, "use arg a, b\nreturn a b\n");
+Console.WriteLine(rexx.RunFile(path, "x", "y"));
+var pkg = rexx.LoadPackage("counter.cls",
+    "::class Counter public\n" +
+    "::attribute n get\n" +
+    "::method init; expose n; n = 0\n" +
+    "::method add; expose n; use arg k = 1; n += k; return self\n");
+RexxClass counter = pkg.FindClass("Counter")!;
+RexxObject c = counter.New()!;
+c.Send("add", 5)!.Send("add");                 // Rexx's c~add(5)~add
+Console.WriteLine(c.Send&lt;int&gt;("n"));
+dynamic d = c;                                // or through dynamic
+d.add(10);
+Console.WriteLine((int)d.n);
+Console.WriteLine($"{counter.Name} {c.Is(counter)} {c.HasMethod("ADD")}");</programlisting>
+<screen>5
+x y
+6
+16
+COUNTER True True</screen>
+</example>
+
+<!-- ===================================================================== -->
+<section id="clsRexxInterpreter"><title>RexxInterpreter Class</title>
+<indexterm><primary>RexxInterpreter class</primary></indexterm>
+<para>An ooRexx interpreter instance. A process may have several, each with
+its own <literal>.local</literal>, packages and <literal>ADDRESS</literal>
+environments. It is <literal>IDisposable</literal>: <methodname>Dispose</methodname>
+ends the instance, on the thread that created it.</para>
+<programlisting language="csharp">public sealed class RexxInterpreter : IDisposable
+{
+    public static RexxInterpreter Create(RexxOptions? options = null);
+    public static RexxInterpreter? Current { get; }
+    public bool IsGuest { get; }
+    public string Version { get; }
+    public string LanguageLevel { get; }
+
+    public RexxObject? Run(string source, params object?[] args);
+    public T Run&lt;T&gt;(string source, params object?[] args);
+    public RexxObject? RunFile(string path, params object?[] args);
+    public RexxRoutine Compile(string name, string source);
+    public RexxPackage LoadPackage(string path);
+    public RexxPackage LoadPackage(string name, string source);
+    public RexxClass? FindClass(string name);
+    public RexxObject Environment { get; }
+    public RexxObject Local { get; }
+    public RexxObject NewArray(params object?[] items);
+    public RexxObject NewDirectory(IEnumerable&lt;KeyValuePair&lt;string, object?&gt;&gt; pairs);
+    public RexxObject NewStringTable(IEnumerable&lt;KeyValuePair&lt;string, object?&gt;&gt; pairs);
+    public RexxScope Enter();
+    public void RequireNet();
+    public int ObjectCount { get; }
+    public void Dispose();
+    // and those of the next chapter: commands, streams, functions, cancellation
+}</programlisting>
+<variablelist>
+<varlistentry><term><methodname>Create</methodname></term>
+<listitem><para>A new interpreter instance, with <xref linkend="clsRexxOptions" xrefstyle="select:title"/>.
+The thread that calls it is attached to the instance until
+<methodname>Dispose</methodname>, which must run on that thread.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Current</methodname>, <methodname>IsGuest</methodname></term>
+<listitem><para>The instance whose Rexx code is calling .NET on this thread,
+or <literal>null</literal> (<xref linkend="bothways"/>); and whether ooRexx
+made it (a program started by <command>rexx</command>) rather than
+<methodname>Create</methodname>. <methodname>Dispose</methodname> does
+nothing on an instance ooRexx made.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Version</methodname>, <methodname>LanguageLevel</methodname></term>
+<listitem><para>The interpreter's version (<literal>"5.3.0"</literal>) and
+language level (<literal>"6.06"</literal>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>Run</methodname>, <methodname>Run&lt;T&gt;</methodname></term>
+<listitem><para>Runs <emphasis role="italic">source</emphasis> (clauses
+separated by semicolons or line feeds) as a routine, with the arguments
+(<literal>USE ARG</literal>), and returns what it returns
+(<literal>RETURN</literal>): a <classname>RexxObject</classname>, or
+<literal>null</literal> for &nil; or no result; or converted to
+<literal>T</literal> (<xref linkend="hostValues"/>). The source may have
+directives (<literal>::requires</literal>, classes, routines) after its
+code.</para></listitem></varlistentry>
+<varlistentry><term><methodname>RunFile</methodname></term>
+<listitem><para>Calls the Rexx program in the file <emphasis role="italic">path</emphasis>
+with the arguments, as <literal>CALL</literal> would, and returns its result.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Compile</methodname></term>
+<listitem><para>A routine made from <emphasis role="italic">source</emphasis>
+under <emphasis role="italic">name</emphasis>, to call many times
+(<xref linkend="clsRexxClass" xrefstyle="select:title"/>): compiled
+once.</para></listitem></varlistentry>
+<varlistentry><term><methodname>LoadPackage</methodname></term>
+<listitem><para>A package from a file, as <literal>::requires</literal> loads
+one; or from <emphasis role="italic">source</emphasis> under
+<emphasis role="italic">name</emphasis>, which a later
+<computeroutput>::requires "name"</computeroutput> of the instance's code
+finds (<xref linkend="clsRexxClass" xrefstyle="select:title"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>FindClass</methodname></term>
+<listitem><para>A class by name, as Rexx finds <literal>.Name</literal> (the
+environment, the instance's packages); <literal>null</literal> if there is
+none.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Environment</methodname>, <methodname>Local</methodname></term>
+<listitem><para><literal>.environment</literal> and <literal>.local</literal>,
+as <classname>RexxObject</classname>s: <computeroutput>rexx.Local["FORM"] = form</computeroutput>
+makes <literal>.form</literal> the .NET object for the Rexx code. Pick
+names that are not Rexx classes': <literal>.list</literal> is Rexx's
+<classname>List</classname> class, whatever <literal>.local</literal>
+holds.</para></listitem></varlistentry>
+<varlistentry><term><methodname>NewArray</methodname>, <methodname>NewDirectory</methodname>, <methodname>NewStringTable</methodname></term>
+<listitem><para>A new Rexx Array of the items, or a Directory or StringTable
+of the pairs, the values converted as arguments are: the explicit copies of
+.NET collections into Rexx ones (a .NET collection given to Rexx is a
+<classname>NetObject</classname>, by reference).</para></listitem></varlistentry>
+<varlistentry><term><methodname>Enter</methodname></term>
+<listitem><para>Keeps this thread attached to the instance until the
+<classname>RexxScope</classname> it returns is disposed: <computeroutput>using (rexx.Enter()) { ... }</computeroutput>
+for a batch of calls from a thread other than the creating one. Attaching
+costs about 20 µs, a message about 1 µs (<xref linkend="hostThreads"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>RequireNet</methodname></term>
+<listitem><para>Loads <filename>net.cls</filename>, so that Rexx code can use
+&net; without requiring it (<xref linkend="bothways"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>ObjectCount</methodname></term>
+<listitem><para>The Rexx objects that .NET holds now, or that wait to be
+released: for diagnostics.</para></listitem></varlistentry>
+</variablelist>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsRexxOptions"><title>RexxOptions Class</title>
+<indexterm><primary>RexxOptions class</primary></indexterm>
+<para>The options of <methodname>RexxInterpreter.Create</methodname>: ooRexx's
+own instance options, and the bridge's.</para>
+<programlisting language="csharp">public sealed class RexxOptions
+{
+    public string? InitialAddress { get; set; }
+    public string? ExternalCallPath { get; set; }
+    public string? ExternalCallExtensions { get; set; }
+    public IList&lt;string&gt; LoadLibraries { get; }
+    public TextWriter? Output { get; set; }
+    public TextWriter? Error { get; set; }
+    public TextReader? Input { get; set; }
+    public bool Net { get; set; } = true;
+    public bool StreamPrefixes { get; set; } = true;
+}</programlisting>
+<variablelist>
+<varlistentry><term><methodname>InitialAddress</methodname></term>
+<listitem><para>The initial <literal>ADDRESS</literal> environment (an
+environment of the application, <xref linkend="hostCommands"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>ExternalCallPath</methodname>, <methodname>ExternalCallExtensions</methodname></term>
+<listitem><para>Where external routines and <literal>::requires</literal>
+files are looked for, and the extensions tried (<literal>".rex,.cls"</literal>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>LoadLibraries</methodname></term>
+<listitem><para>Native libraries loaded when the instance is created.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Output</methodname>, <methodname>Error</methodname>, <methodname>Input</methodname></term>
+<listitem><para>The Rexx code's standard streams, from the start (<xref linkend="hostStreams"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>Net</methodname></term>
+<listitem><para>Whether Rexx code may use .NET from the start: by default,
+<filename>net.cls</filename> and <filename>CLR.CLS</filename> (built into the
+assembly) and the native library are registered with ooRexx when the instance
+is created, so <computeroutput>::requires "net.cls"</computeroutput> needs no
+file (<xref linkend="bothwaysPackage"/>). <literal>false</literal>: only when a
+.NET object first goes to Rexx.</para></listitem></varlistentry>
+<varlistentry><term><methodname>StreamPrefixes</methodname></term>
+<listitem><para>BSF4ooRexx's prefixes on the standard streams that the
+application has not taken (<xref linkend="hostStreams"/>).</para></listitem></varlistentry>
+</variablelist>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsRexxObject"><title>RexxObject Class</title>
+<indexterm><primary>RexxObject class</primary></indexterm>
+<para>Any Rexx object, by reference, as BSF4ooRexx's <literal>RexxProxy</literal>
+is in Java: it keeps the Rexx object alive while .NET holds it, and the same
+Rexx object is the same <classname>RexxObject</classname> each time (identity).
+It is a <literal>DynamicObject</literal>, so C#'s <literal>dynamic</literal>
+(and VB.NET's late binding) sends Rexx messages; and it is enumerable.</para>
+<programlisting language="csharp">public class RexxObject : DynamicObject, IEnumerable&lt;object?&gt;, IDisposable
+{
+    public RexxInterpreter Interpreter { get; }
+    public object? NetValue { get; }
+    public RexxObject? Send(string name, params object?[] args);
+    public T Send&lt;T&gt;(string name, params object?[] args);
+    public RexxObject? Send(string name, CancellationToken cancel, params object?[] args);
+    public T Send&lt;T&gt;(string name, CancellationToken cancel, params object?[] args);
+    public RexxObject? SendMessage(string name, params object?[]? args);
+    public RexxObject? SendMessage0(string name);   // ... SendMessage5(name, a1, ..., a5)
+    public RexxObject? SendMessageScope(string name, RexxClass scope, params object?[]? args);
+    public object? this[params object?[] index] { get; set; }
+    public bool Is(RexxClass cls);
+    public bool HasMethod(string name);
+    public IReadOnlyList&lt;KeyValuePair&lt;object?, object?&gt;&gt; Supplier();
+    public IEnumerator&lt;object?&gt; GetEnumerator();
+    public override string ToString();
+    public void Dispose();
+}</programlisting>
+<variablelist>
+<varlistentry><term><methodname>Send</methodname>, <methodname>Send&lt;T&gt;</methodname></term>
+<listitem><para>Sends the message <emphasis role="italic">name</emphasis>
+(uppercased, as Rexx does with every message) with the arguments: Rexx's
+<computeroutput>o~name(args)</computeroutput>. The result as for
+<methodname>Run</methodname>. With a <literal>CancellationToken</literal>, the
+Rexx code is halted when it is cancelled (<xref linkend="hostCancel"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>SendMessage</methodname>, <methodname>SendMessage0</methodname> ... <methodname>SendMessage5</methodname>, <methodname>SendMessageScope</methodname></term>
+<listitem><para>BSF4ooRexx's names for <methodname>Send</methodname> (and the
+Python bridge's): any string is a name, one held in a variable or one that is
+no C# name (<literal>"[]="</literal>, <literal>"||"</literal>).
+<methodname>SendMessageScope</methodname> starts the method search at the
+class <emphasis role="italic">scope</emphasis>, as Rexx's
+<computeroutput>o~name:scope</computeroutput>. As with any
+<literal>params</literal> method, an <literal>object[]</literal> given alone
+is the argument list; to send one Rexx Array, wrap it.</para></listitem></varlistentry>
+<varlistentry><term>indexer</term>
+<listitem><para><computeroutput>o[i]</computeroutput> and
+<computeroutput>o[i, j] = v</computeroutput>: Rexx's own <methodname>[]</methodname>
+and <methodname>[]=</methodname>, from 1 for an Array.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Is</methodname>, <methodname>HasMethod</methodname></term>
+<listitem><para>Whether the object is an instance of the class (or of a
+subclass), and whether it has a method of that name.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Supplier</methodname>, enumeration</term>
+<listitem><para>The object's <computeroutput>o~supplier</computeroutput>, as
+(index, item) pairs, taken now; <literal>foreach</literal> gives its
+items.</para></listitem></varlistentry>
+<varlistentry><term><methodname>ToString</methodname></term>
+<listitem><para>The object's <computeroutput>o~string</computeroutput>.</para></listitem></varlistentry>
+<varlistentry><term><methodname>NetValue</methodname></term>
+<listitem><para>For a Rexx <classname>NetObject</classname>, its .NET object
+(for a <classname>NetType</classname>, its <literal>System.Type</literal>);
+<literal>null</literal> for any other Rexx object.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Dispose</methodname></term>
+<listitem><para>Releases the Rexx object now; else it is released after .NET
+collects the proxy. Optional.</para></listitem></varlistentry>
+</variablelist>
+
+<table id="tabDynamic" frame="all">
+<title>C#'s dynamic on a RexxObject, and the Rexx message it sends</title>
+<tgroup cols="2">
+<colspec colwidth="1*"/><colspec colwidth="1*"/>
+<thead><row><entry>C#</entry><entry>Rexx</entry></row></thead>
+<tbody>
+<row><entry><computeroutput>d.Deposit(50)</computeroutput></entry><entry><computeroutput>o~DEPOSIT(50)</computeroutput></entry></row>
+<row><entry><computeroutput>d.Balance</computeroutput></entry><entry><computeroutput>o~BALANCE</computeroutput> (an attribute or a method: Rexx makes no difference)</entry></row>
+<row><entry><computeroutput>d.Balance = 5</computeroutput></entry><entry><computeroutput>o~BALANCE=(5)</computeroutput></entry></row>
+<row><entry><computeroutput>d[i]</computeroutput>, <computeroutput>d[i, j] = v</computeroutput></entry><entry><computeroutput>o[i]</computeroutput>, <computeroutput>o[i, j] = v</computeroutput></entry></row>
+<row><entry><computeroutput>d + 1</computeroutput>, <computeroutput>d * 2</computeroutput>, <computeroutput>d &lt; 3</computeroutput>, <computeroutput>d == e</computeroutput></entry><entry>the Rexx operator, as a message</entry></row>
+<row><entry><computeroutput>int n = d</computeroutput>, <computeroutput>(double)d</computeroutput>, <computeroutput>(bool)d</computeroutput></entry><entry>its string value, converted by Rexx's rules</entry></row>
+<row><entry><computeroutput>r(1, 2)</computeroutput> (a routine)</entry><entry><computeroutput>r~call(1, 2)</computeroutput></entry></row>
+</tbody>
+</tgroup>
+</table>
+<para>Names are uppercased, so there is no case to guess. C#'s named
+arguments are not supported. In VB.NET, a Rexx object typed
+<literal>Object</literal> with <literal>Option Strict Off</literal> is
+late-bound the same way (a class's <methodname>New</methodname> is
+<literal>[New]</literal> there).</para>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsRexxString"><title>RexxString Class</title>
+<indexterm><primary>RexxString class</primary></indexterm>
+<para>A Rexx string, as a result: a <classname>RexxObject</classname> that
+holds the value, copied (no reference to keep). It compares by value (Rexx's
+strict <literal>==</literal>: <methodname>Equals</methodname>,
+<methodname>GetHashCode</methodname>, C#'s <literal>==</literal>), so it can be a
+dictionary key. Its value converts, explicitly or through
+<literal>dynamic</literal> implicitly, to <literal>string</literal>, every
+numeric type, <literal>bool</literal> and <literal>char</literal>, by Rexx's
+rules (<literal>" 1E3 "</literal> is 1000; only <literal>1</literal> and
+<literal>0</literal> are logical values); and its operators are Rexx's:
+<literal>"150" + 1</literal> is <literal>151</literal>. It implements
+<literal>IConvertible</literal>, with the type code <literal>String</literal>,
+for VB.NET and <literal>Convert</literal>.</para>
+<programlisting language="csharp">public sealed class RexxString : RexxObject, IEquatable&lt;RexxString&gt;, IConvertible
+{
+    public RexxString(string value);
+    public string Value { get; }
+    public static explicit operator string(RexxString s);   // and int, long, double...
+}</programlisting>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsRexxClass"><title>RexxClass, RexxRoutine and RexxPackage Classes</title>
+<indexterm><primary>RexxClass class</primary></indexterm>
+<indexterm><primary>RexxRoutine class</primary></indexterm>
+<indexterm><primary>RexxPackage class</primary></indexterm>
+<para>Typed views of Rexx objects, as <methodname>FindClass</methodname>,
+<methodname>Compile</methodname> and <methodname>LoadPackage</methodname>
+return them.</para>
+<programlisting language="csharp">public sealed class RexxClass : RexxObject
+{
+    public RexxObject? New(params object?[] args);       // ~new(args)
+    public string Name { get; }                          // ~id
+    public RexxClass? SuperClass { get; }                // null for Object
+}
+public sealed class RexxRoutine : RexxObject
+{
+    public RexxObject? Call(params object?[] args);
+    public T Call&lt;T&gt;(params object?[] args);
+    public RexxObject? Call(CancellationToken cancel, params object?[] args);
+    public T Call&lt;T&gt;(CancellationToken cancel, params object?[] args);
+}
+public sealed class RexxPackage : RexxObject
+{
+    public string Name { get; }
+    public RexxClass? FindClass(string name);           // its own, or one it can see
+    public IReadOnlyDictionary&lt;string, RexxObject?&gt; Classes { get; }
+    public IReadOnlyDictionary&lt;string, RexxObject?&gt; PublicClasses { get; }
+    public IReadOnlyDictionary&lt;string, RexxObject?&gt; Routines { get; }
+    public IReadOnlyDictionary&lt;string, RexxObject?&gt; PublicRoutines { get; }
+}</programlisting>
+<para>A <classname>RexxRoutine</classname> is also callable through
+<literal>dynamic</literal>: <computeroutput>dynamic twice = rexx.Compile(...); twice(21)</computeroutput>.</para>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsRexxConvert"><title>RexxConvert, RexxValue and RexxScope Classes</title>
+<indexterm><primary>RexxConvert class</primary></indexterm>
+<indexterm><primary>RexxValue class</primary></indexterm>
+<programlisting language="csharp">public static class RexxConvert
+{
+    public static T To&lt;T&gt;(object? v);
+    public static object? To(object? v, Type t);
+    public static bool ToBool(string s);
+}
+public static class RexxValue
+{
+    public static readonly object Omitted;
+}
+public sealed class RexxScope : IDisposable { public void Dispose(); }</programlisting>
+<para><methodname>RexxConvert.To</methodname> converts a Rexx result (a
+<classname>RexxString</classname>, a <classname>RexxObject</classname>,
+<literal>null</literal>) to a .NET type by Rexx's rules, as
+<methodname>Run&lt;T&gt;</methodname> does (<xref linkend="hostValues"/>);
+<methodname>ToBool</methodname> takes Rexx's logical values,
+<literal>"1"</literal> and <literal>"0"</literal>. <methodname>RexxValue.Omitted</methodname>
+is an argument left out: <computeroutput>rexx.Run(src, 1, RexxValue.Omitted, 3)</computeroutput>
+makes <computeroutput>arg(2, "O")</computeroutput> true. A
+<classname>RexxScope</classname> is what <methodname>Enter</methodname>
+returns.</para>
+</section>
+
+<!-- ===================================================================== -->
+<section id="hostValues"><title>Values Between .NET and Rexx</title>
+<indexterm><primary>values</primary><secondary>in the Rexx.Net API</secondary></indexterm>
+<para><emphasis role="bold">.NET values given to Rexx</emphasis> (arguments,
+<computeroutput>Local[...] =</computeroutput>, the results of command handlers
+and functions) follow <xref linkend="valuesFromNet"/>: strings and numbers as
+Rexx strings, <literal>bool</literal> as <literal>1</literal> or
+<literal>0</literal>, <literal>null</literal> as &nil;, a
+<classname>RexxObject</classname> as its Rexx object,
+<methodname>RexxValue.Omitted</methodname> as an omitted argument, and any
+other object (arrays and collections too) as a <classname>NetObject</classname>,
+by reference.</para>
+<para><emphasis role="bold">Rexx results</emphasis> are &nil; as
+<literal>null</literal>, a string as a <classname>RexxString</classname>, a
+<classname>NetObject</classname> as its .NET object where the result is typed
+<literal>object</literal> (<literal>dynamic</literal>, the indexer,
+<literal>foreach</literal>, <methodname>Run&lt;T&gt;</methodname>; where it is
+typed <classname>RexxObject</classname>, a proxy whose
+<methodname>NetValue</methodname> is the object), and any other object as a
+<classname>RexxObject</classname>. Where the result is converted to a type
+(<methodname>Run&lt;T&gt;</methodname>, <methodname>Send&lt;T&gt;</methodname>,
+<methodname>Call&lt;T&gt;</methodname>, <methodname>RexxConvert.To</methodname>),
+a string converts by Rexx's rules, a one-dimensional Rexx Array to a
+<literal>T[]</literal>, a <literal>List&lt;T&gt;</literal> or an interface
+an array has, and a StringTable or a Directory to a dictionary with string
+keys: copies, their items converted. Anything that does not convert is an
+<literal>InvalidCastException</literal>.</para>
+
+<example id="ex.host-values">
+<title>Values both ways</title>
+<programlisting language="csharp">using System;
+using System.Collections.Generic;
+using System.Text;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+dynamic s = rexx.Run("return '150'")!;
+Console.WriteLine(s + 1);                      // Rexx's +
+int n = s;
+Console.WriteLine(n * 2);
+int[] ints = rexx.Run&lt;int[]&gt;("return .array~of(1, 2, 3)");
+Console.WriteLine(string.Join(",", ints));
+var dict = rexx.Run&lt;Dictionary&lt;string, int&gt;&gt;("t = .stringTable~new; t['a'] = 1; t['b'] = 2; return t");
+Console.WriteLine($"{dict["b"]} {dict.Count}");
+var arr = rexx.NewArray(1, "two", 3.5);
+Console.WriteLine($"{arr.Send&lt;int&gt;("items")} {arr[2]}");
+var sb = new StringBuilder("ab");
+rexx.Run("use arg sb; sb~Append('cd')", sb);  // a NetObject in Rexx
+Console.WriteLine(sb);
+Console.WriteLine(ReferenceEquals(rexx.Run&lt;StringBuilder&gt;("use arg o; return o", sb), sb));</programlisting>
+<screen>151
+300
+1,2,3
+2 2
+3 two
+abcd
+True</screen>
+</example>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsRexxException"><title>RexxException Class</title>
+<indexterm><primary>RexxException class</primary></indexterm>
+<para>A Rexx condition, as a .NET exception: one that ends a call into Rexx
+(also a compile error), or one that a Rexx handler or override raised while
+.NET called it (<xref linkend="errors"/>).</para>
+<programlisting language="csharp">public sealed class RexxException : Exception
+{
+    public string ConditionName { get; }    // "SYNTAX", "HALT", ...
+    public string Code { get; }             // "41.1" (empty but for SYNTAX)
+    public int Rc { get; }                  // 41
+    public string ErrorText { get; }        // "Bad arithmetic conversion."
+    public string Program { get; }
+    public int Line { get; }
+    public string Traceback { get; }        // as Rexx shows it
+    public RexxObject? Condition { get; }   // condition("O"), for a call made from .NET
+}</programlisting>
+<para>Its <literal>Message</literal> is the secondary message, else the error
+text. A 98.900 that carried a .NET exception has it as its
+<literal>InnerException</literal>: the very object thrown.</para>
+
+<example id="ex.host-exception">
+<title>Rexx's errors in C#</title>
+<programlisting language="csharp">using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+try { rexx.Run("x = 1\nreturn x + 'a'"); }
+catch (RexxException e) { Console.WriteLine($"{e.ConditionName} {e.Code} line {e.Line}: {e.Message}"); }
+try { rexx.Run("return .net~System~Int32~Parse('x')"); }
+catch (RexxException e) { Console.WriteLine($"{e.Code} {e.InnerException?.GetType().Name}"); }
+try { rexx.Compile("bad", "x = (1"); }
+catch (RexxException e) { Console.WriteLine($"{e.Code} {e.ErrorText}"); }</programlisting>
+<screen>SYNTAX 41.1 line 2: Nonnumeric value ("a") used in arithmetic operation.
+98.900 FormatException
+36.901 Unmatched "(" or "[" in expression.</screen>
+</example>
+</section>
+
+<!-- ===================================================================== -->
+<section id="hostThreads"><title>Threads and Lifetime</title>
+<indexterm><primary>threads</primary><secondary>in the Rexx.Net API</secondary></indexterm>
+<para><emphasis role="bold">Any .NET thread may call Rexx.</emphasis> A thread
+that runs no Rexx code is attached to the instance for the call and detached
+after it; a thread that is already inside Rexx (.NET code that Rexx called, a
+handler, a command handler) makes the call nested, on its own context. One
+Rexx thread runs at a time in an instance (the interpreter's lock): .NET
+threads that call Rexx take turns, and Rexx's own concurrency
+(<literal>REPLY</literal>, <methodname>start</methodname>) interleaves with
+them as usual. <computeroutput>using (rexx.Enter())</computeroutput> keeps a
+thread attached for a batch of calls. There is no asynchronous API: Rexx code
+is synchronous, and <computeroutput>Task.Run(() =&gt; rexx.Run(...))</computeroutput>
+works because any thread can attach.</para>
+<para><emphasis role="bold">Lifetime.</emphasis> A <classname>RexxObject</classname>
+holds a global reference to its Rexx object, released by
+<methodname>Dispose</methodname> or, failing that, after .NET collects the
+proxy (its finalizer queues the release, done at the next call into the
+instance or when it ends). <classname>RexxString</classname>s hold nothing.
+An instance's objects are released when it ends.</para>
+<para><emphasis role="bold">Not a sandbox.</emphasis> Rexx code can do what
+the process can: <literal>ADDRESS SYSTEM</literal>, files, &net;. An
+application that wants less sets <methodname>InitialAddress</methodname> to an
+environment of its own and <methodname>Net</methodname> to
+<literal>false</literal>; even so, the interpreter is no security
+boundary.</para>
+</section>
+
+</chapter>

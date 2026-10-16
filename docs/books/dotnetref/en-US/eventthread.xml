@@ -1,0 +1,412 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0.
+     (Generated once from a script; edit this file directly.) -->
+<chapter id="eventthread"><title>The Event Thread</title>
+<indexterm><primary>event thread</primary></indexterm>
+<indexterm><primary>GUI thread</primary></indexterm>
+<para>A window belongs to the thread that made it, which runs its events;
+other threads must not touch it directly. A Rexx program with a user
+interface often has work done on other threads (a computation, a download)
+whose results must show in a window. BSF4ooRexx's answer, for JavaFX and
+Swing, is its <classname>AbstractGUIThread</classname> classes; this chapter
+describes the same model for .NET, in <filename>net.cls</filename>:
+<classname>AbstractEventThread</classname>, its subclass
+<classname>NetEventThread</classname>, and <classname>GUIMessage</classname>.
+Their names and arguments are BSF4ooRexx's, so that code written for it reads
+the same.</para>
+
+<section id="eventthreadModel"><title>The Model</title>
+<para>Rexx code on any thread sends a message to the event thread with
+<methodname>runLater</methodname>: the message (a target object, a message
+name, and its arguments) is queued, and a <classname>GUIMessage</classname>
+is returned at once. Later, the event thread runs the queue, in order, each
+message as <computeroutput>target~messageName(arguments)</computeroutput>,
+and keeps its result, or its error, in its <classname>GUIMessage</classname>:
+<computeroutput>m~result</computeroutput> waits until it has run. While a
+message runs, other threads go on queueing.</para>
+<para><emphasis role="bold">Which thread is the event thread.</emphasis> .NET
+has no single user interface thread: each window belongs to the thread that
+made it, which runs its events through a <literal>SynchronizationContext</literal>
+(Windows Forms installs one when the first control is made on a thread; WPF's
+dispatcher too). The bridge notes every thread whose Rexx code has run with
+such a context: each is a user interface ("ui") thread, with its own
+<classname>NetEventThread</classname> and queue, and "later on that thread" is
+its context's <literal>Post</literal>, as JavaFX's
+<literal>Platform.runLater</literal>. Without a user interface, the event
+thread is the Rexx thread that waits in <computeroutput>.net~nextEvent</computeroutput>
+or <computeroutput>.net~eventLoop</computeroutput> (the "loop"): the queue
+runs there as one more queued call, so the same code works in a program with
+no window.</para>
+<para>The class methods are BSF4ooRexx's: <computeroutput>.NetEventThread~runLater(target, ...)</computeroutput>
+sends to the event thread of <literal>target</literal>: the thread of its
+window, for a Windows Forms control once its window exists or a WPF object;
+else the default, the first user interface thread, else the loop. The
+instance methods send to that one thread: <computeroutput>.NetEventThread~current~runLater(...)</computeroutput>.
+Waiting for <computeroutput>m~result</computeroutput> on the event thread
+itself, for a message it has not run yet, blocks it, as in BSF4ooRexx.</para>
+
+<example id="ex.eventthread">
+<title>The event thread, without a window</title>
+<programlisting language="rexx">m = .NetEventThread~runLater(.Adder~new, "ADD", "I", 2, 3)
+say m~completed .NetEventThread~kind
+.net~nextEvent(5)~dispatch              -- this thread is the event thread here
+say m~completed m~result .NetEventThread~current
+
+::requires "net.cls"
+::class Adder
+::method add
+  use arg a, b
+  return a + b</programlisting>
+<screen>0 loop
+1 5 a NetEventThread (the loop)</screen>
+</example>
+<para>The project's samples show the rest: <filename>samples/rexx/08-event-thread.rex</filename>
+(no windows: <methodname>runLaterLatest</methodname> from another Rexx thread),
+<filename>samples/windows/forms-progress.rex</filename> (a progress bar
+updated from another thread) and <filename>samples/windows/forms-two-threads.rex</filename>
+(two windows on two user interface threads).</para>
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsAbstractEventThread"><title>AbstractEventThread Class</title>
+<indexterm><primary>AbstractEventThread class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>AbstractEventThread class</secondary></indexterm>
+<para>The model, made general from BSF4ooRexx's <classname>AbstractGUIThread</classname>
+(<literal>BSF.CLS</literal>): an instance is one event thread, with its queue of
+<classname>GUIMessage</classname>s. Subclasses give
+<methodname>eventThreadFor</methodname> and <methodname>isEventThread</methodname>,
+and a private <methodname>invokeOnEventThread</methodname> that has the queue run
+later on their thread; BSF4ooRexx's are <classname>FxGUIThread</classname> and
+<classname>AwtGUIThread</classname>, this package's
+<classname>NetEventThread</classname>.</para>
+
+<table id="tabAbstractEventThread" frame="all" pgwide="1">
+<title>AbstractEventThread Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">AbstractEventThread</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthAETRunLaterClass" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthAETEventThreadFor" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthAETIsEventThreadClass" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthAETRunLater" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthAETIsEventThread" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthAETRunLaterClass"><title>runLater, runLaterPush, runLaterLatest, runLaterLatestPush (Class Methods)</title>
+<indexterm><primary>runLater method</primary>
+<secondary>of AbstractEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_runlater.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Queues the message <emphasis role="italic">message</emphasis>
+for <emphasis role="italic">target</emphasis>, to be sent on the event thread,
+and returns its <xref linkend="clsGUIMessage" xrefstyle="select:title"/> at
+once. The arguments follow, as for BSF4ooRexx: <literal>"I"</literal> and the
+arguments one by one, or <literal>"A"</literal> and one Array of them.</para>
+<variablelist>
+<varlistentry><term><methodname>runLater</methodname></term><listitem><para>at the end of the queue.</para></listitem></varlistentry>
+<varlistentry><term><methodname>runLaterPush</methodname></term><listitem><para>at the start of the queue, before the messages already waiting.</para></listitem></varlistentry>
+<varlistentry><term><methodname>runLaterLatest</methodname></term><listitem><para>at the end, after removing the waiting messages with the same target and message name: for updates of which only the newest matters.</para></listitem></varlistentry>
+<varlistentry><term><methodname>runLaterLatestPush</methodname></term><listitem><para>both: removing them, and at the start.</para></listitem></varlistentry>
+</variablelist>
+<para>The class methods send to <computeroutput>self~eventThreadFor(target)</computeroutput>.</para>
+</section>
+
+<section id="mthAETEventThreadFor"><title>eventThreadFor (Class Method)</title>
+<indexterm><primary>eventThreadFor method</primary>
+<secondary>of AbstractEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_eventthreadfor.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Abstract: a subclass returns the event thread that serves
+<emphasis role="italic">target</emphasis>.</para>
+</section>
+
+<section id="mthAETIsEventThreadClass"><title>isEventThread (Class Method)</title>
+<indexterm><primary>isEventThread method</primary>
+<secondary>of AbstractEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_isclassevent.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Abstract: a subclass returns whether the current thread is an event thread.</para>
+</section>
+
+<section id="mthAETRunLater"><title>runLater, runLaterPush, runLaterLatest, runLaterLatestPush</title>
+<indexterm><primary>runLater method</primary>
+<secondary>of AbstractEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_runlater.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Queues the message <emphasis role="italic">message</emphasis>
+for <emphasis role="italic">target</emphasis>, to be sent on the event thread,
+and returns its <xref linkend="clsGUIMessage" xrefstyle="select:title"/> at
+once. The arguments follow, as for BSF4ooRexx: <literal>"I"</literal> and the
+arguments one by one, or <literal>"A"</literal> and one Array of them.</para>
+<variablelist>
+<varlistentry><term><methodname>runLater</methodname></term><listitem><para>at the end of the queue.</para></listitem></varlistentry>
+<varlistentry><term><methodname>runLaterPush</methodname></term><listitem><para>at the start of the queue, before the messages already waiting.</para></listitem></varlistentry>
+<varlistentry><term><methodname>runLaterLatest</methodname></term><listitem><para>at the end, after removing the waiting messages with the same target and message name: for updates of which only the newest matters.</para></listitem></varlistentry>
+<varlistentry><term><methodname>runLaterLatestPush</methodname></term><listitem><para>both: removing them, and at the start.</para></listitem></varlistentry>
+</variablelist>
+<para>The instance methods queue on this event thread.</para>
+</section>
+
+<section id="mthAETIsEventThread"><title>isEventThread</title>
+<indexterm><primary>isEventThread method</primary>
+<secondary>of AbstractEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_isevent.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Abstract: a subclass returns whether the current thread is this event thread.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetEventThread"><title>NetEventThread Class</title>
+<indexterm><primary>NetEventThread class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetEventThread class</secondary></indexterm>
+<para>The event threads of .NET: one instance per user interface thread,
+and one for the loop (<xref linkend="eventthreadModel"/>), each made once.</para>
+
+<table id="tabNetEventThread" frame="all" pgwide="1">
+<title>NetEventThread Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">AbstractEventThread</emphasis></entry></row>
+ <row><entry>Methods inherited from the <xref linkend="clsAbstractEventThread" xrefstyle="select:title"/></entry></row>
+ <row><entry align="center"><emphasis role="bold">NetEventThread</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNETDefault" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETCurrent" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETThreads" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETEventThreadFor" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETIsEventThreadClass" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETKindClass" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETId" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETKind" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNETIsEventThread" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNETDefault"><title>default (Class Method)</title>
+<indexterm><primary>default method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_default.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the default event thread: the first user interface thread's,
+else the loop's.</para>
+</section>
+
+<section id="mthNETCurrent"><title>current (Class Method)</title>
+<indexterm><primary>current method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_current.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the event thread that the current thread is, or &nil; if it
+is none: the way an event thread asks which one it is.</para>
+</section>
+
+<section id="mthNETThreads"><title>threads (Class Method)</title>
+<indexterm><primary>threads method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_threads.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns an Array with the event threads of the user interface
+threads, in the order they were seen.</para>
+</section>
+
+<section id="mthNETEventThreadFor"><title>eventThreadFor (Class Method)</title>
+<indexterm><primary>eventThreadFor method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_eventthreadfor.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the event thread of <emphasis role="italic">target</emphasis>:
+the thread of its window, for a Windows Forms control whose window exists or
+a WPF object; else <methodname>default</methodname>.</para>
+</section>
+
+<section id="mthNETIsEventThreadClass"><title>isEventThread (Class Method)</title>
+<indexterm><primary>isEventThread method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_isclassevent.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns whether the current thread is an event thread: a user
+interface thread, or, when there is none, the loop's.</para>
+</section>
+
+<section id="mthNETKindClass"><title>kind (Class Method)</title>
+<indexterm><primary>kind method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_kind.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns <literal>ui</literal> if the program has a user interface
+thread, else <literal>loop</literal>.</para>
+</section>
+
+<section id="mthNETId"><title>id</title>
+<indexterm><primary>id method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_id.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the .NET id of the thread (<literal>ManagedThreadId</literal>);
+0 for the loop.</para>
+</section>
+
+<section id="mthNETKind"><title>kind</title>
+<indexterm><primary>kind method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_kind.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns <literal>ui</literal> or <literal>loop</literal>.</para>
+</section>
+
+<section id="mthNETIsEventThread"><title>isEventThread</title>
+<indexterm><primary>isEventThread method</primary>
+<secondary>of NetEventThread Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/eventthread_isevent.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns whether the current thread is this event thread.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsGUIMessage"><title>GUIMessage Class</title>
+<indexterm><primary>GUIMessage class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>GUIMessage class</secondary></indexterm>
+<para>A message for an event thread, returned by the
+<methodname>runLater</methodname> methods (BSF4ooRexx's
+<classname>GUIMessage</classname>, modelled after ooRexx's
+<classname>Message</classname>).</para>
+
+<table id="tabGUIMessage" frame="all" pgwide="1">
+<title>GUIMessage Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">GUIMessage</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthGMCompleted" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMResult" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMHasResult" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMHasError" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMErrorCondition" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMTarget" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMMessageName" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthGMArguments" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthGMCompleted"><title>completed</title>
+<indexterm><primary>completed method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_completed.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns &true; once the message has run, with or without an error.</para>
+</section>
+
+<section id="mthGMResult"><title>result</title>
+<indexterm><primary>result method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_result.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Waits until the message has run (or failed), and returns its result:
+&nil; if it returned none or failed.</para>
+</section>
+
+<section id="mthGMHasResult"><title>hasResult</title>
+<indexterm><primary>hasResult method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_hasresult.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns &true; if the message returned a result.</para>
+</section>
+
+<section id="mthGMHasError"><title>hasError</title>
+<indexterm><primary>hasError method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_haserror.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns &true; if the message raised an error. The error is kept in
+the <classname>GUIMessage</classname>, not raised nor reported.</para>
+</section>
+
+<section id="mthGMErrorCondition"><title>errorCondition</title>
+<indexterm><primary>errorCondition method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_errorcondition.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the error's condition object (as <computeroutput>condition("O")</computeroutput>
+gives it), or &nil;.</para>
+</section>
+
+<section id="mthGMTarget"><title>target</title>
+<indexterm><primary>target method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_target.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the object the message is for.</para>
+</section>
+
+<section id="mthGMMessageName"><title>messageName</title>
+<indexterm><primary>messageName method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_messagename.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the message's name.</para>
+</section>
+
+<section id="mthGMArguments"><title>arguments, hasArguments</title>
+<indexterm><primary>arguments method</primary>
+<secondary>of GUIMessage Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/guimessage_arguments.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The message's arguments, an Array, or &nil;; and whether it has
+any.</para>
+</section>
+
+</section>
+
+</chapter>

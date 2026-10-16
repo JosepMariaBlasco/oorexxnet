@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE appendix PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<appendix id="guarantees"><title>Guarantees</title>
+<indexterm><primary>guarantees</primary></indexterm>
+<itemizedlist>
+<listitem><para><computeroutput>a == b</computeroutput> on two
+<classname>NetObject</classname>s is true when they stand for the same .NET
+object, however each came to Rexx.</para></listitem>
+<listitem><para>A .NET object that goes to Rexx and back is the object itself;
+a Rexx object that goes to .NET and back is the object itself, also the
+instance of a Rexx class that extends a .NET class, with its class and its
+state.</para></listitem>
+<listitem><para>A <classname>NetObject</classname> keeps its .NET object alive
+while Rexx holds it; a <classname>RexxObject</classname> keeps its Rexx object
+alive while .NET holds it. The instances of Rexx classes that extend .NET
+classes, and the handlers .NET can call, are released by the two garbage
+collectors, with nothing to do by hand.</para></listitem>
+<listitem><para>A name, once found to be a namespace or a type, stays that
+namespace or type; a member is looked up when the message arrives.</para></listitem>
+<listitem><para>An exception thrown by .NET is in
+<computeroutput>condition("O")~additional[2]</computeroutput>, and is the
+<literal>InnerException</literal> of the <classname>RexxException</classname>
+if it goes back to .NET; a Rexx condition that goes through .NET and back is
+raised again as it was.</para></listitem>
+<listitem><para>No call into ooRexx is made from .NET's finalizer thread, and
+none with a lock of the bridge held: <methodname>uninit</methodname> methods
+run on Rexx threads.</para></listitem>
+<listitem><para>A thread waiting in .NET (<computeroutput>.net~nextEvent</computeroutput>,
+a long .NET call) holds no interpreter lock: other Rexx threads run, and .NET
+can call Rexx back on any thread meanwhile.</para></listitem>
+<listitem><para>One binary of the bridge works with every .NET from 8 on, and
+the same <filename>net.cls</filename> on the three systems.</para></listitem>
+</itemizedlist>
+</appendix>

@@ -1,0 +1,165 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckCollections"><title>Collections</title>
+
+<para>.NET's collections are typed, and keep their own indexing: a
+list counts from 0, a dictionary goes by key. Its arrays are the exception:
+they count from 1, as Rexx Arrays.</para>
+
+<section id="ckLists"><title>Lists</title>
+<indexterm><primary>List</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> a growable list, sorted by .NET or by your own rule.</para>
+<example id="ex.ckLists">
+<title>Lists</title>
+<programlisting language="rexx">names = .net~type("System.Collections.Generic.List&lt;string&gt;")~new
+do n over "pear fig apple banana"~makeArray(" "); names~Add(n); end
+names~Sort
+say names~Count names[0] names~Contains("fig") names~IndexOf("pear")
+names~Sort(.net~handler(.ByLength~new, "COMPARE"))
+say names~ToArray~makeString("L", " ")
+names~RemoveAt(0); names~Insert(0, "kiwi")
+do with index i item n over names; say i n; end
+
+::requires "net.cls"
+::class ByLength
+::method compare
+  use arg a, b
+  return a~length - b~length</programlisting>
+<screen>4 apple 1 3
+fig pear apple banana
+0 kiwi
+1 pear
+2 apple
+3 banana</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>.net~type("System.Collections.Generic.List&lt;string&gt;")</computeroutput>
+names a generic type in C# syntax. A list counts from 0 (<computeroutput>names[0]</computeroutput>,
+<methodname>IndexOf</methodname>, <methodname>RemoveAt</methodname>), as .NET
+documents it, and <literal>DO WITH INDEX</literal> gives those positions.
+<methodname>Sort</methodname> without arguments uses the items' own order;
+with a handler, a Rexx method compares two items, as a
+<literal>Comparison&lt;string&gt;</literal>, and returns a negative number,
+zero, or a positive one.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Arrays, Collections and References</emphasis>, <emphasis>Callbacks, Events and Tasks</emphasis>.</para>
+</section>
+
+<section id="ckDictionaries"><title>Dictionaries</title>
+<indexterm><primary>Dictionary</primary></indexterm>
+<indexterm><primary>TryGetValue</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to count, or to look things up by key.</para>
+<example id="ex.ckDictionaries">
+<title>Dictionaries</title>
+<programlisting language="rexx">count = .net~type("System.Collections.Generic.Dictionary&lt;string, int&gt;")~new
+text = "the cat and the dog and the bird"
+do w over text~makeArray(" ")
+  r = .net~ref
+  if count~TryGetValue(w, r) then count[w] = r~value + 1
+  else count[w] = 1
+end
+do with index word item n over count; say word n; end
+say count~ContainsKey("cat") count~Count
+sorted = .net~type("System.Collections.Generic.SortedDictionary&lt;string, int&gt;")~new(count)
+say sorted~Keys~makeArray~makeString("L", " ")
+
+::requires "net.cls"</programlisting>
+<screen>the 3
+cat 1
+and 2
+dog 1
+bird 1
+1 5
+and bird cat dog the</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A <literal>Dictionary&lt;string, int&gt;</literal> is indexed by
+key: <computeroutput>count[w] = 1</computeroutput>. <methodname>TryGetValue</methodname>
+has an <literal>out</literal> parameter, which takes a <classname>NetRef</classname>
+(<computeroutput>.net~ref</computeroutput>): after the call, its
+<methodname>value</methodname> is what the method put there.
+<literal>DO WITH INDEX k ITEM v</literal> gives keys and values. A
+<literal>SortedDictionary</literal> made from it keeps its keys in
+order.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Arrays, Collections and References</emphasis>.</para>
+</section>
+
+<section id="ckLinq"><title>LINQ Queries</title>
+<indexterm><primary>LINQ</primary></indexterm>
+<indexterm><primary>Enumerable</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to filter, transform, sort and sum sequences, as LINQ does.</para>
+<example id="ex.ckLinq">
+<title>LINQ Queries</title>
+<programlisting language="rexx">e = .net~System~Linq~Enumerable
+nums = e~Range(1, 10)
+evens = e~Where(nums, .net~handler(.Q~new, "EVEN"))
+squares = .net~invoke(e, "Select&lt;int, int&gt;", evens, .net~handler(.Q~new, "SQUARE"))
+say e~ToArray(squares)~makeString("L", " ")
+say e~Sum(squares) e~Count(evens) e~Max(nums) e~Average(nums)
+words = .array~of("pear", "fig", "apple")
+byLength = .net~invoke(e, "OrderBy&lt;string, int&gt;", words, .net~handler(.Q~new, "LEN"))
+say e~ToArray(byLength)~makeString("L", " ")
+
+::requires "net.cls"
+::class Q
+::method even
+  use arg n
+  return n // 2 = 0
+::method square
+  use arg n
+  return n * n
+::method len
+  use arg s
+  return s~length</programlisting>
+<screen>4 16 36 64 100
+220 5 10 5.5
+fig pear apple</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> LINQ's methods are static methods of <literal>Enumerable</literal>,
+called as such: <computeroutput>e~Where(seq, predicate)</computeroutput>, not
+<computeroutput>seq~Where(...)</computeroutput>. A handler is the lambda: a
+Rexx method that gets an item and returns the answer. <methodname>Where</methodname>'s
+type argument is inferred from the sequence; <methodname>Select</methodname>
+and <methodname>OrderBy</methodname> also need the type that the lambda
+returns, which a Rexx method does not declare: they are given in the name,
+<computeroutput>.net~invoke(e, "Select&lt;int, int&gt;", ...)</computeroutput>.
+A Rexx Array is a sequence too.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Names and Messages</emphasis>, <emphasis>Callbacks, Events and Tasks</emphasis>.</para>
+</section>
+
+<section id="ckSetsQueues"><title>Sets, Queues, Stacks</title>
+<indexterm><primary>HashSet</primary></indexterm>
+<indexterm><primary>Queue</primary></indexterm>
+<indexterm><primary>PriorityQueue</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> a set, a queue, a stack or a priority queue.</para>
+<example id="ex.ckSetsQueues">
+<title>Sets, Queues, Stacks</title>
+<programlisting language="rexx">set = .net~type("System.Collections.Generic.HashSet&lt;string&gt;")~new
+say set~Add("a") set~Add("b") set~Add("a") set~Count
+q = .net~type("System.Collections.Generic.Queue&lt;int&gt;")~new
+q~Enqueue(1); q~Enqueue(2); q~Enqueue(3)
+say q~Dequeue q~Peek q~Count
+st = .net~type("System.Collections.Generic.Stack&lt;string&gt;")~new
+st~Push("x"); st~Push("y")
+say st~Pop st~Count
+pq = .net~type("System.Collections.Generic.PriorityQueue&lt;string, int&gt;")~new
+pq~Enqueue("low", 9); pq~Enqueue("high", 1); pq~Enqueue("mid", 5)
+do while pq~Count &gt; 0; say pq~Dequeue; end
+
+::requires "net.cls"</programlisting>
+<screen>1 1 0 2
+1 2 2
+y 1
+high
+mid
+low</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> Each is a generic type, made as any other. <computeroutput>set~Add(x)</computeroutput>
+answers whether it was added, as a Rexx logical value. A
+<literal>PriorityQueue&lt;string, int&gt;</literal> gives its items in the
+order of their priorities.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Arrays, Collections and References</emphasis>.</para>
+</section>
+
+</chapter>

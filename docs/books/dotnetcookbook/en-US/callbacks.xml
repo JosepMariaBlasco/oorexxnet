@@ -1,0 +1,139 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckCallbacks"><title>Events, Threads and Tasks</title>
+
+<para>.NET calls back: when a timer fires, when a task runs, when a
+window is clicked. A Rexx method is given to .NET as a handler,
+<computeroutput>.net~handler(object, message)</computeroutput>, and runs either
+at once on .NET's thread, or queued, on a Rexx thread of the program's
+choosing.</para>
+
+<section id="ckTimer"><title>A Timer, Handled in a Loop</title>
+<indexterm><primary>Timer</primary></indexterm>
+<indexterm><primary>event loop</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to react to .NET's events one at a time, on one thread.</para>
+<example id="ex.ckTimer">
+<title>A Timer, Handled in a Loop</title>
+<programlisting language="rexx">clock = .Clock~new
+timer = .net~System~Timers~Timer~new(30)
+timer~Elapsed += .net~handler(clock, "TICK", "queued")
+timer~Start
+.net~eventLoop                        -- the ticks run here, one by one
+timer~Stop; timer~Dispose
+say "done after" clock~ticks "ticks"
+
+::requires "net.cls"
+::class Clock
+::attribute ticks
+::method init
+  expose ticks
+  ticks = 0
+::method tick
+  expose ticks
+  use arg sender, e
+  ticks += 1
+  say "tick" ticks
+  if ticks = 3 then .net~stopEventLoop</programlisting>
+<screen>tick 1
+tick 2
+tick 3
+done after 3 ticks</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>timer~Elapsed += handler</computeroutput> adds a
+handler to the event, as in C#. With the option <literal>queued</literal>, each
+call waits in a queue, and <computeroutput>.net~eventLoop</computeroutput>
+runs them on this thread, in order, until
+<computeroutput>.net~stopEventLoop</computeroutput>: the handler needs no care
+about threads. Without it, the handler would run at once on .NET's thread
+pool.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Callbacks, Events and Tasks</emphasis>.</para>
+</section>
+
+<section id="ckTasks"><title>Work on .NET's Thread Pool</title>
+<indexterm><primary>Task</primary></indexterm>
+<indexterm><primary>thread pool</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to run Rexx methods in parallel, and to wait for .NET's asynchronous
+methods.</para>
+<example id="ex.ckTasks">
+<title>Work on .NET's Thread Pool</title>
+<programlisting language="rexx">tasks = .array~new
+do i = 1 to 3
+  w = .Worker~new(i)
+  tasks~append(.net~System~Threading~Tasks~Task~Run(.net~as(.net~handler(w, "WORK"), "System.Func&lt;int&gt;")))
+end
+all = .net~System~Threading~Tasks~Task~WhenAll(tasks)   -- a Task&lt;int[]&gt;
+say all~await~makeString("L", " ")
+t = .net~System~IO~File~WriteAllTextAsync(.net~System~IO~Path~GetTempFileName, "x")
+t~await
+say t~IsCompletedSuccessfully
+
+::requires "net.cls"
+::class Worker
+::method init
+  expose n
+  use arg n
+::method work unguarded
+  expose n
+  call SysSleep 0.1
+  return n * n</programlisting>
+<screen>1 4 9
+1</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <methodname>Task.Run</methodname> runs a handler on .NET's thread pool.
+A handler fits <literal>Task.Run(Action)</literal> first, which has no result:
+<computeroutput>.net~as(handler, "System.Func&lt;int&gt;")</computeroutput>
+chooses the overload that returns one. <methodname>Task.WhenAll</methodname>
+waits for several, and <computeroutput>~await</computeroutput> blocks until a
+task ends and gives its result (here an array of the three). The worker's
+method is <literal>UNGUARDED</literal>, so that the three run at once.
+<methodname>WriteAllTextAsync</methodname>, as every asynchronous .NET method,
+returns a task to <methodname>await</methodname>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Callbacks, Events and Tasks</emphasis>, <emphasis>Tasks</emphasis>.</para>
+</section>
+
+<section id="ckEventThread"><title>Updating from Another Thread</title>
+<indexterm><primary>event thread</primary></indexterm>
+<indexterm><primary>runLater</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> a worker thread that reports to the thread that owns the display.</para>
+<example id="ex.ckEventThread">
+<title>Updating from Another Thread</title>
+<programlisting language="rexx">reporter = .Reporter~new
+reporter~start("WORK")                 -- another Rexx thread
+.net~eventLoop                         -- this one is the event thread
+say "last shown:" reporter~shown "of 50"
+
+::requires "net.cls"
+::class Reporter
+::attribute shown
+::method work unguarded                -- (guarded, SHOW would wait for it)
+  do i = 1 to 50
+    .NetEventThread~runLaterLatest(self, "SHOW", "I", i)
+  end
+  .NetEventThread~runLater(self, "DONE")
+::method show
+  expose shown
+  use arg shown
+::method done
+  .net~stopEventLoop</programlisting>
+<screen>last shown: 50 of 50</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A window belongs to the thread that made it, and only that thread may
+touch it: other threads send it messages with <methodname>runLater</methodname>
+(BSF4ooRexx's model). Here there is no window, so the event thread is the
+Rexx thread in <computeroutput>.net~eventLoop</computeroutput>, and the same
+code works with one. <methodname>runLaterLatest</methodname> replaces a
+waiting message of the same kind, so a fast worker does not flood the
+display: of the 50 reports, a few run, the last one always. The worker's
+method is <literal>UNGUARDED</literal>: guarded, it would hold the object while
+it runs, and <methodname>show</methodname>, on the event thread, would wait
+for it for ever.</para>
+<para>The samples <filename>windows/forms-progress.rex</filename> and
+<filename>windows/forms-two-threads.rex</filename> do the same with windows.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>The Event Thread</emphasis>.</para>
+</section>
+
+</chapter>

@@ -1,0 +1,102 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="clrcls"><title>Programs Written for CLR.CLS</title>
+<indexterm><primary>CLR.CLS</primary></indexterm>
+<indexterm><primary>BSF4ooRexx</primary><secondary>CLR.CLS</secondary></indexterm>
+
+<para>BSF4ooRexx's <filename>CLR.CLS</filename> (by Rony G. Flatscher, with
+Manuel Raffel and Adrian Baginski) reached .NET Framework through Java and
+jni4net. The bridge has a <filename>CLR.CLS</filename> of its own, a thin
+compatibility package over <filename>net.cls</filename>, so that programs
+written for that one run unchanged, on .NET 8 or later, without Java: a
+program that says <computeroutput>::REQUIRES CLR.CLS</computeroutput> finds it
+next to <filename>net.cls</filename>. Everything the package does not mention
+is <filename>net.cls</filename>'s: events, properties, enums, arrays,
+conversions.</para>
+
+<example id="ex.clrcls">
+<title>A program written for CLR.CLS</title>
+<programlisting language="rexx">console = clr.import("System.Console")
+console~WriteLine("Hello from CLR.CLS")
+sb = .clr~new("System.Text.StringBuilder", "ab")
+say sb~Append("c")~ToString pp(sb~Length)
+say .clr~new("System.DateTime")~Now~Year &gt; 2000
+
+::requires CLR.CLS</programlisting>
+<screen>Hello from CLR.CLS
+abc [3]
+1</screen>
+</example>
+
+<section id="clrclsInterface"><title>The Interface</title>
+<table id="tabClrCls" frame="all" pgwide="1">
+<title>CLR.CLS's interface, as this package gives it</title>
+<tgroup cols="2">
+<colspec colwidth="2*"/><colspec colwidth="3*"/>
+<thead><row><entry>CLR.CLS</entry><entry>Here</entry></row></thead>
+<tbody>
+<row><entry><computeroutput>.clr~new(typeName, args...)</computeroutput></entry><entry>a <classname>CLR</classname> (a subclass of <classname>NetObject</classname>) for a new object of that type; a wrapper type (<literal>"System.Int16"</literal> ... <literal>"System.String"</literal>) with one value: that value boxed, as <literal>clr.box</literal></entry></row>
+<row><entry><computeroutput>clr.import(typeName [, name4local])</computeroutput></entry><entry>a <classname>CLR_Class</classname> (a subclass of <classname>NetType</classname>): static members, <computeroutput>~new(args...)</computeroutput>; put in <literal>.local</literal> only when named</entry></row>
+<row><entry><computeroutput>.clr~clr.import(typeName [, name4local])</computeroutput></entry><entry>the same, put in <literal>.local</literal> by default under the type's name, as <filename>CLR.CLS</filename></entry></row>
+<row><entry><computeroutput>o~clr.dispatch(name, args...)</computeroutput></entry><entry>the .NET member of that name, whatever Rexx method shares it</entry></row>
+<row><entry><computeroutput>o~clr.object</computeroutput>, <computeroutput>o~clr.type</computeroutput></entry><entry>the proxy itself (there is no Java peer); its <literal>System.Type</literal></entry></row>
+<row><entry><computeroutput>clr.createEventHandler(rexxObj [, userData])</computeroutput></entry><entry>a <classname>NetHandler</classname> calling <computeroutput>rexxObj~invoke(sender, eventArgs, slotDir)</computeroutput>, with <computeroutput>slotDir~userData</computeroutput>; it fits any delegate type, not only <literal>EventHandler</literal></entry></row>
+<row><entry><computeroutput>o~Click += h</computeroutput>, <computeroutput>o~Click -= h</computeroutput></entry><entry><filename>net.cls</filename>'s events</entry></row>
+<row><entry><computeroutput>clr.createArray(typeName, n)</computeroutput></entry><entry>a .NET array, a <classname>NetArray</classname>, from 1</entry></row>
+<row><entry><computeroutput>clr.box(indicator, value)</computeroutput>, <computeroutput>clr.unbox(o)</computeroutput></entry><entry><computeroutput>.net~box</computeroutput> (<filename>CLR.CLS</filename>'s indicators and long names) as a proxy; <computeroutput>.net~unbox</computeroutput></entry></row>
+<row><entry><computeroutput>clr.wrap(value)</computeroutput></entry><entry>a proxy: a .NET object as itself, a Rexx number boxed as <literal>Int32</literal>, <literal>Int64</literal> or <literal>Decimal</literal>, any other string as a <literal>System.String</literal></entry></row>
+<row><entry><computeroutput>clr.addAssembly(name)</computeroutput></entry><entry><computeroutput>.net~load(name)</computeroutput></entry></row>
+<row><entry><classname>CLRThread</classname> (a subclass with <methodname>run</methodname>, then <computeroutput>~start([data])</computeroutput>)</entry><entry><methodname>run</methodname> on a new Rexx thread, with a slotDir whose <methodname>userData</methodname> is the data</entry></row>
+<row><entry><classname>CLRLogger</classname></entry><entry>the same levels and messages; the package itself logs nothing</entry></row>
+<row><entry><classname>CLR_Enum</classname> (<literal>=</literal> caseless with a string)</entry><entry><filename>net.cls</filename>'s <classname>NetEnum</classname></entry></row>
+<row><entry><computeroutput>pp(x)</computeroutput> (from <literal>BSF.CLS</literal>)</entry><entry><computeroutput>"[" || x || "]"</computeroutput>, as the samples use it</entry></row>
+</tbody>
+</tgroup>
+</table>
+</section>
+
+<section id="clrclsRules"><title>What the Package Adds to net.cls</title>
+<para>For the objects it makes, and every .NET object they return (which stay
+proxies of its own, <computeroutput>isA(.CLR)</computeroutput>):</para>
+<itemizedlist>
+<listitem><para><emphasis role="bold">A whole number argument goes as an
+<literal>Int32</literal></emphasis> (an <literal>Int64</literal> past its
+range), as <literal>clr.wrap</literal> made it: programs written for
+<filename>CLR.CLS</filename> rely on it
+(<computeroutput>Convert~ToChar(stream~Read)</computeroutput> must choose
+<literal>ToChar(int)</literal>). So a Rexx string that looks like a whole
+number no longer reaches a <literal>string</literal> parameter
+(<computeroutput>sb~Append("007")</computeroutput> appends
+<literal>7</literal>), as in <filename>CLR.CLS</filename>. A property's value
+converts to the property's type.</para></listitem>
+<listitem><para><emphasis role="bold">The static <literal>Process.Start(file [, arguments])</literal>
+goes through the shell</emphasis>, as on .NET Framework: a document or a URL
+opens with its application.</para></listitem>
+<listitem><para><emphasis role="bold">Instance and static members
+together</emphasis>, as <filename>CLR.CLS</filename> found them:
+<computeroutput>.clr~new("System.DateTime")~Now</computeroutput>.</para></listitem>
+<listitem><para><emphasis role="bold">An imported type also reaches its
+<literal>System.Type</literal>'s members</emphasis>, when no static member has
+the name: <computeroutput>clr.import("System.String")~Name</computeroutput>.</para></listitem>
+</itemizedlist>
+<para><emphasis role="bold">What stays different.</emphasis>
+<computeroutput>say o</computeroutput> shows <computeroutput>a CLR_PROXY (System.Text.StringBuilder #12)</computeroutput>
+(<computeroutput>o~ToString</computeroutput> gives the text);
+<methodname>clr.object</methodname> and <methodname>clr.type</methodname> are
+.NET objects of this bridge, not BSF4ooRexx's Java peers; types are found as
+<filename>net.cls</filename> finds them, not through
+<literal>Assembly.LoadWithPartialName</literal>. <literal>MainMenu</literal> and
+<literal>System.Device.Location</literal> do not exist in .NET 8.</para>
+<para>When the binary release is installed and BSF4ooRexx's own
+<filename>CLR.CLS</filename> is found on the <envar>REXX_PATH</envar> or the
+<envar>PATH</envar>, the installer does not put this one beside
+<command>rexx</command> (<command>rexx install --clr</command> does), so that
+the programs written for that one keep it; a program finds a
+<filename>CLR.CLS</filename> in its own directory before any other.</para>
+</section>
+
+</chapter>

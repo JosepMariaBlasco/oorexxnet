@@ -1,0 +1,186 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="intro"><title>Introduction</title>
+<indexterm><primary>introduction</primary></indexterm>
+
+<para>ooRexx/.NET connects two runtimes that run in the same process: an
+ooRexx interpreter and the .NET runtime (the CLR). Each side sees the other's
+objects as its own, by reference: nothing is copied but the simplest values
+(strings, numbers, logical values), and a message sent to a proxy reaches the
+object on the other side.</para>
+
+<itemizedlist>
+<listitem><para><emphasis role="bold">ooRexx using .NET.</emphasis> A Rexx
+program that requires <filename>net.cls</filename> gets the environment
+object &net;, the root of .NET's namespaces: going down by name reaches a
+namespace, then a type, whose messages are its static members and whose
+<methodname>new</methodname> makes an instance. Any .NET object is a
+<xref linkend="clsNetObject" xrefstyle="select:title"/> instance, used with
+ordinary Rexx messages: a method call, a property read, or, with
+<literal>=</literal>, a property write.</para></listitem>
+<listitem><para><emphasis role="bold">.NET using ooRexx.</emphasis> A .NET
+program that references the assembly <filename>Rexx.Net</filename> (the
+NuGet package of that name) creates interpreter instances
+(<xref linkend="clsRexxInterpreter" xrefstyle="select:title"/>), runs Rexx
+code, and uses any Rexx object as a
+<xref linkend="clsRexxObject" xrefstyle="select:title"/>, through C#'s
+<literal>dynamic</literal> or by name. It can give the Rexx code
+<literal>ADDRESS</literal> environments, functions, and its own standard
+streams.</para></listitem>
+<listitem><para><emphasis role="bold">Both at once.</emphasis> The two
+directions nest freely, on any thread: Rexx calls .NET, which calls back a
+Rexx method, which calls .NET again. A .NET object that goes to Rexx comes
+back as itself, and so does a Rexx object that goes to .NET. A Rexx class
+can extend a .NET class, so that .NET calls Rexx methods where it would call
+the overrides of a C# subclass (see <xref linkend="extend"/>).</para></listitem>
+</itemizedlist>
+
+<example id="ex.intro-rexx">
+<title>ooRexx using .NET</title>
+<programlisting language="rexx">say .net~System~Math~Max(3, 7)
+sb = .net~System~Text~StringBuilder~new("Hello")
+sb~Append(", ")~Append("world")
+say sb~ToString sb~Length
+list = .net~type("System.Collections.Generic.List&lt;int&gt;")~new
+list~Add(3); list~Add(1); list~Sort
+say list[0] list~Count                  -- a List counts from 0, as .NET says
+
+::requires "net.cls"</programlisting>
+<screen>7
+Hello, world 12
+1 2</screen>
+</example>
+
+<example id="ex.intro-csharp">
+<title>.NET using ooRexx</title>
+<programlisting language="csharp">using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+Console.WriteLine(rexx.Run&lt;int&gt;("use arg a, b; return a * b", 6, 7));
+var twice = rexx.Compile("twice", "use arg x; return 2 * x");
+Console.WriteLine(twice.Call&lt;int&gt;(21));
+dynamic d = rexx.Run("return .directory~new")!;   // a Rexx object
+d.name = "Ann";
+Console.WriteLine($"{d.items} {d.name}");</programlisting>
+<screen>42
+42
+1 Ann</screen>
+</example>
+
+<section id="introRequirements"><title>Requirements</title>
+<indexterm><primary>requirements</primary></indexterm>
+<para><emphasis role="bold">ooRexx 5, 64-bit.</emphasis> The bridge uses only
+ooRexx's public native API: the interpreter needs no change, and the bridge
+is an extension package, as <literal>rxsock</literal> or BSF4ooRexx are. On
+Linux, ooRexx 5.3.0 r13267 or later makes calls from .NET into ooRexx much
+faster (ooRexx bug #2106, fixed there).</para>
+<para><emphasis role="bold">.NET 8 or later, 64-bit.</emphasis> The runtime
+is enough to run Rexx programs; the SDK only builds .NET programs. On
+Windows, the <emphasis>.NET Desktop Runtime</emphasis> adds Windows Forms,
+WPF and the rest of the desktop framework (see <xref linkend="introWhichNet"/>).
+.NET Framework 4.x, the older Windows-only .NET, is not used.</para>
+<para>The bridge runs on Windows (x64), Linux (x64) and macOS (Apple
+silicon).</para>
+</section>
+
+<section id="introParts"><title>The Parts of the Bridge</title>
+<para>The bridge is these files:</para>
+<variablelist>
+<varlistentry><term><filename>net.cls</filename></term>
+<listitem><para>The Rexx side: the environment object &net; and the classes
+described in this book. A Rexx program uses the bridge with
+<computeroutput>::requires "net.cls"</computeroutput>.</para></listitem>
+</varlistentry>
+<varlistentry><term><filename>librexxnet.so</filename> (<filename>librexxnet.dylib</filename> on macOS, <filename>rexxnet.dll</filename> on Windows)</term>
+<listitem><para>The native half, an ooRexx external library that
+<filename>net.cls</filename> requires: it starts the .NET runtime when a
+program first uses &net;, and carries every request between the two
+sides.</para></listitem>
+</varlistentry>
+<varlistentry><term><filename>Rexx.Net.dll</filename> and <filename>Rexx.Net.runtimeconfig.json</filename></term>
+<listitem><para>The managed half, a .NET assembly, at the same time the
+other end of &net; (names, overloads, conversions, the handle table) and the
+API that .NET programs use to run Rexx code
+(<xref linkend="host"/>). The runtime configuration names the .NET it needs
+(on Windows also <filename>Rexx.Net.core.runtimeconfig.json</filename>, see
+<xref linkend="introWhichNet"/>).</para></listitem>
+</varlistentry>
+<varlistentry><term><filename>CLR.CLS</filename></term>
+<listitem><para>A compatibility package: programs written for BSF4ooRexx's
+<filename>CLR.CLS</filename> run unchanged on it (<xref linkend="clrcls"/>).</para></listitem>
+</varlistentry>
+</variablelist>
+<para>The binary release installs them into an ooRexx installation
+(<command>rexx install</command>, or the Windows installer program), so that
+any program finds <filename>net.cls</filename> with no variables to set; the
+release's <filename>README.md</filename> explains it, and how to use the
+bridge without installing it. A .NET program gets the same files from the
+NuGet package <filename>Rexx.Net</filename>, which carries
+<filename>net.cls</filename> and <filename>CLR.CLS</filename> inside the
+assembly and the native library for each system (<xref linkend="bothwaysPackage"/>).</para>
+</section>
+
+<section id="introWhichNet"><title>Which .NET</title>
+<indexterm><primary>.NET</primary><secondary>which version</secondary></indexterm>
+<indexterm><primary>DOTNET_ROOT</primary></indexterm>
+<indexterm><primary>environment variable</primary><secondary>DOTNET_ROOT</secondary></indexterm>
+<para>A program started by <command>rexx</command> starts the newest .NET
+installed, 8 or later, the first time it uses &net;; it stays until the
+process ends, and every interpreter instance of the process shares it. The
+.NET installation is the one the environment variable
+<envar>DOTNET_ROOT</envar> names, else the system's (where Microsoft's
+installers put it). A program started by .NET (a C# application, PowerShell)
+uses the .NET already running.</para>
+<para>Three different things are called ".NET" on Windows. <emphasis
+role="bold">.NET Framework</emphasis> (4.x), the old Windows-only one that
+comes with Windows, is not used by the bridge. <emphasis role="bold">.NET</emphasis>
+(8, 10...; once ".NET Core") is, and Microsoft installs it in parts: the
+<emphasis>.NET Runtime</emphasis> (the base, <literal>Microsoft.NETCore.App</literal>),
+the <emphasis>.NET Desktop Runtime</emphasis> (the base plus the desktop
+framework, <literal>Microsoft.WindowsDesktop.App</literal>: Windows Forms,
+WPF, <literal>System.Drawing</literal>, system sounds, the event log), the
+ASP.NET Core Runtime (web servers; not needed) and the SDK (everything, for
+building). Each comes for x64 and x86: a 64-bit ooRexx needs the x64 one; an
+x86 .NET is invisible to it.</para>
+<para>On Windows the bridge adds the desktop framework when the newest .NET
+has it; when it does not, everything works but the desktop types
+(<computeroutput>no .NET type "System.Windows.Forms.Form"</computeroutput>).
+So install the <emphasis role="bold">.NET Desktop Runtime, x64</emphasis> of
+your newest .NET, from <ulink url="https://dotnet.microsoft.com/download">https://dotnet.microsoft.com/download</ulink>.
+<command>dotnet --list-runtimes</command> shows what is installed:
+<literal>Microsoft.WindowsDesktop.App</literal> must be there, with the same
+major version as the newest <literal>Microsoft.NETCore.App</literal>.
+<xref linkend="platforms"/> has the rest of what differs between
+systems.</para>
+</section>
+
+<section id="introNames"><title>The Names in this Book</title>
+<para>Rexx's names are those of <filename>net.cls</filename>: the
+environment object &net; (the instance of
+<xref linkend="clsNetGlobal" xrefstyle="select:title"/>), the classes
+<classname>NetObject</classname>, <classname>NetType</classname>,
+<classname>NetArray</classname>, <classname>NetEnum</classname>,
+<classname>NetNamespace</classname>, <classname>NetRef</classname>,
+<classname>NetTyped</classname>, <classname>NetHandler</classname>,
+<classname>NetEvent</classname> and <classname>NetCall</classname>, and the
+event thread's <classname>AbstractEventThread</classname>,
+<classname>NetEventThread</classname> and <classname>GUIMessage</classname>.
+.NET's names are those of the namespace <literal>Rexx.Net</literal>:
+<classname>RexxInterpreter</classname>, <classname>RexxObject</classname>
+and the classes of <xref linkend="host"/>.</para>
+<para>.NET's own types are named as .NET names them, by their full name
+(<literal>System.Text.StringBuilder</literal>), or by their C# alias where
+the bridge takes one (<literal>int</literal> for
+<literal>System.Int32</literal>). Generic types are written in C# syntax:
+<literal>System.Collections.Generic.List&lt;int&gt;</literal>.</para>
+<para>The examples' outputs come from .NET 10 on Linux; where a value depends
+on the system (a path, a date, a version), the example avoids printing
+it.</para>
+</section>
+
+</chapter>

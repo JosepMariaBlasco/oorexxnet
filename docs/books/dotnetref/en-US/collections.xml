@@ -1,0 +1,212 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="collections"><title>Arrays, Collections and References</title>
+<indexterm><primary>collections</primary></indexterm>
+
+<para>A .NET array is a Rexx Array, from 1, as BSF4ooRexx makes Java's
+arrays; every other collection keeps the indexing .NET documents for it
+(from 0 for a list, by key for a dictionary). Both work with
+<literal>DO OVER</literal> and <literal>DO WITH</literal>.</para>
+
+<section id="collectionsArrays"><title>.NET Arrays</title>
+<indexterm><primary>array</primary><secondary>.NET</secondary></indexterm>
+<indexterm><primary>NetArray class</primary></indexterm>
+<para>A .NET array comes to Rexx as a <xref linkend="clsNetArray" xrefstyle="select:title"/>,
+which behaves as a Rexx Array: <emphasis role="bold">from 1 in every
+dimension</emphasis>, with <computeroutput>a[i]</computeroutput>,
+<computeroutput>a[i, j] = v</computeroutput>, <methodname>at</methodname>,
+<methodname>put</methodname>, <methodname>items</methodname>,
+<methodname>size</methodname>, <methodname>dimension</methodname>,
+<methodname>makeArray</methodname>, <methodname>supplier</methodname>, and
+<methodname>makeString</methodname> and <methodname>toString</methodname> as
+an Array's, so that <computeroutput>say a</computeroutput> shows its elements.
+It is still the .NET array, by reference: .NET sees what Rexx puts, its own
+members work (<computeroutput>a~Length</computeroutput>,
+<computeroutput>a~Rank</computeroutput>, 0-based as .NET's), and it goes back
+to .NET as itself.</para>
+<para>Where it differs from a Rexx Array, it is because a .NET array has a
+fixed size and a type: <methodname>items</methodname> counts every element,
+not only those that hold a value; <literal>null</literal> elements are &nil;
+in <literal>DO OVER</literal>; one past the end is .NET's
+<literal>IndexOutOfRangeException</literal> rather than &nil; or a bigger
+array; and an element that is put is converted to the array's element type
+(<methodname>putStrict</methodname> forces another type). A wrong index raises
+what a Rexx Array raises: 93.907 for <computeroutput>a[0]</computeroutput>,
+93.925 and 93.926 for too few or too many indexes. A jagged array
+(<literal>int[][]</literal>) is an array of arrays:
+<computeroutput>jag[2]</computeroutput> is a <classname>NetArray</classname>,
+<computeroutput>jag[2][3]</computeroutput> its element.</para>
+
+<example id="ex.collections-arrays">
+<title>.NET arrays as Rexx Arrays</title>
+<programlisting language="rexx">bytes = .net~System~Text~Encoding~UTF8~GetBytes("abc")
+say bytes[1] bytes~items bytes~dimension bytes~Length
+bytes[1] = 65
+say .net~System~Text~Encoding~UTF8~GetString(bytes) bytes~makeString("L", ",")
+grid = .net~System~Array~CreateInstance(.net~type("int"), 2, 3)
+grid[2, 3] = 7
+do with index i item v over grid
+  if v \= 0 then say i~makeString("L", ",") "=" v
+end
+signal on syntax
+say bytes[0]
+syntax:
+  say condition("O")~code
+
+::requires "net.cls"</programlisting>
+<screen>97 3 1 3
+Abc 65,98,99
+2,3 = 7
+93.907</screen>
+</example>
+</section>
+
+<section id="collectionsRexxArrays"><title>Rexx Arrays to .NET</title>
+<indexterm><primary>Array</primary><secondary>to .NET</secondary></indexterm>
+<para>A one-dimensional Rexx Array goes to a .NET array, a
+<literal>List&lt;T&gt;</literal> or an <literal>IEnumerable&lt;T&gt;</literal>
+parameter as a new one, its items converted to <literal>T</literal> (a copy).
+A multidimensional Array goes to a .NET array of the same rank
+(<literal>int[,]</literal> for such a parameter, else
+<literal>object[,]</literal>), the item <computeroutput>a[i, j]</computeroutput>
+at <literal>[i - 1, j - 1]</literal>; it goes to nothing else, as a list would
+lose its shape. An Array with omitted items cannot go to .NET. To a
+<classname>RexxObject</classname> (or <literal>object</literal>) parameter the
+Array goes as itself, by reference: an overload that takes it so wins over a
+copy.</para>
+
+<example id="ex.collections-rexx-arrays">
+<title>Rexx Arrays given to .NET</title>
+<programlisting language="rexx">say .net~System~String~Join("-", .array~of("a", "b", "c"))
+grid = .array~new(2, 3)
+do i = 1 to 2; do j = 1 to 3; grid[i, j] = i * 10 + j; end; end
+list = .net~System~Collections~ArrayList~new
+list~Add(grid)
+g = list~Item(0)                        -- the .NET array, as a Rexx Array again
+say .net~typeOf(g) g~Rank g~GetLength(1) g[2, 3]
+
+::requires "net.cls"</programlisting>
+<screen>a-b-c
+System.Object[,] 2 3 23</screen>
+</example>
+</section>
+
+<section id="collectionsIndexers"><title>Lists, Dictionaries and Indexers</title>
+<indexterm><primary>indexer</primary></indexterm>
+<indexterm><primary>List</primary></indexterm>
+<indexterm><primary>Dictionary</primary></indexterm>
+<para>Every collection that is not an array keeps .NET's own indexing:
+<computeroutput>o[i]</computeroutput> and <computeroutput>o[i] = v</computeroutput>
+are the type's indexer (its default member: <literal>Item</literal>, or what
+the type calls it, as <literal>StringBuilder</literal>'s
+<literal>Chars</literal>), from 0 for a list, by key for a dictionary, with
+overloads chosen as for methods. An indexed property with another name is a
+message with arguments: <computeroutput>o~Item(i)</computeroutput>.</para>
+<para><emphasis role="bold">A collection with both an integer indexer and a
+string one</emphasis> (<literal>NameValueCollection</literal>, Windows Forms'
+<literal>ListView.Items</literal> and <literal>Controls</literal>) takes a
+Rexx whole number as a position, as a COM collection does; a key that looks
+like a number is given with <computeroutput>.net~string(k)</computeroutput>.
+This is the one place where a Rexx string does not prefer a
+<literal>string</literal> parameter (<xref linkend="valuesToNet"/>).</para>
+<para>A StringTable or a Directory goes to a parameter that is a dictionary
+with string keys as a new <literal>Dictionary&lt;string, T&gt;</literal> with
+its entries, each value converted to <literal>T</literal> (a copy; the keys
+keep their case).</para>
+
+<example id="ex.collections-indexers">
+<title>Lists, dictionaries and indexers</title>
+<programlisting language="rexx">d = .net~type("System.Collections.Generic.Dictionary&lt;string, int&gt;")~new
+d["one"] = 1; d["two"] = 2
+say d["two"] d~Count d~ContainsKey("one")
+l = .net~type("System.Collections.Generic.List&lt;string&gt;")~new
+l~Add("a"); l~Add("b")
+say l[0] l[1]
+nv = .net~System~Collections~Specialized~NameValueCollection~new
+nv~Add("1", "first"); nv~Add("0", "second")
+say nv[0] "/" nv[.net~string(0)] "/" nv["1"]
+st = .stringTable~new; st["x"] = 1; st["y"] = 2
+copy = .net~type("System.Collections.Generic.Dictionary&lt;string, int&gt;")~new(st)
+say copy~Count copy["y"]
+
+::requires "net.cls"</programlisting>
+<screen>2 2 1
+a b
+first / second / second
+2 2</screen>
+</example>
+</section>
+
+<section id="collectionsLoops"><title>DO OVER and DO WITH</title>
+<indexterm><primary>DO OVER</primary></indexterm>
+<indexterm><primary>DO WITH</primary></indexterm>
+<para><computeroutput>DO x OVER o</computeroutput> gives the items of any
+<literal>IEnumerable</literal> (<methodname>makeArray</methodname>): a
+dictionary's items are its <literal>KeyValuePair</literal>s, as C#'s
+<literal>foreach</literal> gives them. <computeroutput>DO WITH INDEX i ITEM v OVER o</computeroutput>
+(<methodname>supplier</methodname>) gives indexes that
+<computeroutput>o[i]</computeroutput> takes back: a dictionary's keys and
+values, a list's positions from 0, an array's from 1 (an Array of positions
+for a multidimensional one), and 1 to <replaceable>n</replaceable> for any
+other enumerable. Both take a snapshot when the loop starts, so the loop may
+change the collection. An enum type is enumerable too: its values with
+<literal>DO OVER</literal>, its numbers and names with
+<literal>DO WITH</literal> (<xref linkend="clsNetEnum"/>).</para>
+
+<example id="ex.collections-loops">
+<title>DO OVER and DO WITH</title>
+<programlisting language="rexx">d = .net~type("System.Collections.Generic.Dictionary&lt;string, int&gt;")~new
+d["one"] = 1; d["two"] = 2
+do with index k item v over d; say k v; end
+do pair over d; say pair~Key"="pair~Value; end
+l = .net~type("System.Collections.Generic.List&lt;string&gt;")~new
+l~Add("a"); l~Add("b")
+do with index i item x over l; say i x; end
+
+::requires "net.cls"</programlisting>
+<screen>one 1
+two 2
+one=1
+two=2
+0 a
+1 b</screen>
+</example>
+</section>
+
+<section id="collectionsRef"><title>ref, out and in Parameters</title>
+<indexterm><primary>ref parameter</primary></indexterm>
+<indexterm><primary>out parameter</primary></indexterm>
+<indexterm><primary>NetRef class</primary></indexterm>
+<para>A parameter passed by reference takes a
+<xref linkend="clsNetRef" xrefstyle="select:title"/>, made by
+<computeroutput>.net~ref([value])</computeroutput>: after the call, its
+<methodname>value</methodname> is what the method left there. The call keeps
+its own result, as C#'s <literal>out var</literal> reads. An
+<literal>out</literal> parameter ignores the value given; a
+<literal>ref</literal> parameter converts it (&nil; for a value type is its
+default); an <literal>in</literal> parameter also takes a plain value, as in
+C#. A <literal>ref</literal> parameter does not take a plain value, and a
+<classname>NetRef</classname> fits no other kind of parameter.</para>
+
+<example id="ex.collections-ref">
+<title>ref and out parameters</title>
+<programlisting language="rexx">d = .net~type("System.Collections.Generic.Dictionary&lt;string, int&gt;")~new
+d["k"] = 42
+r = .net~ref
+say d~TryGetValue("k", r) r~value
+n = .net~ref
+say .net~System~Int32~TryParse("x", n) n~value
+say .net~System~Int32~TryParse("123", n) n~value
+
+::requires "net.cls"</programlisting>
+<screen>1 42
+0 0
+1 123</screen>
+</example>
+</section>
+
+</chapter>

@@ -1,0 +1,293 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="messages"><title>Names and Messages</title>
+<indexterm><primary>messages</primary><secondary>to .NET objects</secondary></indexterm>
+
+<para>This chapter describes how a Rexx program reaches .NET: namespaces and
+types by name, and the members of a type or an object through Rexx
+messages.</para>
+
+<section id="msgNamespaces"><title>Namespaces and Types</title>
+<indexterm><primary>namespace</primary></indexterm>
+<indexterm><primary>type</primary><secondary>by name</secondary></indexterm>
+<para>&net; is the root of .NET's namespaces. A message to it, or to a
+namespace, is the name of a sub-namespace or of a type in it:
+<computeroutput>.net~System</computeroutput> is the namespace
+<literal>System</literal>, a <xref linkend="clsNetNamespace" xrefstyle="select:title"/>
+instance, and <computeroutput>.net~System~Text~StringBuilder</computeroutput>
+the type <literal>System.Text.StringBuilder</literal>, a
+<xref linkend="clsNetType" xrefstyle="select:title"/> instance. The names are
+caseless. The framework's assemblies are loaded when a name first needs
+them: <computeroutput>.net~System~Text~RegularExpressions~Regex</computeroutput>
+needs no <methodname>load</methodname>.</para>
+<para>What a name resolves to never changes, so it is remembered: a
+namespace or a type reached by name is the same object each time, and the
+second <computeroutput>.net~System~Math</computeroutput> asks .NET nothing.
+A name that is not found is not remembered: after a
+<methodname>load</methodname> it may be there.</para>
+<para>Where a name is not enough, <xref linkend="mthNetType" xrefstyle="select:title"/>
+takes a type's full name as a string, with C# aliases
+(<literal>int</literal>, <literal>string</literal>, <literal>bool</literal>...),
+generic types in C# syntax, array types, and nested types
+(<literal>Outer+Inner</literal>); or an open generic type and its type
+arguments. <xref linkend="mthNetNamespace" xrefstyle="select:title"/> gives a
+namespace by its exact name, and <xref linkend="mthNetLoad" xrefstyle="select:title"/>
+loads an assembly that is not part of the framework, by name or by the path
+of its <filename>.dll</filename>.</para>
+
+<example id="ex.msg-namespaces">
+<title>Namespaces and types</title>
+<programlisting language="rexx">ns = .net~System~Text
+say ns
+say ns~StringBuilder (.net~type("System.Text.StringBuilder") == ns~StringBuilder)
+say .net~type("int") .net~type("string[]")
+say .net~type("System.Collections.Generic.Dictionary&lt;string, int&gt;")
+open = .net~type("System.Collections.Generic.List`1")
+say .net~type(open, .net~type("double"))
+
+::requires "net.cls"</programlisting>
+<screen>a NetNamespace (System.Text)
+a NetType (System.Text.StringBuilder) 1
+a NetType (System.Int32) a NetType (System.String[])
+a NetType (System.Collections.Generic.Dictionary&lt;System.String, System.Int32&gt;)
+a NetType (System.Collections.Generic.List&lt;System.Double&gt;)</screen>
+</example>
+</section>
+
+<section id="msgMembers"><title>Messages to Types and Objects</title>
+<indexterm><primary>property</primary></indexterm>
+<indexterm><primary>field</primary></indexterm>
+<indexterm><primary>method</primary><secondary>.NET</secondary></indexterm>
+<indexterm><primary>static member</primary></indexterm>
+<para>A message to a type reaches its static members, and
+<methodname>new</methodname> calls a constructor; a message to an object
+reaches its instance members:</para>
+
+<table id="tabMessages" frame="all">
+<title>Rexx messages and the .NET members they reach</title>
+<tgroup cols="2">
+<colspec colwidth="2*"/><colspec colwidth="3*"/>
+<thead><row><entry>Rexx</entry><entry>.NET</entry></row></thead>
+<tbody>
+<row><entry><computeroutput>o~Name</computeroutput></entry><entry>a property or field read, or a method called with no arguments; an event gives a <classname>NetEvent</classname> (<xref linkend="events"/>)</entry></row>
+<row><entry><computeroutput>o~Name(a, b)</computeroutput></entry><entry>a method call (<xref linkend="msgOverloads"/>), or an indexed property read</entry></row>
+<row><entry><computeroutput>o~Name = v</computeroutput></entry><entry>a property or field write; the member must exist</entry></row>
+<row><entry><computeroutput>o[i]</computeroutput>, <computeroutput>o[i, j] = v</computeroutput></entry><entry>the indexer, or an array's element (<xref linkend="collections"/>)</entry></row>
+<row><entry><computeroutput>t~new(a, b)</computeroutput></entry><entry>a constructor of the type <literal>t</literal></entry></row>
+<row><entry><computeroutput>t~Name</computeroutput>, <computeroutput>t~Name(a)</computeroutput></entry><entry>a static member of the type <literal>t</literal></entry></row>
+<row><entry><computeroutput>o~Click += h</computeroutput>, <computeroutput>o~Click -= h</computeroutput></entry><entry>an event handler added or removed (<xref linkend="events"/>)</entry></row>
+<row><entry><computeroutput>DO x OVER o</computeroutput></entry><entry>the items of an <literal>IEnumerable</literal></entry></row>
+<row><entry><computeroutput>o~await</computeroutput></entry><entry>a <literal>Task</literal>'s result (<xref linkend="mthNetObjectAwait" xrefstyle="select:title"/>)</entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<para>Only public members are reached. An object of a type that is not
+public (an iterator made by C#'s <literal>yield</literal>, an internal
+implementation of a public interface) has the members of its nearest public
+base class and of the public interfaces it implements, as C# sees it through
+its declared type. Protected members are reached only by the methods of a
+Rexx class that extends the type (<xref linkend="extendProtected"/>).</para>
+<para>Method calls chain, as in C#: <computeroutput>sb~Append("a")~Append(42)</computeroutput>
+appends twice, because <methodname>Append</methodname> returns the
+<classname>StringBuilder</classname> itself.</para>
+</section>
+
+<section id="msgNames"><title>Names in Any Case</title>
+<indexterm><primary>names</primary><secondary>case of</secondary></indexterm>
+<para>ooRexx uppercases every message name, so the bridge looks members up
+without regard to case: <computeroutput>sb~length</computeroutput>,
+<computeroutput>sb~LENGTH</computeroutput> and
+<computeroutput>sb~Length</computeroutput> are the same message. If two
+public members differ only in case, the one that starts with an uppercase
+letter wins (.NET's convention for public names); a tie that this does not
+break is an error naming both.</para>
+<para>Exact access takes the name as it is written, in its case, with no
+guessing: <xref linkend="mthNetInvoke" xrefstyle="select:title"/> calls a
+method, <xref linkend="mthNetGet" xrefstyle="select:title"/> reads a
+property or field, and <xref linkend="mthNetSet" xrefstyle="select:title"/>
+writes one. They also reach a member whose name is a Rexx method of
+<classname>NetObject</classname> or <classname>Object</classname>
+(<xref linkend="msgObjectMethods"/>). <xref linkend="mthNetMembers" xrefstyle="select:title"/>
+lists the public members' names.</para>
+
+<example id="ex.msg-names">
+<title>Names in any case, and exact access</title>
+<programlisting language="rexx">sb = .net~System~Text~StringBuilder~new("abc")
+say sb~length sb~LENGTH .net~get(sb, "Length")
+say .net~invoke(sb, "Insert", 0, "x")~ToString
+.net~set(sb, "Capacity", 50); say sb~Capacity
+signal on syntax
+say .net~get(sb, "length")              -- exact: there is no "length"
+syntax:
+  say condition("O")~code condition("O")~additional[2]
+
+::requires "net.cls"</programlisting>
+<screen>3 3 3
+xabc
+50
+97.1 length</screen>
+</example>
+</section>
+
+<section id="msgObjectMethods"><title>Rexx's Own Methods</title>
+<indexterm><primary>Object methods</primary><secondary>and .NET members</secondary></indexterm>
+<para>A <classname>NetObject</classname> is a Rexx object, so it has the
+methods of Rexx's <classname>Object</classname> class
+(<methodname>class</methodname>, <methodname>isA</methodname>,
+<methodname>objectName</methodname>, <methodname>hasMethod</methodname>...),
+and those of <classname>NetObject</classname>
+(<xref linkend="clsNetObject"/>). A Rexx method wins over a .NET member of the
+same name, with six exceptions, names that .NET uses often:
+<methodname>start</methodname>, <methodname>send</methodname>,
+<methodname>copy</methodname>, <methodname>run</methodname>,
+<methodname>request</methodname> and <methodname>string</methodname> go to
+the .NET member when the object (or type) has one, and to Rexx's method
+otherwise. So <computeroutput>stopwatch~Start</computeroutput>,
+<computeroutput>process~Start</computeroutput>,
+<computeroutput>.net~System~IO~File~Copy(a, b)</computeroutput> and
+<computeroutput>.net~System~String</computeroutput> (the type) all reach
+.NET. Any other name that Rexx also has is reached with
+<xref linkend="mthNetInvoke" xrefstyle="select:title"/> or
+<xref linkend="mthNetGet" xrefstyle="select:title"/>.</para>
+<para><computeroutput>say o</computeroutput> and concatenation use
+<methodname>makeString</methodname>, which shows what a proxy is
+(<computeroutput>a NetObject (System.Text.StringBuilder #12)</computeroutput>);
+to get .NET's text, send <computeroutput>o~ToString</computeroutput>.</para>
+
+<example id="ex.msg-object-methods">
+<title>Rexx's methods and .NET members of the same name</title>
+<programlisting language="rexx">w = .net~System~Diagnostics~Stopwatch~new
+w~Start                                 -- .NET's Start
+say w~IsRunning
+say .net~System~String~Concat("a", "b") -- the type System.String
+say w~class~id                          -- Rexx's class
+
+::requires "net.cls"</programlisting>
+<screen>1
+ab
+NETOBJECT</screen>
+</example>
+</section>
+
+<section id="msgOverloads"><title>Overloads</title>
+<indexterm><primary>overloads</primary></indexterm>
+<para>A .NET method may have several overloads: methods of the same name with
+different parameters. Rexx strings carry no type, so the bridge chooses the
+overload as C# would for arguments of unknown type: the candidates are those
+of the name that take that number of arguments (counting
+<literal>params</literal> arrays and optional parameters), and a candidate
+fits if every argument converts to its parameter
+(<xref linkend="valuesToNet"/>). Among those that fit, the cheapest wins:
+an exact type (a <classname>NetObject</classname> of the parameter's type, or
+a forced type) before a widening or reference conversion, before a conversion
+from a Rexx string; among strings, a <literal>string</literal> parameter
+first, then numbers by width (<literal>int</literal> before
+<literal>long</literal> before <literal>double</literal>), then the rest.
+As in C#, a candidate that needs an empty <literal>params</literal> array or
+a default value filled in loses a tie to one that takes the arguments as
+they are.</para>
+<para>A tie is an error that names the candidates; so is an argument list
+that no candidate accepts. Forcing one argument's type settles either:
+<computeroutput>.net~int64(x)</computeroutput>,
+<computeroutput>.net~as(x, "short")</computeroutput>
+(<xref linkend="valuesForced"/>).</para>
+
+<example id="ex.msg-overloads">
+<title>Overloads chosen by the arguments</title>
+<programlisting language="rexx">m = .net~System~Math
+say m~Max(3, 7.5) m~Max(.net~int64(3), 7)
+say .net~System~Convert~ToString(255, 2) .net~System~Convert~ToString(255, 16)
+signal on syntax
+say m~Max(.net~as(1, "object"), 2)
+syntax:
+  parse value condition("O")~message with first ";"   -- (then the candidates)
+  say first
+
+::requires "net.cls"</programlisting>
+<screen>7.5 7
+11111111 ff
+no System.Math.Max accepts (object 1, 2)</screen>
+</example>
+</section>
+
+<section id="msgGenerics"><title>Generic Methods</title>
+<indexterm><primary>generic methods</primary></indexterm>
+<para>A generic method's type arguments are inferred from the arguments, as
+C# infers them, also through base types and interfaces
+(<literal>First&lt;T&gt;(IEnumerable&lt;T&gt;)</literal> takes a
+<literal>List&lt;int&gt;</literal>): a .NET object gives its type, a forced
+value its forced type, a Rexx Array the common type of its items, and a Rexx
+string <literal>System.String</literal>, as Rexx strings have no other type
+to infer from (<computeroutput>.net~int32(5)</computeroutput> makes it an
+<literal>int</literal>). Constraints that fail drop the candidate; on a tie a
+non-generic method wins, as in C#.</para>
+<para>Type arguments that cannot be inferred are given in the name, in C#
+syntax, through <xref linkend="mthNetInvoke" xrefstyle="select:title"/>:
+<computeroutput>.net~invoke(e, "Empty&lt;int&gt;")</computeroutput>, or as a
+message whose name is a string: <computeroutput>e~"Empty&lt;int&gt;"</computeroutput>.
+A method whose type arguments cannot be inferred says so, and shows that
+form.</para>
+
+<example id="ex.msg-generics">
+<title>Generic methods</title>
+<programlisting language="rexx">e = .net~System~Linq~Enumerable
+l = .net~type("System.Collections.Generic.List&lt;int&gt;")~new
+do i = 1 to 5; l~Add(i); end
+say e~Sum(l) e~Max(l) e~First(l)        -- inferred: int, from the List
+say e~Repeat("ab", 2)~makeArray~makeString("L", " ")
+say .net~invoke(e, "Empty&lt;int&gt;")~makeArray~items
+
+::requires "net.cls"</programlisting>
+<screen>15 5 1
+ab ab
+0</screen>
+</example>
+
+<para>Extension methods (LINQ's <methodname>Where</methodname>,
+<methodname>Select</methodname>...) are static methods of their class, and
+are called as such: <computeroutput>.net~System~Linq~Enumerable~ToList(seq)</computeroutput>,
+not <computeroutput>seq~ToList</computeroutput>.</para>
+</section>
+
+<section id="msgStructs"><title>Structs</title>
+<indexterm><primary>struct</primary></indexterm>
+<para>A struct (a value type, as <literal>DateTime</literal>,
+<literal>Point</literal> or <literal>KeyValuePair</literal>) comes to Rexx as
+a boxed copy, a <classname>NetObject</classname>. Its properties and methods
+work as for any object; but setting a field, or calling a method that changes
+the struct, changes that copy, not the value that .NET holds:
+<computeroutput>form~Location~X = 5</computeroutput> moves nothing (C# does
+not even compile it). Set the whole value instead:
+<computeroutput>form~Location = .net~System~Drawing~Point~new(5, y)</computeroutput>.
+Passing a struct to .NET passes a copy, as in C#.</para>
+</section>
+
+<section id="msgAssemblies"><title>Assemblies</title>
+<indexterm><primary>assembly</primary><secondary>loading</secondary></indexterm>
+<para>Types are found in the assemblies already loaded, then in the
+framework's assemblies (those of every shared framework the runtime was
+started with: on Windows the desktop framework too), loaded on demand: by a
+namespace's name (<literal>System.Text.RegularExpressions</literal>), by a
+type's name (<literal>System.Console</literal>), and, as a last resort, by an
+index of the framework's public types, read once from their metadata without
+loading them (<literal>System.Timers.Timer</literal> is in
+<filename>System.ComponentModel.TypeConverter.dll</filename>).</para>
+<para>Any other assembly is loaded with
+<xref linkend="mthNetLoad" xrefstyle="select:title"/>: by the path of its
+<filename>.dll</filename>, or by name. A name that the runtime does not know
+is looked for as <replaceable>name</replaceable><filename>.dll</filename> in
+the current directory, then next to the bridge: an assembly that was in
+.NET Framework's global cache and is a NuGet package today
+(<literal>System.Speech</literal>) is found by copying its
+<filename>.dll</filename> there. A NuGet package's assembly is loaded by the
+path of its <filename>.dll</filename>; the assemblies it depends on that are
+not part of the framework are not looked for by themselves: load them first,
+the same way.</para>
+</section>
+
+</chapter>

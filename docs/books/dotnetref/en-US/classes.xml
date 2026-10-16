@@ -1,0 +1,1647 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0.
+     (Generated once from a script; edit this file directly.) -->
+<chapter id="classes"><title>Classes</title>
+<indexterm><primary>classes</primary>
+<secondary>of net.cls</secondary></indexterm>
+<para>This chapter describes the public classes of <filename>net.cls</filename>:
+<classname>NetGlobal</classname>, whose instance is the environment object
+&net;, <classname>NetObject</classname>, the class of every .NET object in
+Rexx, its subclasses <classname>NetType</classname>,
+<classname>NetArray</classname> and <classname>NetEnum</classname>, and the
+helper classes <classname>NetNamespace</classname>,
+<classname>NetRef</classname>, <classname>NetTyped</classname>,
+<classname>NetHandler</classname>, <classname>NetEvent</classname> and
+<classname>NetCall</classname>. The event thread's classes are described in
+<xref linkend="eventthread"/>.</para>
+<para>Every method of these classes is <literal>UNGUARDED</literal>: a
+<classname>NetObject</classname> can be used from several Rexx threads at
+once, as its .NET object can be used from several .NET threads (if the .NET
+type allows it).</para>
+
+<!-- ===================================================================== -->
+<section id="clsNetGlobal"><title>NetGlobal Class (the .net Object)</title>
+<indexterm><primary>NetGlobal class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetGlobal class</secondary></indexterm>
+<indexterm><primary>.net</primary></indexterm>
+<para>The single instance of <classname>NetGlobal</classname>, made when
+<filename>net.cls</filename> is loaded, is the environment object &net;: the
+root of .NET's namespaces (it is a <classname>NetNamespace</classname>), and
+the bridge's helpers, as methods. The helpers live on &net; rather than on
+.NET objects, so that no .NET member is hidden by them: every message to a
+.NET object goes to .NET.</para>
+
+<table id="tabNetGlobal" frame="all" pgwide="1">
+<title>NetGlobal Class (the .net Object)</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">NetNamespace</emphasis></entry></row>
+ <row><entry>Methods inherited from the <xref linkend="clsNetNamespace" xrefstyle="select:title"/></entry></row>
+ <row><entry align="center"><emphasis role="bold">NetGlobal</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetName" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetAddHandler" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetAs" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetBox" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCreateObject" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEventLoop" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEvents" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetExtend" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetForced" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetGet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetGetActiveObject" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetGetConstant" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetGetKnownEvents" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetGetKnownMethods" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetGetObject" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetHandleCount" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetHandler" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetInvoke" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetIsInstance" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetLoad" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetMembers" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetNamed" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetNamespace" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetNew" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetNextEvent" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetNull" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetQueuedCalls" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetRef" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetReleaseObject" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetRemoveHandler" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetSet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetStopEventLoop" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetType" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetTypeObject" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetTypeOf" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetUnbox" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<example id="ex.net-introspection">
+<title>.net &mdash; introspection</title>
+<programlisting language="rexx">sb = .net~System~Text~StringBuilder~new("abc")
+say .net~typeOf(sb) .net~typeObject(sb)~Name
+say .net~isInstance(sb, "System.Object") .net~isInstance(sb, .net~System~String)
+say .net~members(.net~System~Math)~section(1, 4)~makeString("L", " ")
+say .net~load("System.Xml")~word(1)
+say .net~type("System.Environment+SpecialFolder")~Desktop
+
+::requires "net.cls"</programlisting>
+<screen>System.Text.StringBuilder StringBuilder
+1 0
+Abs Acos Acosh Asin
+System.Xml,
+Desktop</screen>
+</example>
+
+<section id="mthNetName"><title>Namespace or Type</title>
+<indexterm><primary>namespace</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_name.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Any message that is not one of the methods below is the name of a
+namespace or of a type at the root of .NET's namespaces: <computeroutput>.net~System</computeroutput>,
+<computeroutput>.net~Microsoft</computeroutput>, a namespace of a loaded
+assembly, or a type in no namespace. The answer is a
+<classname>NetNamespace</classname> or a <classname>NetType</classname>,
+remembered once found (<xref linkend="msgNamespaces"/>). A name that is
+neither is an error. A namespace takes no arguments.</para>
+</section>
+
+<section id="mthNetAddHandler"><title>addHandler</title>
+<indexterm><primary>addHandler method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_addhandler.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Adds <emphasis role="italic">handler</emphasis> to the event named
+<emphasis role="italic">event</emphasis> (caseless) of the .NET object or type
+<emphasis role="italic">object</emphasis>: the same as
+<computeroutput>object~Event += handler</computeroutput> (<xref linkend="eventsEvents"/>).
+<emphasis role="italic">handler</emphasis> is a <classname>NetHandler</classname>,
+or a .NET delegate of the event's type. See also
+<xref linkend="mthNetRemoveHandler" xrefstyle="select:title"/>.</para>
+</section>
+
+<section id="mthNetAs"><title>as</title>
+<indexterm><primary>as method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_as.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns <emphasis role="italic">value</emphasis> marked as the .NET
+<emphasis role="italic">type</emphasis>, a <classname>NetType</classname> or
+a type's name as <xref linkend="mthNetType" xrefstyle="select:title"/> takes
+it: a <xref linkend="clsNetTyped" xrefstyle="select:title"/>. Given to .NET,
+the value is converted to that type, and the overload that takes it is chosen
+(<xref linkend="valuesForced"/>). It forces any type: an enum, a nullable
+type, an interface, or a delegate type for a <classname>NetHandler</classname>
+(<computeroutput>.net~as(h, "System.Func&lt;int&gt;")</computeroutput>).</para>
+</section>
+
+<section id="mthNetBox"><title>box</title>
+<indexterm><primary>box method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_box.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a new .NET object holding <emphasis role="italic">value</emphasis>
+converted to <emphasis role="italic">type</emphasis>, as a
+<classname>NetObject</classname> (<xref linkend="valuesBox"/>). The argument
+order is BSF4ooRexx's <literal>box</literal>. <emphasis role="italic">type</emphasis>
+is a <classname>NetType</classname>, a name as <methodname>type</methodname>
+takes it (<literal>"short"</literal>, <literal>"System.UInt32"</literal>, an
+enum), or one of these indicators, caseless and shortened down to their
+capitals:</para>
+<variablelist>
+<varlistentry><term>BSF4ooRexx's</term><listitem><para><literal>BOolean</literal>,
+<literal>BYte</literal> (.NET's <literal>Byte</literal>, unsigned),
+<literal>Char</literal>, <literal>Double</literal>, <literal>Float</literal>
+(<literal>Single</literal>), <literal>Int</literal> (<literal>Int32</literal>),
+<literal>Long</literal> (<literal>Int64</literal>), <literal>Object</literal>
+(the value as it would go to an <literal>object</literal> parameter),
+<literal>SHort</literal> (<literal>Int16</literal>),
+<literal>STring</literal>.</para></listitem></varlistentry>
+<varlistentry><term><filename>CLR.CLS</filename>'s</term><listitem><para><literal>BO</literal>,
+<literal>BY</literal>, <literal>CHAR</literal>, <literal>DE</literal>
+(<literal>Decimal</literal>), <literal>DO</literal>, <literal>INT16</literal>,
+<literal>UINT16</literal>, <literal>INT32</literal>, <literal>UINT32</literal>,
+<literal>INT64</literal>, <literal>UINT64</literal>, <literal>SB</literal>
+(<literal>SByte</literal>), <literal>SI</literal> (<literal>Single</literal>),
+<literal>ST</literal>, and the long names (<literal>Boolean</literal>,
+<literal>Character</literal>, <literal>Decimal</literal>...).</para></listitem></varlistentry>
+</variablelist>
+<para>A value that does not fit the type is an error. A reference type and
+&nil; give &nil;. See also <xref linkend="mthNetUnbox" xrefstyle="select:title"/>.</para>
+</section>
+
+<section id="mthNetCreateObject"><title>createObject</title>
+<indexterm><primary>createObject method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_createobject.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns a new COM object of the class
+<emphasis role="italic">progid</emphasis> (<literal>"Excel.Application"</literal>,
+<literal>"Scripting.Dictionary"</literal>), reached through
+<literal>IDispatch</literal>, as ooRexx's <classname>OLEObject</classname>
+reaches it. <emphasis role="italic">language</emphasis> is the language of
+every call to it: English (US) by default, as VBA; <literal>"user"</literal>,
+the user's, as <classname>OLEObject</classname>; or a culture name
+(<literal>"es-ES"</literal>). See <xref linkend="com"/>.</para>
+</section>
+
+<section id="mthNetEventLoop"><title>eventLoop</title>
+<indexterm><primary>eventLoop method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_eventloop.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Takes the calls of queued handlers, as they arrive, and dispatches
+each on this thread, until <xref linkend="mthNetStopEventLoop" xrefstyle="select:title"/>
+(<xref linkend="eventsQueued"/>). While it waits, the thread holds no
+interpreter lock, and on Windows COM delivers its events to it.</para>
+</section>
+
+<section id="mthNetEvents"><title>events</title>
+<indexterm><primary>events method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_events.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns an Array with the names of the events of
+<emphasis role="italic">object</emphasis>: a .NET object, a type (its static
+events), or a COM object (its source interfaces' events).</para>
+</section>
+
+<section id="mthNetExtend"><title>extend</title>
+<indexterm><primary>extend method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_extend.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Makes a .NET type that derives from <emphasis role="italic">base</emphasis>
+and implements the <emphasis role="italic">interface</emphasis>s, whose
+virtual and abstract members are the Rexx <emphasis role="italic">class</emphasis>'s
+methods; returns it, a <classname>NetType</classname>. <emphasis role="italic">class</emphasis>
+is a subclass of <classname>NetObject</classname>, extended once;
+<emphasis role="italic">base</emphasis> and the interfaces are
+<classname>NetType</classname>s or names. If <emphasis role="italic">base</emphasis>
+is an interface, the new type derives from <literal>System.Object</literal>
+and implements it. See <xref linkend="extend"/>.</para>
+</section>
+
+<section id="mthNetForced"><title>int16, int32, ... (Forced Types)</title>
+<indexterm><primary>forced types</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_forced.svg" scale="55" />
+</imageobject></mediaobject>
+<para><emphasis role="italic">typename</emphasis> is one of
+<methodname>int16</methodname>, <methodname>int32</methodname>,
+<methodname>int64</methodname>, <methodname>uint16</methodname>,
+<methodname>uint32</methodname>, <methodname>uint64</methodname>,
+<methodname>byte</methodname>, <methodname>sbyte</methodname>,
+<methodname>single</methodname>, <methodname>double</methodname>,
+<methodname>decimal</methodname>, <methodname>bool</methodname>,
+<methodname>char</methodname> and <methodname>string</methodname>.
+Each returns <emphasis role="italic">value</emphasis> marked as a
+.NET type, a <xref linkend="clsNetTyped" xrefstyle="select:title"/>:
+<methodname>int16</methodname> <literal>System.Int16</literal>,
+<methodname>int32</methodname> <literal>System.Int32</literal>,
+<methodname>int64</methodname> <literal>System.Int64</literal>,
+<methodname>uint16</methodname>, <methodname>uint32</methodname> and
+<methodname>uint64</methodname> their unsigned types,
+<methodname>byte</methodname> <literal>System.Byte</literal>,
+<methodname>sbyte</methodname> <literal>System.SByte</literal>,
+<methodname>single</methodname> <literal>System.Single</literal>,
+<methodname>double</methodname> <literal>System.Double</literal>,
+<methodname>decimal</methodname> <literal>System.Decimal</literal>,
+<methodname>bool</methodname> <literal>System.Boolean</literal>,
+<methodname>char</methodname> <literal>System.Char</literal>, and
+<methodname>string</methodname> <literal>System.String</literal> (without an
+argument, <computeroutput>.net~string</computeroutput> describes &net;). The
+value is converted when it goes to .NET, which chooses the overload that
+takes that type (<xref linkend="valuesForced"/>).</para>
+</section>
+
+<section id="mthNetGet"><title>get</title>
+<indexterm><primary>get method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_get.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the property or field <emphasis role="italic">name</emphasis>
+of <emphasis role="italic">object</emphasis> (a .NET object, or a type for a
+static member), or the result of its method of that name with no arguments,
+taking the name exactly as written: no case is guessed, and a Rexx method of
+the same name does not get in the way. A name that is no member is SYNTAX
+97.1. See also <xref linkend="mthNetInvoke" xrefstyle="select:title"/> and
+<xref linkend="mthNetSet" xrefstyle="select:title"/>.</para>
+</section>
+
+<section id="mthNetGetActiveObject"><title>getActiveObject</title>
+<indexterm><primary>getActiveObject method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_getactiveobject.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns the running instance of the COM class
+<emphasis role="italic">progid</emphasis> (VBA's <literal>GetObject(, "Excel.Application")</literal>:
+an Excel opened by hand), an error if none is running. <emphasis role="italic">language</emphasis>
+as for <xref linkend="mthNetCreateObject" xrefstyle="select:title"/>. See
+<xref linkend="comExisting"/>.</para>
+</section>
+
+<section id="mthNetGetConstant"><title>getConstant</title>
+<indexterm><primary>getConstant method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_getconstant.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns the constant <emphasis role="italic">name</emphasis>
+(caseless) of the type library that the COM object <emphasis role="italic">object</emphasis>
+comes from, as <classname>OLEObject</classname>'s
+<methodname>getConstant</methodname>: <computeroutput>.net~getConstant(excel, "xlHAlignRight")</computeroutput>;
+&nil; if there is none. Without a name, all of them, a
+<classname>StringTable</classname>. See <xref linkend="comConstants"/>.</para>
+</section>
+
+<section id="mthNetGetKnownEvents"><title>getKnownEvents</title>
+<indexterm><primary>getKnownEvents method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_getknownevents.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns the events of the COM object
+<emphasis role="italic">object</emphasis> as <classname>OLEObject</classname>'s
+<methodname>getKnownEvents</methodname> does, the same stem; &nil; if it has
+none. See <xref linkend="comConstants"/>.</para>
+</section>
+
+<section id="mthNetGetKnownMethods"><title>getKnownMethods</title>
+<indexterm><primary>getKnownMethods method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_getknownmethods.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns the methods and properties of the COM object
+<emphasis role="italic">object</emphasis> as <classname>OLEObject</classname>'s
+<methodname>getKnownMethods</methodname> does, the same stem, with also
+<literal>!PROGID</literal> and <literal>!CLSID</literal> (<classname>OLEObject</classname>'s
+<methodname>progid</methodname> and <methodname>clsid</methodname>); &nil;
+if it has no type information. See <xref linkend="comConstants"/>.</para>
+</section>
+
+<section id="mthNetGetObject"><title>getObject</title>
+<indexterm><primary>getObject method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_getobject.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns the COM object that <emphasis role="italic">moniker</emphasis>
+names, as <classname>OLEObject</classname>'s <methodname>GetObject</methodname>
+and VBA's <literal>GetObject(path)</literal> give it: a document file (opened
+by its application), WMI through <literal>"winmgmts:"</literal>, any display
+name. <emphasis role="italic">language</emphasis> as for
+<xref linkend="mthNetCreateObject" xrefstyle="select:title"/>. See
+<xref linkend="comExisting"/>.</para>
+</section>
+
+<section id="mthNetHandleCount"><title>handleCount</title>
+<indexterm><primary>handleCount method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_handlecount.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the number of .NET objects that Rexx holds now (live handles),
+for diagnostics: a number that keeps growing in a loop means proxies that are
+kept somewhere.</para>
+</section>
+
+<section id="mthNetHandler"><title>handler</title>
+<indexterm><primary>handler method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_handler.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a <xref linkend="clsNetHandler" xrefstyle="select:title"/>: the
+Rexx <emphasis role="italic">object</emphasis> and the name of one of its
+methods, <emphasis role="italic">message</emphasis>, for .NET to call. Where
+.NET wants a delegate (an <literal>Action</literal>, a <literal>Func</literal>,
+a <literal>Comparison</literal>, an <literal>EventHandler</literal>, any
+delegate type), it becomes a delegate of that type, which sends the message
+to the object with the delegate's arguments. <emphasis role="italic">options</emphasis>
+is a string of blank-separated words, caseless:</para>
+<variablelist>
+<varlistentry><term><literal>queued</literal></term><listitem><para>The call is
+queued, and the delegate returns at once; a Rexx thread takes it with
+<xref linkend="mthNetNextEvent" xrefstyle="select:title"/> or
+<xref linkend="mthNetEventLoop" xrefstyle="select:title"/>.</para></listitem></varlistentry>
+<varlistentry><term><literal>latest</literal></term><listitem><para>Queued, keeping only the
+newest call of this handler that has not been taken yet.</para></listitem></varlistentry>
+</variablelist>
+<para>Without options, the call runs at once, on the thread .NET calls from.
+See <xref linkend="events"/>.</para>
+</section>
+
+<section id="mthNetInvoke"><title>invoke</title>
+<indexterm><primary>invoke method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_invoke.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Calls the method <emphasis role="italic">name</emphasis> of
+<emphasis role="italic">object</emphasis> (a .NET object, or a type for a
+static method) with the arguments, taking the name exactly as written, and
+returns its result, if any. The name may carry type arguments in C# syntax,
+for a generic method (<literal>"Empty&lt;int&gt;"</literal>), or be an event's
+accessor (<literal>"add_Click"</literal>). A name that is no member is SYNTAX
+97.1. It reaches members that a Rexx method hides
+(<xref linkend="msgObjectMethods"/>).</para>
+</section>
+
+<section id="mthNetIsInstance"><title>isInstance</title>
+<indexterm><primary>isInstance method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_isinstance.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns &true; if <emphasis role="italic">object</emphasis> is a .NET
+object of <emphasis role="italic">type</emphasis> (a
+<classname>NetType</classname> or a name), or of a type derived from it or
+implementing it; &false; otherwise, also for a Rexx value or &nil;, which
+are no .NET objects.</para>
+</section>
+
+<section id="mthNetLoad"><title>load</title>
+<indexterm><primary>load method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_load.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Loads an assembly, by <emphasis role="italic">name</emphasis>
+(<literal>"System.Xml"</literal>; one the runtime does not know is looked for
+as <replaceable>name</replaceable><filename>.dll</filename> in the current
+directory, then next to the bridge) or by the <emphasis role="italic">path</emphasis>
+of its <filename>.dll</filename>, and returns its full name. Its types are
+then found by name. See <xref linkend="msgAssemblies"/>.</para>
+</section>
+
+<section id="mthNetMembers"><title>members</title>
+<indexterm><primary>members method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_members.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns an Array with the names of the public members of
+<emphasis role="italic">object</emphasis>: instance members for an object,
+static ones for a type, each name once, sorted.</para>
+</section>
+
+<section id="mthNetNamed"><title>named</title>
+<indexterm><primary>named method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_named.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Returns a named argument for a method of a COM object,
+VBA's <literal>name:=value</literal>: <computeroutput>excel~Workbooks~Open(file, .net~named("ReadOnly", .true))</computeroutput>.
+Named arguments go anywhere among the others. See <xref linkend="comArguments"/>.</para>
+</section>
+
+<section id="mthNetNamespace"><title>namespace</title>
+<indexterm><primary>namespace method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_namespace.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the namespace whose full name is <emphasis role="italic">name</emphasis>
+(<literal>"System.IO"</literal>), exactly, as a <classname>NetNamespace</classname>:
+the way to a namespace whose first part is also the name of a method of
+&net;.</para>
+</section>
+
+<section id="mthNetNew"><title>new</title>
+<indexterm><primary>new method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_new.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a new instance of <emphasis role="italic">type</emphasis>, a
+<classname>NetType</classname>, made by its constructor that takes the
+arguments: the same as <computeroutput>type~new(arguments)</computeroutput>.</para>
+</section>
+
+<section id="mthNetNextEvent"><title>nextEvent</title>
+<indexterm><primary>nextEvent method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_nextevent.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the next queued call of a handler, a
+<xref linkend="clsNetCall" xrefstyle="select:title"/>, waiting for one up to
+<emphasis role="italic">seconds</emphasis> (a number, fractions allowed), or,
+without it, as long as needed; &nil; if none came in time. While it waits,
+the thread holds no interpreter lock, and on Windows COM delivers its events
+to it. See <xref linkend="eventsQueued"/>.</para>
+</section>
+
+<section id="mthNetNull"><title>null</title>
+<indexterm><primary>null method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_null.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a <literal>null</literal> of no particular type, a
+<classname>NetTyped</classname>: &nil; does the same for most parameters,
+and <computeroutput>.net~as(.nil, type)</computeroutput> gives the null a
+type when overloads compete.</para>
+</section>
+
+<section id="mthNetQueuedCalls"><title>queuedCalls</title>
+<indexterm><primary>queuedCalls method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_queuedcalls.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the number of queued calls that no Rexx thread has taken
+yet, for diagnostics.</para>
+</section>
+
+<section id="mthNetRef"><title>ref</title>
+<indexterm><primary>ref method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_ref.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a new <xref linkend="clsNetRef" xrefstyle="select:title"/>
+holding <emphasis role="italic">value</emphasis> (default &nil;), for a
+<literal>ref</literal>, <literal>out</literal> or <literal>in</literal>
+parameter of a .NET method, or an argument by reference of a COM method
+(<xref linkend="collectionsRef"/>).</para>
+</section>
+
+<section id="mthNetReleaseObject"><title>releaseObject</title>
+<indexterm><primary>releaseObject method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_releaseobject.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Windows only. Releases the COM object <emphasis role="italic">object</emphasis>
+now (<literal>Marshal.FinalReleaseComObject</literal>), so that its server (an
+Excel process) can end at once, rather than at .NET's next garbage
+collection. The proxy remains, and cannot be used any more.</para>
+</section>
+
+<section id="mthNetRemoveHandler"><title>removeHandler</title>
+<indexterm><primary>removeHandler method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_removehandler.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Removes <emphasis role="italic">handler</emphasis> from the event
+<emphasis role="italic">event</emphasis> of <emphasis role="italic">object</emphasis>:
+the same as <computeroutput>object~Event -= handler</computeroutput>.
+The handler must be the same <classname>NetHandler</classname> object that
+was added.</para>
+</section>
+
+<section id="mthNetSet"><title>set</title>
+<indexterm><primary>set method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_set.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Sets the property or field <emphasis role="italic">name</emphasis>
+of <emphasis role="italic">object</emphasis> (a .NET object, or a type for a
+static member) to <emphasis role="italic">value</emphasis>, taking the name
+exactly as written. A name that is no member is SYNTAX 97.1.</para>
+</section>
+
+<section id="mthNetStopEventLoop"><title>stopEventLoop</title>
+<indexterm><primary>stopEventLoop method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_stopeventloop.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Ends every <xref linkend="mthNetEventLoop" xrefstyle="select:title"/>
+running now, on any thread, once the call it is dispatching has
+returned.</para>
+</section>
+
+<section id="mthNetType"><title>type</title>
+<indexterm><primary>type method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_type.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a type, a <classname>NetType</classname>:</para>
+<itemizedlist>
+<listitem><para>by its full <emphasis role="italic">name</emphasis>, with C#'s
+aliases (<literal>int</literal>, <literal>string</literal>,
+<literal>object</literal>, <literal>bool</literal>, <literal>double</literal>...),
+generic types in C# syntax (<literal>"System.Collections.Generic.Dictionary&lt;string, int&gt;"</literal>),
+array types (<literal>"int[]"</literal>, <literal>"string[,]"</literal>) and
+nested types (<literal>"System.Environment+SpecialFolder"</literal>). A type
+found by name is remembered, and the same object each time.</para></listitem>
+<listitem><para>an open <emphasis role="italic">generic</emphasis> type (a name
+such as <literal>"System.Collections.Generic.List`1"</literal>, or a
+<classname>NetType</classname>) and its type arguments, each a
+<classname>NetType</classname> or a name.</para></listitem>
+<listitem><para>the type that a <literal>System.Type</literal> object
+(<emphasis role="italic">typeobject</emphasis>) stands for.</para></listitem>
+</itemizedlist>
+<para>A name that is no type is an error.</para>
+</section>
+
+<section id="mthNetTypeObject"><title>typeObject</title>
+<indexterm><primary>typeObject method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_typeobject.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the <literal>System.Type</literal> of
+<emphasis role="italic">object</emphasis>, as a <classname>NetObject</classname>
+(for a type, the <literal>System.Type</literal> object of that type): the way
+to reflection (<computeroutput>.net~typeObject(o)~GetMethods</computeroutput>).</para>
+</section>
+
+<section id="mthNetTypeOf"><title>typeOf</title>
+<indexterm><primary>typeOf method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_typeof.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the name of the type of the .NET object
+<emphasis role="italic">object</emphasis> (for a type, that type's name), as
+C# writes it: <literal>System.Collections.Generic.List&lt;System.Int32&gt;</literal>.
+A Rexx value is no .NET object: an error.</para>
+</section>
+
+<section id="mthNetUnbox"><title>unbox</title>
+<indexterm><primary>unbox method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_unbox.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the Rexx value of a .NET object that holds a number, a
+<literal>bool</literal>, a <literal>char</literal>, a string or an enum value
+(its name); any other object, and any Rexx value, unchanged.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetObject"><title>NetObject Class</title>
+<indexterm><primary>NetObject class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetObject class</secondary></indexterm>
+<para>A .NET object in Rexx: a proxy that holds a handle to the object,
+by reference. Messages that are not its Rexx methods are the object's .NET
+members. Its subclasses are <classname>NetType</classname> (a type, whose
+messages are its static members), <classname>NetArray</classname> and
+<classname>NetEnum</classname>; a Rexx program can make subclasses of its own
+(<xref linkend="extend"/>).</para>
+
+<table id="tabNetObject" frame="all" pgwide="1">
+<title>NetObject Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetObject</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetObjectNew" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectMember" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectMemberSet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectAtGet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectPutSet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectComparison" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectAwait" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectHashCode" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectMakeArray" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectMakeString" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectString" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectSupplier" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectObjectMethods" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetObjectNetExtension" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<example id="ex.netobject">
+<title>NetObject</title>
+<programlisting language="rexx">sb = .net~System~Text~StringBuilder~new("abc")
+say sb~makeString~word(2) sb~Length (sb == sb~Append("d"))
+sb~Capacity = 100
+say sb~ToString sb~Capacity
+t = .net~System~Threading~Tasks~Task~FromResult(.net~int32(42))
+say t~await
+
+::requires "net.cls"</programlisting>
+<screen>NetObject 3 1
+abcd 100
+42</screen>
+</example>
+
+<section id="mthNetObjectNew"><title>new (Class Method)</title>
+<indexterm><primary>new method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_new.svg" scale="55" />
+</imageobject></mediaobject>
+<para>For a subclass of <classname>NetObject</classname>, either of two
+things. If the class (or a superclass) extends a .NET class
+(<xref linkend="mthNetExtend" xrefstyle="select:title"/>), it makes the .NET
+object with the base's constructor that takes the
+<emphasis role="italic">argument</emphasis>s (<xref linkend="extendConstruction"/>).
+Otherwise, given a <emphasis role="italic">netobject</emphasis>, it makes an
+object of the subclass that stands for the same .NET object: one more proxy,
+<computeroutput>==</computeroutput> to it, whose methods come first
+(<xref linkend="extendSubclass"/>). A subclass's own <methodname>init</methodname>
+must call <computeroutput>self~init:super(...)</computeroutput> with the
+same arguments. A <classname>NetObject</classname> is never made from
+scratch: .NET objects come from &net;.</para>
+</section>
+
+<section id="mthNetObjectMember"><title>Member (unknown)</title>
+<indexterm><primary>members</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_member.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Any message that is not a method of the object's Rexx class is a
+.NET member of the object (<xref linkend="msgMembers"/>): a property or field
+read, a method call with the arguments, an indexed property read, or an
+event (a <classname>NetEvent</classname>). The <methodname>unknown</methodname>
+method that does this is the bridge's; a subclass that defines its own
+reaches .NET with <computeroutput>FORWARD CLASS (SUPER)</computeroutput>. A
+name that is no member is SYNTAX 97.1, with a
+<literal>System.MissingMemberException</literal> in
+<computeroutput>condition("O")~additional[3]</computeroutput>
+(<xref linkend="errors"/>).</para>
+</section>
+
+<section id="mthNetObjectMemberSet"><title>Member= (unknown)</title>
+<indexterm><primary>members</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_memberset.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Sets the property or field <emphasis role="italic">name</emphasis>
+to <emphasis role="italic">value</emphasis>, converted to its type. The
+member must exist: setting a name the object has not is SYNTAX 97.1, as
+reading one.</para>
+</section>
+
+<section id="mthNetObjectAtGet"><title>[]</title>
+<indexterm><primary>[] method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_atget.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the element at the <emphasis role="italic">index</emphasis>es:
+the indexer of the object's type (its default member, <literal>Item</literal>
+or what the type calls it), from 0 for a list, by key for a dictionary,
+overloads chosen as for methods (<xref linkend="collectionsIndexers"/>). An
+array is a <classname>NetArray</classname>, whose <methodname>[]</methodname>
+counts from 1.</para>
+</section>
+
+<section id="mthNetObjectPutSet"><title>[]=</title>
+<indexterm><primary>[]= method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_putset.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Sets the element at the <emphasis role="italic">index</emphasis>es to
+<emphasis role="italic">value</emphasis>, through the type's indexer.</para>
+</section>
+
+<section id="mthNetObjectComparison"><title>==, =, \==, \=, &lt;&gt;, &gt;&lt;</title>
+<indexterm><primary>comparison methods</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_comparison.svg" scale="55" />
+</imageobject></mediaobject>
+<para><computeroutput>==</computeroutput> and <computeroutput>=</computeroutput>
+return &true; if <emphasis role="italic">other</emphasis> is a proxy for the
+same .NET object (object identity, as C#'s <literal>ReferenceEquals</literal>);
+the others return the opposite. To compare by .NET's own equality, send
+<computeroutput>a~Equals(b)</computeroutput>. A <classname>NetEnum</classname>
+compares by value (<xref linkend="clsNetEnum"/>).</para>
+</section>
+
+<section id="mthNetObjectAwait"><title>await</title>
+<indexterm><primary>await method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_await.svg" scale="55" />
+</imageobject></mediaobject>
+<para>For a <literal>Task</literal>, a <literal>Task&lt;T&gt;</literal>, a
+<literal>ValueTask</literal> or a <literal>ValueTask&lt;T&gt;</literal>:
+waits until it ends, blocking this thread as C#'s <literal>.Result</literal>
+does, and returns its result, or nothing for a task without one. A task that
+failed raises its own exception as SYNTAX 98.900. On a user interface's
+thread, do not await a task that needs that thread to finish
+(<xref linkend="eventsTasks"/>).</para>
+</section>
+
+<section id="mthNetObjectHashCode"><title>hashCode</title>
+<indexterm><primary>hashCode method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_hashcode.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a hash code that two proxies for the same .NET object share,
+so that proxies can be indexes of a Rexx <classname>Directory</classname>,
+<classname>Table</classname> or <classname>Set</classname>. .NET's own is
+<computeroutput>o~GetHashCode</computeroutput>.</para>
+</section>
+
+<section id="mthNetObjectMakeArray"><title>makeArray</title>
+<indexterm><primary>makeArray method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_makearray.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a Rexx Array with the items of the object, an
+<literal>IEnumerable</literal>, taken now: what <literal>DO x OVER o</literal>
+uses (<xref linkend="collectionsLoops"/>).</para>
+</section>
+
+<section id="mthNetObjectMakeString"><title>makeString</title>
+<indexterm><primary>makeString method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_makestring.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a description of the proxy, which <literal>SAY</literal> and
+concatenation use: <computeroutput>a NetObject (System.Text.StringBuilder #12)</computeroutput>,
+the class's name for an instance of a Rexx subclass. .NET's text of the
+object is <computeroutput>o~ToString</computeroutput>.</para>
+</section>
+
+<section id="mthNetObjectString"><title>string</title>
+<indexterm><primary>string method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_string.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The .NET member <literal>String</literal>, if the object or type has
+one (the type <literal>System.String</literal> in the namespace
+<literal>System</literal>); otherwise <methodname>makeString</methodname>.</para>
+</section>
+
+<section id="mthNetObjectSupplier"><title>supplier</title>
+<indexterm><primary>supplier method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_supplier.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a Rexx <classname>Supplier</classname> of the indexes and
+items of the object, taken now: what <literal>DO WITH INDEX i ITEM v OVER o</literal>
+uses. The indexes are those <methodname>[]</methodname> takes back: a
+dictionary's keys, a list's positions from 0, 1 to <replaceable>n</replaceable>
+for other enumerables (<xref linkend="collectionsLoops"/>).</para>
+</section>
+
+<section id="mthNetObjectObjectMethods"><title>start, send, copy, run, request</title>
+<indexterm><primary>Object methods</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_objectmethods.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The .NET member of that name, if the object or type has one
+(<computeroutput>process~Start</computeroutput>,
+<computeroutput>socket~Send(bytes)</computeroutput>,
+<computeroutput>.net~System~IO~File~Copy(a, b)</computeroutput>); otherwise
+the method of Rexx's <classname>Object</classname> class
+(<xref linkend="msgObjectMethods"/>).</para>
+</section>
+
+<section id="mthNetObjectNetExtension"><title>netExtension (Class Method)</title>
+<indexterm><primary>netExtension method</primary>
+<secondary>of NetObject Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netobject_netextension.svg" scale="55" />
+</imageobject></mediaobject>
+<para>For a Rexx class that extends a .NET class, the
+<classname>NetType</classname> that <methodname>extend</methodname> made for it;
+otherwise &nil;. The class keeps it, and with it the .NET type.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetType"><title>NetType Class</title>
+<indexterm><primary>NetType class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetType class</secondary></indexterm>
+<para>A .NET type in Rexx, a subclass of <classname>NetObject</classname>:
+its messages are its static members, and <methodname>new</methodname> makes an
+instance. A type reached by name is the same object each time. Its
+<literal>System.Type</literal> object is
+<computeroutput>.net~typeObject(t)</computeroutput>.</para>
+
+<table id="tabNetType" frame="all" pgwide="1">
+<title>NetType Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">NetObject</emphasis></entry></row>
+ <row><entry>Methods inherited from the <xref linkend="clsNetObject" xrefstyle="select:title"/></entry></row>
+ <row><entry align="center"><emphasis role="bold">NetType</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetTypeNew" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetTypeMember" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetTypeNew"><title>new</title>
+<indexterm><primary>new method</primary>
+<secondary>of NetType Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nettype_new.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a new instance of the type, made by its constructor that takes
+the <emphasis role="italic">argument</emphasis>s (overloads chosen as for
+methods). A struct without arguments is its default value. The type of a
+Rexx class that extends a .NET class is made with the class's own
+<methodname>new</methodname>, not this one.</para>
+</section>
+
+<section id="mthNetTypeMember"><title>Static Member (unknown)</title>
+<indexterm><primary>static member</primary>
+<secondary>of NetType Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nettype_member.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Any other message is a static member of the type: a property or field
+read (with <literal>=</literal>, a write), a method call, a nested type, or a
+static event. <computeroutput>.net~System~Math~Max(3, 7)</computeroutput>,
+<computeroutput>.net~System~Console~Out</computeroutput>,
+<computeroutput>.net~System~Environment~SpecialFolder</computeroutput>. The
+members of the <literal>System.Type</literal> object itself are reached
+through <xref linkend="mthNetTypeObject" xrefstyle="select:title"/>.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetArray"><title>NetArray Class</title>
+<indexterm><primary>NetArray class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetArray class</secondary></indexterm>
+<para>A .NET array in Rexx, a subclass of <classname>NetObject</classname>
+that behaves as a Rexx Array: from 1 in every dimension, as BSF4ooRexx's
+<literal>BSF_ARRAY_REFERENCE</literal> for Java arrays
+(<xref linkend="collectionsArrays"/>). It is not an instance of Rexx's
+<classname>Array</classname> class. .NET's own members (<literal>Length</literal>,
+<literal>Rank</literal>, <literal>GetValue</literal>, 0-based) are reached as
+for any object.</para>
+
+<table id="tabNetArray" frame="all" pgwide="1">
+<title>NetArray Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">NetObject</emphasis></entry></row>
+ <row><entry>Methods inherited from the <xref linkend="clsNetObject" xrefstyle="select:title"/></entry></row>
+ <row><entry align="center"><emphasis role="bold">NetArray</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetArrayAtGet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayAt" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayPutSet" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayPut" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayPutStrict" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayItems" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArraySize" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayDimension" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayMakeArray" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArraySupplier" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayMakeString" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetArrayAtGet"><title>[]</title>
+<indexterm><primary>[] method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_atget.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the element at the positions, from 1 in every dimension. A
+position out of the array's bounds is .NET's
+<literal>IndexOutOfRangeException</literal> (SYNTAX 98.900); 0, a negative or
+a non-whole position, or the wrong number of them, Rexx's own errors (93.907,
+93.924, 93.925, 93.926).</para>
+</section>
+
+<section id="mthNetArrayAt"><title>at</title>
+<indexterm><primary>at method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_at.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The same as <methodname>[]</methodname>; the positions may also come
+as one Rexx Array (<computeroutput>a~at(.array~of(2, 3))</computeroutput>).</para>
+</section>
+
+<section id="mthNetArrayPutSet"><title>[]=</title>
+<indexterm><primary>[]= method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_putset.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Sets the element at the positions to <emphasis role="italic">item</emphasis>,
+converted to the array's element type.</para>
+</section>
+
+<section id="mthNetArrayPut"><title>put</title>
+<indexterm><primary>put method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_put.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The same as <methodname>[]=</methodname>, with the item first, as a
+Rexx Array's <methodname>put</methodname>; the positions may also come as one
+Rexx Array.</para>
+</section>
+
+<section id="mthNetArrayPutStrict"><title>putStrict</title>
+<indexterm><primary>putStrict method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_putstrict.svg" scale="55" />
+</imageobject></mediaobject>
+<para>As <methodname>put</methodname>, with <emphasis role="italic">item</emphasis>
+converted to <emphasis role="italic">type</emphasis> (a name or a
+<classname>NetType</classname>) first: for an array of <literal>object</literal>
+or of an interface, which would take the item as a string. As
+BSF4ooRexx's <literal>putStrict</literal>.</para>
+</section>
+
+<section id="mthNetArrayItems"><title>items</title>
+<indexterm><primary>items method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_items.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the number of elements: all of them, as a .NET array has a
+fixed size (a Rexx Array counts those that hold an item).</para>
+</section>
+
+<section id="mthNetArraySize"><title>size</title>
+<indexterm><primary>size method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_size.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The same as <methodname>items</methodname>.</para>
+</section>
+
+<section id="mthNetArrayDimension"><title>dimension</title>
+<indexterm><primary>dimension method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_dimension.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Without an argument, the number of dimensions (the rank); with
+<emphasis role="italic">n</emphasis>, the length of dimension
+<emphasis role="italic">n</emphasis> (0 past the rank, as for a Rexx
+Array).</para>
+</section>
+
+<section id="mthNetArrayMakeArray"><title>makeArray</title>
+<indexterm><primary>makeArray method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_makearray.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a Rexx Array with every element, row by row (the last
+position varying fastest), <literal>null</literal>s as &nil;: what
+<literal>DO OVER</literal> uses.</para>
+</section>
+
+<section id="mthNetArraySupplier"><title>supplier</title>
+<indexterm><primary>supplier method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_supplier.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a Rexx <classname>Supplier</classname> of the positions (from
+1; for a multidimensional array, an Array of positions, as a Rexx Array's
+supplier gives) and the elements.</para>
+</section>
+
+<section id="mthNetArrayMakeString"><title>makeString, toString</title>
+<indexterm><primary>makeString method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_makestring.svg" scale="55" />
+</imageobject></mediaobject>
+<para>As a Rexx Array's: the elements as a string, in storage order, with
+<emphasis role="italic">format</emphasis> <literal>"L"</literal> (lines,
+separated by <emphasis role="italic">separator</emphasis>, by default
+<literal>.endOfLine</literal>) or <literal>"C"</literal> (characters).
+<literal>SAY</literal> and concatenation use <methodname>makeString</methodname>,
+so they show the elements. The type is
+<computeroutput>.net~typeOf(a)</computeroutput>.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetEnum"><title>NetEnum Class</title>
+<indexterm><primary>NetEnum class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetEnum class</secondary></indexterm>
+<para>A .NET enum value in Rexx, a subclass of <classname>NetObject</classname>,
+as Java's enum values are objects in BSF4ooRexx. Its string value is its name,
+so code written for names keeps working; it compares with a name, a number or
+another value. It goes back to .NET as the enum value, and a name or a number
+still converts where .NET wants an enum. Its .NET members
+(<methodname>HasFlag</methodname>, <methodname>CompareTo</methodname>) are
+reached as for any object. An enum <emphasis>type</emphasis> gives its values
+with <literal>DO OVER</literal>, and its numbers and names with
+<literal>DO WITH</literal>.</para>
+
+<table id="tabNetEnum" frame="all" pgwide="1">
+<title>NetEnum Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">NetObject</emphasis></entry></row>
+ <row><entry>Methods inherited from the <xref linkend="clsNetObject" xrefstyle="select:title"/></entry></row>
+ <row><entry align="center"><emphasis role="bold">NetEnum</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetEnumName" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEnumOrdinal" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEnumEqual" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEnumStrict" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEnumString" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEnumHashCode" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<example id="ex.netenum">
+<title>NetEnum</title>
+<programlisting language="rexx">day = .net~System~DateTime~new(2026, 10, 9)~DayOfWeek
+say day day~ordinal (day = "friday") (day == "friday") (day = 5)
+do d over .net~System~DayOfWeek; if d~ordinal &lt; 2 then say d; end
+do with index n item name over .net~System~DayOfWeek; if n &gt; 4 then say n name; end
+opt = .net~System~Text~RegularExpressions~RegexOptions
+both = .net~System~Enum~Parse(.net~typeObject(opt), "IgnoreCase, Multiline")
+say both (both = "multiline, ignorecase") both~ordinal both~HasFlag(opt~Multiline)
+r = .net~System~Text~RegularExpressions~Regex~new("^b", "ignorecase, multiline")
+say r~IsMatch("a" || "0a"x || "B")      -- the flags given as a name
+
+::requires "net.cls"</programlisting>
+<screen>Friday 5 1 0 1
+Sunday
+Monday
+5 Friday
+6 Saturday
+IgnoreCase, Multiline 1 3 1
+1</screen>
+</example>
+
+<section id="mthNetEnumName"><title>name</title>
+<indexterm><primary>name method</primary>
+<secondary>of NetEnum Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netenum_name.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the value's name: <literal>Friday</literal>; for flags, the
+names .NET gives, <literal>IgnoreCase, Multiline</literal>; for a value with
+no name, its number.</para>
+</section>
+
+<section id="mthNetEnumOrdinal"><title>ordinal, value</title>
+<indexterm><primary>ordinal method</primary>
+<secondary>of NetEnum Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netenum_ordinal.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the value's number, the enum's underlying value
+(<literal>5</literal> for <literal>Friday</literal>). .NET enums have no
+other ordinal than this number.</para>
+</section>
+
+<section id="mthNetEnumEqual"><title>=, \=, &lt;&gt;, &gt;&lt;</title>
+<indexterm><primary>comparison methods</primary>
+<secondary>of NetEnum Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netenum_equal.svg" scale="55" />
+</imageobject></mediaobject>
+<para><computeroutput>=</computeroutput> returns &true; when the other side
+is the same value: a name as .NET reads one (caseless; flags in any order and
+spacing), the value's number, or another <classname>NetEnum</classname> of the
+same type and value. Values of two enum types are never equal. The others
+return the opposite.</para>
+</section>
+
+<section id="mthNetEnumStrict"><title>==, \==</title>
+<indexterm><primary>comparison methods</primary>
+<secondary>of NetEnum Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netenum_strict.svg" scale="55" />
+</imageobject></mediaobject>
+<para><computeroutput>==</computeroutput> returns &true; when the other side
+is exactly the value's name, or another <classname>NetEnum</classname> of the
+same type and value.</para>
+</section>
+
+<section id="mthNetEnumString"><title>string, makeString</title>
+<indexterm><primary>string method</primary>
+<secondary>of NetEnum Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netenum_string.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The value's name, so that <literal>SAY</literal>, concatenation and
+<literal>WHEN d = "Friday"</literal> read it as one.</para>
+</section>
+
+<section id="mthNetEnumHashCode"><title>hashCode</title>
+<indexterm><primary>hashCode method</primary>
+<secondary>of NetEnum Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netenum_hashcode.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The hash code of the value's name, consistent with
+<computeroutput>==</computeroutput>: a <classname>NetEnum</classname> is a good
+index for a Rexx collection.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetNamespace"><title>NetNamespace Class</title>
+<indexterm><primary>NetNamespace class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetNamespace class</secondary></indexterm>
+<para>A .NET namespace, which is not a .NET object, only a prefix of type
+names: each message goes one level down. A namespace reached by name is the
+same object each time. &net; is the root namespace.</para>
+
+<table id="tabNetNamespace" frame="all" pgwide="1">
+<title>NetNamespace Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetNamespace</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetNamespaceMember" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetNamespaceString" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetNamespaceMember"><title>Namespace or Type (unknown)</title>
+<indexterm><primary>namespace</primary>
+<secondary>of NetNamespace Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netnamespace_member.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The sub-namespace or the type <emphasis role="italic">name</emphasis>
+(caseless) in this namespace: a <classname>NetNamespace</classname> or a
+<classname>NetType</classname>, remembered once found. A namespace takes no
+arguments.</para>
+</section>
+
+<section id="mthNetNamespaceString"><title>string, makeString</title>
+<indexterm><primary>string method</primary>
+<secondary>of NetNamespace Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netnamespace_string.svg" scale="55" />
+</imageobject></mediaobject>
+<para><methodname>makeString</methodname> describes it:
+<computeroutput>a NetNamespace (System.IO)</computeroutput>. <methodname>string</methodname>
+is the type <literal>String</literal> of the namespace, if there is one
+(<computeroutput>.net~System~String</computeroutput>), else the same as
+<methodname>makeString</methodname>.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetRef"><title>NetRef Class</title>
+<indexterm><primary>NetRef class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetRef class</secondary></indexterm>
+<para>A holder for an argument by reference: a <literal>ref</literal>,
+<literal>out</literal> or <literal>in</literal> parameter of a .NET method
+(<xref linkend="collectionsRef"/>), or a COM argument by reference, as
+ooRexx's <classname>OLEVariant</classname>. <methodname>makeString</methodname>
+shows its value: <computeroutput>a NetRef (5)</computeroutput>.</para>
+
+<table id="tabNetRef" frame="all" pgwide="1">
+<title>NetRef Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetRef</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetRefNew" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetRefValue" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetRefValueSet" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetRefNew"><title>new (Class Method)</title>
+<indexterm><primary>new method</primary>
+<secondary>of NetRef Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netref_new.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a new <classname>NetRef</classname> holding
+<emphasis role="italic">value</emphasis> (default &nil;): the same as
+<computeroutput>.net~ref(value)</computeroutput>.</para>
+</section>
+
+<section id="mthNetRefValue"><title>value</title>
+<indexterm><primary>value method</primary>
+<secondary>of NetRef Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netref_value.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the value it holds: after a call, what the method left in
+the parameter, as any .NET value comes to Rexx.</para>
+</section>
+
+<section id="mthNetRefValueSet"><title>value=</title>
+<indexterm><primary>value= method</primary>
+<secondary>of NetRef Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netref_valueset.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Sets the value it holds, given to the next call that takes it.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetTyped"><title>NetTyped Class</title>
+<indexterm><primary>NetTyped class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetTyped class</secondary></indexterm>
+<para>A Rexx value with a .NET type forced on it, made by
+<computeroutput>.net~int16(x)</computeroutput> and its siblings,
+<methodname>as</methodname>, <methodname>null</methodname> and
+<methodname>named</methodname> (<xref linkend="valuesForced"/>). It is only
+a mark for the next call, not a .NET object: <methodname>box</methodname>
+makes one.</para>
+
+<table id="tabNetTyped" frame="all" pgwide="1">
+<title>NetTyped Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetTyped</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetTypedKind" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetTypedValue" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetTypedKind"><title>kind</title>
+<indexterm><primary>kind method</primary>
+<secondary>of NetTyped Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nettyped_kind.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the type it forces, as the bridge records it
+(<literal>System.Int16</literal>; <literal>null</literal> for
+<computeroutput>.net~null</computeroutput>).</para>
+</section>
+
+<section id="mthNetTypedValue"><title>value</title>
+<indexterm><primary>value method</primary>
+<secondary>of NetTyped Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nettyped_value.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the Rexx value it marks.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetHandler"><title>NetHandler Class</title>
+<indexterm><primary>NetHandler class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetHandler class</secondary></indexterm>
+<para>A Rexx object and the name of one of its methods, for .NET to call,
+made by <xref linkend="mthNetHandler" xrefstyle="select:title"/>. Given where
+.NET wants a delegate, it becomes a delegate of that type, the same one each
+time for the same type, so that <literal>-=</literal> removes what
+<literal>+=</literal> added. See <xref linkend="events"/>.</para>
+
+<table id="tabNetHandler" frame="all" pgwide="1">
+<title>NetHandler Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetHandler</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetHandlerTarget" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetHandlerMessage" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetHandlerOptions" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetHandlerRelease" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetHandlerReleased" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetHandlerTarget"><title>target</title>
+<indexterm><primary>target method</primary>
+<secondary>of NetHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nethandler_target.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the Rexx object the handler's message goes to.</para>
+</section>
+
+<section id="mthNetHandlerMessage"><title>message</title>
+<indexterm><primary>message method</primary>
+<secondary>of NetHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nethandler_message.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the message's name, uppercased.</para>
+</section>
+
+<section id="mthNetHandlerOptions"><title>options</title>
+<indexterm><primary>options method</primary>
+<secondary>of NetHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nethandler_options.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the handler's options, lowercased (<literal>queued</literal>,
+<literal>latest queued</literal>, or empty).</para>
+</section>
+
+<section id="mthNetHandlerRelease"><title>release</title>
+<indexterm><primary>release method</primary>
+<secondary>of NetHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nethandler_release.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Ends the handler: its delegates stay valid but do nothing (they
+return their type's default), its queued calls are dropped, and it can
+still be given to <literal>-=</literal>. A handler needs no release: the bridge
+holds it while .NET can call it (<xref linkend="eventsLifetime"/>); release
+stops a handler at once, wherever .NET keeps it.</para>
+</section>
+
+<section id="mthNetHandlerReleased"><title>released</title>
+<indexterm><primary>released method</primary>
+<secondary>of NetHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/nethandler_released.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns &true; once <methodname>release</methodname> has been sent.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetEvent"><title>NetEvent Class</title>
+<indexterm><primary>NetEvent class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetEvent class</secondary></indexterm>
+<para>An event of a .NET object or type, or of a COM object:
+<computeroutput>o~Click</computeroutput>, when the object has an event of that
+name and no property of it. Its operators add and remove handlers.</para>
+
+<table id="tabNetEvent" frame="all" pgwide="1">
+<title>NetEvent Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetEvent</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetEventPlus" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEventOwner" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetEventName" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetEventPlus"><title>+, -</title>
+<indexterm><primary>+ method</primary>
+<secondary>of NetEvent Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netevent_plus.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Adds (<literal>+</literal>) or removes (<literal>-</literal>)
+<emphasis role="italic">handler</emphasis>, a <classname>NetHandler</classname>
+or a delegate of the event's type, and returns the event: so
+<computeroutput>o~Click += h</computeroutput>, which Rexx runs as
+<computeroutput>o~Click = o~Click + h</computeroutput>, adds it (the
+assignment that follows is a no-op for the same event).</para>
+</section>
+
+<section id="mthNetEventOwner"><title>owner</title>
+<indexterm><primary>owner method</primary>
+<secondary>of NetEvent Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netevent_owner.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the object (or type, for a static event) the event is of.</para>
+</section>
+
+<section id="mthNetEventName"><title>name</title>
+<indexterm><primary>name method</primary>
+<secondary>of NetEvent Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netevent_name.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the event's name, as .NET writes it.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetCall"><title>NetCall Class</title>
+<indexterm><primary>NetCall class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetCall class</secondary></indexterm>
+<para>One call of a queued handler, waiting for a Rexx thread to take it:
+<xref linkend="mthNetNextEvent" xrefstyle="select:title"/> returns one, and
+<xref linkend="mthNetEventLoop" xrefstyle="select:title"/> dispatches each it
+takes. (ooRexx/WASM calls it <classname>JSEvent</classname>; here
+<classname>NetEvent</classname> is the event member.)</para>
+
+<table id="tabNetCall" frame="all" pgwide="1">
+<title>NetCall Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetCall</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetCallHandler" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCallArguments" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCallTarget" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCallDispatch" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<example id="ex.netcall">
+<title>NetHandler, NetEvent and NetCall</title>
+<programlisting language="rexx">timer = .net~System~Timers~Timer~new(50)
+say timer~Elapsed~class~id timer~Elapsed~name
+h = .net~handler(.Ticker~new, "TICK", "queued")
+timer~Elapsed += h
+timer~AutoReset = 0
+timer~Start
+c = .net~nextEvent(5)                   -- a NetCall, when the timer fires
+say c~message c~arguments~items .net~typeOf(c~arguments[2])
+c~dispatch
+timer~Elapsed -= h
+say .net~nextEvent(0.2)
+
+::requires "net.cls"
+::class Ticker
+::method tick
+  use arg sender, e
+  say "tick from" .net~typeOf(sender)</programlisting>
+<screen>NETEVENT Elapsed
+TICK 2 System.Timers.ElapsedEventArgs
+tick from System.Timers.Timer
+The NIL object</screen>
+</example>
+
+<section id="mthNetCallHandler"><title>handler</title>
+<indexterm><primary>handler method</primary>
+<secondary>of NetCall Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcall_handler.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns the <classname>NetHandler</classname> that .NET called.</para>
+</section>
+
+<section id="mthNetCallArguments"><title>arguments</title>
+<indexterm><primary>arguments method</primary>
+<secondary>of NetCall Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcall_arguments.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns an Array with the delegate's arguments, as .NET values come
+to Rexx.</para>
+</section>
+
+<section id="mthNetCallTarget"><title>target, message</title>
+<indexterm><primary>target method</primary>
+<secondary>of NetCall Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcall_target.svg" scale="55" />
+</imageobject></mediaobject>
+<para>The handler's object and message name.</para>
+</section>
+
+<section id="mthNetCallDispatch"><title>dispatch</title>
+<indexterm><primary>dispatch method</primary>
+<secondary>of NetCall Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcall_dispatch.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Sends the handler's message to its object with the call's arguments,
+on this thread, and returns what the method returns, if anything (a queued
+delegate has returned already: the result goes nowhere else).</para>
+</section>
+
+</section>
+
+</chapter>

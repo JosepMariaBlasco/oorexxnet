@@ -1,0 +1,296 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="hostenv"><title>The Application's Environment</title>
+<indexterm><primary>application</primary><secondary>hosting Rexx</secondary></indexterm>
+
+<para>An application that runs Rexx code decides what that code sees around
+it: the <literal>ADDRESS</literal> environments its commands go to, where its
+<literal>SAY</literal> writes and its <literal>PULL</literal> reads, which
+functions and <literal>VALUE</literal> selectors it has, and when it must
+stop. These are members of <classname>RexxInterpreter</classname>:</para>
+<programlisting language="csharp">public void AddCommandEnvironment(string name, Func&lt;RexxCommand, object?&gt; handler);
+public void AddCommandEnvironment(string name, Action&lt;RexxCommand&gt; handler);
+public TextWriter? Output { get; set; }
+public TextWriter? Error { get; set; }
+public TextReader? Input { get; set; }
+public bool StreamPrefixes { get; set; }
+public void AddFunction(string name, Func&lt;RexxFunctionCall, object?&gt; handler);
+public void AddFunction(string name, Action&lt;RexxFunctionCall&gt; handler);
+public void AddFunction(string name, Delegate function);
+public void AddValueSelector(string selector, Func&lt;string, object?&gt; get, Action&lt;string, object?&gt;? set = null);
+public RexxObject? Run(string source, CancellationToken cancel, params object?[] args);
+public T Run&lt;T&gt;(string source, CancellationToken cancel, params object?[] args);
+public RexxObject? RunFile(string path, CancellationToken cancel, params object?[] args);
+public void Halt();
+public bool Trace { set; }</programlisting>
+
+<!-- ===================================================================== -->
+<section id="hostCommands"><title>ADDRESS Environments</title>
+<indexterm><primary>ADDRESS</primary><secondary>environments of the application</secondary></indexterm>
+<indexterm><primary>RexxCommand class</primary></indexterm>
+<indexterm><primary>RexxCommandException class</primary></indexterm>
+<para><computeroutput>rexx.AddCommandEnvironment(name, handler)</computeroutput>
+makes <emphasis role="italic">handler</emphasis> the environment
+<emphasis role="italic">name</emphasis>: <computeroutput>ADDRESS name 'command'</computeroutput>
+(or <computeroutput>ADDRESS name</computeroutput>, then
+<computeroutput>'command'</computeroutput>) calls it on the Rexx thread with a
+<classname>RexxCommand</classname>. Its result is <literal>RC</literal>
+(<literal>null</literal>: 0). A <classname>RexxCommandException</classname>
+raises ERROR, or FAILURE, with its <literal>RC</literal>; any other
+exception raises FAILURE, <literal>RC</literal> -1, its message as
+<computeroutput>condition("A")</computeroutput>. Names are caseless; adding
+one again replaces its handler. Each instance has its own environments, and
+every one takes <literal>ADDRESS ... WITH</literal> redirection.</para>
+<programlisting language="csharp">public abstract class RexxCallContext
+{
+    public RexxInterpreter Interpreter { get; }
+    public object? this[string name] { get; set; }     // the caller's variable ("X", "STEM.1")
+    public bool HasVariable(string name);
+    public void Drop(string name);
+    public IReadOnlyDictionary&lt;string, object?&gt; Variables { get; }   // a copy
+}
+public sealed class RexxCommand : RexxCallContext
+{
+    public string Address { get; }                     // as the Rexx code wrote it
+    public string Command { get; }
+    public static implicit operator string(RexxCommand c);
+    public bool IsRedirected { get; }                  // ADDRESS ... WITH
+    public bool IsInputRedirected { get; }
+    public bool IsOutputRedirected { get; }
+    public bool IsErrorRedirected { get; }
+    public string? ReadLine();                         // null at the end
+    public string? ReadToEnd();
+    public bool WriteLine(string line);                // false: not redirected
+    public bool Write(string text);
+    public bool WriteErrorLine(string line);
+    public bool WriteError(string text);
+}
+public sealed class RexxCommandException : Exception
+{
+    public RexxCommandException(object? rc, string? message = null, bool failure = false);
+    public object? Rc { get; }
+    public bool Failure { get; }
+}</programlisting>
+<para>A <classname>RexxCommand</classname> (and a <classname>RexxFunctionCall</classname>,
+below) is valid only while its handler runs. Its indexer reads and sets the
+calling Rexx code's variables, their names as Rexx writes them, uppercased;
+setting <literal>null</literal> sets &nil; (<methodname>Drop</methodname>
+drops). The handler's own calls into Rexx (through
+<methodname>Interpreter</methodname>) run nested on the same thread.</para>
+
+<example id="ex.host-commands">
+<title>An ADDRESS environment</title>
+<programlisting language="csharp">using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.AddCommandEnvironment("APP", cmd =&gt;
+{
+    switch (cmd.Command.Split(' ')[0].ToUpperInvariant())
+    {
+        case "UPPER": return cmd.Command.Substring(6).ToUpperInvariant();
+        case "SETX": cmd["X"] = 42; return 0;
+        case "LINES":
+            int count = 0;
+            for (string? l; (l = cmd.ReadLine()) != null; count++) cmd.WriteLine($"{count + 1}: {l}");
+            return count;
+        default: throw new RexxCommandException(10, "unknown command: " + cmd.Command);
+    }
+});
+Console.WriteLine(rexx.Run&lt;string&gt;("address app 'upper hello'; return rc"));
+Console.WriteLine(rexx.Run&lt;string&gt;("address app 'setx'; return x rc"));
+Console.WriteLine(rexx.Run&lt;string&gt;(
+    "in = .array~of('a', 'b'); out = .array~new\n" +
+    "address app 'lines' with input using (in) output using (out)\n" +
+    "return rc out~makeString('L', ' / ')"));
+Console.WriteLine(rexx.Run&lt;string&gt;("signal on error; address app 'nope'; return 'no'\n" +
+                                   "error: return 'ERROR' rc condition('A')"));</programlisting>
+<screen>HELLO
+42 0
+2 1: a / 2: b
+ERROR 10 unknown command: nope</screen>
+</example>
+</section>
+
+<!-- ===================================================================== -->
+<section id="hostStreams"><title>Standard Streams</title>
+<indexterm><primary>standard streams</primary></indexterm>
+<indexterm><primary>prefixes</primary><secondary>REXXout&gt;</secondary></indexterm>
+<para><methodname>Output</methodname>, <methodname>Error</methodname> and
+<methodname>Input</methodname> are where the Rexx code's standard streams go,
+set at any time (or at creation, in <classname>RexxOptions</classname>):</para>
+<variablelist>
+<varlistentry><term><methodname>Output</methodname></term><listitem><para><literal>SAY</literal>,
+<literal>LINEOUT</literal> and <literal>CHAROUT</literal> to the default
+stream, <literal>.output</literal>.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Error</methodname></term><listitem><para><literal>.error</literal>,
+<literal>"STDERR"</literal>, trace output and error messages.</para></listitem></varlistentry>
+<varlistentry><term><methodname>Input</methodname></term><listitem><para><literal>PULL</literal>,
+<literal>PARSE PULL</literal>, <literal>LINEIN</literal> and
+<literal>CHARIN</literal> from the default stream, <literal>.input</literal>.
+At its end, reads give <literal>""</literal> and <literal>LINES()</literal>
+0.</para></listitem></varlistentry>
+</variablelist>
+<para><literal>null</literal> is the process's own stream. What these do not
+catch, because it never passes through Rexx's streams: <literal>.stdout</literal>,
+<literal>.stderr</literal> and <literal>.stdin</literal> used directly, and the
+output of programs started by <literal>ADDRESS SYSTEM</literal> (which Rexx
+code can route itself: <computeroutput>ADDRESS SYSTEM 'cmd' WITH OUTPUT USING (.output)</computeroutput>).</para>
+<para><emphasis role="bold">Prefixes.</emphasis> What the Rexx code writes to
+the process's own streams carries BSF4ooRexx's prefixes, so that it stands
+out in the application's console or log: <literal>REXXout&gt;</literal>
+(<literal>.output</literal>), <literal>REXXerr&gt;</literal>
+(<literal>.error</literal>), <literal>REXXtrc&gt;</literal>
+(<literal>.traceOutput</literal>, error messages too), and the prompts
+<literal>REXXin?&gt;</literal> and <literal>REXXdbgIn?&gt;</literal> before a
+line is read from <literal>.input</literal> or <literal>.debugInput</literal>.
+What goes to <methodname>Output</methodname> or <methodname>Error</methodname>,
+or comes from <methodname>Input</methodname>, has none.
+<computeroutput>RexxOptions.StreamPrefixes = false</computeroutput>, or
+<computeroutput>rexx.StreamPrefixes = false</computeroutput> at any time,
+turns them off; Rexx code changes one with
+<computeroutput>.output~current~prefix = 'mine&gt;'</computeroutput> (or
+&nil;). A program run by <command>rexx</command> itself has none: its output
+is its own.</para>
+
+<example id="ex.host-streams">
+<title>Standard streams and their prefixes</title>
+<programlisting language="csharp">using System;
+using System.IO;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.Run("say 'one'; say 'two' || '0a'x || 'lines'");
+rexx.StreamPrefixes = false;
+rexx.Run("say 'plain'");
+var output = new StringWriter();
+rexx.Output = output;
+rexx.Input = new StringReader("Ann\n");
+rexx.Run("say 'Name?'; pull name; say 'Hello,' name");
+rexx.Output = null; rexx.Input = null;
+Console.Write(output.ToString());</programlisting>
+<screen>REXXout&gt;one
+REXXout&gt;two
+REXXout&gt;lines
+plain
+Name?
+Hello, ANN</screen>
+</example>
+</section>
+
+<!-- ===================================================================== -->
+<section id="hostFunctions"><title>Functions and VALUE Selectors</title>
+<indexterm><primary>functions</primary><secondary>of the application</secondary></indexterm>
+<indexterm><primary>VALUE</primary><secondary>selectors of the application</secondary></indexterm>
+<indexterm><primary>RexxFunctionCall class</primary></indexterm>
+<para><computeroutput>rexx.AddFunction(name, handler)</computeroutput> gives the
+Rexx code a function, called as <computeroutput>name(args)</computeroutput> or
+<computeroutput>CALL name args</computeroutput>, on the Rexx thread. The
+handler is one of:</para>
+<itemizedlist>
+<listitem><para>a <literal>Func&lt;RexxFunctionCall, object?&gt;</literal>
+(<computeroutput>call =&gt; ...</computeroutput>), which gets the call: its
+name, its arguments, the caller's variables; or an
+<literal>Action&lt;RexxFunctionCall&gt;</literal>, for a function with no
+result (fine for <literal>CALL</literal>; as a function, Rexx's error 44).</para></listitem>
+<listitem><para>any delegate or method (<computeroutput>(double a, double b) =&gt; Math.Sqrt(a * a + b * b)</computeroutput>),
+whose parameters get the arguments converted by Rexx's rules
+(<methodname>RexxConvert</methodname>): a parameter with a default value may be
+left out, a <literal>params</literal> array takes the rest, and a parameter of
+type <classname>RexxFunctionCall</classname> gets the call.</para></listitem>
+</itemizedlist>
+<para>The result goes to Rexx as any .NET value. A .NET exception is SYNTAX
+40.900 (Incorrect call to routine) with its message; too few or too many
+arguments for a typed delegate, 40.3 and 40.4; an argument that does not
+convert, 40.900 naming it. The program's own routines and Rexx's built-in
+functions win over the application's; external functions of the same name (a
+library's, a file) are hidden by it. Names are caseless; adding one again
+replaces it.</para>
+<programlisting language="csharp">public sealed class RexxFunctionCall : RexxCallContext
+{
+    public string Name { get; }                        // uppercased, unless called as a literal
+    public IReadOnlyList&lt;object?&gt; Arguments { get; }   // RexxString, RexxObject, a .NET object, null, RexxValue.Omitted
+    public bool IsSubroutine { get; }                  // CALL name
+    public T Arg&lt;T&gt;(int i, T fallback = default!);     // from 0, by Rexx's rules
+}</programlisting>
+<para><computeroutput>rexx.AddValueSelector(selector, get, set)</computeroutput>
+answers Rexx's <computeroutput>VALUE(name, , selector)</computeroutput> with
+<computeroutput>get(name)</computeroutput>; <computeroutput>VALUE(name, newValue, selector)</computeroutput>
+answers <computeroutput>get(name)</computeroutput> and then calls
+<computeroutput>set(name, newValue)</computeroutput> (without a
+<literal>set</literal>, an error). The name is as the Rexx code gave it.
+Selectors are caseless; ooRexx's own (<literal>ENVIRONMENT</literal>) win.
+Functions and selectors need an instance made by
+<methodname>Create</methodname>: they use system exits, which ooRexx sets
+when an instance is created.</para>
+
+<example id="ex.host-functions">
+<title>Functions and VALUE selectors of the application</title>
+<programlisting language="csharp">using System;
+using System.Collections.Generic;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.AddFunction("hypot", (double a, double b) =&gt; Math.Sqrt(a * a + b * b));
+rexx.AddFunction("greet", (string who, string greeting = "Hello") =&gt; $"{greeting}, {who}!");
+rexx.AddFunction("vars", call =&gt; $"{call.Name} sees x = {call["X"]}");
+var settings = new Dictionary&lt;string, object?&gt; { ["COLOR"] = "blue" };
+rexx.AddValueSelector("APP", name =&gt; settings.GetValueOrDefault(name.ToUpperInvariant()),
+                             (name, value) =&gt; settings[name.ToUpperInvariant()] = value);
+
+Console.WriteLine(rexx.Run("return hypot(3, 4)"));
+Console.WriteLine(rexx.Run("return greet('Ann') greet('Bob', 'Hola')"));
+Console.WriteLine(rexx.Run("x = 42; return vars()"));
+Console.WriteLine(rexx.Run("old = value('color', 'red', 'APP'); return old value('color', , 'APP')"));
+Console.WriteLine(rexx.Run("signal on syntax; return hypot(1)\n" +
+                           "syntax: return condition('O')~code"));</programlisting>
+<screen>5
+Hello, Ann! Hola, Bob!
+VARS sees x = 42
+blue red
+40.3</screen>
+</example>
+</section>
+
+<!-- ===================================================================== -->
+<section id="hostCancel"><title>Cancellation, Halt and Trace</title>
+<indexterm><primary>cancellation</primary></indexterm>
+<indexterm><primary>HALT</primary></indexterm>
+<para><methodname>Run</methodname>, <methodname>Run&lt;T&gt;</methodname>,
+<methodname>RunFile</methodname>, <methodname>RexxRoutine.Call</methodname>
+and <methodname>RexxObject.Send</methodname> take a
+<literal>CancellationToken</literal>: when it is cancelled, the Rexx code that
+call runs is halted (a HALT condition, which it may trap), and the call
+throws <literal>OperationCanceledException</literal>, whose
+<literal>InnerException</literal> is the <classname>RexxException</classname>
+4.1. Only that thread is halted. A halt reaches Rexx code that is running:
+a token cancelled before the code starts stops nothing, and one cancelled
+while the code is inside a command handler takes effect at the next
+clause.</para>
+<para><methodname>Halt</methodname> halts every Rexx thread of the instance.
+<methodname>Trace</methodname> sets Rexx's trace for the whole instance; it
+reaches only Rexx code running at that moment, so to trace one run, use the
+Rexx code's own <literal>TRACE</literal> (its output goes to
+<methodname>Error</methodname>).</para>
+
+<example id="ex.host-cancel">
+<title>Cancelling Rexx code</title>
+<programlisting language="csharp">using System;
+using System.Threading;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+using var cts = new CancellationTokenSource(200);
+try { rexx.Run("do forever; nop; end", cts.Token); }
+catch (OperationCanceledException e) { Console.WriteLine($"cancelled: {(e.InnerException as RexxException)?.Code}"); }
+Console.WriteLine(rexx.Run&lt;string&gt;("return 'still usable'"));</programlisting>
+<screen>cancelled: 4.1
+still usable</screen>
+</example>
+</section>
+
+</chapter>

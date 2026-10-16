@@ -1,0 +1,10 @@
+<!ENTITY PRODUCT "ooRexx/.NET">
+<!ENTITY BOOKID "dotnetref">
+<!ENTITY YEAR "2026">
+<!ENTITY HOLDER "Josep Maria Blasco">
+<!ENTITY VERSION "0.1.0-preview.8">
+<!ENTITY EDITION "(set by scripts/build-books.sh)">
+<!ENTITY nil "<literal>.nil</literal>">
+<!ENTITY true "<literal>.true</literal>">
+<!ENTITY false "<literal>.false</literal>">
+<!ENTITY net "<literal>.net</literal>">

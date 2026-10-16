@@ -9,7 +9,9 @@
 ; itself modelled on ooRexx's own and ooSQLite's.
 ;
 ;   makensis -DVERSION=V -DPKGDIR=<the unzipped rexxnet folder>
-;            -DLICENSEFILE=<the LICENSE> -DOUTFILE=<the .exe to write> oorexxnet.nsi
+;            -DLICENSEFILE=<the LICENSE> -DOUTFILE=<the .exe to write>
+;            [-DBOOKSDIR=<a folder with dotnetref.pdf and dotnetcookbook.pdf>]
+;            oorexxnet.nsi
 ;
 ; (bridge/windows-installer.sh does it from the binary zip.) Run it as:
 ;   oorexxnet-VERSION-setup.exe                         (the wizard)
@@ -307,11 +309,21 @@ Section "-Install"
     Goto failed
   ${EndIf}
 
-  ; the Start menu (ooRexx's folder): the guide and the samples' README
-  ; (Markdown: opened with Notepad, which shows it on Windows 11), the
-  ; samples' folder, the uninstaller
+  ; the Start menu (ooRexx's folder): the books (in ooRexx's doc folder,
+  ; with ooRexx's own), or else the guide; the samples' README (Markdown:
+  ; opened with Notepad, which shows it on Windows 11), the samples'
+  ; folder, the uninstaller
   CreateDirectory "${SMDOCS}"
+!ifdef BOOKSDIR
+  SetOutPath "$INSTDIR\doc"
+  File "${BOOKSDIR}\dotnetref.pdf"
+  File "${BOOKSDIR}\dotnetcookbook.pdf"
+  SetOutPath "$PLUGINSDIR"
+  CreateShortCut "${SMDOCS}\ooRexx and .NET - Reference.lnk" "$INSTDIR\doc\dotnetref.pdf"
+  CreateShortCut "${SMDOCS}\ooRexx and .NET - Cookbook.lnk" "$INSTDIR\doc\dotnetcookbook.pdf"
+!else
   CreateShortCut "${SMDOCS}\ooRexx and .NET - Guide.lnk" "$WINDIR\notepad.exe" '"${SAMPLES}\guide.md"'
+!endif
   CreateDirectory "${SMSAMPLES}"
   CreateShortCut "${SMSAMPLES}\ooRexx and .NET samples.lnk" "${SAMPLES}"
   CreateShortCut "${SMSAMPLES}\ooRexx and .NET samples - README.lnk" "$WINDIR\notepad.exe" '"${SAMPLES}\README.md"'
@@ -345,7 +357,7 @@ SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "The bridge (net.cls, its libraries), \
-    oodnet.cls, the samples and the guide."
+    oodnet.cls, the samples and the books."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecClr} "CLR.CLS (BSF4ooRexx's CLR.CLS API, on \
     this bridge) is installed beside rexx.exe unless another CLR.CLS (BSF4ooRexx's) \
     would be found first: its programs keep it. Choose this to install ours anyway."
@@ -393,6 +405,11 @@ Section "Uninstall"
     ${EndIf}
   ${EndIf}
   Delete "${SMDOCS}\ooRexx and .NET - Guide.lnk"
+  Delete "${SMDOCS}\ooRexx and .NET - Reference.lnk"
+  Delete "${SMDOCS}\ooRexx and .NET - Cookbook.lnk"
+  Delete "$INSTDIR\doc\dotnetref.pdf"
+  Delete "$INSTDIR\doc\dotnetcookbook.pdf"
+  RMDir "$INSTDIR\doc"          ; only if empty (a portable ooRexx may have had none)
   Delete "${SMSAMPLES}\ooRexx and .NET samples.lnk"
   Delete "${SMSAMPLES}\ooRexx and .NET samples - README.lnk"
   Delete "${SMFOLDER}\Uninstall ooRexx-.NET.lnk"

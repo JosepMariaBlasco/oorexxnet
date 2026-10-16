@@ -1,0 +1,132 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckStart"><title>Getting Started</title>
+<indexterm><primary>getting started</primary></indexterm>
+
+<para>This chapter installs the bridge, and runs the smallest programs
+in both directions: Rexx using .NET, and C# using Rexx.</para>
+
+<section id="ckInstall"><title>Installing</title>
+<indexterm><primary>installing</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to use .NET from your Rexx programs, without building anything.</para>
+<para><emphasis role="bold">How it works.</emphasis> You need ooRexx 5, 64-bit (<command>rexx -v</command> works in a
+terminal), and .NET 8 or later, 64-bit: the runtime is enough. On Windows,
+install the <emphasis>.NET Desktop Runtime, x64</emphasis>, which adds Windows
+Forms, from <ulink url="https://dotnet.microsoft.com/download">https://dotnet.microsoft.com/download</ulink>.
+The bridge comes from the project's releases page,
+<ulink url="https://github.com/JosepMariaBlasco/oorexxnet/releases">https://github.com/JosepMariaBlasco/oorexxnet/releases</ulink>.</para>
+<para><emphasis role="bold">On Windows</emphasis>, download
+<filename>oorexxnet-</filename><replaceable>version</replaceable><filename>-setup.exe</filename>
+and run it. It finds your ooRexx and .NET (and says where to get .NET if it is
+missing), installs the bridge into ooRexx, puts these books in ooRexx's
+<filename>doc</filename> folder and, with the samples, in ooRexx's Start menu
+folder, and can be uninstalled from Settings &gt; Apps. It is not signed:
+Windows may say "Windows protected your PC" (More info, then Run anyway), as
+for ooRexx's own installer.</para>
+<para><emphasis role="bold">On any system</emphasis>, download the zip
+<filename>rexxnet-</filename><replaceable>version</replaceable><filename>.zip</filename>
+(Windows, Linux and macOS in one), unzip it, open a terminal in the folder
+<filename>rexxnet</filename>, and run its installer:</para>
+<screen>rexx install</screen>
+<para>(As administrator on Windows, or with
+<command>sudo</command> on Linux and macOS, when ooRexx is in a system
+folder). It puts the bridge into the ooRexx that runs it, copies the samples
+into ooRexx's samples folder, under <filename>dotnet</filename>, checks it
+all, and ends with <literal>ooRexx/.NET: installed and OK</literal>.
+<command>rexx oorexxnet-uninstall</command> removes it.</para>
+<para><emphasis role="bold">For a .NET program</emphasis> that runs Rexx code,
+reference the NuGet package instead: <command>dotnet add package Rexx.Net --prerelease</command>.
+It needs an installed ooRexx.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Introduction</emphasis>, <emphasis>Windows, Linux and macOS</emphasis>.</para>
+</section>
+
+<section id="ckHello"><title>Using .NET from Rexx</title>
+<indexterm><primary>.net</primary></indexterm>
+<indexterm><primary>net.cls</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to call .NET from a Rexx program.</para>
+<example id="ex.ckHello">
+<title>Using .NET from Rexx</title>
+<programlisting language="rexx">say .net~System~Math~Sqrt(2)
+say .net~System~Environment~ProcessorCount &gt; 0
+sb = .net~System~Text~StringBuilder~new("Hello")
+sb~Append(", ")~Append("world")~Append("!")
+say sb~ToString "("sb~Length "characters)"
+
+::requires "net.cls"</programlisting>
+<screen>1.4142135623730951
+1
+Hello, world! (13 characters)</screen>
+</example>
+<para>Run it as any Rexx program: <command>rexx hello.rex</command>.</para>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>::requires "net.cls"</computeroutput> loads the
+bridge, and defines &net;, the root of .NET's namespaces. Going down by name
+reaches a namespace (<literal>System</literal>), then a type
+(<literal>System.Math</literal>), whose messages are its static members:
+<computeroutput>.net~System~Math~Sqrt(2)</computeroutput> is C#'s
+<literal>Math.Sqrt(2)</literal>. <methodname>new</methodname> makes an
+instance, whose messages are its members: a method call
+(<computeroutput>sb~Append(", ")</computeroutput>), or a property read
+(<computeroutput>sb~Length</computeroutput>). Names are caseless. Numbers come
+back as Rexx strings, and <literal>bool</literal>s as <literal>1</literal> and
+<literal>0</literal>: a .NET object is a Rexx object, and a .NET value a Rexx
+value.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Introduction</emphasis>, <emphasis>Names and Messages</emphasis>.</para>
+</section>
+
+<section id="ckFromCSharp"><title>Running Rexx from C#</title>
+<indexterm><primary>C#</primary></indexterm>
+<indexterm><primary>RexxInterpreter class</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to run Rexx code from a C# program.</para>
+<example id="ex.ckFromCSharp">
+<title>Running Rexx from C#</title>
+<programlisting language="csharp">using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+Console.WriteLine(rexx.Run&lt;int&gt;("use arg a, b; return a * b", 6, 7));
+var twice = rexx.Compile("twice", "use arg x; return 2 * x");
+Console.WriteLine(twice.Call&lt;int&gt;(21));
+rexx.Run("say 'Hello from Rexx'");</programlisting>
+<screen>42
+42
+REXXout&gt;Hello from Rexx</screen>
+</example>
+<para>In a console project (<command>dotnet new console</command>) with the
+package (<command>dotnet add package Rexx.Net --prerelease</command>), run it
+with <command>dotnet run</command>.</para>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>RexxInterpreter.Create()</computeroutput> creates an
+ooRexx interpreter instance, which <literal>using</literal> ends at the end.
+<methodname>Run</methodname> runs Rexx code as a routine: its arguments are
+<literal>USE ARG</literal>'s, its <literal>RETURN</literal> is the result,
+converted by <methodname>Run&lt;int&gt;</methodname>. <methodname>Compile</methodname>
+keeps a routine to call many times. What the Rexx code says goes to the
+console, marked <literal>REXXout&gt;</literal>, so that it stands out from the
+application's own output; <xref linkend="ckOutput"/> takes it into the
+application instead.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>.NET Using ooRexx: the Rexx.Net API</emphasis>.</para>
+</section>
+
+<section id="ckSamples"><title>Running the Samples</title>
+<indexterm><primary>samples</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> more programs to read and run.</para>
+<para><emphasis role="bold">How it works.</emphasis> The installer copies the project's samples into ooRexx's samples
+folder, under <filename>dotnet</filename>: <filename>rexx</filename>
+(every system: collections, files, regular expressions, JSON, events, tasks,
+the event thread), <filename>windows</filename> (Windows Forms, dialogs, the
+registry, the clipboard), <filename>office</filename> and
+<filename>libreoffice</filename> (each program written twice, with ooRexx's
+<classname>OLEObject</classname> and through the bridge),
+<filename>oorexx-ole</filename> (ooRexx's own OLE samples, through the
+bridge), <filename>oodialog-net</filename> (ooDialog's samples rewritten for
+Windows Forms, with a porting guide), and the C#, VB.NET and PowerShell
+programs that run Rexx. Each runs with <command>rexx NAME.rex</command>; most
+of them, given <literal>auto</literal>, run by themselves and close their
+windows. <command>rexx check.rex</command> checks the installation.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Introduction</emphasis>.</para>
+</section>
+
+</chapter>

@@ -1,0 +1,226 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="com"><title>COM Objects (Windows)</title>
+<indexterm><primary>COM</primary></indexterm>
+<indexterm><primary>OLE</primary></indexterm>
+<indexterm><primary>OLEObject class</primary><secondary>and the bridge</secondary></indexterm>
+
+<para>On Windows, the bridge also reaches COM objects (Excel, Word, the
+<literal>Scripting</literal> objects, WMI, any automation server) through
+<literal>IDispatch</literal>, late-bound, as ooRexx's own
+<classname>OLEObject</classname> and C#'s <literal>dynamic</literal> reach
+them, and with the same Rexx syntax as any <classname>NetObject</classname>.
+A program written for <classname>OLEObject</classname> changes little to use
+the bridge (<xref linkend="comFromOLEObject"/>), and gets .NET in the same
+program: its collections, its dates, Windows Forms.</para>
+
+<section id="comObjects"><title>Creating and Using COM Objects</title>
+<para><computeroutput>.net~createObject(progid)</computeroutput> creates a COM
+object (<xref linkend="mthNetCreateObject" xrefstyle="select:title"/>). It is
+a <classname>NetObject</classname> whose messages are those of
+<literal>IDispatch</literal>: by name, caseless, as a method call or a
+property read (servers take either); <computeroutput>o~Name = v</computeroutput>
+sets a property; <computeroutput>o[i]</computeroutput> and
+<computeroutput>o[i] = v</computeroutput> are the default member;
+<literal>DO OVER</literal> enumerates a COM collection. The COM objects that a
+COM object returns are such objects too. An unknown name is SYNTAX 97.1; any
+other failure, SYNTAX 98.900 with the <literal>COMException</literal>.</para>
+<para><computeroutput>.net~releaseObject(o)</computeroutput> releases the
+object at once, so that its server (an Excel process) can end now rather
+than at .NET's next collection.</para>
+
+<example id="ex.com-dictionary" condition="windows">
+<title>A COM object</title>
+<programlisting language="rexx">d = .net~createObject("Scripting.Dictionary")
+d~Add("a", 1); d~Add("b", "two")
+say d~Count d~Item("b") d~ITEM("b") d~Exists("a") d~Exists("zz")
+d~Add("z", .net~box("string", "007")); d~Add("n", "007")
+say d~Item("z") d~Item("n")
+say d~Keys~items d["b"]
+
+::requires "net.cls"</programlisting>
+<screen>2 two two 1 0
+007 7
+4 two</screen>
+</example>
+</section>
+
+<section id="comArguments"><title>Arguments</title>
+<indexterm><primary>named arguments</primary></indexterm>
+<para>A COM method declares <literal>VARIANT</literal> parameters, which say
+nothing about the value they want, so the bridge sends what
+<classname>OLEObject</classname> sends:</para>
+<itemizedlist>
+<listitem><para>&true; and &false; themselves: booleans
+(<literal>VT_BOOL</literal>).</para></listitem>
+<listitem><para>A Rexx number: an <literal>int</literal> if it is whole and
+fits in 32 bits, else a <literal>double</literal>. So <literal>"007"</literal>
+is 7; <computeroutput>.net~box("string", "007")</computeroutput> keeps the
+text.</para></listitem>
+<listitem><para>An Array: a <literal>SAFEARRAY</literal> of its rank, its items
+converted the same way (Excel: <computeroutput>range~Value = grid</computeroutput>,
+a two-dimensional Array).</para></listitem>
+<listitem><para>An omitted argument, and &nil;: "not given", for the method's
+optional parameters (<computeroutput>fso~OpenTextFile(file, , .true)</computeroutput>).</para></listitem>
+<listitem><para>A <classname>NetRef</classname>: by reference, as an
+<classname>OLEVariant</classname> (ADO's <computeroutput>conn~Execute(sql, n)</computeroutput>,
+then <computeroutput>n~value</computeroutput>).</para></listitem>
+<listitem><para><computeroutput>.net~named(name, value)</computeroutput>: a
+named argument, VBA's <literal>name:=value</literal>, anywhere among the
+others: <computeroutput>excel~Workbooks~Open(file, .net~named("ReadOnly", .true))</computeroutput>.
+<classname>OLEObject</classname> has none.</para></listitem>
+</itemizedlist>
+<para>A result that is <literal>VT_NULL</literal> or <literal>VT_EMPTY</literal>
+is &nil;, as with <classname>OLEObject</classname> (WMI answers it for
+properties without a value).</para>
+<para><emphasis role="bold">The language of each call.</emphasis> Every call
+is made in English (US), as VBA makes them, so Excel reads
+<literal>=SUM(...)</literal> on any Windows. <computeroutput>.net~createObject(progid, "user")</computeroutput>
+makes the calls in the user's language instead, as
+<classname>OLEObject</classname> does (a Spanish Windows:
+<literal>=SUMA(...)</literal>), and a culture name (<literal>"es-ES"</literal>)
+in that one; the objects it returns keep that language.</para>
+<para><emphasis role="bold">A busy server</emphasis> (Excel with a dialog open)
+refuses calls for a while: the bridge tries again, waiting longer each time,
+for up to 10 seconds, as VBA does, before it raises the error.</para>
+</section>
+
+<section id="comExisting"><title>Objects That Already Exist</title>
+<para><computeroutput>.net~getObject(moniker)</computeroutput> is the object a
+moniker names, as <classname>OLEObject</classname>'s
+<methodname>GetObject</methodname> and VBA's <literal>GetObject(path)</literal>
+give it: a document (opened by its application), or WMI through
+<literal>"winmgmts:"</literal>. <computeroutput>.net~getActiveObject(progid)</computeroutput>
+is the running instance of a class (VBA's <literal>GetObject(, "Excel.Application")</literal>):
+an Excel opened by hand; an error if none runs. Office registers itself as
+running when it is started by hand, not when it is started by automation.
+Both take the language as <methodname>createObject</methodname> does.</para>
+
+<example id="ex.com-wmi">
+<title>WMI through a moniker</title>
+<programlisting language="rexx">wmi = .net~getObject("winmgmts:\\.\root\cimv2")
+do os over wmi~ExecQuery("select Caption, Version from Win32_OperatingSystem")
+  say os~Caption os~Version
+end
+
+::requires "net.cls"</programlisting>
+</example>
+</section>
+
+<section id="comConstants"><title>Constants and Type Information</title>
+<para><computeroutput>.net~getConstant(o, name)</computeroutput> is a constant
+of the type library that <literal>o</literal> comes from, as
+<classname>OLEObject</classname>'s <computeroutput>o~getConstant(name)</computeroutput>:
+<computeroutput>.net~getConstant(excel, "xlHAlignRight")</computeroutput>,
+caseless, &nil; if there is none; <computeroutput>.net~getConstant(o)</computeroutput>
+gives them all, a <classname>StringTable</classname>. Each library has its
+own: DAO's <literal>dbText</literal> comes with a DAO object, not with
+<literal>Access.Application</literal>.</para>
+<para><computeroutput>.net~getKnownMethods(o)</computeroutput> and
+<computeroutput>.net~getKnownEvents(o)</computeroutput> give the same stems as
+<classname>OLEObject</classname>'s <methodname>getKnownMethods</methodname>
+and <methodname>getKnownEvents</methodname>, from the object's type
+information; the first also has <literal>!PROGID</literal> and
+<literal>!CLSID</literal>, <classname>OLEObject</classname>'s
+<methodname>progid</methodname> and <methodname>clsid</methodname>.
+<computeroutput>.net~events(o)</computeroutput> lists the names of the
+events.</para>
+
+<example id="ex.com-constants" condition="windows">
+<title>Type library constants</title>
+<programlisting language="rexx">fso = .net~createObject("Scripting.FileSystemObject")
+say .net~getConstant(fso, "ForAppending") .net~getConstant(fso, "temporaryfolder")
+say .net~getConstant(fso, "NoSuchConstant")
+temp = fso~GetSpecialFolder(.net~getConstant(fso, "TemporaryFolder"))
+say fso~FolderExists(temp~Path)
+
+::requires "net.cls"</programlisting>
+<screen>8 2
+The NIL object
+1</screen>
+</example>
+</section>
+
+<section id="comEvents"><title>Events</title>
+<para>A COM object's events are .NET events, with the same syntax:
+<computeroutput>o~Name += h</computeroutput>, <computeroutput>o~Name -= h</computeroutput>,
+<computeroutput>.net~addHandler(o, "Name", h)</computeroutput>, any object and
+method, added and removed at any time (<classname>OLEObject</classname>
+instead calls methods of the object itself, made <literal>"WITHEVENTS"</literal>).
+The method gets the event's parameters; one passed by reference arrives as a
+<literal>Rexx.Net.ComRef</literal>, and <computeroutput>ref~Value = x</computeroutput>
+gives the event's source a new value when the method returns: Excel's
+<literal>Cancel</literal>.</para>
+<para>COM delivers the events of another process (Excel) to a Rexx thread
+while that thread waits in .NET: during a call to the COM object (the events
+it causes), in <computeroutput>.net~nextEvent(seconds)</computeroutput>, or in
+<computeroutput>.net~eventLoop</computeroutput>. Where an
+<classname>OLEObject</classname> program waits with
+<computeroutput>call SysSleep 1</computeroutput>, wait with
+<computeroutput>.net~nextEvent(1)</computeroutput>. Every Rexx thread that uses
+the bridge is a single-threaded apartment (STA), as .NET's user interface
+threads and PowerShell's are (<xref linkend="platformsWindows"/>).</para>
+
+<example id="ex.com-excel" condition="office">
+<title>Excel's events, one of them cancelled</title>
+<programlisting language="rexx">excel = .net~createObject("Excel.Application")
+w = .Watcher~new
+excel~SheetChange += .net~handler(w, "CHANGED")
+excel~WorkbookBeforeClose += .net~handler(w, "CLOSING")
+book = excel~Workbooks~Add
+book~Worksheets~Item(1)~Range("A1")~Value = 42    -- SheetChange, during the call
+book~Close(.false)                                  -- refused by CLOSING
+say excel~Workbooks~Count
+excel~DisplayAlerts = .false; excel~Quit; .net~releaseObject(excel)
+
+::requires "net.cls"
+::class Watcher
+::method changed
+  use arg sheet, range
+  say "changed:" range~Address
+::method closing
+  use arg book, cancel
+  cancel~Value = .true</programlisting>
+<screen>changed: $A$1
+1</screen>
+</example>
+</section>
+
+<section id="comFromOLEObject"><title>From OLEObject</title>
+<table id="tabFromOLEObject" frame="all" pgwide="1">
+<title>OLEObject and the bridge</title>
+<tgroup cols="2">
+<colspec colwidth="1*"/><colspec colwidth="1*"/>
+<thead><row><entry>OLEObject</entry><entry>The bridge</entry></row></thead>
+<tbody>
+<row><entry><computeroutput>.OLEObject~new(progID)</computeroutput></entry><entry><computeroutput>.net~createObject(progID)</computeroutput>, and <computeroutput>::requires "net.cls"</computeroutput></entry></row>
+<row><entry><computeroutput>.OLEObject~GetObject(moniker)</computeroutput></entry><entry><computeroutput>.net~getObject(moniker)</computeroutput></entry></row>
+<row><entry><computeroutput>.OLEObject~new(progID, , .true)</computeroutput> (the running one)</entry><entry><computeroutput>.net~getActiveObject(progID)</computeroutput> (an error if none runs)</entry></row>
+<row><entry><computeroutput>o~method(args)</computeroutput>, <computeroutput>o~property</computeroutput>, <computeroutput>o~property = v</computeroutput>, <computeroutput>o[i]</computeroutput>, <computeroutput>DO x OVER o</computeroutput></entry><entry>the same</entry></row>
+<row><entry><computeroutput>o~getConstant(name)</computeroutput></entry><entry><computeroutput>.net~getConstant(o, name)</computeroutput>; all: <computeroutput>.net~getConstant(o)</computeroutput></entry></row>
+<row><entry><computeroutput>o~getKnownMethods</computeroutput>, <computeroutput>o~getKnownEvents</computeroutput></entry><entry><computeroutput>.net~getKnownMethods(o)</computeroutput>, <computeroutput>.net~getKnownEvents(o)</computeroutput></entry></row>
+<row><entry><computeroutput>o~progid</computeroutput>, <computeroutput>o~clsid</computeroutput></entry><entry><computeroutput>.net~getKnownMethods(o)</computeroutput>'s <literal>!PROGID</literal>, <literal>!CLSID</literal></entry></row>
+<row><entry><computeroutput>.OLEVariant~new(v)</computeroutput> by reference</entry><entry><computeroutput>.net~ref(v)</computeroutput>, then <computeroutput>~value</computeroutput></entry></row>
+<row><entry>a string that must stay a string</entry><entry><computeroutput>.net~box("string", "007")</computeroutput></entry></row>
+<row><entry><literal>"WITHEVENTS"</literal>, <methodname>addEventMethod</methodname>, <methodname>connectEvents</methodname></entry><entry><computeroutput>o~Name += .net~handler(object, message)</computeroutput> (<literal>-=</literal> to disconnect)</entry></row>
+<row><entry>an event's parameter by reference</entry><entry>a <literal>Rexx.Net.ComRef</literal>: <computeroutput>ref~Value = .true</computeroutput></entry></row>
+<row><entry><computeroutput>call SysSleep 1</computeroutput> while events come</entry><entry><computeroutput>.net~nextEvent(1)</computeroutput> (or <computeroutput>.net~eventLoop</computeroutput>)</entry></row>
+<row><entry><computeroutput>o~dispatch(name)</computeroutput> (a name Rexx also has)</entry><entry><computeroutput>.net~invoke(o, name)</computeroutput></entry></row>
+<row><entry>no named arguments</entry><entry><computeroutput>.net~named(name, value)</computeroutput></entry></row>
+<row><entry>the user's language for every call</entry><entry>English (US), as VBA; the user's: <computeroutput>.net~createObject(progID, "user")</computeroutput></entry></row>
+<row><entry><computeroutput>drop o</computeroutput> (released at the next collection)</entry><entry><computeroutput>.net~releaseObject(o)</computeroutput> (the server can end now)</entry></row>
+</tbody>
+</tgroup>
+</table>
+<para>The project's <filename>samples/office</filename> has Excel, Word and
+PowerPoint programs written twice, with <classname>OLEObject</classname> and
+through the bridge, events included; <filename>samples/oorexx-ole</filename>
+has the OLE samples that come with ooRexx for Windows, through the
+bridge.</para>
+</section>
+
+</chapter>

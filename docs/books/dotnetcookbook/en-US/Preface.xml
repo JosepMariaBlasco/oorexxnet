@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE preface PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<preface id="pref-dotnetcookbook-Preface">
+<title>Preface</title>
+
+<para>This book is a collection of recipes for ooRexx/.NET, the bridge
+between Open Object Rexx and .NET. Each recipe starts from something you want
+to do, gives a complete program that does it, shows what the program prints,
+and explains how it works. Read the first chapter first; the others in any
+order.</para>
+
+<para>Every program that does not need Windows is run, and its output
+checked, by the project's tests on Linux, macOS and Windows, so what you read
+is what the bridge does. Programs that need Windows say so; those that open
+windows or need Office are shown without their output.</para>
+
+<para>Its companion, <citetitle pubwork="book">ooRexx and .NET: Reference</citetitle>,
+describes every class and method, and the rules behind the recipes; each
+recipe ends with the sections of the reference to read next. .NET's own
+classes are documented at
+<ulink url="https://learn.microsoft.com/dotnet/api/">https://learn.microsoft.com/dotnet/api/</ulink>.</para>
+
+</preface>

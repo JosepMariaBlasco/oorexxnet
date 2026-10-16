@@ -1,0 +1,115 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckExtending"><title>Rexx Classes for .NET</title>
+
+<para>A Rexx class can be a .NET class: <computeroutput>.net~extend</computeroutput>
+makes a .NET type whose overrides are the class's methods. .NET code then
+uses Rexx objects where it wants its own types: a comparer for its sorts, an
+observable object for a user interface, a writer for its output.</para>
+
+<section id="ckComparer"><title>A Comparer for .NET's Sorts</title>
+<indexterm><primary>IComparer</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to give .NET an object that implements one of its interfaces.</para>
+<example id="ex.ckComparer">
+<title>A Comparer for .NET's Sorts</title>
+<programlisting language="rexx">.net~extend(.ByLength, "System.Collections.Generic.IComparer&lt;System.String&gt;")
+list = .net~type("System.Collections.Generic.List&lt;System.String&gt;")~new
+do w over "ccc a bb dddd"~makeArray(" "); list~Add(w); end
+list~Sort(.ByLength~new)
+say list~ToArray~makeString("L", " ")
+sorted = .net~type("System.Collections.Generic.SortedSet&lt;System.String&gt;")~new(.ByLength~new)
+do w over "kiwi fig banana"~makeArray(" "); sorted~Add(w); end
+say sorted~makeArray~makeString("L", " ")
+
+::requires "net.cls"
+::class ByLength subclass NetObject
+::method Compare
+  use arg a, b
+  return sign(a~length - b~length)</programlisting>
+<screen>a bb ccc dddd
+fig kiwi banana</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>.net~extend(.ByLength, "System.Collections.Generic.IComparer&lt;System.String&gt;")</computeroutput>
+makes a .NET type that implements the interface with the class's methods:
+<methodname>Compare</methodname> is <literal>IComparer.Compare</literal>.
+<computeroutput>.ByLength~new</computeroutput> is then a Rexx object and a .NET
+object at once, which .NET's <methodname>Sort</methodname> and
+<literal>SortedSet</literal> use as any comparer. The class must be a subclass
+of <classname>NetObject</classname>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Rexx Classes and .NET Classes</emphasis>.</para>
+</section>
+
+<section id="ckNotify"><title>An Observable Object</title>
+<indexterm><primary>INotifyPropertyChanged</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> an object whose changes .NET code (a WPF binding) can watch.</para>
+<example id="ex.ckNotify">
+<title>An Observable Object</title>
+<programlisting language="rexx">p = .Person~new
+p~PropertyChanged += .net~handler(.Watcher~new, "CHANGED")
+p~setName("Ann")
+p~setName("Bob")
+
+::requires "net.cls"
+::class Person subclass NetObject
+::method activate class
+  .net~extend(self, "System.ComponentModel.INotifyPropertyChanged")
+::method setName
+  expose name
+  use arg name
+  args = .net~System~ComponentModel~PropertyChangedEventArgs~new("Name")
+  self~raise.PropertyChanged(self, args)
+::method name
+  expose name
+  return name
+::class Watcher
+::method changed
+  use arg sender, e
+  say e~PropertyName "is now" sender~name</programlisting>
+<screen>Name is now Ann
+Name is now Bob</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> An interface's event is an event of the new type, which any .NET code,
+and Rexx code, can subscribe to. The object raises it with
+<computeroutput>self~raise.PropertyChanged(...)</computeroutput>, a private
+method that only its own methods can call, as in C#. The class's
+<methodname>activate</methodname> class method extends it when the class is
+created, before any instance.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Rexx Classes and .NET Classes</emphasis>, <emphasis>Generic Methods, ref and out, Events</emphasis>.</para>
+</section>
+
+<section id="ckOverride"><title>Overriding a .NET Class</title>
+<indexterm><primary>override</primary></indexterm>
+<indexterm><primary>protected members</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> a .NET class whose behaviour is changed in Rexx, as a C# subclass
+changes it.</para>
+<example id="ex.ckOverride">
+<title>Overriding a .NET Class</title>
+<programlisting language="rexx">c = .Shouting~new
+c~Add("hello"); c~Insert(0, "world")
+say c[0] c[1] c~Count
+
+::requires "net.cls"
+::class Shouting subclass NetObject
+::method activate class
+  .net~extend(self, "System.Collections.ObjectModel.Collection&lt;System.String&gt;")
+::method InsertItem              -- protected virtual void InsertItem(int index, string item)
+  use arg index, item
+  self~InsertItem:super(index, item~upper)</programlisting>
+<screen>WORLD HELLO 2</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <literal>Collection&lt;T&gt;</literal> calls its protected virtual
+<methodname>InsertItem</methodname> for every <methodname>Add</methodname> and
+<methodname>Insert</methodname>; the Rexx method overrides it, and
+<computeroutput>self~InsertItem:super(...)</computeroutput> calls the base's
+implementation, C#'s <literal>base.InsertItem</literal>. On Windows, the
+sample <filename>windows/forms-extend.rex</filename> is a
+<literal>Form</literal> whose <methodname>OnPaint</methodname> and
+<methodname>OnResize</methodname> are Rexx methods.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Rexx Classes and .NET Classes</emphasis>.</para>
+</section>
+
+</chapter>

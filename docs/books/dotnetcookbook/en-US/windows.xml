@@ -1,0 +1,135 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckWindows"><title>Windows</title>
+
+<para>On Windows, the bridge reaches the desktop framework (Windows
+Forms, WPF, system dialogs) and COM objects (Office, WMI, the scripting
+objects). These programs need Windows, and the .NET Desktop Runtime for the
+windows.</para>
+
+<section id="ckForms"><title>A Window</title>
+<indexterm><primary>Windows Forms</primary></indexterm>
+<indexterm><primary>Form</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> a window with a few controls, whose events run Rexx methods.</para>
+<example id="ex.ckForms" condition="windows-interactive">
+<title>A Window</title>
+<programlisting language="rexx">forms = .net~System~Windows~Forms
+drawing = .net~System~Drawing
+form = forms~Form~new
+form~Text = "Hello from Rexx"
+form~ClientSize = drawing~Size~new(300, 90)
+form~StartPosition = "CenterScreen"
+box = forms~TextBox~new
+box~Location = drawing~Point~new(12, 12); box~Width = 180
+button = forms~Button~new
+button~Text = "Greet"; button~Location = drawing~Point~new(204, 10)
+label = forms~Label~new
+label~Location = drawing~Point~new(12, 50); label~AutoSize = .true
+form~Controls~Add(box); form~Controls~Add(button); form~Controls~Add(label)
+form~AcceptButton = button
+button~Click += .net~handler(.Greeter~new(box, label), "CLICK")
+forms~Application~Run(form)
+
+::requires "net.cls"
+::class Greeter
+::method init
+  expose box label
+  use arg box, label
+::method click
+  expose box label
+  use arg sender, e
+  label~Text = "Hello," box~Text"!"</programlisting>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> Controls are .NET objects, set up through their properties (an enum
+property takes the value's name: <literal>"CenterScreen"</literal>), and a
+<literal>Click</literal> handler is a Rexx method.
+<computeroutput>Application~Run(form)</computeroutput> shows the window and
+runs its events on this thread until it closes; the handler runs on it too,
+nested in that call. The sample <filename>windows/forms-hello.rex</filename> is
+this program, a little longer.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Callbacks, Events and Tasks</emphasis>, <emphasis>Windows, Linux and macOS</emphasis>.</para>
+</section>
+
+<section id="ckDialogs"><title>Message Boxes and File Dialogs</title>
+<indexterm><primary>MessageBox</primary></indexterm>
+<indexterm><primary>OpenFileDialog</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to ask the user something, or to let them choose a file.</para>
+<example id="ex.ckDialogs" condition="windows-interactive">
+<title>Message Boxes and File Dialogs</title>
+<programlisting language="rexx">forms = .net~System~Windows~Forms
+answer = forms~MessageBox~Show("Do you like Rexx?", "Question", "YesNo", "Question")
+if answer = "Yes" then say "Of course."
+d = forms~OpenFileDialog~new
+d~Filter = "Rexx programs (*.rex)|*.rex|All files (*.*)|*.*"
+if d~ShowDialog = "OK" then say "You chose" d~FileName
+
+::requires "net.cls"</programlisting>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <methodname>MessageBox.Show</methodname> takes its buttons and its icon
+as enum names, and answers the button chosen, a <literal>DialogResult</literal>
+compared with its name. The common dialogs need a single-threaded apartment,
+which the bridge makes every Rexx thread on Windows.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Windows, Linux and macOS</emphasis>.</para>
+</section>
+
+<section id="ckExcel"><title>Excel, as with OLEObject</title>
+<indexterm><primary>Excel</primary></indexterm>
+<indexterm><primary>COM</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to drive Excel (or Word, or any automation server), and handle its
+events.</para>
+<example id="ex.ckExcel" condition="office">
+<title>Excel, as with OLEObject</title>
+<programlisting language="rexx">excel = .net~createObject("Excel.Application")
+book = excel~Workbooks~Add
+sheet = book~Worksheets~Item(1)
+grid = .array~new(2, 2)
+grid[1, 1] = "Item"; grid[1, 2] = "Price"
+grid[2, 1] = "Tea";  grid[2, 2] = 3.5
+sheet~Range("A1:B2")~Value = grid
+sheet~Range("B3")~Formula = "=SUM(B2:B2)"
+say sheet~Range("B3")~Value
+book~Close(.false); excel~Quit; .net~releaseObject(excel)
+
+::requires "net.cls"</programlisting>
+<screen>3.5</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>.net~createObject(progID)</computeroutput> is
+<computeroutput>.OLEObject~new(progID)</computeroutput>, with the same messages.
+A two-dimensional Rexx Array goes to Excel as a two-dimensional
+<literal>SAFEARRAY</literal>, a whole range at once. Calls are made in
+English, as VBA's are, so <literal>=SUM(...)</literal> works on any Windows.
+<computeroutput>.net~releaseObject(excel)</computeroutput> lets Excel's process
+end now. The project's <filename>samples/office</filename> has Excel, Word and
+PowerPoint programs written twice, with <classname>OLEObject</classname> and
+through the bridge, events included.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>COM Objects (Windows)</emphasis>.</para>
+</section>
+
+<section id="ckWmi"><title>Asking Windows About Itself</title>
+<indexterm><primary>WMI</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> information about the computer: its system, its disks, its
+processes.</para>
+<example id="ex.ckWmi" condition="windows-shown">
+<title>Asking Windows About Itself</title>
+<programlisting language="rexx">wmi = .net~getObject("winmgmts:\\.\root\cimv2")
+do os over wmi~ExecQuery("select Caption, Version from Win32_OperatingSystem")
+  say os~Caption os~Version
+end
+do d over wmi~ExecQuery("select DeviceID, FreeSpace from Win32_LogicalDisk where DriveType = 3")
+  say d~DeviceID (d~FreeSpace % 2**30) "GB free"
+end
+
+::requires "net.cls"</programlisting>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>.net~getObject("winmgmts:")</computeroutput> is WMI,
+through a moniker, as <computeroutput>.OLEObject~GetObject</computeroutput>
+gives it; its queries are walked with <literal>DO OVER</literal>. A property
+without a value is &nil;.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>COM Objects (Windows)</emphasis>, <emphasis>Objects That Already Exist</emphasis>.</para>
+</section>
+
+</chapter>

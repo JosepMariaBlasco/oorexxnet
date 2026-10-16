@@ -62,6 +62,8 @@ jobs:
         run: bridge/tests/run.sh
       - name: The guide's examples
         run: rexx docs/check-guide.rex
+      - name: The books' examples
+        run: rexx docs/check-books.rex
       - name: Smoke tests
         if: runner.os == 'Linux'
         run: smoke/run.sh && smoke/hostapi/run.sh
@@ -111,6 +113,8 @@ jobs:
           exit $LASTEXITCODE
       - name: The guide's examples
         run: rexx docs\check-guide.rex "${{ runner.temp }}\build\rexxnet"
+      - name: The books' examples (the Windows ones too)
+        run: rexx docs\check-books.rex "${{ runner.temp }}\build\rexxnet"
       - name: PowerShell sample
         shell: pwsh
         run: .\samples\powershell\hello.ps1 "$env:RUNNER_TEMP\build\rexxnet"
@@ -142,6 +146,57 @@ jobs:
             ${{ runner.temp }}\build\rexxnet\rexxnet.dll
             ${{ runner.temp }}\build\rexxnet\Rexx.Net.runtimeconfig.json
             ${{ runner.temp }}\build\rexxnet\Rexx.Net.core.runtimeconfig.json
+
+  # The books (docs/books), as PDFs and HTML, with ooRexx's own documentation
+  # tools (docs/trunk/tools/bldoc_orx, from ooRexx's SVN) and the Rexx
+  # Parser, which highlights their Rexx listings: artifact books. (Their
+  # examples are run by the jobs above: docs/check-books.rex.)
+  books:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0                  # the tags: the books' version
+      - name: DocBook, xsltproc, FOP, Subversion
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq subversion xsltproc docbook-xml docbook-xsl fop fonts-liberation zip >/dev/null
+      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+        run: |
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/oorexx.zip" \
+            "$OOREXX_URL/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release.zip"
+          unzip -q "$RUNNER_TEMP/oorexx.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release/bin" >> "$GITHUB_PATH"
+      - name: ooRexx's documentation tools, and the Rexx Parser
+        run: |
+          U=https://svn.code.sf.net/p/oorexx/code-0/docs/trunk
+          mkdir -p "$RUNNER_TEMP/docSVN/tools"
+          svn export -q "$U/tools/bldoc_orx" "$RUNNER_TEMP/docSVN/tools/bldoc_orx"
+          svn export -q "$U/oorexx" "$RUNNER_TEMP/docSVN/oorexx"
+          P=https://rexx.epbcn.com/rexx-parser/
+          zip=$(curl -sSfL --retry 3 "$P" | grep -o 'Rexx-Parser-[^"/]*\.zip' | sort -u | tail -1)
+          echo "Rexx Parser: $zip"
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/parser.zip" "$P$zip"
+          mkdir -p "$RUNNER_TEMP/rexx-parser" && unzip -q "$RUNNER_TEMP/parser.zip" -d "$RUNNER_TEMP/rexx-parser"
+          test -f "$RUNNER_TEMP/rexx-parser/bin/Rexx.Parser.cls"
+      - name: Build the books
+        run: |
+          DOCS_SVN=$RUNNER_TEMP/docSVN REXX_PARSER=$RUNNER_TEMP/rexx-parser \
+          STAGE=$RUNNER_TEMP/books-build OUT=$RUNNER_TEMP/books scripts/build-books.sh
+      - uses: actions/upload-artifact@v6
+        with:
+          name: books
+          path: |
+            ${{ runner.temp }}/books/*.pdf
+            ${{ runner.temp }}/books/*-html.zip
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: books-logs
+          path: |
+            ${{ runner.temp }}/books-build/*.log
+            ${{ runner.temp }}/books-build/bldoc/log_files
 
   nuget:
     needs: [unix, windows]
@@ -245,7 +300,7 @@ jobs:
   # its own installer, ours silently, a sample from elsewhere with no
   # variables, the shortcuts and the entry in Settings > Apps, its uninstaller
   windows-installer:
-    needs: nuget
+    needs: [nuget, books]
     runs-on: windows-2022
     timeout-minutes: 20
     defaults:
@@ -260,13 +315,17 @@ jobs:
         with:
           name: binaries
           path: ${{ runner.temp }}/zip
+      - uses: actions/download-artifact@v7
+        with:
+          name: books
+          path: ${{ runner.temp }}/books
       - name: NSIS
         run: |
           if ! command -v makensis && [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
             choco install nsis -y --no-progress
           fi
       - name: Build the installer
-        run: bridge/windows-installer.sh "$RUNNER_TEMP"/zip/rexxnet-*.zip "$RUNNER_TEMP/dist"
+        run: bridge/windows-installer.sh --books "$RUNNER_TEMP/books" "$RUNNER_TEMP"/zip/rexxnet-*.zip "$RUNNER_TEMP/dist"
       - uses: actions/upload-artifact@v6
         with:
           name: installer
@@ -306,7 +365,9 @@ jobs:
           test -f "$R/samples/dotnet/guide.md"
           SM="/c/ProgramData/Microsoft/Windows/Start Menu/Programs/Open Object Rexx"
           ls -R "$SM" | grep -i "\.NET"
-          test -f "$SM/ooRexx Documentation/ooRexx and .NET - Guide.lnk"
+          test -f "$SM/ooRexx Documentation/ooRexx and .NET - Reference.lnk"
+          test -f "$SM/ooRexx Documentation/ooRexx and .NET - Cookbook.lnk"
+          test -f "$R/doc/dotnetref.pdf" && test -f "$R/doc/dotnetcookbook.pdf"
           test -f "$SM/ooRexx Samples/ooRexx and .NET samples.lnk"
           test -f "$SM/Uninstall ooRexx-.NET.lnk"
           reg query 'HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\ooRexxNet' /reg:32
@@ -322,7 +383,7 @@ jobs:
         run: |
           R="/c/Program Files/ooRexx"
           # (not "! test ...": bash -e does not stop on a negated command)
-          for f in rexxnet.dll net.cls oodnet.cls Rexx.Net.dll oorexxnet-uninstall.rex oorexxnet-installed.txt samples/dotnet; do
+          for f in rexxnet.dll net.cls oodnet.cls Rexx.Net.dll oorexxnet-uninstall.rex oorexxnet-installed.txt samples/dotnet doc/dotnetref.pdf doc/dotnetcookbook.pdf; do
             if [ -e "$R/$f" ]; then echo "still there: $f"; exit 1; fi
           done
           if ls -R "/c/ProgramData/Microsoft/Windows/Start Menu/Programs/Open Object Rexx" | grep -i "\.NET"; then exit 1; fi
@@ -331,7 +392,7 @@ jobs:
 
   publish:
     if: github.ref_type == 'tag'
-    needs: [nuget, install, windows-installer]
+    needs: [nuget, install, windows-installer, books]
     runs-on: ubuntu-24.04
     timeout-minutes: 20                   # a hang fails here, not after 6 hours
     permissions:
@@ -353,6 +414,10 @@ jobs:
         with:
           name: installer
           path: zip
+      - uses: actions/download-artifact@v7
+        with:
+          name: books
+          path: books
       # Trusted publishing: no stored API key; nuget.org's policy names this
       # repository and build.yml, and gives a key valid for an hour
       - name: nuget.org login
@@ -374,9 +439,11 @@ jobs:
 
           **To use .NET from Rexx on any system, download `rexxnet-….zip`** (below, under Assets): one package for Windows (x64), Linux (x64) and macOS (Apple silicon). Unzip it, open a terminal in the folder `rexxnet` and run `rexx install` (as administrator on Windows, `sudo` on Linux and macOS, when ooRexx is in a system folder): it installs the bridge into that ooRexx, with its samples (in ooRexx's samples folder, under `dotnet`), and checks it. Its `README.md` says more, and how to use it without installing.
 
+          **The books**: `dotnetref.pdf` (*ooRexx and .NET: Reference*) and `dotnetcookbook.pdf` (*ooRexx and .NET: Cookbook*), and their HTML (`*-html.zip`). The Windows installer puts the PDFs in ooRexx's `doc` folder and its Start menu.
+
           The `.nupkg` is the NuGet package, for .NET programs (C#, PowerShell...) that run Rexx code: a .NET project gets it with `dotnet add package Rexx.Net --prerelease`. Rexx programs do not need it. The `.snupkg` holds its debugging symbols.
 
           NOTES
           sed -i 's/^          //' notes.md
           gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" "${pre[@]}" \
-            --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes nupkg/* zip/*.zip zip/*.exe
+            --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes nupkg/* zip/*.zip zip/*.exe books/*.pdf books/*-html.zip

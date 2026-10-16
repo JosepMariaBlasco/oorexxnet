@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE preface PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<preface id="pref-dotnetref-Preface">
+<title>Preface</title>
+
+<para>This book describes ooRexx/.NET, a native bridge between Open Object
+Rexx and .NET that works both ways. An ooRexx program uses .NET's classes
+(the framework's, an assembly of your own, a COM object on Windows) as Rexx
+objects; a .NET program, written in C#, VB.NET, F# or PowerShell, creates
+ooRexx interpreters, runs Rexx code, and uses Rexx objects as .NET
+objects.</para>
+
+<para>This book is a reference rather than a tutorial. It assumes you know
+ooRexx, and enough of .NET to read the documentation of the .NET classes you
+want to use, at <ulink url="https://learn.microsoft.com/dotnet/api/">https://learn.microsoft.com/dotnet/api/</ulink>.
+Its companion, <citetitle pubwork="book">ooRexx and .NET: Cookbook</citetitle>,
+introduces the main concepts through short programs that can be run as they
+are.</para>
+
+<para>Sections that document a concept carry a small example: a complete
+program, followed by what it prints. Every one of them that does not need
+Windows is run, and its output checked, by the project's tests on Linux,
+macOS and Windows; the Windows ones are run on Windows.</para>
+
+<xi:include href="Common_Content/diagrams.xml" xmlns:xi="http://www.w3.org/2001/XInclude" />
+
+<section id="relinf"><title>Related Information</title>
+<para>See also <citetitle pubwork="book">ooRexx and .NET: Cookbook</citetitle>,
+<citetitle pubwork="book">Open Object Rexx: Reference</citetitle>, and the
+.NET documentation at
+<ulink url="https://learn.microsoft.com/dotnet/">https://learn.microsoft.com/dotnet/</ulink>.
+How the bridge is built, and why each choice was made, is in the design
+notes of the project's repository, <filename>notes/netobject-design.md</filename>
+(ooRexx using .NET) and <filename>notes/rexx-from-net-design.md</filename>
+(.NET using ooRexx).</para>
+</section>
+
+</preface>

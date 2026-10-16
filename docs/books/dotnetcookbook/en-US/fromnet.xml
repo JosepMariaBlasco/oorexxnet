@@ -1,0 +1,195 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckFromNet"><title>Rexx in .NET Programs</title>
+
+<para>A .NET program runs Rexx code through the <literal>Rexx.Net</literal>
+package: to let its users script it, to keep rules in Rexx, or to reuse Rexx
+code. These recipes are in C#; VB.NET and PowerShell use the same
+types.</para>
+
+<section id="ckScripting"><title>Scripting an Application</title>
+<indexterm><primary>scripting</primary></indexterm>
+<indexterm><primary>object model</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to let Rexx scripts drive your application's objects.</para>
+<example id="ex.ckScripting">
+<title>Scripting an Application</title>
+<programlisting language="csharp">using System;
+using System.Collections.Generic;
+using Rexx.Net;
+
+var shop = new Shop();
+using var rexx = RexxInterpreter.Create(new RexxOptions { StreamPrefixes = false });
+rexx.Local["SHOP"] = shop;                     // .shop in the Rexx code
+rexx.Run(
+    "do item over 'apple pear fig'~makeArray(' ')\n" +
+    "  .shop~Add(item, item~length * 10)\n" +
+    "end\n" +
+    "say .shop~Count 'items,' .shop~Total 'cents'");
+var discount = rexx.Compile("discount",          // a rule, kept in Rexx
+    "use arg total\n" +
+    "if total &gt; 100 then return total * 0.9\n" +
+    "return total");
+foreach (var total in new[] { 50, 120 })
+    Console.WriteLine($"{total} -&gt; {discount.Call&lt;decimal&gt;(total)}");
+
+public class Shop
+{
+    readonly Dictionary&lt;string, int&gt; items = new();
+    public void Add(string name, int cents) =&gt; items[name] = cents;
+    public int Count =&gt; items.Count;
+    public int Total { get { int t = 0; foreach (var c in items.Values) t += c; return t; } }
+}</programlisting>
+<screen>3 items, 120 cents
+50 -&gt; 50
+120 -&gt; 108.0</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A .NET object given to Rexx (here through <literal>.local</literal>) is
+a <classname>NetObject</classname> there, used with Rexx messages: the script
+calls the application's own methods and properties. A routine compiled once
+(<methodname>Compile</methodname>) is called many times, cheaply, and its
+result converted (<methodname>Call&lt;decimal&gt;</methodname>): rules that
+users can change without rebuilding the application. Rexx's arithmetic is
+decimal, so 120 × 0.9 is exactly 108.0.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>.NET Using ooRexx: the Rexx.Net API</emphasis>, <emphasis>Both Ways in One Process</emphasis>.</para>
+</section>
+
+<section id="ckRexxObjects"><title>Using a Rexx Class from C#</title>
+<indexterm><primary>dynamic</primary></indexterm>
+<indexterm><primary>RexxObject class</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to use a class written in Rexx from C#.</para>
+<example id="ex.ckRexxObjects">
+<title>Using a Rexx Class from C#</title>
+<programlisting language="csharp">using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+var pkg = rexx.LoadPackage("account.cls",
+    "::class Account public\n" +
+    "::attribute balance get\n" +
+    "::method init; expose balance; use arg balance = 0\n" +
+    "::method deposit; expose balance; use arg n; balance += n; return self\n");
+RexxClass account = pkg.FindClass("Account")!;
+dynamic a = account.New(10)!;
+a.deposit(5).deposit(2.5);
+Console.WriteLine($"{a.balance} {(decimal)a.balance * 2}");
+RexxObject b = account.New()!;
+b.Send("deposit", 100);
+Console.WriteLine(b.Send&lt;int&gt;("balance") + 1);</programlisting>
+<screen>17.5 35.0
+101</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <methodname>LoadPackage</methodname> loads Rexx source (or a file) as a
+package, and <methodname>FindClass</methodname> gives its class. Its objects
+are <classname>RexxObject</classname>s: through <literal>dynamic</literal>,
+a member is a Rexx message (<computeroutput>a.deposit(5)</computeroutput>
+sends <literal>DEPOSIT</literal>), and a result converts to the C# type it is
+used as; <methodname>Send</methodname> and <methodname>Send&lt;T&gt;</methodname>
+do the same without <literal>dynamic</literal>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>.NET Using ooRexx: the Rexx.Net API</emphasis>, <emphasis>RexxObject Class</emphasis>.</para>
+</section>
+
+<section id="ckOutput"><title>Taking Rexx's Output</title>
+<indexterm><primary>Output</primary></indexterm>
+<indexterm><primary>TextWriter</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> Rexx's <literal>SAY</literal> in your application (a log, a text
+box), and its <literal>PULL</literal> from it.</para>
+<example id="ex.ckOutput">
+<title>Taking Rexx's Output</title>
+<programlisting language="csharp">using System;
+using System.IO;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+var log = new StringWriter();
+rexx.Output = log;
+rexx.Input = new StringReader("Ann\n");
+rexx.Run("say 'Name?'; pull name; say 'Hello,' name");
+rexx.Output = null; rexx.Input = null;
+foreach (var line in log.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries))
+    Console.WriteLine($"[log] {line.TrimEnd()}");</programlisting>
+<screen>[log] Name?
+[log] Hello, ANN</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <methodname>Output</methodname>, <methodname>Error</methodname> and
+<methodname>Input</methodname> take any <literal>TextWriter</literal> and
+<literal>TextReader</literal>, at any time; <literal>null</literal> gives the
+process's own streams back. A Windows Forms application writes to a text
+box with a small <literal>TextWriter</literal> of its own.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>The Application's Environment</emphasis>, <emphasis>Standard Streams</emphasis>.</para>
+</section>
+
+<section id="ckCommands"><title>Commands for Your Application</title>
+<indexterm><primary>ADDRESS</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> Rexx scripts that send commands to your application, as macros
+do.</para>
+<example id="ex.ckCommands">
+<title>Commands for Your Application</title>
+<programlisting language="csharp">using System;
+using System.Collections.Generic;
+using Rexx.Net;
+
+var doc = new List&lt;string&gt;();
+using var rexx = RexxInterpreter.Create(new RexxOptions { InitialAddress = "EDITOR" });
+rexx.AddCommandEnvironment("EDITOR", cmd =&gt;
+{
+    var words = cmd.Command.Split(' ', 2);
+    switch (words[0].ToUpperInvariant())
+    {
+        case "INSERT": doc.Add(words.Length &gt; 1 ? words[1] : ""); return 0;
+        case "LINES": cmd["LINES"] = doc.Count; return 0;
+        default: throw new RexxCommandException(1, "unknown command " + words[0]);
+    }
+});
+rexx.Run(
+    "'insert first line'\n" +
+    "'insert second line'\n" +
+    "'lines'; say 'lines:' lines\n" +
+    "'frobnicate'; say 'rc:' rc");
+Console.WriteLine(string.Join(" / ", doc));</programlisting>
+<screen>REXXout&gt;lines: 2
+REXXout&gt;rc: 1
+first line / second line</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A command environment is a C# function that gets each command
+(<classname>RexxCommand</classname>), with the caller's variables
+(<computeroutput>cmd["LINES"] = ...</computeroutput> sets one), and returns
+<literal>RC</literal>. With <literal>InitialAddress</literal>, a plain string
+clause is a command to the application, as in an editor's macros.
+<classname>RexxCommandException</classname> raises Rexx's ERROR condition,
+with its <literal>RC</literal>; not trapped, the script goes on with
+<literal>RC</literal> set.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>The Application's Environment</emphasis>, <emphasis>ADDRESS Environments</emphasis>.</para>
+</section>
+
+<section id="ckVbPowerShell"><title>VB.NET and PowerShell</title>
+<indexterm><primary>VB.NET</primary></indexterm>
+<indexterm><primary>PowerShell</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to run Rexx from VB.NET, or from PowerShell.</para>
+<para><emphasis role="bold">How it works.</emphasis> <emphasis role="bold">VB.NET</emphasis> uses the same types: with
+<literal>Option Strict Off</literal>, a Rexx object typed <literal>Object</literal>
+is late-bound as C#'s <literal>dynamic</literal>, and its results convert by
+type (<computeroutput>Dim n As Integer = acct.Balance</computeroutput>). A
+class's <methodname>New</methodname> is <literal>[New]</literal> in VB. The
+project's <filename>samples/vbnet/tour</filename> is
+<filename>samples/csharp/tour</filename> written again in VB.NET, topic by
+topic.</para>
+<para><emphasis role="bold">PowerShell</emphasis> 7.4 or later loads
+the assembly with <computeroutput>Add-Type -Path Rexx.Net.dll</computeroutput>,
+and then:</para>
+<programlisting language="powershell">$rexx = [Rexx.Net.RexxInterpreter]::Create()
+$rexx.Run('return 6 * 7').ToString()
+$list = [System.Collections.Generic.List[string]]::new()
+$rexx.Run('use arg l; l~Add("from Rexx")', $list) | Out-Null
+$list[0]
+$rexx.Dispose()</programlisting>
+<para>A Rexx string is a <classname>RexxString</classname>: <computeroutput>.ToString()</computeroutput>
+gives PowerShell a string. Windows PowerShell 5.1 runs on .NET Framework, and
+cannot load the bridge. The sample is <filename>samples/powershell/hello.ps1</filename>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Both Ways in One Process</emphasis>, <emphasis>The NuGet Package</emphasis>.</para>
+</section>
+
+</chapter>

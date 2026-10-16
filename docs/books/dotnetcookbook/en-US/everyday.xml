@@ -1,0 +1,270 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckEveryday"><title>Everyday .NET</title>
+
+<para>.NET's class library is large, documented, and the same on
+every system. These recipes use the parts a Rexx program needs most: dates,
+text, numbers, files, regular expressions, JSON and hashes.</para>
+
+<section id="ckDates"><title>Dates and Times</title>
+<indexterm><primary>DateTime</primary></indexterm>
+<indexterm><primary>TimeSpan</primary></indexterm>
+<indexterm><primary>dates</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to compute with dates, and to show them in any language.</para>
+<example id="ex.ckDates">
+<title>Dates and Times</title>
+<programlisting language="rexx">dt = .net~System~DateTime
+d = dt~new(2026, 10, 16, 15, 30, 0)
+say d~ToString("yyyy-MM-dd HH:mm") "is a" d~DayOfWeek
+say "In 100 days:" d~AddDays(100)~ToString("dddd, d MMMM yyyy")
+say "Until 2027:" dt~new(2027, 1, 1)~Subtract(d)~TotalDays~format(, 2) "days"
+span = .net~System~TimeSpan~FromSeconds(3725)
+say "3725 s =" span~Hours"h" span~Minutes"m" span~Seconds"s"
+es = .net~System~Globalization~CultureInfo~GetCultureInfo("es-ES")
+say d~ToString("D", es)
+p = dt~ParseExact("16/10/2026", "dd/MM/yyyy", .net~System~Globalization~CultureInfo~InvariantCulture)
+say p~Year p~Month p~Day p~DayOfYear
+
+::requires "net.cls"</programlisting>
+<screen>2026-10-16 15:30 is a Friday
+In 100 days: Sunday, 24 January 2027
+Until 2027: 76.35 days
+3725 s = 1h 2m 5s
+viernes, 16 de octubre de 2026
+2026 10 16 289</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A <literal>DateTime</literal> is made from its parts, or parsed
+(<methodname>ParseExact</methodname> with a format, culture-invariant). Its
+methods return new values (<methodname>AddDays</methodname>,
+<methodname>Subtract</methodname>, which gives a <literal>TimeSpan</literal>),
+and <methodname>ToString</methodname> formats it, in the current culture or
+in the one given: <literal>CultureInfo.GetCultureInfo("es-ES")</literal> for
+Spanish. <literal>DayOfWeek</literal> is an enum value, which shows its name.
+<literal>DateTime</literal> is a struct: what Rexx holds is a copy.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>, <emphasis>Messages to Types and Objects</emphasis>.</para>
+</section>
+
+<section id="ckText"><title>Formatting Text</title>
+<indexterm><primary>String.Format</primary></indexterm>
+<indexterm><primary>culture</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to format numbers and text as .NET does.</para>
+<example id="ex.ckText">
+<title>Formatting Text</title>
+<programlisting language="rexx">s = .net~System~String
+say s~Format("{0,-6}|{1,6}|", "left", "right")
+say s~Format("{0:N2} {1:N2}", 1234.5, .net~double(1234.5))   -- a Rexx string is a string
+inv = .net~System~Globalization~CultureInfo~InvariantCulture
+de = .net~System~Globalization~CultureInfo~GetCultureInfo("de-DE")
+n = .net~double(1234567.891)
+say s~Format(inv, "{0:N2}", n) "/" s~Format(de, "{0:N2}", n)
+say n~class~id .net~double(5)~string
+say inv~TextInfo~ToTitleCase("the quick brown fox")
+say s~Join(", ", .array~of("a", "b", "c"))
+
+::requires "net.cls"</programlisting>
+<screen>left  | right|
+1234.5 1,234.50
+1,234,567.89 / 1.234.567,89
+NETTYPED a System.Double (5)
+The Quick Brown Fox
+a, b, c</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <methodname>String.Format</methodname> takes .NET's composite
+formats: alignment (<literal>{0,-6}</literal>) and number formats
+(<literal>{0:N2}</literal>). A format applies to a number, and a Rexx string
+is a string: <literal>1234.5</literal> goes to Format's <literal>object</literal>
+parameters as the string <literal>"1234.5"</literal>, which
+<literal>N2</literal> leaves alone. <computeroutput>.net~double(x)</computeroutput>
+makes it a <literal>double</literal>, which <literal>N2</literal> formats; it is
+only a mark for the call (a <classname>NetTyped</classname>), not a number of
+its own. A culture as the first argument formats in that culture's way.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>, <emphasis>Forcing a Type</emphasis>.</para>
+</section>
+
+<section id="ckBigNumbers"><title>Big Integers and Decimals</title>
+<indexterm><primary>BigInteger</primary></indexterm>
+<indexterm><primary>Decimal</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> integers of any size, or decimal arithmetic, from .NET.</para>
+<example id="ex.ckBigNumbers">
+<title>Big Integers and Decimals</title>
+<programlisting language="rexx">bi = .net~System~Numerics~BigInteger
+f = bi~One
+do i = 2 to 30; f = bi~Multiply(f, i); end      -- Rexx numbers go as BigIntegers
+say "30! =" f~ToString
+big = bi~Pow(2, 200)~ToString
+say "2**200 has" big~length "digits:" big~left(20)"..."
+numeric digits 70
+say "In Rexx:" bi~Parse(big)~ToString / 2**190
+d = .net~System~Decimal
+say d~Divide(1, 3) d~Round(d~Divide(2, 3), 4)
+
+::requires "net.cls"</programlisting>
+<screen>30! = 265252859812191058636308480000000
+2**200 has 61 digits: 16069380442589902755...
+In Rexx: 1024
+0.3333333333333333333333333333 0.6667</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <literal>System.Numerics.BigInteger</literal> has no size limit.
+A Rexx whole number goes to a <literal>BigInteger</literal> parameter
+exactly, with all its digits; a <literal>BigInteger</literal> comes to Rexx as
+a <classname>NetObject</classname>, whose <methodname>ToString</methodname>
+gives the digits, which Rexx computes with under a large enough
+<literal>NUMERIC DIGITS</literal>. .NET's <literal>decimal</literal> has 28
+digits and decimal rounding: <methodname>Decimal.Divide</methodname> and
+<methodname>Decimal.Round</methodname>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>.</para>
+</section>
+
+<section id="ckFiles"><title>Files and Directories</title>
+<indexterm><primary>files</primary></indexterm>
+<indexterm><primary>Path</primary></indexterm>
+<indexterm><primary>Directory</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to read and write files, and to walk directories, in the same way on
+every system.</para>
+<example id="ex.ckFiles">
+<title>Files and Directories</title>
+<programlisting language="rexx">io = .net~System~IO
+dir = io~Path~Combine(io~Path~GetTempPath, "cookbook-" || io~Path~GetRandomFileName)
+io~Directory~CreateDirectory(dir)
+file = io~Path~Combine(dir, "notes.txt")
+io~File~WriteAllLines(file, .array~of("first", "second", "third"))
+io~File~AppendAllText(file, "fourth" || .net~System~Environment~NewLine)
+lines = io~File~ReadAllLines(file)
+say lines~items "lines; the last:" lines[lines~items]
+info = io~FileInfo~new(file)
+say info~Name info~Extension (info~Length &gt; 0)
+do f over io~Directory~GetFiles(dir, "*.txt")
+  say io~Path~GetFileName(f)
+end
+io~Directory~Delete(dir, .true)
+say io~Directory~Exists(dir)
+
+::requires "net.cls"</programlisting>
+<screen>4 lines; the last: fourth
+notes.txt .txt 1
+notes.txt
+0</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <literal>System.IO</literal>'s static classes do it in one call each:
+<literal>File</literal> (<methodname>WriteAllLines</methodname>,
+<methodname>ReadAllLines</methodname>, <methodname>AppendAllText</methodname>),
+<literal>Directory</literal>, and <literal>Path</literal>, which builds paths
+with the system's separator. A Rexx Array goes to <methodname>WriteAllLines</methodname>
+as a <literal>string[]</literal>, and <methodname>ReadAllLines</methodname>'s
+<literal>string[]</literal> comes back as a Rexx-like array, from 1. A
+<literal>FileInfo</literal> describes a file.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Arrays, Collections and References</emphasis>.</para>
+</section>
+
+<section id="ckRegex"><title>Regular Expressions</title>
+<indexterm><primary>regular expressions</primary></indexterm>
+<indexterm><primary>Regex</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> regular expressions: matching, named groups, replacing, splitting.</para>
+<example id="ex.ckRegex">
+<title>Regular Expressions</title>
+<programlisting language="rexx">re = .net~System~Text~RegularExpressions~Regex
+text = "Ann: 555-1234, Bob: 555-9876"
+do m over re~Matches(text, "(?&lt;name&gt;\w+): (?&lt;phone&gt;[\d-]+)")
+  say m~Groups["name"]~Value "-&gt;" m~Groups["phone"]~Value
+end
+say re~IsMatch("2026-10-16", "^\d{4}-\d{2}-\d{2}$")
+say re~Replace(text, "\d{3}-(\d{4})", "XXX-$1")
+say re~Split("a1b22c333d", "\d+")~makeString("L", " ")
+say re~Replace("hello world", "\w+", .net~handler(.Upper~new, "UP"))
+
+::requires "net.cls"
+::class Upper
+::method up
+  use arg match
+  return match~Value~upper</programlisting>
+<screen>Ann -&gt; 555-1234
+Bob -&gt; 555-9876
+1
+Ann: XXX-1234, Bob: XXX-9876
+a b c d
+HELLO WORLD</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <literal>Regex</literal>'s static methods take the pattern each time.
+<computeroutput>DO m OVER re~Matches(...)</computeroutput> walks the matches;
+<computeroutput>m~Groups["name"]</computeroutput> is a named group (the
+indexer takes the name). <methodname>Replace</methodname> takes a replacement
+pattern (<literal>$1</literal>), or a <literal>MatchEvaluator</literal>: a Rexx
+method, through a handler, which gets each match and returns its
+replacement.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Callbacks, Events and Tasks</emphasis>.</para>
+</section>
+
+<section id="ckJson"><title>JSON</title>
+<indexterm><primary>JSON</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to read and write JSON.</para>
+<example id="ex.ckJson">
+<title>JSON</title>
+<programlisting language="rexx">json = '{"name": "ooRexx", "version": 5.3, "tags": ["rexx", "dotnet"], "open": true}'
+doc = .net~System~Text~Json~JsonDocument~Parse(json)
+root = doc~RootElement
+say root~GetProperty("name")~GetString root~GetProperty("version")~GetDouble
+do t over root~GetProperty("tags")~EnumerateArray
+  say "tag:" t~GetString
+end
+say root~GetProperty("open")~ValueKind
+doc~Dispose
+d = .net~type("System.Collections.Generic.Dictionary&lt;string, object&gt;")~new
+d["language"] = "Rexx"; d["year"] = .net~int32(1979)
+opts = .net~System~Text~Json~JsonSerializerOptions~new
+say .net~System~Text~Json~JsonSerializer~Serialize(d)
+
+::requires "net.cls"</programlisting>
+<screen>ooRexx 5.3
+tag: rexx
+tag: dotnet
+True
+{"language":"Rexx","year":1979}</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <literal>System.Text.Json</literal> reads a document as a tree of
+<literal>JsonElement</literal>s: <methodname>GetProperty</methodname>,
+<methodname>GetString</methodname>, <methodname>GetDouble</methodname>,
+<methodname>EnumerateArray</methodname> (walked with <literal>DO OVER</literal>),
+<methodname>ValueKind</methodname> (an enum value). A <literal>JsonDocument</literal>
+holds pooled memory: <methodname>Dispose</methodname> it. <literal>JsonSerializer</literal>
+writes a .NET object as JSON; a <literal>Dictionary&lt;string, object&gt;</literal>
+holds what Rexx puts in it (a forced <literal>int</literal> stays a number, a
+Rexx string is a string).</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>.</para>
+</section>
+
+<section id="ckHashes"><title>Hashes, Base64 and GUIDs</title>
+<indexterm><primary>SHA256</primary></indexterm>
+<indexterm><primary>Base64</primary></indexterm>
+<indexterm><primary>Guid</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> a cryptographic hash, Base64, or a unique identifier.</para>
+<example id="ex.ckHashes">
+<title>Hashes, Base64 and GUIDs</title>
+<programlisting language="rexx">bytes = .net~System~Text~Encoding~UTF8~GetBytes("hello")
+hash = .net~System~Security~Cryptography~SHA256~HashData(bytes)
+say .net~System~Convert~ToHexString(hash)~lower
+say .net~System~Convert~ToBase64String(bytes)
+say .net~System~Text~Encoding~UTF8~GetString(.net~System~Convert~FromBase64String("aGVsbG8="))
+g = .net~System~Guid~NewGuid
+say g~ToString~length g~ToString~countStr("-")
+
+::requires "net.cls"</programlisting>
+<screen>2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+aGVsbG8=
+hello
+36 4</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> Strings become bytes through an <literal>Encoding</literal>
+(<literal>UTF8</literal>), and bytes are a .NET array, a Rexx-like array, that
+goes to <methodname>SHA256.HashData</methodname> as it is.
+<methodname>Convert.ToHexString</methodname> and
+<methodname>Convert.ToBase64String</methodname> give text back.
+<methodname>Guid.NewGuid</methodname> is a new identifier, a struct, shown
+with <methodname>ToString</methodname>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Arrays, Collections and References</emphasis>.</para>
+</section>
+
+</chapter>

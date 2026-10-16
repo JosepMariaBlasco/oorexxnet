@@ -1,0 +1,84 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckKnowing"><title>Coming From Elsewhere</title>
+
+<para>Programs written for ooRexx's other ways to .NET and COM run on
+the bridge, unchanged or with small changes.</para>
+
+<section id="ckClrCls"><title>Programs Written for CLR.CLS</title>
+<indexterm><primary>CLR.CLS</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to run a program written for BSF4ooRexx's <filename>CLR.CLS</filename>.</para>
+<example id="ex.ckClrCls">
+<title>Programs Written for CLR.CLS</title>
+<programlisting language="rexx">console = clr.import("System.Console")
+console~WriteLine("Hello from CLR.CLS")
+sb = .clr~new("System.Text.StringBuilder", "ab")
+say sb~Append("c")~ToString pp(sb~Length)
+
+::requires CLR.CLS</programlisting>
+<screen>Hello from CLR.CLS
+abc [3]</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> The bridge has its own <filename>CLR.CLS</filename>, a compatibility
+package over <filename>net.cls</filename>: a program that requires it runs on
+.NET 8 or later, without Java. Its rules are <filename>CLR.CLS</filename>'s
+where they differ (a whole number goes as an <literal>Int32</literal>).</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Programs Written for CLR.CLS</emphasis>.</para>
+</section>
+
+<section id="ckFromBsf"><title>From BSF4ooRexx</title>
+<indexterm><primary>BSF4ooRexx</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to write for .NET what you write for Java with BSF4ooRexx.</para>
+<para><emphasis role="bold">How it works.</emphasis> The shape is the same: <computeroutput>bsf.import("java.lang.Math")</computeroutput>
+is <computeroutput>.net~System~Math</computeroutput>;
+<computeroutput>.bsf~new(...)</computeroutput> is <computeroutput>type~new(...)</computeroutput>;
+arrays are Rexx Arrays from 1; enum values are objects; <methodname>box</methodname>
+and <methodname>unbox</methodname> take the same indicators; a Rexx object
+given to Java as a proxy (<literal>BsfCreateRexxProxy</literal>) is
+<computeroutput>.net~handler(obj, "MESSAGE")</computeroutput> for one method,
+or a class that <computeroutput>.net~extend</computeroutput> makes implement
+an interface; and the event thread's <methodname>runLater</methodname> methods
+are BSF4ooRexx's. In .NET, Rexx's <literal>start</literal> and
+<literal>send</literal> reach the .NET member of that name when there is one,
+so no <literal>bsf.dispatch</literal> is needed for them.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Relation to BSF4ooRexx and the Sister Bridges</emphasis>.</para>
+</section>
+
+<section id="ckFromOle"><title>From OLEObject</title>
+<indexterm><primary>OLEObject class</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to move an ooRexx OLE program to the bridge, to use .NET in it
+too.</para>
+<para><emphasis role="bold">How it works.</emphasis> Replace <computeroutput>.OLEObject~new(progID)</computeroutput> with
+<computeroutput>.net~createObject(progID)</computeroutput>, and add
+<computeroutput>::requires "net.cls"</computeroutput>: the messages are the
+same. Constants are <computeroutput>.net~getConstant(o, name)</computeroutput>;
+an argument by reference, a <computeroutput>.net~ref</computeroutput>; events,
+<computeroutput>o~Name += .net~handler(object, message)</computeroutput>; and
+where the program waited for events with <computeroutput>SysSleep</computeroutput>,
+it waits with <computeroutput>.net~nextEvent(seconds)</computeroutput>. The
+reference's table has the rest, and the project's
+<filename>samples/oorexx-ole</filename> has ooRexx's own OLE samples, so
+changed.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>COM Objects (Windows)</emphasis>, <emphasis>From OLEObject</emphasis>.</para>
+</section>
+
+<section id="ckSpeed"><title>How Fast Is It?</title>
+<indexterm><primary>performance</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to know what a call costs.</para>
+<para><emphasis role="bold">How it works.</emphasis> A call from Rexx to .NET costs a few microseconds: a property read
+about 3, a method with overloads to choose from 6 to 10, a callback from .NET
+into Rexx about 6 to 15. Names are looked up once and remembered, so keep a
+type in a variable in a loop (<computeroutput>m = .net~System~Math</computeroutput>)
+rather than walking the namespaces each time. When you measure, measure warm:
+.NET compiles a method again, faster, after its first tens of thousands of
+calls, so a cold loop measures the compiler. <computeroutput>.net~handleCount</computeroutput>
+shows the .NET objects Rexx holds: a number that keeps growing means proxies
+kept somewhere.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Names and Messages</emphasis>.</para>
+</section>
+
+</chapter>

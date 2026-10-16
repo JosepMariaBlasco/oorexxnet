@@ -1,0 +1,179 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetcookbook.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="ckObjects"><title>Objects and Values</title>
+
+<para>These recipes are about the shape of .NET values in Rexx: enums,
+parameters by reference, objects that must be disposed, errors, and finding
+out what an object can do.</para>
+
+<section id="ckEnums"><title>Enums and Flags</title>
+<indexterm><primary>enum</primary></indexterm>
+<indexterm><primary>flags</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to use .NET's enum values, flags included, in Rexx's terms.</para>
+<example id="ex.ckEnums">
+<title>Enums and Flags</title>
+<programlisting language="rexx">attrs = .net~System~IO~FileAttributes
+a = .net~as("ReadOnly, Hidden", attrs)
+f = .net~System~Enum~Parse(.net~typeObject(attrs), "ReadOnly, Hidden")
+say f f~ordinal f~HasFlag(attrs~Hidden) (f = "hidden, readonly")
+d = .net~System~DateTime~new(2026, 10, 18)~DayOfWeek
+select
+  when d = "Saturday" | d = "Sunday" then say d "is a weekend day"
+  otherwise say d "is a weekday"
+end
+do with index n item name over .net~System~ConsoleColor
+  if n &lt; 3 then say n name
+end
+
+::requires "net.cls"</programlisting>
+<screen>ReadOnly, Hidden 3 1 1
+Sunday is a weekend day
+0 Black
+1 DarkBlue
+2 DarkGreen</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> An enum value is a <classname>NetEnum</classname>: its string is its
+name, so <literal>SAY</literal> and <literal>WHEN d = "Saturday"</literal> work
+as with a string, and <literal>=</literal> compares with a name (caseless;
+flags in any order) or a number. <methodname>ordinal</methodname> is its
+number. .NET's own methods (<methodname>HasFlag</methodname>) work on it. An
+enum type gives its numbers and names with <literal>DO WITH</literal>. Where
+.NET wants an enum, a name works too: <computeroutput>form~StartPosition = "CenterScreen"</computeroutput>.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Classes</emphasis>, <emphasis>NetEnum Class</emphasis>.</para>
+</section>
+
+<section id="ckRefOut"><title>out and ref Parameters</title>
+<indexterm><primary>out parameter</primary></indexterm>
+<indexterm><primary>TryParse</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to call a method that returns values through its parameters, as
+<literal>TryParse</literal>.</para>
+<example id="ex.ckRefOut">
+<title>out and ref Parameters</title>
+<programlisting language="rexx">n = .net~ref
+do s over .array~of("42", "x", " 7 ")
+  if .net~System~Int32~TryParse(s, n) then say "'"s"' is" n~value
+  else say "'"s"' is no int"
+end
+d = .net~ref
+say .net~System~DateTime~TryParse("2026-10-16", d) d~value~Year
+q = .net~type("System.Collections.Generic.Queue&lt;string&gt;")~new
+item = .net~ref
+say q~TryDequeue(item) item~value
+
+::requires "net.cls"</programlisting>
+<screen>'42' is 42
+'x' is no int
+' 7 ' is 7
+1 2026
+0 The NIL object</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A parameter by reference takes a <classname>NetRef</classname>; the
+call keeps its own result (<literal>1</literal> or <literal>0</literal> here),
+and the <classname>NetRef</classname>'s <methodname>value</methodname> holds
+what the method put in the parameter. One <classname>NetRef</classname> can
+serve many calls.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Arrays, Collections and References</emphasis>, <emphasis>ref, out and in Parameters</emphasis>.</para>
+</section>
+
+<section id="ckDispose"><title>Disposing of Objects</title>
+<indexterm><primary>Dispose</primary></indexterm>
+<indexterm><primary>IDisposable</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to close files, connections and the like at once, as C#'s
+<literal>using</literal> does.</para>
+<example id="ex.ckDispose">
+<title>Disposing of Objects</title>
+<programlisting language="rexx">io = .net~System~IO
+file = io~Path~GetTempFileName
+w = io~StreamWriter~new(file)
+do i = 1 to 3; w~WriteLine("line" i); end
+w~Dispose                               -- flushes and closes: C#'s using
+r = io~StreamReader~new(file)
+do while \r~EndOfStream; say r~ReadLine; end
+r~Dispose
+io~File~Delete(file)
+say io~File~Exists(file)
+
+::requires "net.cls"</programlisting>
+<screen>line 1
+line 2
+line 3
+0</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> Rexx collects a proxy when it is no longer used, and .NET collects
+the object later still: too late for a file that must be flushed and closed,
+or a connection that must go back to its pool. Call
+<methodname>Dispose</methodname> (or <methodname>Close</methodname>) when you
+are done, as C#'s <literal>using</literal> does. Signal handlers and
+<literal>SIGNAL ON</literal> traps are where to put it when errors may come
+first.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>, <emphasis>By Reference</emphasis>.</para>
+</section>
+
+<section id="ckErrors"><title>Catching .NET's Exceptions</title>
+<indexterm><primary>exceptions</primary></indexterm>
+<indexterm><primary>SYNTAX 98.900</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to handle the exceptions that .NET throws.</para>
+<example id="ex.ckErrors">
+<title>Catching .NET's Exceptions</title>
+<programlisting language="rexx">signal on syntax
+x = .net~System~IO~File~ReadAllText("/no/such/dir/file.txt")
+say "not reached"
+syntax:
+  c = condition("O")
+  e = c~additional[2]
+  say .net~typeOf(e)
+  say "message:" e~Message~left(30)"..."
+  say "is an IOException:" .net~isInstance(e, "System.IO.IOException")
+::requires "net.cls"</programlisting>
+<screen>System.IO.DirectoryNotFoundException
+message: Could not find a part of the p...
+is an IOException: 1</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> A .NET exception is SYNTAX 98.900 in Rexx, and the exception itself is
+<computeroutput>condition("O")~additional[2]</computeroutput>: its type
+(<computeroutput>.net~typeOf</computeroutput>), its <methodname>Message</methodname>,
+and whether it is of a family (<computeroutput>.net~isInstance(e, "System.IO.IOException")</computeroutput>,
+as C#'s <literal>catch (IOException)</literal>).</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Errors</emphasis>.</para>
+</section>
+
+<section id="ckIntrospection"><title>What Can This Object Do?</title>
+<indexterm><primary>introspection</primary></indexterm>
+<indexterm><primary>reflection</primary></indexterm>
+<para><emphasis role="bold">You want</emphasis> to find out, from Rexx, what a .NET object offers.</para>
+<example id="ex.ckIntrospection">
+<title>What Can This Object Do?</title>
+<programlisting language="rexx">sb = .net~System~Text~StringBuilder~new
+say .net~typeOf(sb)
+m = .net~members(sb)
+say m~hasItem("AppendLine") m~hasItem("Length") m~hasItem("Nope")
+t = .net~typeObject(sb)
+do mi over t~GetMethods
+  if mi~Name = "AppendLine", mi~GetParameters~items = 1 then say mi~ToString
+end
+say t~Assembly~GetName~Name t~BaseType~FullName
+say .net~isInstance(sb, "System.Runtime.Serialization.ISerializable")
+
+::requires "net.cls"</programlisting>
+<screen>System.Text.StringBuilder
+1 1 0
+System.Text.StringBuilder AppendLine(System.String)
+System.Text.StringBuilder AppendLine(AppendInterpolatedStringHandler ByRef)
+System.Private.CoreLib System.Object
+1</screen>
+</example>
+<para><emphasis role="bold">How it works.</emphasis> <computeroutput>.net~typeOf(o)</computeroutput> names its type,
+<computeroutput>.net~members(o)</computeroutput> lists its public members, and
+<computeroutput>.net~typeObject(o)</computeroutput> is its
+<literal>System.Type</literal>, the way into .NET's reflection: methods with
+their signatures, its assembly, its base type. The type's page in .NET's
+documentation (<ulink url="https://learn.microsoft.com/dotnet/api/">https://learn.microsoft.com/dotnet/api/</ulink>)
+says the rest.</para>
+<para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Classes</emphasis>, <emphasis>NetGlobal Class (the .net Object)</emphasis>.</para>
+</section>
+
+</chapter>

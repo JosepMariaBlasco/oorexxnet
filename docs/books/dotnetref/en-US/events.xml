@@ -1,0 +1,249 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="events"><title>Callbacks, Events and Tasks</title>
+<indexterm><primary>callbacks</primary></indexterm>
+<indexterm><primary>delegate</primary></indexterm>
+
+<para>.NET calls back through delegates: a comparison for a sort, a
+predicate for a query, a handler for an event, the work of a task. A Rexx
+method is given to .NET as a <xref linkend="clsNetHandler" xrefstyle="select:title"/>,
+made by <computeroutput>.net~handler(object, message [, options])</computeroutput>,
+which becomes a delegate of whatever type .NET wants.</para>
+
+<section id="eventsHandlers"><title>Handlers as Delegates</title>
+<indexterm><primary>handler</primary></indexterm>
+<para>Where .NET wants a delegate (an <literal>Action</literal>, a
+<literal>Func</literal>, a <literal>Predicate</literal>, a
+<literal>Comparison</literal>, an <literal>EventHandler</literal>, any
+delegate type), a <classname>NetHandler</classname> becomes a delegate of
+that exact type. When .NET calls it, the handler's message goes to its object
+with the delegate's arguments, converted as any .NET value going to Rexx (a
+sender that Rexx already holds is the same proxy, <computeroutput>==</computeroutput>
+to it), and what the method returns goes back as the delegate's return value,
+converted to its type. A handler gives the same delegate each time for the
+same delegate type, so <literal>-=</literal> finds what <literal>+=</literal>
+added.</para>
+<para>A method that returns nothing where the delegate returns a value is an
+error, but for <literal>object</literal> (<literal>null</literal>) and
+<literal>Task</literal> (a completed task); so is a result that does not
+convert. Delegates with pointer or span parameters are not supported.</para>
+<para><emphasis role="bold">Which overload.</emphasis> C# chooses among
+overloads with delegate parameters by the lambda's parameters and body; a
+Rexx method declares neither. So the delegate with fewer parameters wins
+(<literal>Where(Func&lt;T, bool&gt;)</literal> before the indexed
+<literal>Where(Func&lt;T, int, bool&gt;)</literal>), then one that returns
+nothing before one that returns a value (<literal>Task.Run(Action)</literal>
+before <literal>Task.Run(Func&lt;T&gt;)</literal>). Another one is chosen by
+forcing the delegate type: <computeroutput>.net~as(h, "System.Func&lt;int&gt;")</computeroutput>.
+A parameter of type <literal>Delegate</literal> gets an <literal>Action</literal>.
+The type arguments of a generic method are not inferred from a handler: give
+them, or force the delegate type.</para>
+
+<example id="ex.events-delegates">
+<title>Rexx methods as delegates</title>
+<programlisting language="rexx">h = .net~handler(.Worker~new, "WORK")
+t = .net~System~Threading~Tasks~Task~Run(h)       -- an Action: no result
+t~await; say .net~typeOf(t)
+t = .net~System~Threading~Tasks~Task~Run(.net~as(h, "System.Func&lt;int&gt;"))
+say t~await .net~typeOf(t)
+l = .net~type("System.Collections.Generic.List&lt;int&gt;")~new
+do i over "5 3 8 1"~makeArray(" "); l~Add(i); end
+e = .net~System~Linq~Enumerable
+say e~ToArray(e~Where(l, .net~handler(.Worker~new, "BIG")))~makeString("L", " ")
+l~Sort(.net~handler(.Worker~new, "COMPARE"))
+say l~ToArray~makeString("L", " ")
+
+::requires "net.cls"
+::class Worker
+::method work
+  return 6 * 7
+::method big
+  use arg x
+  return x &gt; 3
+::method compare
+  use arg a, b
+  return b - a</programlisting>
+<screen>System.Threading.Tasks.Task
+42 System.Threading.Tasks.Task&lt;System.Int32&gt;
+5 8
+8 5 3 1</screen>
+</example>
+</section>
+
+<section id="eventsThreads"><title>Which Thread Runs the Method</title>
+<indexterm><primary>threads</primary><secondary>callbacks</secondary></indexterm>
+<indexterm><primary>UNGUARDED</primary></indexterm>
+<para>By default a call runs at once, on the thread .NET calls from: a sort's
+comparison on the Rexx thread that called <methodname>Sort</methodname>
+(nested in that call), a timer's event on a thread of .NET's pool, a window's
+event on its user interface thread. A thread that runs no Rexx code yet is
+attached to the interpreter instance for the call. Any number of threads may
+call at once; they take turns in the interpreter, as Rexx threads do.</para>
+<para>A method called from another thread waits while its object is busy in
+a guarded method, as it would for any Rexx thread: a handler whose object may
+be busy (a window's object waiting in <literal>Application.Run</literal>, a
+loop) should be <literal>UNGUARDED</literal>. Nested on the same thread, there
+is no wait.</para>
+</section>
+
+<section id="eventsEvents"><title>Events</title>
+<indexterm><primary>events</primary></indexterm>
+<indexterm><primary>+= (events)</primary></indexterm>
+<para>An event is reached as a member: <computeroutput>o~Click</computeroutput>
+is a <xref linkend="clsNetEvent" xrefstyle="select:title"/>, and handlers are
+added and removed with Rexx's compound assignment, as in C#:</para>
+<programlisting language="rexx">button~Click += .net~handler(self, "CLICKED")     -- add
+button~Click -= h                                 -- remove: the same handler object
+.net~addHandler(button, "Click", h)               -- add, as a call
+.net~removeHandler(button, "Click", h)
+button~add_Click(h); button~remove_Click(h)       -- .NET's own accessors</programlisting>
+<para>The method gets the event's arguments: for the usual
+<literal>EventHandler</literal> pattern, <literal>sender</literal> and
+<literal>e</literal>. A static event is the type's:
+<computeroutput>.net~Microsoft~Win32~SystemEvents~TimeChanged += h</computeroutput>.
+<xref linkend="mthNetEvents" xrefstyle="select:title"/> lists an object's
+events. A handler can cancel what the event announces, where its arguments
+allow it: <computeroutput>e~Cancel = .true</computeroutput>.</para>
+
+<example id="ex.events-events">
+<title>An event handled at once, on .NET's thread</title>
+<programlisting language="rexx">timer = .net~System~Timers~Timer~new(50)
+timer~AutoReset = .false
+t = .Ticks~new
+timer~Elapsed += .net~handler(t, "TICK")
+timer~Start
+call SysSleep 0.5
+say t~count .net~events(timer)~makeString("L", " ")
+
+::requires "net.cls"
+::class Ticks
+::attribute count
+::method init
+  expose count
+  count = 0
+::method tick unguarded                 -- called on a thread of .NET's pool
+  expose count
+  use arg sender, e
+  count += 1</programlisting>
+<screen>1 Elapsed Disposed</screen>
+</example>
+</section>
+
+<section id="eventsQueued"><title>Queued Calls and the Event Loop</title>
+<indexterm><primary>queued handler</primary></indexterm>
+<indexterm><primary>event loop</primary></indexterm>
+<para>With the option <literal>queued</literal>, a call does not run at once:
+the delegate puts it in a queue and returns, with its type's default value,
+and a Rexx thread takes it when it is ready. <computeroutput>.net~nextEvent([seconds])</computeroutput>
+returns the next call, a <xref linkend="clsNetCall" xrefstyle="select:title"/>
+(&nil; if none came in time), and <computeroutput>call~dispatch</computeroutput>
+sends the handler's message on that thread; <computeroutput>.net~eventLoop</computeroutput>
+does that for every call, until <computeroutput>.net~stopEventLoop</computeroutput>.
+With <literal>latest</literal> (which implies <literal>queued</literal>), a
+handler keeps at most one call waiting, the newest: for progress reports,
+where only the last one matters. This is the model of ooRexx/WASM's
+<literal>.js~handler</literal>, where JavaScript cannot wait for Rexx; here it
+is a choice, for programs that want their events on one thread, in
+order.</para>
+<para>While a thread waits in <methodname>nextEvent</methodname> or
+<methodname>eventLoop</methodname>, it holds no interpreter lock: other Rexx
+threads run. A queued handler cannot answer a value nor cancel an event (it
+returns at once).</para>
+
+<example id="ex.events-loop">
+<title>The event loop</title>
+<programlisting language="rexx">loop = .Looper~new
+timer = .net~System~Timers~Timer~new(20)
+timer~Elapsed += .net~handler(loop, "TICK", "queued")
+timer~Start
+.net~eventLoop                          -- runs the calls here, until stopped
+timer~Stop
+say "ticks:" loop~count
+
+::requires "net.cls"
+::class Looper
+::attribute count
+::method init
+  expose count
+  count = 0
+::method tick
+  expose count
+  count += 1
+  if count = 3 then .net~stopEventLoop</programlisting>
+<screen>ticks: 3</screen>
+</example>
+</section>
+
+<section id="eventsErrors"><title>Errors in Handlers</title>
+<indexterm><primary>errors</primary><secondary>in handlers</secondary></indexterm>
+<para>A Rexx condition in a synchronous handler becomes a
+<classname>RexxException</classname> in .NET (<xref linkend="clsRexxException"/>).
+If .NET lets it out of the call that Rexx made (directly, or wrapped, as
+<literal>List.Sort</literal> wraps its comparer's exceptions), the original
+condition is raised again in that Rexx code, with its code and message, not
+a 98.900 about it.</para>
+<para>A handler called on a thread where no Rexx code waits for .NET (a
+timer's, the thread pool's, a thread that .NET code started) has nobody to
+raise it to; an exception there would end the process. So the bridge reports
+the condition on <literal>.error</literal>, as Rexx reports an untrapped
+error, with its traceback, adds a line saying that the call returned its
+delegate's default value, and the program goes on.</para>
+
+<example id="ex.events-errors">
+<title>A handler's error, raised again in the caller</title>
+<programlisting language="rexx">l = .net~type("System.Collections.Generic.List&lt;int&gt;")~new
+l~Add(2); l~Add(1)
+signal on syntax
+l~Sort(.net~handler(.Bad~new, "COMPARE"))
+syntax:
+  c = condition("O")
+  say c~code c~message
+
+::requires "net.cls"
+::class Bad
+::method compare
+  return 1 + "a"</programlisting>
+<screen>41.1 Nonnumeric value ("a") used in arithmetic operation.</screen>
+</example>
+</section>
+
+<section id="eventsLifetime"><title>How Long a Handler Lives</title>
+<indexterm><primary>handler</primary><secondary>lifetime</secondary></indexterm>
+<para>A handler is held while .NET can call it: by its delegates (an event
+that has it, a timer, a task), by the queue, by a COM event sink. When .NET
+no longer holds any of them, its garbage collector lets them go, and the
+bridge lets the handler go with them; a program that still holds the
+<classname>NetHandler</classname> can give it again. There is nothing to
+release by hand. <computeroutput>h~release</computeroutput> stops a handler at
+once, wherever .NET keeps it: its delegates do nothing from then on.</para>
+</section>
+
+<section id="eventsTasks"><title>Tasks</title>
+<indexterm><primary>Task</primary></indexterm>
+<indexterm><primary>await</primary></indexterm>
+<para><computeroutput>t~await</computeroutput> waits for a
+<literal>Task</literal> or a <literal>ValueTask</literal> and returns its
+result (<xref linkend="mthNetObjectAwait" xrefstyle="select:title"/>). It
+blocks the Rexx thread, as C#'s <literal>.Result</literal> does, so it must
+not be used on a user interface's thread for a task that needs that thread
+to finish (a C# <literal>async</literal> method that continues on it, a
+<literal>Control.Invoke</literal> inside the task): that would never end. In
+an event handler of a window, let the handler return and continue in another
+one: <computeroutput>task~ContinueWith(.net~handler(self, "DONE"))</computeroutput>,
+or with the user interface's scheduler
+(<computeroutput>.net~System~Threading~Tasks~TaskScheduler~FromCurrentSynchronizationContext</computeroutput>)
+when the continuation touches controls. Tasks that do not need the user
+interface's thread (reading a file, a web request) are fine to await from any
+other Rexx thread.</para>
+<para>A Rexx method runs on .NET's thread pool through
+<computeroutput>.net~System~Threading~Tasks~Task~Run(handler)</computeroutput>,
+which attaches the pool's thread to the interpreter for it. Its errors are
+reported there (<xref linkend="eventsErrors"/>), and the task completes
+normally.</para>
+</section>
+
+</chapter>

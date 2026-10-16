@@ -1,0 +1,123 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="bothways"><title>Both Ways in One Process</title>
+<indexterm><primary>both ways</primary></indexterm>
+<indexterm><primary>guest mode</primary></indexterm>
+
+<para>The two directions are one bridge: a .NET application that runs Rexx
+code gives it .NET objects, which the Rexx code uses as
+<classname>NetObject</classname>s; a Rexx program that uses .NET gives it Rexx
+objects, which .NET code uses as <classname>RexxObject</classname>s. Each
+object comes back to its own side as itself, and calls nest on any
+thread.</para>
+
+<section id="bothwaysFromNet"><title>.NET Objects in a Host's Rexx Code</title>
+<para>A .NET object given to Rexx code (an argument of
+<methodname>Run</methodname>, a value in <methodname>Local</methodname>, the
+result of a command handler or a function) is a <classname>NetObject</classname>
+there, by reference, and the Rexx code uses it as in any Rexx program,
+&net; included. <filename>net.cls</filename> is loaded the first time a .NET
+object goes to Rexx; <methodname>RequireNet</methodname> loads it before, so
+that the code can use &net; without requiring it. &net; is in
+<literal>.environment</literal>: every instance of the process sees it.</para>
+<para>.NET code that Rexx calls (a static method of the application, a
+handler) reaches the interpreter that called it through
+<computeroutput>RexxInterpreter.Current</computeroutput>, and its calls run
+nested on the same thread. A <classname>RexxObject</classname> parameter takes
+a Rexx object as itself (an Array too: then the overload that takes it wins
+over a copy).</para>
+
+<example id="ex.bothways">
+<title>Both ways in one process</title>
+<programlisting language="csharp">using System;
+using System.Collections.Generic;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.Local["NAMES"] = new List&lt;string&gt; { "b", "a" };
+Console.WriteLine(rexx.Run&lt;string&gt;(
+    "l = .names; l~Add('c'); l~Sort\n" +
+    "return l~Count l[0] .net~typeOf(l)"));
+Console.WriteLine(rexx.Run&lt;int&gt;("return .net~type('Helpers')~Twice(21)"));
+Console.WriteLine(rexx.Run&lt;string&gt;("d = .directory~new; d~name = 'Ann'\n" +
+                                   "return .net~type('Helpers')~Describe(d)"));
+try { rexx.Run("return .net~type('Helpers')~Fails"); }
+catch (RexxException e) { Console.WriteLine($"{e.Code} {e.InnerException?.Message}"); }
+
+public static class Helpers
+{
+    // .NET code called from Rexx, calling Rexx back
+    public static int Twice(int x) =&gt; RexxInterpreter.Current!.Run&lt;int&gt;("use arg x; return 2 * x", x);
+    public static string Describe(RexxObject d) =&gt; $"{d.Send("NAME")} ({d.Send&lt;int&gt;("ITEMS")} item)";
+    public static int Fails() =&gt; throw new InvalidOperationException("no way");
+}</programlisting>
+<screen>3 a System.Collections.Generic.List&lt;System.String&gt;
+42
+Ann (1 item)
+98.900 no way</screen>
+</example>
+</section>
+
+<section id="bothwaysGuest"><title>Guest Mode</title>
+<para>When ooRexx is the host (a program started by <command>rexx</command>
+that uses &net;), .NET code that the Rexx code calls gets a
+<classname>RexxInterpreter</classname> for the instance through
+<computeroutput>RexxInterpreter.Current</computeroutput>; its
+<methodname>IsGuest</methodname> is &true;, and <methodname>Dispose</methodname>
+does nothing on it. A .NET assembly of your own, loaded with
+<computeroutput>.net~load</computeroutput>, can so run Rexx code, send messages
+to the Rexx objects it is given, and throw exceptions that Rexx sees as 98.900.
+Application functions and value selectors need an instance made by
+<methodname>Create</methodname>.</para>
+</section>
+
+<section id="bothwaysErrors"><title>Errors Across Both Directions</title>
+<para>A .NET exception thrown by .NET code that Rexx called is a 98.900 in that
+Rexx code; if the Rexx code lets it out to the .NET code that ran it, that
+code gets a <classname>RexxException</classname> whose
+<literal>InnerException</literal> is the exception that was thrown, the very
+object. A <classname>RexxException</classname> thrown by .NET code that Rexx
+called (because Rexx code that it ran failed), through any chain of inner
+exceptions, is raised in the calling Rexx code as the original condition, with
+its code and message: the Rexx programmer gets their own error and line.</para>
+</section>
+
+<section id="bothwaysPackage"><title>The NuGet Package</title>
+<indexterm><primary>NuGet</primary></indexterm>
+<indexterm><primary>REXXNET_DIR</primary></indexterm>
+<para>The package <literal>Rexx.Net</literal> holds
+<filename>lib/net8.0/Rexx.Net.dll</filename> and the native library
+<literal>rexxnet</literal> for Windows (x64), Linux (x64) and macOS (Apple
+silicon), in <filename>runtimes/</filename><replaceable>rid</replaceable><filename>/native/</filename>.
+The assembly carries <filename>net.cls</filename> and <filename>CLR.CLS</filename>
+inside it: when an instance is created (<methodname>RexxOptions.Net</methodname>,
+by default), they are loaded under their names, once per process, so that
+<computeroutput>::requires "net.cls"</computeroutput> needs no file and uses
+the copy that matches the assembly; and <literal>rexxnet</literal> is
+registered with ooRexx, so <filename>net.cls</filename>'s
+<computeroutput>::requires "rexxnet" LIBRARY</computeroutput> needs no library
+path. The names are compared exactly: <computeroutput>::requires "net.cls"</computeroutput>
+and <computeroutput>::requires CLR.CLS</computeroutput> match, while
+<computeroutput>::requires NET.CLS</computeroutput> (unquoted, so uppercased)
+looks for a file.</para>
+<para><literal>rexxnet</literal> is looked for as the application's own
+native library (the package's, through the application's
+<filename>deps.json</filename>), then in the directory that the environment
+variable <envar>REXXNET_DIR</envar> names, then next to
+<filename>Rexx.Net.dll</filename>. Without it, everything works but &net; in
+the Rexx code, and a .NET object going to Rexx says why. A Rexx program run by
+<command>rexx</command> (guest mode) uses the <filename>net.cls</filename> and
+<literal>rexxnet</literal> it finds on disk, as any package.</para>
+<para><emphasis role="bold">PowerShell</emphasis> 7.4 or later runs on .NET 8
+or later and loads the assembly: <computeroutput>Add-Type -Path Rexx.Net.dll</computeroutput>
+(the project's <filename>samples/powershell/hello.ps1</filename>). Windows
+PowerShell 5.1 runs on .NET Framework, and cannot. A Rexx string is a
+<classname>RexxString</classname> there too, which PowerShell's
+<literal>+</literal> does not turn into a string: <computeroutput>.ToString()</computeroutput>.</para>
+</section>
+
+</chapter>

@@ -1,0 +1,275 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="extend"><title>Rexx Classes and .NET Classes</title>
+<indexterm><primary>subclass</primary><secondary>of NetObject</secondary></indexterm>
+<indexterm><primary>extend</primary></indexterm>
+
+<para>A Rexx class can stand for .NET objects in two ways. A subclass of
+<classname>NetObject</classname> is a Rexx view of a .NET object, which .NET
+does not know about: its methods come first for Rexx code. A Rexx class that
+<emphasis>extends</emphasis> a .NET class is a .NET class too: .NET calls its
+methods where it would call the overrides of a C# subclass, so a Rexx class
+can be a Windows Forms <literal>Form</literal> with its own
+<methodname>OnPaint</methodname>, an <literal>IComparer</literal> for .NET's
+sorts, or an <literal>INotifyPropertyChanged</literal> for WPF's
+binding.</para>
+
+<section id="extendSubclass"><title>Subclasses of NetObject</title>
+<para><computeroutput>.MyClass~new(o)</computeroutput>, with
+<classname>MyClass</classname> a subclass of <classname>NetObject</classname>
+(or of <classname>NetArray</classname>) and <literal>o</literal> a
+<classname>NetObject</classname>, is an object of <classname>MyClass</classname>
+that stands for the same .NET object: one more proxy,
+<computeroutput>==</computeroutput> to <literal>o</literal>, which goes to .NET
+as that object. As in any Rexx class, its methods come first, and its
+<methodname>unknown</methodname>, if it has one, gets every other message,
+and reaches .NET with <computeroutput>FORWARD CLASS (SUPER)</computeroutput>;
+a name that nothing handles is SYNTAX 97.1. Its own
+<methodname>init</methodname> must call <computeroutput>self~init:super(o)</computeroutput>.
+The subclass is a view chosen by Rexx code: the same .NET object, coming back
+from .NET later, is a plain <classname>NetObject</classname> again.</para>
+
+<example id="ex.extend-subclass">
+<title>A Rexx subclass of NetObject</title>
+<programlisting language="rexx">sb = .Loud~new(.net~System~Text~StringBuilder~new("abc"))
+say sb~Shout sb~Length
+say sb == sb~Append("d")
+
+::requires "net.cls"
+::class Loud subclass NetObject
+::method unknown
+  use arg name, args
+  if name = "SHOUT" then return self~ToString~upper
+  forward class (super)</programlisting>
+<screen>ABC 3
+1</screen>
+</example>
+</section>
+
+<section id="extendExtend"><title>Extending a .NET Class</title>
+<indexterm><primary>override</primary></indexterm>
+<para><computeroutput>.net~extend(.MyClass, base [, interface...])</computeroutput>,
+once per class (the class's <methodname>activate</methodname> class method is
+the natural place), with <classname>MyClass</classname> a subclass of
+<classname>NetObject</classname>, makes a .NET type that derives from
+<literal>base</literal> (a class; or, for an interface, <literal>System.Object</literal>)
+and implements the interfaces, and returns it, a <classname>NetType</classname>
+(<xref linkend="mthNetExtend" xrefstyle="select:title"/>). Every member of the
+base that can be overridden (virtual or abstract, public or protected, not
+sealed) and every member of the interfaces (and of the interfaces they
+extend) that <classname>MyClass</classname> has a method for, counting its
+superclasses below <classname>NetObject</classname>, is overridden by that
+method:</para>
+<itemizedlist>
+<listitem><para>A method is overridden by the Rexx method of its name; all
+its overloads by the same Rexx method, which gets the arguments of each
+call (<methodname>Write</methodname> of a <literal>TextWriter</literal> gets
+a <literal>char</literal>, a <literal>string</literal>, a
+<literal>char[]</literal>...).</para></listitem>
+<listitem><para>A property's getter is the method
+<emphasis role="italic">Name</emphasis>, its setter the method
+<computeroutput>"NAME="</computeroutput>, as Rexx sends
+<computeroutput>o~Name</computeroutput> and <computeroutput>o~Name = v</computeroutput>.</para></listitem>
+<listitem><para><methodname>init</methodname>, <methodname>uninit</methodname>
+and <methodname>unknown</methodname> never override anything.</para></listitem>
+<listitem><para>Members without a Rexx method keep the base's implementation.
+An abstract one throws <literal>NotImplementedException</literal> when .NET
+calls it ("MYCLASS does not define AREA, which the abstract ... needs").</para></listitem>
+</itemizedlist>
+<para>.NET calls an override as it calls a handler (<xref linkend="events"/>):
+at once, on the thread it calls from, the result converted to the member's
+return type; a Rexx error is a <classname>RexxException</classname> in .NET,
+raised again as it was if it comes back to Rexx, and reported on
+<literal>.error</literal> where no Rexx code waits. The methods are looked at
+when <methodname>extend</methodname> runs: a method that the class gets later
+(<methodname>define</methodname>) is not an override.</para>
+
+<example id="ex.extend-collection">
+<title>A Rexx class extending a .NET class</title>
+<programlisting language="rexx">c = .Shouting~new
+c~Add("hello"); c~Insert(0, "world")
+say c[0] c[1] c~Count c~stored
+say .net~typeOf(c)
+
+::requires "net.cls"
+::class Shouting subclass NetObject
+::method activate class          -- when the class is created
+  .net~extend(self, "System.Collections.ObjectModel.Collection&lt;System.String&gt;")
+::method InsertItem              -- protected virtual void InsertItem(int index, string item)
+  use arg index, item
+  self~InsertItem:super(index, item~upper)
+::method stored                  -- Items: a protected property
+  return self~Items~Count "items"</programlisting>
+<screen>WORLD HELLO 2 2 items
+SHOUTING extending System.Collections.ObjectModel.Collection&lt;System.String&gt;</screen>
+</example>
+
+<para>An interface alone is enough for .NET code that wants one, and the
+object comes back from .NET as itself, the Rexx object with its class and
+its state:</para>
+
+<example id="ex.extend-interface">
+<title>A Rexx class implementing a .NET interface</title>
+<programlisting language="rexx">.net~extend(.ByLength, "System.Collections.Generic.IComparer&lt;System.String&gt;")
+list = .net~type("System.Collections.Generic.List&lt;System.String&gt;")~new
+do w over "ccc a bb dddd"~makeArray(" "); list~Add(w); end
+cmp = .ByLength~new
+list~Sort(cmp)
+say list~ToArray~makeString("L", " ")
+held = .net~type("System.Collections.Generic.List&lt;System.Object&gt;")~new
+held~Add(cmp)
+say (held[0] == cmp) held[0]~class~id
+
+::requires "net.cls"
+::class ByLength subclass NetObject
+::method Compare
+  use arg a, b
+  return sign(a~length - b~length)</programlisting>
+<screen>a bb ccc dddd
+1 BYLENGTH</screen>
+</example>
+</section>
+
+<section id="extendConstruction"><title>Construction</title>
+<indexterm><primary>constructor</primary><secondary>of an extending class</secondary></indexterm>
+<para><computeroutput>.MyClass~new(args...)</computeroutput> makes the .NET
+object with the base's constructor (public or protected) that takes the
+arguments. The object is made first, its Rexx object attached to it, and only
+then the constructor runs: a base constructor that calls a virtual member
+(Windows Forms' do) reaches the Rexx method, and that method can use the
+object. So a class's own <methodname>init</methodname> sets what its
+overrides need, and then calls <computeroutput>self~init:super(args...)</computeroutput>
+with the base constructor's arguments. <computeroutput>.net~new(type)</computeroutput>
+of the new type is refused (it would have no Rexx object); .NET code that
+makes one itself gets an object whose overrides run the base's
+implementations.</para>
+</section>
+
+<section id="extendProtected"><title>Protected Members, base. and :super</title>
+<indexterm><primary>protected members</primary></indexterm>
+<indexterm><primary>base.</primary></indexterm>
+<para>As in C#, the object's own methods, and only they, reach the base's
+protected members: <computeroutput>self~Items</computeroutput>,
+<computeroutput>self~Label = "x"</computeroutput>. They are private Rexx
+methods of the class, so ooRexx itself keeps any other code from calling them:
+from outside, the name is not found (SYNTAX 97.1), as C#'s "inaccessible".
+Proxies of other .NET objects never see protected members.</para>
+<para>As in any Rexx class, <computeroutput>self~Name:super(args)</computeroutput>
+is the base's: the implementation of a member the class overrides (C#'s
+<literal>base.Name(args)</literal>), or a protected member that the class
+hides with a method of the same name. <computeroutput>self~base.Name(args)</computeroutput>
+does the same for an overridden member (<computeroutput>"BASE.NAME="</computeroutput>
+for a setter).</para>
+</section>
+
+<section id="extendMore"><title>Generic Methods, ref and out, Events</title>
+<para><emphasis role="bold">Generic methods.</emphasis> The Rexx method of an
+overridden generic method gets the type arguments after its arguments, as
+<classname>NetType</classname>s: <literal>T Make&lt;T&gt;(string s)</literal>
+is <computeroutput>use arg s, t</computeroutput>. <computeroutput>self~base.Name(args..., types...)</computeroutput>
+passes them on, or they are inferred from the arguments as in any call.</para>
+<para><emphasis role="bold">Parameters by reference.</emphasis> A
+<literal>ref</literal> or <literal>out</literal> parameter arrives as a
+<literal>Rexx.Net.ComRef</literal>: <computeroutput>ref~Value</computeroutput>
+is its value, and <computeroutput>ref~Value = x</computeroutput> gives the
+caller a new one. The base's own <literal>ref</literal> and
+<literal>out</literal> parameters take <classname>NetRef</classname>s, as any
+.NET call.</para>
+<para><emphasis role="bold">Interfaces' events.</emphasis> An event of an
+interface (<literal>INotifyPropertyChanged.PropertyChanged</literal>, which
+WPF's binding listens to) is an event of the new type: .NET code and Rexx
+code (<computeroutput>o~PropertyChanged += handler</computeroutput>) subscribe
+to it, and the object's own methods raise it with
+<computeroutput>self~raise.PropertyChanged(self, args)</computeroutput>, a
+private method; with no handlers, nothing happens.</para>
+
+<example id="ex.extend-events">
+<title>An interface's event, raised by a Rexx class</title>
+<programlisting language="rexx">p = .Person~new
+p~PropertyChanged += .net~handler(.Watcher~new, "CHANGED")
+p~setName("Ann")
+p~setName("Bob")
+say .net~isInstance(p, "System.ComponentModel.INotifyPropertyChanged")
+
+::requires "net.cls"
+::class Person subclass NetObject
+::method activate class
+  .net~extend(self, "System.ComponentModel.INotifyPropertyChanged")
+::method setName
+  expose name
+  use arg name
+  args = .net~System~ComponentModel~PropertyChangedEventArgs~new("Name")
+  self~raise.PropertyChanged(self, args)
+::method name
+  expose name
+  return name
+::class Watcher
+::method changed
+  use arg sender, e
+  say e~PropertyName "is now" sender~name</programlisting>
+<screen>Name is now Ann
+Name is now Bob
+1</screen>
+</example>
+
+<example id="ex.extend-textwriter">
+<title>One Rexx method for every overload</title>
+<programlisting language="rexx">w = .Collector~new
+console = .net~System~Console
+old = console~Out
+console~SetOut(w)                       -- .NET's Console writes to the Rexx object
+console~WriteLine("from .NET's Console")
+console~Write("two"); console~Write(" parts"); console~WriteLine
+console~SetOut(old)
+say "collected:" w~lines~makeString("L", " | ")
+
+::requires "net.cls"
+::class Collector subclass NetObject
+::method activate class
+  .net~extend(self, "System.IO.TextWriter")
+::attribute lines get
+::method init
+  expose lines buffer
+  lines = .array~new; buffer = ""
+  self~init:super
+::method Encoding                       -- abstract in TextWriter: a property
+  return .net~System~Text~Encoding~UTF8
+::method Write                          -- every virtual Write overload calls this
+  expose lines buffer
+  use arg x                             -- here: a string, a char, or a char[]
+  if x~isA(.NetArray) then x = x~makeString("C")
+  buffer ||= x~changeStr("0d"x, "")
+  do while buffer~pos("0a"x) &gt; 0
+    parse var buffer line "0a"x buffer
+    lines~append(line)
+  end</programlisting>
+<screen>collected: from .NET's Console | two parts</screen>
+</example>
+</section>
+
+<section id="extendLifetime"><title>Lifetime</title>
+<indexterm><primary>lifetime</primary><secondary>of extending objects</secondary></indexterm>
+<indexterm><primary>UNINIT</primary></indexterm>
+<para>Each instance is a pair, the Rexx object and its .NET object, which
+lives while Rexx holds the one or .NET holds the other. The bridge lets both
+garbage collectors release it, with nothing to do by hand: while Rexx holds
+the Rexx object, it holds the .NET object; when Rexx no longer does, the
+.NET object is held weakly, and the Rexx object is kept for it; when .NET
+collects the .NET object, the pair is over. Going back to Rexx makes Rexx
+hold it again. The class's <methodname>uninit</methodname>, if it has one,
+runs once, when the pair is over: when .NET has collected its object, or when
+the interpreter instance ends (with the overrides still reaching it). The
+.NET type that <methodname>extend</methodname> made is kept by the Rexx class;
+a class made at run time (<computeroutput>.NetObject~subclass(...)</computeroutput>),
+extended, is collected with its type once nothing holds the class or its
+instances.</para>
+<para>On Windows, a <literal>Form</literal> whose <methodname>OnPaint</methodname>,
+<methodname>OnResize</methodname> and <methodname>ProcessDialogKey</methodname>
+are Rexx methods is the project's <filename>samples/windows/forms-extend.rex</filename>.</para>
+</section>
+
+</chapter>

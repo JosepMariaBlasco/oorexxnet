@@ -1,0 +1,87 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE appendix PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<appendix id="platforms"><title>Windows, Linux and macOS</title>
+<indexterm><primary>platforms</primary></indexterm>
+<para>The bridge behaves the same on the three systems; this appendix lists
+what differs, and the environment variables it reads.</para>
+
+<section id="platformsWindows"><title>Windows</title>
+<itemizedlist>
+<listitem><para><emphasis role="bold">The desktop framework.</emphasis> The
+bridge's runtime configuration names <literal>Microsoft.WindowsDesktop.App</literal>
+(Windows Forms, WPF, <literal>System.Drawing</literal>, system sounds, the
+event log, <literal>SystemEvents</literal>) next to
+<literal>Microsoft.NETCore.App</literal>. Without the .NET Desktop Runtime
+everything works but those types (<xref linkend="introWhichNet"/>). When .NET
+already runs without the desktop framework (a .NET application that hosts
+ooRexx), the bridge uses its other configuration,
+<filename>Rexx.Net.core.runtimeconfig.json</filename>.</para></listitem>
+<listitem><para><emphasis role="bold">STA threads.</emphasis> Every Rexx
+thread becomes a single-threaded apartment at its first request to .NET, as
+.NET's user interface applications (<literal>[STAThread]</literal>) and
+PowerShell's threads are: common dialogs, the clipboard, drag and drop and COM
+events need it. A thread whose COM is already initialized is left alone, and
+so are a .NET host's own threads. <computeroutput>REXXNET_APARTMENT=MTA</computeroutput>
+leaves every thread alone.</para></listitem>
+<listitem><para><emphasis role="bold">Assemblies by name, locally.</emphasis>
+<computeroutput>.net~load(name)</computeroutput> looks for
+<replaceable>name</replaceable><filename>.dll</filename> in the current
+directory, then next to the bridge, when the runtime does not know the name:
+an assembly that was in .NET Framework's global cache and is a NuGet package
+today (<literal>System.Speech</literal>) is found by copying its
+<filename>.dll</filename> there (the binary release carries
+<filename>System.Speech.dll</filename>).</para></listitem>
+<listitem><para><emphasis role="bold">COM</emphasis> objects and their events
+exist on Windows only (<xref linkend="com"/>).</para></listitem>
+<listitem><para><emphasis role="bold">The installer.</emphasis> Each release has
+<filename>oorexxnet-</filename><replaceable>version</replaceable><filename>-setup.exe</filename>,
+which installs the bridge into an installed ooRexx, with Start menu shortcuts
+(these books among them) and an uninstaller in Settings &gt; Apps. It is not
+signed: Windows may say "Windows protected your PC" (More info, then Run
+anyway), as for ooRexx's own installer.</para></listitem>
+</itemizedlist>
+</section>
+
+<section id="platformsUnix"><title>Linux and macOS</title>
+<itemizedlist>
+<listitem><para><emphasis role="bold">The native library</emphasis> is
+<filename>librexxnet.so</filename> (Linux) or <filename>librexxnet.dylib</filename>
+(macOS). Installed, it is in ooRexx's <filename>lib</filename>, and nothing
+needs setting. Used from a build directory, the directory goes on the
+library path (<envar>LD_LIBRARY_PATH</envar>, <envar>DYLD_LIBRARY_PATH</envar>)
+and on <envar>REXX_PATH</envar>. macOS drops <literal>DYLD_*</literal> variables
+when it starts <filename>/bin/sh</filename>, which <literal>ADDRESS SYSTEM</literal>
+uses: give them in the command itself.</para></listitem>
+<listitem><para><emphasis role="bold">.NET in your home.</emphasis> A .NET
+installed into <filename>~/.dotnet</filename> (Microsoft's
+<command>dotnet-install</command> script) is found through
+<envar>DOTNET_ROOT</envar>.</para></listitem>
+<listitem><para><emphasis role="bold">Calls into ooRexx on the main thread.</emphasis>
+On Linux, ooRexx before 5.3.0 r13267 makes every call into the interpreter
+from a process's main thread slow (about 200 µs) in a process with many
+memory mappings, as a .NET one has (ooRexx bug #2106). A .NET application
+that calls Rexx often needs r13267 or later.</para></listitem>
+</itemizedlist>
+</section>
+
+<section id="platformsVariables"><title>Environment Variables</title>
+<variablelist>
+<varlistentry><term><envar>DOTNET_ROOT</envar></term><listitem><para>The .NET
+installation to start, when it is not the system's.</para></listitem></varlistentry>
+<varlistentry><term><envar>REXXNET_DIR</envar></term><listitem><para>For a .NET
+application: the directory where <literal>rexxnet</literal> (and, in guest
+mode, <filename>net.cls</filename>) are looked for, after the application's
+own (<xref linkend="bothwaysPackage"/>).</para></listitem></varlistentry>
+<varlistentry><term><envar>REXXNET_APARTMENT</envar></term><listitem><para>Windows:
+<literal>MTA</literal> keeps the bridge from making Rexx threads
+single-threaded apartments.</para></listitem></varlistentry>
+<varlistentry><term><envar>REXX_PATH</envar></term><listitem><para>ooRexx's own:
+where <filename>net.cls</filename> is found when the bridge is not
+installed.</para></listitem></varlistentry>
+</variablelist>
+</section>
+</appendix>

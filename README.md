@@ -42,17 +42,20 @@ silicon). Every push runs the test suites on Linux, macOS and Windows
 package, with the native library of all three, and the binary zip with its installer. The design is still being
 discussed and parts of the API may change.
 
-**Start with the guide: [`docs/guide.md`](docs/guide.md)** — setting up, then
-both directions feature by feature, every example run and checked
-(`docs/check-guide.rex`).
+**The books**: *ooRexx and .NET: Reference* and *ooRexx and .NET: Cookbook*,
+as PDF and HTML, in each [release](https://github.com/JosepMariaBlasco/oorexxnet/releases)
+(and built by every CI run: artifact `books`); their sources are in
+[`docs/books`](docs/books), every example run and checked
+(`docs/check-books.rex`). A shorter tour of both directions, feature by
+feature, is the guide: [`docs/guide.md`](docs/guide.md) (`docs/check-guide.rex`).
 
 ## Installing (without building)
 
 **On Windows**, each [release](https://github.com/JosepMariaBlasco/oorexxnet/releases)
 has an installer, `oorexxnet-…-setup.exe`: it installs the bridge into an
 installed ooRexx (5 or later, 64-bit), with its samples in ooRexx's samples
-folder (under `dotnet`), shortcuts in ooRexx's Start menu folder (the guide,
-the samples), and an uninstaller in Settings > Apps. It needs .NET 8 or
+folder (under `dotnet`), the books in ooRexx's `doc` folder, shortcuts in
+ooRexx's Start menu folder (the books, the samples), and an uninstaller in Settings > Apps. It needs .NET 8 or
 later, with its Desktop Runtime (x64) for Windows Forms: when they are
 missing it says so and gives the link to Microsoft's download page. It is not
 signed: Windows may say "Windows protected your PC" (More info, then Run
@@ -113,8 +116,9 @@ GitHub). .NET programs that run Rexx code use the NuGet package instead.
   done, what is still to be confirmed on a Mac). Each design note records,
   phase by phase, what was built and where it departed from the plan
   (marked **Δ**).
-- `docs/` — `guide.md` (the user's guide) and `check-guide.rex` (runs its
-  examples and compares their output).
+- `docs/` — `books/` (the reference and the cookbook, DocBook: see its
+  README; `scripts/build-books.sh` builds them), `check-books.rex` (runs
+  their examples), `guide.md` (a shorter guide) and `check-guide.rex`.
 - `patches/oorexx/` — patches proposed to ooRexx itself (#2106).
 - `scripts/setup-env.sh` — installs the environment (see below);
   `scripts/platform.sh` — what differs between Linux and macOS, for the
@@ -180,7 +184,7 @@ CLR.CLS's Windows samples (Windows Forms, `MessageBox`, sounds, speech...):
   and its installer (`bridge/dist/install.rex`; `--from DIR` installs a
   build folder instead). The CI then installs it on each system and runs a
   sample.
-- **Windows installer** (`bridge/windows-installer.sh ZIP [DEST]`, NSIS 3:
+- **Windows installer** (`bridge/windows-installer.sh [--books DIR] ZIP [DEST]`, NSIS 3:
   `makensis` on Windows, or `apt install nsis`): `oorexxnet-VERSION-setup.exe`
   from the binary zip's Windows part; `bridge/dist/windows/oorexxnet.nsi` is
   a thin wrapper around `install.rex` (it finds ooRexx and .NET, runs it, and

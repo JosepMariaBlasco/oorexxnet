@@ -1,0 +1,95 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" [
+<!ENTITY % BOOK_ENTITIES SYSTEM "dotnetref.ent">
+%BOOK_ENTITIES;
+]>
+<!-- Licensed under the Apache License, Version 2.0. -->
+<chapter id="errors"><title>Errors</title>
+<indexterm><primary>errors</primary></indexterm>
+<indexterm><primary>conditions</primary></indexterm>
+
+<para>Errors cross the bridge in both directions, and keep what they are: a
+.NET exception is a Rexx SYNTAX condition that carries the exception, and a
+Rexx condition is a .NET exception that carries the condition. When an error
+goes back to the side it came from, it is raised there as it was.</para>
+
+<section id="errorsInRexx"><title>Conditions in Rexx</title>
+<table id="tabErrors" frame="all">
+<title>Errors raised in Rexx code by the bridge</title>
+<tgroup cols="2">
+<colspec colwidth="1*"/><colspec colwidth="4*"/>
+<thead><row><entry>Condition</entry><entry>When, and what it carries</entry></row></thead>
+<tbody>
+<row><entry>SYNTAX 98.900</entry><entry>A .NET exception, thrown by the .NET code that Rexx called: the message is <computeroutput>.NET error: </computeroutput><replaceable>type</replaceable><computeroutput>: </computeroutput><replaceable>message</replaceable>, and <computeroutput>condition("O")~additional[2]</computeroutput> is the exception itself, a <classname>NetObject</classname>. A <literal>TargetInvocationException</literal> or an <literal>AggregateException</literal> with one exception is unwrapped: the exception is the one the code threw. Also the bridge's own errors (no such type, no overload accepts the arguments, an ambiguous name), without an exception.</entry></row>
+<row><entry>SYNTAX 97.1</entry><entry>A message that is no member of the .NET object, as for any Rexx object: <literal>Object ... does not understand message ...</literal>. <computeroutput>additional[1]</computeroutput> is the object, <computeroutput>[2]</computeroutput> the message's name as Rexx sent it, and <computeroutput>[3]</computeroutput> a <literal>System.MissingMemberException</literal> that says what was looked for.</entry></row>
+<row><entry>SYNTAX 93.9xx</entry><entry>A wrong position for a <classname>NetArray</classname>, as for a Rexx Array (<xref linkend="collectionsArrays"/>).</entry></row>
+<row><entry>the condition as it was</entry><entry>A Rexx condition raised in a handler or an override that .NET called, if .NET lets it out of the call that Rexx made (<xref linkend="eventsErrors"/>); also a <classname>RexxException</classname> thrown by .NET code that Rexx called, which came from Rexx code that .NET code ran (<xref linkend="bothways"/>).</entry></row>
+</tbody>
+</tgroup>
+</table>
+<para>The helper methods of <filename>net.cls</filename> raise their errors
+with <literal>RAISE PROPAGATE</literal>, so the error points at the caller's
+line, not at <filename>net.cls</filename>.</para>
+
+<example id="ex.errors-rexx">
+<title>.NET's errors in Rexx</title>
+<programlisting language="rexx">signal on syntax
+say .net~System~Int32~Parse("abc")
+syntax:
+  c = condition("O")
+  say c~code .net~typeOf(c~additional[2])
+  say c~message
+  signal on syntax name second
+  x = .net~System~Text~StringBuilder~new~NoSuchThing
+second:
+  c = condition("O")
+  say c~code c~additional[2] .net~typeOf(c~additional[3])
+  say c~additional[3]~Message
+
+::requires "net.cls"</programlisting>
+<screen>98.900 System.FormatException
+.NET error: System.FormatException: The input string 'abc' was not in a correct format.
+97.1 NOSUCHTHING System.MissingMemberException
+System.Text.StringBuilder has no public instance member "NOSUCHTHING"</screen>
+</example>
+</section>
+
+<section id="errorsInNet"><title>Exceptions in .NET</title>
+<table id="tabExceptions" frame="all">
+<title>Exceptions thrown in .NET code by the bridge</title>
+<tgroup cols="2">
+<colspec colwidth="1*"/><colspec colwidth="4*"/>
+<thead><row><entry>Exception</entry><entry>When, and what it carries</entry></row></thead>
+<tbody>
+<row><entry><classname>RexxException</classname></entry><entry>A Rexx condition (SYNTAX, HALT...) that ends a call from .NET into Rexx (<methodname>Run</methodname>, <methodname>Send</methodname>, a routine's <methodname>Call</methodname>; also a compile error), or that a handler or an override raised while .NET called it: <literal>ConditionName</literal>, <literal>Code</literal> (<literal>"41.1"</literal>), <literal>Rc</literal>, <literal>ErrorText</literal>, <literal>Message</literal>, <literal>Program</literal>, <literal>Line</literal>, <literal>Traceback</literal>, and the condition object (<xref linkend="clsRexxException"/>). If the condition was a 98.900 that carried a .NET exception, that exception is its <literal>InnerException</literal>.</entry></row>
+<row><entry><literal>OperationCanceledException</literal></entry><entry>A call into Rexx halted through its <literal>CancellationToken</literal>; its <literal>InnerException</literal> is the <classname>RexxException</classname> 4.1 (<xref linkend="hostCancel"/>).</entry></row>
+<row><entry><literal>InvalidCastException</literal></entry><entry>A Rexx result that does not convert to the type asked for (<computeroutput>Run&lt;int&gt;</computeroutput> of <literal>"abc"</literal>).</entry></row>
+</tbody>
+</tgroup>
+</table>
+</section>
+
+<section id="errorsAcross"><title>Where Errors Go</title>
+<para>Some errors have no Rexx caller to go to, or are raised in Rexx's own
+terms:</para>
+<itemizedlist>
+<listitem><para>A Rexx condition in a handler that runs on a thread where no
+Rexx code waits for .NET (a timer's, the thread pool's) is reported on
+<literal>.error</literal>, as Rexx reports an untrapped error, and the program
+goes on (<xref linkend="eventsErrors"/>).</para></listitem>
+<listitem><para>A .NET exception in a command handler of the application
+(<literal>ADDRESS</literal>) raises FAILURE, with <literal>RC</literal> -1:
+Rexx's own meaning, "the command could not run"; a
+<classname>RexxCommandException</classname> raises ERROR or FAILURE with the
+<literal>RC</literal> it carries (<xref linkend="hostCommands"/>).</para></listitem>
+<listitem><para>A .NET exception in a function of the application raises
+SYNTAX 40.900, "Incorrect call to routine", with its message; wrong argument
+counts are 40.3 and 40.4 (<xref linkend="hostFunctions"/>).</para></listitem>
+<listitem><para>A .NET exception in .NET code called from Rexx code that a
+.NET program runs is a 98.900 in that Rexx code, as in any Rexx program; if
+it leaves the Rexx code, the program gets a <classname>RexxException</classname>
+whose <literal>InnerException</literal> is that very exception.</para></listitem>
+</itemizedlist>
+</section>
+
+</chapter>
