@@ -114,6 +114,12 @@ call ok "unbox another object", .net~unbox(sbx) == sbx, 1
 call ok "box: a .NetType",      .net~typeOf(.net~box(.net~System~Byte, 7)), "System.Byte"
 call ok "box: a full name",     .net~typeOf(.net~box("System.UInt32", 7)), "System.UInt32"
 call ok "box: STring",          .net~typeOf(.net~box("STring", 7)), "System.String"
+-- a Rexx string where a .NET object is needed: an error, never its text read
+-- as a handle (.net~typeOf("5") gave the type of the live object #5)
+live = .net~System~Text~StringBuilder~new
+call err "typeOf a Rexx number", '.net~typeOf("'live~netId'")', 'found the Rexx string "'live~netId'"'
+call err "typeOf a Rexx string", '.net~typeOf("abc")', 'a .NET object is needed'
+call err "members of a Rexx string", '.net~members("1")', 'a .NET object is needed'
 call ok "box: CLR.CLS indicators", -
    .net~typeOf(.net~box("BO", 1)) .net~typeOf(.net~box("SI", 1.5)) .net~typeOf(.net~box("SB", -1)) -
    .net~typeOf(.net~box("de", 2.5)) .net~typeOf(.net~box("UINT64", 1)) .net~typeOf(.net~box("CHAR", "x")), -

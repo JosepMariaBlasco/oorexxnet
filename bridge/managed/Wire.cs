@@ -54,7 +54,12 @@ public sealed class Rec
     internal bool? IsMap;               // X, G: a StringTable or a Directory? asked once
     internal IReadOnlyList<KeyValuePair<object?, object?>>? Pairs;   // X, G: its entries, read once
 
-    public int Id => int.Parse(Text);
+    /// The handle of a .NET object (an O record). Anything else, a Rexx string
+    /// given where a .NET object is needed (.net~typeOf("5")), is an error:
+    /// never its text read as a handle.
+    public int Id => Tag == 'O' ? int.Parse(Text)
+        : throw new BridgeException("a .NET object is needed, found " +
+                                    (Tag == 'S' ? $"the Rexx string \"{Text}\"" : Conv.Describe(this)));
     public override string ToString() => Tag + ":" + Text;
 }
 
