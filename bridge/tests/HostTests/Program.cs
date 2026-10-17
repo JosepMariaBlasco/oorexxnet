@@ -84,6 +84,9 @@ static partial class Program
         Ok("Run<List<string>>",      string.Join(",", rexx.Run<List<string>>("return .array~of('a', 'b')")), "a,b");
         Ok("Run<IReadOnlyList<double>>", rexx.Run<IReadOnlyList<double>>("return .array~new")!.Count, 0);
         Throws<InvalidCastException>("Run<int[]>: omitted items", () => rexx.Run<int[]>("a = .array~new; a[2] = 1; return a"), "omitted");
+        Ok("Run<string[]>: omitted items are null", string.Join("|", rexx.Run<string?[]>("a = .array~new(3); a[2] = 'x'; return a").Select(x => x ?? "null")), "null|x|null");
+        Ok("Run<object[][]>: an Array that contains itself", rexx.Run<object[][]>("a = .array~new; a~append(a); return a") is var self && ReferenceEquals(self[0], self), true);
+        Ok("Run<object[][]>: one Array twice, one array", rexx.Run<object[][]>("x = .array~of(1); return .array~of(x, x)") is var two && ReferenceEquals(two[0], two[1]), true);
         Throws<InvalidCastException>("Run<int[]>: not an Array", () => rexx.Run<int[]>("return .list~of(1)"), "only a Rexx Array");
         Ok("no result -> null",      rexx.Run("return") == null, true);
         Ok("bool, double, decimal, char args", rexx.Run("use arg a, b, c, d; return a b c d", true, 0.1, 2.50m, 'x'), "1 0.1 2.50 x");

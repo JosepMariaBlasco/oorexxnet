@@ -61,6 +61,13 @@ public static class Conv
 
     // ------------------------------------------------------------ Rexx -> .NET
 
+    // An Array's copy, kept on its record (Rec.Copy) as soon as it is made,
+    // before its items are converted: a Q item (Wire: Target, that Array's
+    // record) gets that very copy, so an Array that contains itself is an
+    // object[] that contains itself. Every conversion of the record (each
+    // overload tried) makes its copy afresh, before any Q can ask for it.
+    static void Copied(Rec r, object copy) => r.Copy = copy;
+
     /// Converts a request record to the type `to`. Returns the cost, or Fail.
     public static int TryConvert(Rec r, Type to, out object? value)
     {
@@ -87,7 +94,13 @@ public static class Conv
                     value = r.Adopted;
                     return (under ?? to).IsInstanceOfType(value) ? 0 : Fail;
                 }
-                return r.Dims == null ? FromArray(r.Items, to, out value) : FromMultiArray(r, to, out value);
+                return r.Dims == null ? FromArray(r, to, out value) : FromMultiArray(r, to, out value);
+            case 'Q':                                       // an Array met before in this value: its copy, if it fits
+            {
+                if (r.Target?.Copy is not { } copy || !(under ?? to).IsInstanceOfType(copy)) return Fail;
+                value = copy;
+                return 1;
+            }
             case 'S':
                 if (r.Boolean)
                 {
@@ -155,8 +168,9 @@ public static class Conv
         return k == Fail ? Fail : k;
     }
 
-    static int FromArray(List<Rec> items, Type to, out object? value)
+    static int FromArray(Rec r, Type to, out object? value)
     {
+        var items = r.Items;
         value = null;
         Type? elem = null;
         int extra;
@@ -177,26 +191,21 @@ public static class Conv
                 elem = typeof(object);
             if (elem == null) return Fail;
         }
-        var conv = new object?[items.Count];
+        // made first, and known (Copied) before its items are converted: an
+        // item that is this very Array (Q) gets it
+        Array? arr = null;
+        IList? list = null;
+        if (asArray || to.IsArray) { arr = Array.CreateInstance(elem!, items.Count); Copied(r, arr); }
+        else { list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elem!))!; Copied(r, list); }
         int cost = 0;
         for (int i = 0; i < items.Count; i++)
         {
-            int c = TryConvert(items[i], elem!, out conv[i]);
+            int c = TryConvert(items[i], elem!, out var item);
             if (c == Fail) return Fail;
             cost += c + extra;
+            if (arr != null) arr.SetValue(item, i); else list!.Add(item);
         }
-        if (asArray || to.IsArray)
-        {
-            var arr = Array.CreateInstance(elem!, conv.Length);
-            for (int i = 0; i < conv.Length; i++) arr.SetValue(conv[i], i);
-            value = arr;
-        }
-        else
-        {
-            var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elem!))!;
-            foreach (var x in conv) list.Add(x);
-            value = list;
-        }
+        value = (object?)arr ?? list;
         return cost + (items.Count == 0 ? extra : 0);
     }
 
@@ -213,6 +222,7 @@ public static class Conv
         else if (to == typeof(object) || to == typeof(Array)) { elem = typeof(object); extra = 3; }
         else return Fail;
         var arr = Array.CreateInstance(elem, dims);
+        Copied(r, arr);
         var idx = new int[dims.Length];
         int cost = 0;
         for (int k = 0; k < r.Items.Count; k++)
@@ -303,7 +313,7 @@ public static class Conv
         r.IsMap ??= IsMap(o);
         if (r.IsMap != true) return Fail;
         r.Pairs ??= o.Supplier();
-        try { value = DictionaryCopy(r.Pairs, vt); }
+        try { value = DictionaryCopy(r.Pairs, vt, o); }
         catch (InvalidCastException) { return Fail; }
         return 20;
     }
@@ -322,25 +332,58 @@ public static class Conv
     internal static bool IsRexxArray(RexxObject o) =>
         o.Interpreter.FindClass("Array") is RexxClass a && o.Is(a) && o.Send<int>("DIMENSION") <= 1;
 
-    // A one-dimensional Rexx Array's items, converted as Rexx results, in a
-    // new T[] (a List<T> for a List<T>). Omitted items: an error, as when the
-    // Array goes to .NET as an argument.
-    internal static object ArrayCopy(RexxObject a, Type t, Type et)
+    // The copies made so far in one conversion (RexxConvert.To of one value),
+    // by the Rexx object they copy: an Array met again (one that contains
+    // itself, or one in it twice) is its copy again, as for an argument
+    // (Rec.Copy). Made by the outermost copy; nested more than
+    // MaxArrayDepth deep: an error (the copy recurses).
+    [ThreadStatic] static Dictionary<RexxObject, object>? hostCopies;
+    [ThreadStatic] static int hostDepth;
+    const int MaxArrayDepth = 1000;
+
+    static T Copying<T>(Func<Dictionary<RexxObject, object>, T> copy)
     {
-        int n = a.Send("LAST") is RexxString last ? int.Parse(last.Value) : 0;
-        if (a.Send<int>("ITEMS") != n) throw new InvalidCastException("an Array with omitted items cannot become a .NET array or list");
+        bool outermost = hostCopies == null;
+        hostCopies ??= new(ReferenceEqualityComparer.Instance);
+        if (++hostDepth > MaxArrayDepth)
+        {
+            hostDepth--;
+            if (outermost) hostCopies = null;
+            throw new InvalidCastException($"Arrays nested more than {MaxArrayDepth} deep cannot become .NET arrays");
+        }
+        try { return copy(hostCopies); }
+        finally { hostDepth--; if (outermost) hostCopies = null; }
+    }
+
+    // A one-dimensional Rexx Array's items, converted as Rexx results, in a
+    // new T[] (a List<T> for a List<T>). An omitted item: null, where T takes
+    // one (the size is kept, as when the Array goes to .NET as an argument).
+    internal static object ArrayCopy(RexxObject a, Type t, Type et) => Copying(memo =>
+    {
+        bool list = t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>);
+        if (memo.TryGetValue(a, out var made) && t.IsInstanceOfType(made)) return made;
+        int n = a.Send("SIZE") is RexxString size ? int.Parse(size.Value) : 0;
         var arr = Array.CreateInstance(et, n);
+        var lst = list ? (IList)Activator.CreateInstance(t)! : null;
+        memo[a] = lst ?? (object)arr;                       // (before its items: one of them may be a itself)
+        bool takesNull = !et.IsValueType || Nullable.GetUnderlyingType(et) != null;
         for (int i = 1; i <= n; i++)
         {
             object? item;
-            try { item = RexxConvert.To(a.Send("AT", i), et); }
-            catch (Exception e) when (e is FormatException or OverflowException) { throw new InvalidCastException(e.Message, e); }
-            arr.SetValue(item, i - 1);
+            if (!a.Send<bool>("HASINDEX", i))
+            {
+                if (!takesNull) throw new InvalidCastException($"an Array with omitted items cannot become a .NET array or list of {et.Name}");
+                item = null;
+            }
+            else
+            {
+                try { item = RexxConvert.To(a.Send("AT", i), et); }
+                catch (Exception e) when (e is FormatException or OverflowException) { throw new InvalidCastException(e.Message, e); }
+            }
+            if (lst != null) lst.Add(item); else arr.SetValue(item, i - 1);
         }
-        if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>))
-            return Activator.CreateInstance(t, arr)!;
-        return arr;
-    }
+        return lst ?? (object)arr;
+    });
 
     // A StringTable or a Directory (or an instance of a subclass): what
     // becomes a dictionary with string keys.
@@ -351,9 +394,12 @@ public static class Conv
     // A new Dictionary<string, vt> with a StringTable's or Directory's pairs
     // (its supplier's: a Directory's setMethod entries with their results), the values
     // converted as Rexx results (InvalidCastException: one does not convert).
-    internal static IDictionary DictionaryCopy(IReadOnlyList<KeyValuePair<object?, object?>> pairs, Type vt)
+    internal static IDictionary DictionaryCopy(IReadOnlyList<KeyValuePair<object?, object?>> pairs, Type vt, RexxObject? of = null) => Copying(memo =>
     {
-        var d = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(typeof(string), vt))!;
+        var t = typeof(Dictionary<,>).MakeGenericType(typeof(string), vt);
+        if (of != null && memo.TryGetValue(of, out var made) && t.IsInstanceOfType(made)) return (IDictionary)made;
+        var d = (IDictionary)Activator.CreateInstance(t)!;
+        if (of != null) memo[of] = d;                       // (before its values: one of them may hold it)
         foreach (var (k, v) in pairs)
         {
             object? item;
@@ -362,7 +408,7 @@ public static class Conv
             d[k is RexxString ks ? ks.Value : k?.ToString() ?? ""] = item;
         }
         return d;
-    }
+    });
 
     static int FromString(string s, Type to, out object? value)
     {
@@ -521,7 +567,7 @@ public static class Conv
     public static string Describe(Rec r) => r.Tag switch
     {
         'S' => r.Text, 'N' => ".nil", 'O' => Types.Display(Handles.Get(r.Id) is StaticOf so ? so.Type : Handles.Get(r.Id).GetType()),
-        'A' => r.Dims == null ? "an Array" : $"a {r.Dims.Length}-dimensional Array", 'T' => r.Text + " " + Describe(r.Inner!), 'R' => "a NetRef", 'H' => "a NetHandler",
+        'A' => r.Dims == null ? "an Array" : $"a {r.Dims.Length}-dimensional Array", 'Q' => "an Array that is already in the value", 'T' => r.Text + " " + Describe(r.Inner!), 'R' => "a NetRef", 'H' => "a NetHandler",
         'X' or 'G' => r.IsMap == true ? "a StringTable or Directory (whose values do not all convert)" : "a Rexx object",
         _ => r.Tag.ToString(),
     };

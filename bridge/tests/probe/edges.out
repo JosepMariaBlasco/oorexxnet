@@ -43,9 +43,13 @@ Rexx value                       int          long         double       decimal 
 .nil                             -            -            -            -            -            -            .nil         -            Empty
 
 --- other Rexx values, to an object parameter (Convert.GetTypeCode / the .NET type)
-sparse Array [1,,x,]                     error: an Array with omitted items cannot go to .NET.                        
+sparse Array [1,,x,]                     a copy: System.Object[]
 2-D Array 2x2 (full)                     a copy: System.Object[,]
 Array (1,'a')                            a copy: System.Object[]
+a~append(a): [3] is itself               '3 1'
+b <-> c: [2][2] is b's copy              '1'
+.array~of(x, x): one array               '1'
+1001 Arrays deep                         'error: Arrays nested more than 1000 deep cannot go to .NET.'
 .directory~new                           by reference: a Rexx.Net.RexxObject (back: the object itself)
 .stringtable~new                         by reference: a Rexx.Net.RexxObject (back: the object itself)
 stem s.                                  by reference: a Rexx.Net.RexxObject (back: the object itself)

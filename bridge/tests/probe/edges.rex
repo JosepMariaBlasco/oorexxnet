@@ -33,6 +33,10 @@ call show "sparse Array [1,,x,]", a
 m = .array~new(2,2); m[1,1] = 1; m[1,2] = 2; m[2,1] = 3; m[2,2] = 4
 call show "2-D Array 2x2 (full)", m
 call show "Array (1,'a')", .array~of(1, "a")
+call back "a~append(a): [3] is itself", cyclic(1)
+call back "b <-> c: [2][2] is b's copy", cyclic(2)
+call back ".array~of(x, x): one array", cyclic(3)
+call back "1001 Arrays deep", cyclic(4)
 call show ".directory~new", .directory~new
 call show ".stringtable~new", .stringtable~new
 s.1 = "a"; s.0 = 1
@@ -137,6 +141,21 @@ boxedBack: procedure
   l~Add(.net~box("int", 7))
   return l[0]
 
+cyclic: procedure                      -- Arrays in Arrays, to a List<object> and back
+  l = .net~type("System.Collections.Generic.List<object>")~new
+  select
+    when arg(1) = 1 then do; a = .array~of(1, 2); a~append(a); l~Add(a); return l[0]~length (l[0][3] == l[0]); end
+    when arg(1) = 2 then do; b = .array~of(1); c = .array~of(2, b); b~append(c); l~Add(b); return (l[0][2][2] == l[0]); end
+    when arg(1) = 3 then do; x = .array~of(7); l~Add(.array~of(x, x)); return (l[0][1] == l[0][2]); end
+    otherwise
+      d = .array~new; t = d
+      do 1001; n = .array~new; t~append(n); t = n; end
+      signal on syntax name deepFails
+      l~Add(d)
+      return "no error"
+  end
+deepFails:
+  return "error:" condition("O")~message
 dateBack: procedure
   d = .net~System~DateTime~new(2026, 10, 16)
   return d~class~id d~ToString("s")

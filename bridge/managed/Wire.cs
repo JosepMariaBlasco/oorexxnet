@@ -4,6 +4,10 @@
 //   L .true or .false themselves: "1" or "0", read as an S marked Logical
 //   B a .Boolean (boolean.cls): "1" or "0", read as an S marked Logical and
 //     Boolean (a bool to a bool or object parameter, else its string)
+//   I first in an A's or M's items: the Array's number in this value (0, 1...)
+//   Q an Array met before in this value: its number (an Array that contains
+//     itself, Arrays that contain each other, one Array twice: the same .NET
+//     array or list; oorexx-bridges, topic "cyclic-arrays")
 //   M a multidimensional Rexx Array: "d1,d2,...\t" + its items' records, in
 //     Rexx's order (the first index fastest); read as an A with Dims
 //   T typed: payload "kind\t" + one record (kind: a type name, "#id" of a
@@ -50,6 +54,9 @@ public sealed class Rec
     public string Text = "";
     public List<Rec> Items = new();
     public int[]? Dims;
+    public int Number = -1;             // an A's number in its value (I), for the Qs that refer to it
+    public Rec? Target;                 // a Q's: the A it refers to
+    public object? Copy;                // an A's: its .NET copy, in the conversion being made
     public bool Boolean;                // S from a .Boolean (B): a bool where .NET can take one
     public bool Logical;                // S from .true or .false themselves (L)                 // A from a multidimensional Rexx Array (M): its dimensions; Items in Rexx's order
     public Rec? Inner;                  // T, R: the value
@@ -69,6 +76,30 @@ public sealed class Rec
 
 public static class Wire
 {
+    static void TakeNumber(Rec r)                // an Array's I record: its number, out of its items
+    {
+        if (r.Items.Count > 0 && r.Items[0].Tag == 'I') { r.Number = int.Parse(r.Items[0].Text); r.Items.RemoveAt(0); }
+        if (r.Number == 0) Link(r);              // a value's first Array: every other one is inside it
+    }
+
+    // The Qs of a value's Arrays, each to the Array record it names.
+    static void Link(Rec root)
+    {
+        var byNumber = new Dictionary<int, Rec>();
+        var qs = new List<Rec>();
+        var todo = new Stack<Rec>();
+        todo.Push(root);
+        while (todo.Count > 0)
+        {
+            var r = todo.Pop();
+            if (r.Tag == 'Q') { qs.Add(r); continue; }
+            if (r.Number >= 0) byNumber[r.Number] = r;
+            foreach (var i in r.Items) todo.Push(i);
+            if (r.Inner != null) todo.Push(r.Inner);
+        }
+        foreach (var q in qs) q.Target = byNumber.GetValueOrDefault(int.Parse(q.Text));
+    }
+
     public static List<Rec> Parse(ReadOnlySpan<byte> data)
     {
         var list = new List<Rec>();
@@ -93,6 +124,7 @@ public static class Wire
                 case 'A':                                   // its items; a last P: the Rexx Array's pointer
                     r.Items = Parse(payload);
                     if (r.Items.Count > 0 && r.Items[^1].Tag == 'P') { r.Text = r.Items[^1].Text; r.Items.RemoveAt(r.Items.Count - 1); }
+                    TakeNumber(r);
                     break;
                 case 'L': r.Tag = 'S'; r.Logical = true; r.Text = Encoding.UTF8.GetString(payload); break;
                 case 'B': r.Tag = 'S'; r.Logical = r.Boolean = true; r.Text = Encoding.UTF8.GetString(payload); break;
@@ -102,6 +134,7 @@ public static class Wire
                     r.Tag = 'A';
                     r.Dims = Encoding.UTF8.GetString(payload.Slice(0, tab)).Split(',').Select(int.Parse).ToArray();
                     r.Items = Parse(payload.Slice(tab + 1));
+                    TakeNumber(r);
                     break;
                 }
                 case 'R': r.Inner = Parse(payload)[0]; break;

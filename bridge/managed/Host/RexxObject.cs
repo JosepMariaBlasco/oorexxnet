@@ -438,7 +438,7 @@ public static class RexxConvert
         // A StringTable or Directory where a dictionary with string keys is asked for: a copy
         if (v is RexxObject ro && v is not RexxString && Conv.DictionaryOf(t) is Type vt)
         {
-            if (Conv.IsMap(ro)) return Conv.DictionaryCopy(ro.Supplier(), vt);
+            if (Conv.IsMap(ro)) return Conv.DictionaryCopy(ro.Supplier(), vt, ro);
             throw new InvalidCastException($"a Rexx object ({v}) is not a {t.Name}: only a StringTable or a Directory becomes a dictionary");
         }
         // A one-dimensional Rexx Array where a .NET array or list is asked for: a copy

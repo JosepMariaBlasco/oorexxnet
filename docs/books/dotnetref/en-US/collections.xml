@@ -74,7 +74,13 @@ A multidimensional Array goes to a .NET array of the same rank
 (<literal>int[,]</literal> for such a parameter, else
 <literal>object[,]</literal>), the item <computeroutput>a[i, j]</computeroutput>
 at <literal>[i - 1, j - 1]</literal>; it goes to nothing else, as a list would
-lose its shape. An Array with omitted items cannot go to .NET. To a
+lose its shape. An omitted item is <literal>null</literal> where .NET takes one
+(an <literal>object[]</literal> or a <literal>string[]</literal>: the size is
+kept; an <literal>int[]</literal> cannot take it). The copy keeps the structure
+of the Arrays: one that contains itself is an <literal>object[]</literal> that
+contains itself, Arrays that contain each other keep the cycle, and one Array
+that appears twice is one .NET array (each argument is copied on its own;
+Arrays nested more than 1000 deep are an error). To a
 <classname>RexxObject</classname> (or <literal>object</literal>) parameter the
 Array goes as itself, by reference: an overload that takes it so wins over a
 copy.</para>
@@ -92,6 +98,21 @@ say .net~typeOf(g) g~Rank g~GetLength(1) g[2, 3]
 ::requires "net.cls"</programlisting>
 <screen>a-b-c
 System.Object[,] 2 3 23</screen>
+</example>
+
+<example id="ex.collections-structure">
+<title>Sparse Arrays, and Arrays in Arrays</title>
+<programlisting language="rexx">s = .array~new(4); s[1] = "a"; s[3] = "c"
+say .net~System~String~Join("+", s)       -- the size kept: nulls
+a = .array~of(1, 2); a~append(a)        -- an Array that contains itself
+list = .net~System~Collections~ArrayList~new
+list~Add(a)
+copy = list~Item(0)
+say copy~length (copy[3] == copy)
+
+::requires "net.cls"</programlisting>
+<screen>a++c+
+3 1</screen>
 </example>
 </section>
 

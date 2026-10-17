@@ -870,7 +870,10 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
   with it, untested until now); values that are Rexx Arrays become `T[]` /
   `List<T>` (built then: `RexxConvert.To` copies a one-dimensional Rexx
   Array for `T[]`, `List<T>` and the interfaces a `T[]` has; omitted items,
-  or any other Rexx object, are an `InvalidCastException`). The same rule
+  or any other Rexx object, are an `InvalidCastException`; since 17/10/2026
+  an omitted item is `null` where `T` takes one, and an Array met again in
+  the copy is its copy again: `netobject-design.md`, "Arrays: their size and
+  their structure"). The same rule
   gives `Run<int[]>("return .array~of(1, 2)")`. bothways 39, host 269.
 
 ## Phase D: built (09/10/2026)

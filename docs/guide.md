@@ -253,7 +253,11 @@ past the end is .NET's `IndexOutOfRangeException` (a .NET array cannot grow).
 **A Rexx Array to .NET**: a one-dimensional one goes to an array, a `List`
 or an `IEnumerable` parameter; a multidimensional one to a .NET array of the
 same rank (`int[,]` for such a parameter, else `object[,]`), `a[i, j]` at
-`[i - 1, j - 1]`. An Array with omitted items cannot go.
+`[i - 1, j - 1]`. An omitted item is `null` where .NET takes one (`object[]`,
+`string[]`: the size is kept; not an `int[]`). The copy keeps the structure:
+an Array that contains itself is an `object[]` that contains itself, and one
+Array in it twice is one .NET array (Arrays nested more than 1000 deep are
+an error).
 
 ```rexx
 grid = .array~new(2, 3)

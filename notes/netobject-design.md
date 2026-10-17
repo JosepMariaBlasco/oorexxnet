@@ -925,7 +925,9 @@ reached through `IDispatch`, late-bound, as C#'s `dynamic` and ooRexx's
   `.nil`, as "not given" (`Type.Missing`: COM's optional parameters). To
   make omitted arguments possible, **Δ** a message's argument list may now
   have omitted items (`rexxnet`, `encodeArgs`): for a .NET method they are
-  `null`, as `.nil`. An Array as a value still refuses them.
+  `null`, as `.nil`. An Array as a value still refuses them. *(Since
+  17/10/2026 it takes them too: see "Arrays: their size and their
+  structure".)*
 - **`.net~createObject(progID, language)`** (10/10/2026, asked for by Rony,
   so that `.OLEObject` programs with formulas in the user's language run
   unchanged): `"user"` makes the calls in the user's language
@@ -1650,3 +1652,35 @@ loaded first, so that `net.cls`'s `::requires` finds it by name.
   `install.rex` compares with the one already beside `rexx`.
 
 Tests: `phase1.rex` (154), `HostTests` (290), `boolean-test.rex` (22).
+
+## Arrays: their size and their structure (17/10/2026)
+
+Two decisions of the ooRexx bridges (`JosepMariaBlasco/oorexx-bridges`,
+topics "array-shape" and "cyclic-arrays"):
+
+- **A sparse Array keeps its size.** It was refused ("an Array with
+  omitted items cannot go to .NET"); now an omitted item is `null` where
+  .NET takes one: an `object[]`, a `string[]`, a `List<object>` (the
+  record is `N`, as `.nil`'s). A parameter whose items cannot be `null`
+  (`int[]`) finds no conversion, as for any value of the wrong type. The
+  same in `RexxConvert` (`Run<string[]>`). `.array~new(100)` with one item
+  is an array of 100. This was .NET's call in "array-shape": `object[]`
+  takes `null`, so the information (the size, the positions) need not be
+  lost.
+- **A copy keeps the structure.** An Array that contained itself (or two
+  that contained each other) made `rexxnet`'s `encode` recurse until the
+  stack overflowed: the process died ("Stack overflow", abort), to `object`
+  and to `IEnumerable<object>` alike; an Array that appeared twice became
+  two .NET arrays. Now, while one value is encoded (`Memo`), each Array
+  opens with `I n`, its number in the value, and an Array met again is
+  `Q n`; `Wire` links each `Q` to its Array's record, and the conversion
+  makes an Array's copy (`Rec.Copy`) before converting its items, so a `Q`
+  item is that very copy, if it fits the item's type (`object` does; a
+  `string` does not: no conversion). Each argument is a value of its own
+  (two arguments, two copies). More than 1000 Arrays deep is SYNTAX 98.900
+  ("Arrays nested more than 1000 deep cannot go to .NET"), as the copy
+  recurses in C and in .NET. `RexxConvert` (a .NET host's `Run<T>`) keeps
+  a memo by Rexx object while it copies, Arrays and dictionaries.
+
+Tests: `phase1.rex` (164), `HostTests` (293); the probe
+(`bridge/tests/probe/`) shows both.

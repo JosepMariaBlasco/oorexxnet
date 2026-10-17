@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <map>
+#include <unordered_map>
 #include <deque>
 #include <atomic>
 
@@ -405,8 +406,18 @@ typedef std::vector<RexxObjectPtr> Refs;
 // adopt: for a callback's result, read by .NET after this thread detaches: a
 // Rexx object goes with a global reference that the managed side takes over
 // (G "pointer\tinstance") instead of a plain pointer (X).
-static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs *refs = nullptr, bool adopt = false)
+// The Arrays of one value (memo: one per value encoded): each opens with I
+// "n", its number in this value; one met again (an Array that contains
+// itself, Arrays that contain each other, one Array twice) is Q "n", so .NET
+// gets the same structure (oorexx-bridges, topic "cyclic-arrays"). Nested
+// more than maxArrayDepth deep: an error (the copy recurses, here and there).
+struct Memo { std::unordered_map<RexxObjectPtr, size_t> seen; int depth = 0; };
+const int maxArrayDepth = 1000;
+static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs *refs = nullptr, bool adopt = false,
+                   Memo *memo = nullptr)
 {
+    Memo own;
+    if (!memo) memo = &own;
     if (o == NULLOBJECT || o == c->Nil()) { record(out, 'N', ""); return true; }
     if (c->IsInstanceOf(o, cls.netObject))
     {
@@ -416,7 +427,7 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     if (c->IsInstanceOf(o, cls.netRef))
     {
         std::string inner;
-        if (!encode(c, c->SendMessage0(o, "VALUE"), inner)) return false;
+        if (!encode(c, c->SendMessage0(o, "VALUE"), inner, nullptr, false, memo)) return false;
         record(out, 'R', inner);
         if (refs) refs->push_back(o);
         return true;
@@ -435,22 +446,32 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     {
         std::string inner = c->ObjectToStringValue(c->SendMessage0(o, "KIND"));
         inner += '\t';
-        if (!encode(c, c->SendMessage0(o, "VALUE"), inner)) return false;
+        if (!encode(c, c->SendMessage0(o, "VALUE"), inner, nullptr, false, memo)) return false;
         record(out, 'T', inner);
         return true;
     }
     if (c->IsArray(o))
     {
         RexxArrayObject a = (RexxArrayObject)o;
-        std::string items;
-        size_t n = c->ArrayItems(a), last = c->ArraySize(a);
-        if (n != last)
+        auto met = memo->seen.find(o);
+        if (met != memo->seen.end()) { record(out, 'Q', std::to_string(met->second)); return true; }
+        if (memo->depth >= maxArrayDepth)
         {
             c->RaiseException1(Rexx_Error_Execution_user_defined,
-                c->String("an Array with omitted items cannot go to .NET"));
+                c->String(("Arrays nested more than " + std::to_string(maxArrayDepth) + " deep cannot go to .NET").c_str()));
             return false;
         }
-        for (size_t i = 1; i <= last; i++) if (!encode(c, c->ArrayAt(a, i), items, refs, adopt)) return false;
+        size_t number = memo->seen.size();
+        memo->seen[o] = number;
+        std::string items;
+        record(items, 'I', std::to_string(number));
+        // an omitted item (a sparse Array): N, null where .NET takes one (the
+        // size is kept; oorexx-bridges, topic "array-shape")
+        size_t last = c->ArraySize(a);
+        memo->depth++;
+        for (size_t i = 1; i <= last; i++)
+            if (!encode(c, c->ArrayAt(a, i), items, refs, adopt, memo)) { memo->depth--; return false; }
+        memo->depth--;
         size_t dims = c->ArrayDimension(a);
         if (dims <= 1)
         {

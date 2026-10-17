@@ -83,6 +83,25 @@ call ok "params empty",         p~Sum, 0
 call ok "Array to int[]",       p~Arr(.array~of(1, 2, 3)), 6
 call ok "Array to IEnumerable", p~Join(.array~of("a", "b")), "a+b"
 call ok "Array to object",      p~Kind(.array~of(1)), "System.Object[]"
+-- Arrays that contain themselves, or each other, or one Array twice: the same
+-- structure in .NET (oorexx-bridges, topic "cyclic-arrays"); sparse Arrays keep
+-- their size, an omitted item is null where .NET takes one (topic "array-shape")
+lo = .net~type("System.Collections.Generic.List<object>")
+a = .array~of(1, 2); a~append(a); l = lo~new; l~Add(a)
+call ok "an Array that contains itself", l[0]~length (l[0][3] == l[0]) (l[0][3][3] == l[0]), "3 1 1"
+b = .array~of(1); c = .array~of(2, b); b~append(c); l = lo~new; l~Add(b)
+call ok "two Arrays that contain each other", (l[0][2][2] == l[0]) (l[0][2] \== l[0]), "1 1"
+x = .array~of(7); l = lo~new; l~Add(.array~of(x, x, .array~of(7)))
+call ok "one Array twice: one .NET array", (l[0][1] == l[0][2]) (l[0][1] == l[0][3]), "1 0"
+l = lo~new; l~AddRange(a)
+call ok "... to an IEnumerable<object> too (a List<object>, from 0)", l~Count (l[2][2] == l[2]), "3 1"
+call err "... not to an IEnumerable<string>", "a = .array~of('x'); a~append(a); say .net~RexxNetTests~Probe~Join(a)", "accepts"
+call ok "two calls, two copies", ab(a), "0"
+s = .array~new(4); s[1] = "a"; s[3] = "c"
+call ok "a sparse Array: its size, nulls", .net~System~String~Join("+", s) p~Kind(s), "a++c+ System.Object[]"
+call err "... not to an int[]", "s = .array~new(3); s[1] = 1; say .net~RexxNetTests~Probe~Arr(s)", "accepts"
+call ok "1000 Arrays deep", deep(1000), "1"
+call err "... 1001: an error", "d = .array~new; t = d; do 1001; n = .array~new; t~append(n); t = n; end; x = .net~System~Linq~Enumerable~Count(d)", "nested more than 1000 deep"
 call ok "forced int16",         p~Kind(.net~int16(5)), "System.Int16"
 call ok "forced decimal",       p~Kind(.net~decimal("1.5")), "System.Decimal"
 call ok "forced bool",          p~Kind(.net~bool(1)), "System.Boolean"
@@ -275,6 +294,16 @@ exit .fails > 0
 
 ::requires "net.cls"
 
+::routine ab                         -- the same Array in two calls: two .NET copies
+  use arg a
+  l = .net~type("System.Collections.Generic.List<object>")~new; l~Add(a); l~Add(a)
+  return (l[0] == l[1])
+::routine deep                       -- an Array with n Arrays nested in it, to .NET
+  use arg n
+  d = .array~new; t = d
+  do n - 1; m = .array~new; t~append(m); t = m; end
+  l = .net~type("System.Collections.Generic.List<object>")~new; l~Add(d)
+  return l~Count
 ::routine ok
   use arg name, got, want
   .local~count += 1
