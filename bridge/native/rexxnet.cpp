@@ -1018,10 +1018,11 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
     RexxThreadContext *tc = nullptr;
     RexxInstance *in = h.inst ? h.inst : instance;
     if (!h.target || !in) return answer("X1:u", outLen);                              // u: it never reached Rexx
-    // the instance ended, and nested in a request of this thread to it: in that
-    // request's context (see requesting); else attached to the instance
+    // the instance ended, and nested in a request of this thread: in that
+    // request's context (see requesting; its instance is the one ooRexx runs
+    // the last UNINITs in, not the ended one); else attached to the instance
     bool nested = false;
-    if (requesting && requesting->instance == in)
+    if (requesting)
     {
         std::lock_guard<std::mutex> g(tablesLock);
         nested = instanceEnding(in);
