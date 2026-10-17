@@ -95,7 +95,9 @@ do n = 1 to pairs~items
       '<ItemGroup><Reference Include="Rexx.Net"><HintPath>'out || sep'Rexx.Net.dll</HintPath></Reference>' || -
       '</ItemGroup></Project>')
     bo = .array~new
-    address system 'dotnet build "'proj'" -c Release -o "'proj || sep'out" -nologo -v q' with output using (bo) error using (bo)
+    -- (no build servers: one started here would inherit the output pipe, and this
+    -- waits for it to close, until the server stops, idle, minutes later)
+    address system 'dotnet build "'proj'" -c Release -o "'proj || sep'out" -nologo -v q -nodeReuse:false -p:UseSharedCompilation=false' with output using (bo) error using (bo)
     if rc \== 0 then do
       fails += 1
       say "FAIL example" n "("lang":" first"): does not build"
