@@ -1640,9 +1640,13 @@ loaded first, so that `net.cls`'s `::requires` finds it by name.
   `.NetTyped`: the same effect at a `bool` parameter, and a Rexx value too.
 - `.true` and `.false` stay strings to .NET (an `object` parameter gets
   `"1"`): only the class tells a boolean.
-- Found: ooRexx's `Array~makeString` and `toString` show an item that is a
-  `.Boolean` as `a Boolean` (its default name), so a `bool[]`'s
-  `makeString` does too; reported in the topic (a `defaultName` method in the
-  shared class fixes it).
+- Found: ooRexx's `Array~makeString` and `toString` showed an item that is a
+  `.Boolean` as `a Boolean` (its default name), so a `bool[]`'s `makeString`
+  did too; version 2 of the shared class defines `defaultName` (`1`, `0`).
+- Version 2 (17/10/2026) also puts the class in `.environment` as `BOOLEAN`
+  (unless an entry is there): code with no `::requires` sees `.Boolean`, as
+  it will a core class (Rexx code that a .NET host runs, once the built-in
+  `boolean.cls` is loaded); and it has a `Version:` line, which
+  `install.rex` compares with the one already beside `rexx`.
 
-Tests: `phase1.rex` (153), `HostTests` (286), `boolean-test.rex` (20).
+Tests: `phase1.rex` (154), `HostTests` (290), `boolean-test.rex` (22).

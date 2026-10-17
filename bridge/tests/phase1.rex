@@ -100,6 +100,7 @@ l = .net~type("System.Collections.Generic.List<object>")~new; l~Add(.Boolean~fal
 call ok "bool through .NET and back", l[0]~isA(.Boolean) l[0] l[1]~isA(.Boolean), "1 0 0"
 a = .net~System~Array~CreateInstance(.net~System~Boolean, 2); a[1] = .Boolean~true
 call ok "bool[] items", a[1]~class~id a[1] a[2], "Boolean 1 0"
+call ok "bool[] makeString",    a~makeString("L", " "), "1 0"
 call ok ".net~string(x)",       p~Kind(.net~string(5)), "System.String"
 call ok ".net~as type",         p~Kind(.net~as(7, .net~System~Byte)), "System.Byte"
 call ok ".net~as name",         p~Kind(.net~as(7, "long")), "System.Int64"

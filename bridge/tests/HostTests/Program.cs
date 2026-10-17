@@ -72,6 +72,7 @@ static partial class Program
         Ok("a .Boolean back: a bool", rexx.Run<object>("return arg(1)", true) is bool b1 && b1, true);
         Ok("a .Boolean false",       rexx.Run<object>("return arg(1)", false) is bool b2 && !b2, true);
         Ok("Run<bool> of a .Boolean", rexx.Run<bool>("return arg(1)", true), true);
+        Ok(".Boolean with no ::requires", rexx.Run("return .Boolean~of(2 > 1)~class~id .environment~boolean~id"), "Boolean Boolean");   // (version 2: .environment)
         Ok(".true stays a string",   rexx.Run<object>("return .true")?.GetType().Name, "RexxString");
         using (var r2 = RexxInterpreter.Create())        // another instance: the same class, the same instances
         {
