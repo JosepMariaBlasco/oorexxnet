@@ -469,8 +469,16 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
         // size is kept; oorexx-bridges, topic "array-shape")
         size_t last = c->ArraySize(a);
         memo->depth++;
+        // each item a local reference of the method in progress, kept until it
+        // returns unless released: released once encoded (the Array holds it;
+        // a million items sent three times grew the process by hundreds of MB)
         for (size_t i = 1; i <= last; i++)
-            if (!encode(c, c->ArrayAt(a, i), items, refs, adopt, memo)) { memo->depth--; return false; }
+        {
+            RexxObjectPtr item = c->ArrayAt(a, i);
+            bool ok = encode(c, item, items, refs, adopt, memo);
+            if (item != NULLOBJECT) c->ReleaseLocalReference(item);
+            if (!ok) { memo->depth--; return false; }
+        }
         memo->depth--;
         size_t dims = c->ArrayDimension(a);
         if (dims <= 1)
@@ -508,8 +516,9 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     }
     if (c->IsInstanceOf(o, cls.string))
     {
-        size_t len = c->StringLength((RexxStringObject)c->ObjectToString(o));
-        record(out, 'S', std::string(c->ObjectToStringValue(o), len));
+        RexxStringObject s = c->ObjectToString(o);
+        record(out, 'S', std::string(c->StringData(s), c->StringLength(s)));
+        if ((RexxObjectPtr)s != o) c->ReleaseLocalReference(s);       // (a new string: a number's, say)
         return true;
     }
     // Any other Rexx object: by reference (a RexxObject in .NET). Its pointer
