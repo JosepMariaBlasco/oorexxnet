@@ -60,6 +60,18 @@ jobs:
       - run: rexx -v
       - name: Test suites
         run: bridge/tests/run.sh
+      - name: lifetime-end under lldb (debug)
+        if: failure() && runner.os == 'macOS'
+        run: |
+          OUT="$REXXNET_BUILD/rexxnet"
+          dotnet build bridge/tests/TestLib -c Release -o "$RUNNER_TEMP/tl" -p:RexxNetDir="$OUT" -nologo -v q
+          cd "$OUT"
+          for i in 1 2; do
+            lldb --batch -o "settings set target.env-vars DYLD_LIBRARY_PATH=$OUT DOTNET_ROOT=$DOTNET_ROOT" \
+              -o "process handle SIGUSR1 SIGUSR2 SIGPIPE -n false -p true -s false" -o run \
+              -k "thread backtrace all" -k "image list rexxnet librexx" -k quit \
+              -- "$(command -v rexx)" "$GITHUB_WORKSPACE/bridge/tests/lifetime-end.rex" "$RUNNER_TEMP/tl/TestLib.dll" || true
+          done
       - name: The guide's examples
         run: rexx docs/check-guide.rex
       - name: The books' examples
