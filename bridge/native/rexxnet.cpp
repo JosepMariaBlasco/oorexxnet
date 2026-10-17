@@ -37,6 +37,7 @@
 #include <vector>
 #include <mutex>
 #include <cstring>
+#include <cstdio>
 #include <cstdlib>
 #include <cstdint>
 #include <map>
@@ -654,12 +655,15 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
 
 // The thread context of the request this thread is making to the managed side
 // (innermost), for the calls back into Rexx that .NET makes meanwhile on this
-// thread (rexxCallback): they run in it, nested, rather than attaching the
-// thread to the instance again. That instance may be gone: the UNINITs that
+// thread (rexxCallback) once their instance has ended: they run in it,
+// nested, rather than attaching the thread to the instance. The UNINITs that
 // ooRexx runs as the interpreter ends (MemoryObject::runUninits, from
 // Interpreter::terminateInterpreter) run after the instances have terminated,
 // and attaching to a terminated instance read freed memory (a pair's UNINIT,
 // calling .NET, whose override calls Rexx back: SIGBUS / SIGSEGV on macOS).
+// Only then: in every other case a call back attaches, as it always did
+// (running all nested calls in the request's context made ooDialog-on-.NET
+// programs, with their GUI thread, crash on Windows).
 static thread_local RexxThreadContext *requesting = nullptr;
 
 // Sends a request to the managed side and decodes the response. A response
@@ -830,6 +834,7 @@ RexxRoutine1(int, NetInstanceEnding, CSTRING, which)
 {
     RexxThreadContext *c = context->threadContext;
     RexxInstance *inst = (RexxInstance *)(uintptr_t)strtoull(which, nullptr, 10);
+    fprintf(stderr, "NetInstanceEnding: %s -> %p (this context's instance %p)\n", which, (void *)inst, (void *)c->instance);
     std::vector<std::pair<int, RexxObjectPtr>> over;              // id, the Rexx object (pinned)
     {
         std::lock_guard<std::mutex> g(tablesLock);
@@ -1015,9 +1020,17 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
     RexxThreadContext *tc = nullptr;
     RexxInstance *in = h.inst ? h.inst : instance;
     if (!h.target || !in) return answer("X1:u", outLen);                              // u: it never reached Rexx
-    // nested in a request of this thread to the same instance: in its context
-    // (see requesting); else this thread attached to the instance for the call
-    bool nested = requesting && requesting->instance == in;
+    // the instance ended, and nested in a request of this thread to it: in that
+    // request's context (see requesting); else attached to the instance
+    bool nested = false;
+    if (requesting && requesting->instance == in)
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        nested = instanceEnding(in);
+    }
+    fprintf(stderr, "rexxCallback: id %d in %p requesting %p (instance %p) ending list %zu nested %d\n", id, (void *)in,
+            (void *)requesting, requesting ? (void *)requesting->instance : nullptr, endingInstances.size(), (int)nested);
+    for (auto e : endingInstances) fprintf(stderr, "  ending: %p\n", (void *)e);
     if (nested) tc = requesting;
     else if (!in->AttachThread(&tc)) return answer("X1:u", outLen);
     auto done = [&] { if (!nested) tc->DetachThread(); };
