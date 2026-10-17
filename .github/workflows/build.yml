@@ -60,27 +60,18 @@ jobs:
       - run: rexx -v
       - name: Test suites
         run: bridge/tests/run.sh
-      - name: lifetime-end, core dumps (debug)
+      - name: lifetime.rex, with and without timeout (debug)
         if: failure() && runner.os == 'macOS'
         run: |
           OUT="$REXXNET_BUILD/rexxnet"
           dotnet build bridge/tests/TestLib -c Release -o "$RUNNER_TEMP/tl" -p:RexxNetDir="$OUT" -nologo -v q
-          sudo sysctl kern.coredump=1 || true
-          sudo chmod 1777 /cores || true
-          ulimit -c unlimited
           cd "$OUT"
-          for i in 1 2 3; do
-            env DYLD_LIBRARY_PATH=. rexx "$GITHUB_WORKSPACE/bridge/tests/lifetime.rex" "$RUNNER_TEMP/tl/TestLib.dll" 2>&1 | grep -v "^ok" || true
-          done
-          for i in 1 2 3; do       # the child alone, its output through a pipe
-            env DYLD_LIBRARY_PATH=. rexx "$GITHUB_WORKSPACE/bridge/tests/lifetime-end.rex" "$RUNNER_TEMP/tl/TestLib.dll" 2>&1 | cat > le.out
-            echo "piped $i: uninits $(grep -c '^uninit' le.out)"
-          done
-          ls -la /cores || true
-          core=$(ls -t /cores/core.* 2>/dev/null | head -1)
-          if [ -n "$core" ]; then
-            lldb --batch -c "$core" "$(command -v rexx)" -o "thread backtrace all" -o "image list" | head -400
-          fi
+          L="$GITHUB_WORKSPACE/bridge/tests/lifetime.rex"; T="$RUNNER_TEMP/tl/TestLib.dll"
+          command -v timeout; timeout --version | head -1 || true
+          for i in 1 2 3; do echo "plain $i: $(env DYLD_LIBRARY_PATH=. rexx "$L" "$T" 2>&1 | tail -1)"; done
+          for i in 1 2 3; do echo "timeout $i: $(timeout 300 env DYLD_LIBRARY_PATH=. rexx "$L" "$T" 2>&1 | tail -1)"; done
+          for i in 1 2 3; do echo "timeout, not piped $i:"; timeout 300 env DYLD_LIBRARY_PATH=. rexx "$L" "$T" > l.out 2>&1; tail -1 l.out; done
+          for i in 1 2 3; do echo "timeout --foreground $i:"; timeout --foreground 300 env DYLD_LIBRARY_PATH=. rexx "$L" "$T" > l.out 2>&1; tail -1 l.out; done
       - name: The guide's examples
         run: rexx docs/check-guide.rex
       - name: The books' examples
