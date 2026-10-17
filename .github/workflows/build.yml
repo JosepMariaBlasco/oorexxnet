@@ -359,9 +359,10 @@ jobs:
           cd "$RUNNER_TEMP"
           rexx oorexxnet-uninstall status
           rexx "$(cygpath -w "$R/samples/dotnet/rexx/01-basics.rex")"
-          printf 'say .net~System~Environment~Version~ToString\n::requires "net.cls"\n' > v.rex
-          rexx v.rex
-          test -f "$R/rexxnet.dll" && test -f "$R/net.cls" && test -f "$R/oodnet.cls" && test -f "$R/uninstall-oorexxnet.exe"
+          printf 'say .net~System~Environment~Version~ToString .net~System~String~IsNullOrEmpty("")~class~id\n::requires "net.cls"\n' > v.rex
+          rexx v.rex | tee v.out
+          grep -q " Boolean$" v.out
+          test -f "$R/rexxnet.dll" && test -f "$R/net.cls" && test -f "$R/boolean.cls" && test -f "$R/oodnet.cls" && test -f "$R/uninstall-oorexxnet.exe"
           test -f "$R/samples/dotnet/guide.md"
           SM="/c/ProgramData/Microsoft/Windows/Start Menu/Programs/Open Object Rexx"
           ls -R "$SM" | grep -i "\.NET"
@@ -383,7 +384,7 @@ jobs:
         run: |
           R="/c/Program Files/ooRexx"
           # (not "! test ...": bash -e does not stop on a negated command)
-          for f in rexxnet.dll net.cls oodnet.cls Rexx.Net.dll oorexxnet-uninstall.rex oorexxnet-installed.txt samples/dotnet doc/dotnetref.pdf doc/dotnetcookbook.pdf; do
+          for f in rexxnet.dll net.cls boolean.cls oodnet.cls Rexx.Net.dll oorexxnet-uninstall.rex oorexxnet-installed.txt samples/dotnet doc/dotnetref.pdf doc/dotnetcookbook.pdf; do
             if [ -e "$R/$f" ]; then echo "still there: $f"; exit 1; fi
           done
           if ls -R "/c/ProgramData/Microsoft/Windows/Start Menu/Programs/Open Object Rexx" | grep -i "\.NET"; then exit 1; fi

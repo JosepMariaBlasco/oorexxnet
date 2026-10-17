@@ -154,10 +154,13 @@ say w~IsRunning
 
 **To .NET**, a Rexx string becomes whatever the parameter wants: `"007"` is
 `"007"` for a `string` and `7` for an `int`; `1` / `0` for a `bool`; a name
-for an enum. When overloads compete, the one that fits best wins (as C#
+for an enum. A `.Boolean` (`.Boolean~true`, `.Boolean~false`: `boolean.cls`,
+the class the ooRexx bridges share, loaded with `net.cls`) goes as a `bool`,
+also where .NET takes an `object`; `.true` and `.false` are strings. When overloads compete, the one that fits best wins (as C#
 chooses); when the choice must be yours, force a type: `.net~int16(x)` ...
-`.net~decimal(x)`, `.net~bool(x)`, `.net~char(x)`, `.net~string(x)`,
-`.net~null`, or any type with `.net~as(x, type)`.
+`.net~decimal(x)`, `.net~char(x)`, `.net~string(x)`, `.net~null`, or any
+type with `.net~as(x, type)`; `.net~bool(x)` gives `.Boolean~true` or
+`.Boolean~false` (`x`: `1`, `0`, `true`, `false`).
 
 ```rexx
 p = .net~System~Text~StringBuilder~new
@@ -193,7 +196,9 @@ System.Int16 5
 ```
 
 **From .NET**, strings, numbers (`BigInteger`, `Int128` and `UInt128` with
-all their digits), `bool`s (`1` / `0`) and `char`s come back as Rexx strings, `null` as `.nil`; enums as `.NetEnum`s and arrays as
+all their digits) and `char`s come back as Rexx strings, `bool`s as
+`.Boolean~true` and `.Boolean~false` (they are `1` and `0` to Rexx, and go back
+to .NET as `bool`s), `null` as `.nil`; enums as `.NetEnum`s and arrays as
 `.NetArray`s (sections 4 and 5); everything else as a `.NetObject`, **by
 reference**: nothing is copied, the same .NET object gives a proxy that is
 `==` to the earlier one, and it goes back to .NET as itself. `say` shows what

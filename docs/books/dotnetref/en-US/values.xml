@@ -26,6 +26,7 @@ each argument is converted to its parameter's type:</para>
 <thead><row><entry>Rexx</entry><entry>.NET</entry></row></thead>
 <tbody>
 <row><entry>a string</entry><entry>the parameter's type: a <literal>string</literal> as it is (<literal>"007"</literal> stays <literal>"007"</literal>); any numeric type the number fits, with no rounding and no truncation (<literal>"007"</literal> is 7 for an <literal>int</literal>, <literal>3.7</literal> fits no integer type); a <literal>bool</literal> from <literal>1</literal> or <literal>0</literal> (or <literal>true</literal>, <literal>false</literal>); a <literal>char</literal> from one character; an enum from a name or a number; <literal>DateTime</literal>, <literal>DateTimeOffset</literal>, <literal>TimeSpan</literal> and <literal>Guid</literal> by their culture-invariant parsing; for an <literal>object</literal> parameter (or a generic type parameter not otherwise known), a <literal>string</literal></entry></row>
+<row><entry>a <classname>Boolean</classname> (<computeroutput>.Boolean~true</computeroutput>, <computeroutput>.Boolean~false</computeroutput>)</entry><entry>a <literal>bool</literal>, also to an <literal>object</literal> parameter (or an interface <literal>bool</literal> implements); to any other parameter, as its string, <literal>1</literal> or <literal>0</literal> (<xref linkend="valuesBooleans"/>)</entry></row>
 <row><entry>&nil;</entry><entry><literal>null</literal>, for a reference type or a nullable value type</entry></row>
 <row><entry>a <classname>NetObject</classname></entry><entry>its .NET object; a <classname>NetType</classname> gives its <literal>System.Type</literal> where one is wanted</entry></row>
 <row><entry>a forced value (<classname>NetTyped</classname>)</entry><entry>that type (<xref linkend="valuesForced"/>)</entry></row>
@@ -74,8 +75,7 @@ type: <computeroutput>.net~int16(x)</computeroutput>,
 <methodname>uint16</methodname>, <methodname>uint32</methodname>,
 <methodname>uint64</methodname>, <methodname>byte</methodname>,
 <methodname>sbyte</methodname>, <methodname>single</methodname>,
-<methodname>double</methodname>, <methodname>decimal</methodname>,
-<methodname>bool</methodname>, <methodname>char</methodname> and
+<methodname>double</methodname>, <methodname>decimal</methodname>, <methodname>char</methodname> and
 <methodname>string</methodname>, <computeroutput>.net~null</computeroutput>
 (a <literal>null</literal> of no particular type), and any type with
 <computeroutput>.net~as(x, type)</computeroutput>, the type a name or a
@@ -83,7 +83,8 @@ type: <computeroutput>.net~int16(x)</computeroutput>,
 delegate type for a <classname>NetHandler</classname>). Each answers a
 <xref linkend="clsNetTyped" xrefstyle="select:title"/>, which marks the value:
 the conversion happens at the call, and fails there if the value does not
-fit the type.</para>
+fit the type. <computeroutput>.net~bool(x)</computeroutput> answers a
+<classname>Boolean</classname> instead (<xref linkend="valuesBooleans"/>).</para>
 
 <example id="ex.values-forced">
 <title>Forcing a type</title>
@@ -96,6 +97,53 @@ say c~ToString(.net~int16(-1), 16) c~ToString(.net~int32(-1), 16)
 <screen>1 0
 11111111
 ffff ffffffff</screen>
+</example>
+</section>
+
+<section id="valuesBooleans"><title>Booleans</title>
+<indexterm><primary>Boolean class</primary></indexterm>
+<indexterm><primary>bool</primary></indexterm>
+<para>&true; and &false; are the strings <literal>1</literal> and
+<literal>0</literal>: nothing tells &false; from the number 0. So the bridge
+uses the class <classname>Boolean</classname> of
+<filename>boolean.cls</filename>, which <filename>net.cls</filename> loads:
+the class that the ooRexx bridges share, proposed for the ooRexx core (RFE
+#880). It has two instances, <computeroutput>.Boolean~true</computeroutput>
+and <computeroutput>.Boolean~false</computeroutput>, which behave as
+<literal>1</literal> and <literal>0</literal> wherever Rexx uses a value
+(<literal>IF</literal>, operators, comparisons, string methods,
+<literal>SAY</literal>, indexes); <computeroutput>isA(.Boolean)</computeroutput>
+tells them apart, and <computeroutput>.Boolean~of(a &gt; b)</computeroutput>
+gives the one for a logical value.</para>
+<itemizedlist>
+<listitem><para>A .NET <literal>bool</literal> comes to Rexx as one of them, so it goes
+back to .NET as a <literal>bool</literal>, also to an
+<literal>object</literal> parameter or into a <literal>List&lt;object&gt;</literal>.</para></listitem>
+<listitem><para>Any object that <computeroutput>isA(.Boolean)</computeroutput> goes as a
+<literal>bool</literal>; where overloads compete, the one that takes a
+<literal>bool</literal> wins (<computeroutput>Convert.ToString(.Boolean~false)</computeroutput>
+is <literal>False</literal>). To a parameter of another type it goes as its
+string.</para></listitem>
+<listitem><para><computeroutput>.net~bool(x)</computeroutput> gives the instance for
+<literal>1</literal>, <literal>0</literal>, <literal>true</literal> or
+<literal>false</literal> (caseless).</para></listitem>
+<listitem><para>A COM method gets a <classname>Boolean</classname> as
+<literal>VT_BOOL</literal>, as &true; and &false; themselves.</para></listitem>
+</itemizedlist>
+<example id="ex.values-booleans">
+<title>Booleans</title>
+<programlisting language="rexx">empty = .net~System~String~IsNullOrEmpty("")
+say empty empty~class~id (empty = .true) (\empty)
+c = .net~System~Convert
+say c~ToString(.Boolean~false) c~ToString(.false) c~ToString(.net~bool("true"))
+list = .net~type("System.Collections.Generic.List&lt;object&gt;")~new
+list~Add(empty); list~Add(1)
+say list[0]~isA(.Boolean) list[1]~isA(.Boolean)
+
+::requires "net.cls"</programlisting>
+<screen>1 Boolean 1 0
+False 0 True
+1 0</screen>
 </example>
 </section>
 
@@ -151,7 +199,7 @@ System.Int32 System.Decimal
 <tbody>
 <row><entry><literal>string</literal>, <literal>char</literal></entry><entry>a string</entry></row>
 <row><entry>every numeric type, <literal>BigInteger</literal>, <literal>Int128</literal>, <literal>UInt128</literal> and <literal>Half</literal> included</entry><entry>a string with the number, culture-invariant: whole numbers with all their digits (a <literal>BigInteger</literal> of any size), a <literal>double</literal> or <literal>float</literal> as its shortest round-trip form (<literal>NaN</literal>, <literal>Infinity</literal> and <literal>-Infinity</literal> as such), a <literal>decimal</literal> with its digits</entry></row>
-<row><entry><literal>bool</literal></entry><entry><literal>1</literal> or <literal>0</literal> (&true; or &false;)</entry></row>
+<row><entry><literal>bool</literal></entry><entry><computeroutput>.Boolean~true</computeroutput> or <computeroutput>.Boolean~false</computeroutput>, which are <literal>1</literal> and <literal>0</literal> to Rexx (<xref linkend="valuesBooleans"/>)</entry></row>
 <row><entry><literal>null</literal></entry><entry>&nil;</entry></row>
 <row><entry>an enum value</entry><entry>a <classname>NetEnum</classname>, whose string value is its name (<xref linkend="clsNetEnum"/>)</entry></row>
 <row><entry>an array</entry><entry>a <classname>NetArray</classname>, which behaves as a Rexx Array, from 1 (<xref linkend="collectionsArrays"/>)</entry></row>

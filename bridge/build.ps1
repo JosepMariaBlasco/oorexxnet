@@ -97,7 +97,7 @@ try {
             /link (Join-Path $native 'libnethost.lib') advapi32.lib ole32.lib /IMPLIB:rexxnet.lib
         if ($LASTEXITCODE) { throw 'the native build (cl) failed' }
     } finally { Pop-Location }
-    Copy-Item (Join-Path $here 'rexx\net.cls'), (Join-Path $here 'rexx\CLR.CLS') $Out -ErrorAction Stop
+    Copy-Item (Join-Path $here 'rexx\net.cls'), (Join-Path $here 'rexx\boolean.cls'), (Join-Path $here 'rexx\CLR.CLS') $Out -ErrorAction Stop
     Write-Host "built: $Out"
 } finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue

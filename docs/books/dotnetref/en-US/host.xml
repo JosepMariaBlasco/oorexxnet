@@ -371,8 +371,11 @@ returns.</para>
 <para><emphasis role="bold">.NET values given to Rexx</emphasis> (arguments,
 <computeroutput>Local[...] =</computeroutput>, the results of command handlers
 and functions) follow <xref linkend="valuesFromNet"/>: strings and numbers as
-Rexx strings, <literal>bool</literal> as <literal>1</literal> or
-<literal>0</literal>, <literal>null</literal> as &nil;, a
+Rexx strings, <literal>bool</literal> as <computeroutput>.Boolean~true</computeroutput>
+or <computeroutput>.Boolean~false</computeroutput> (<filename>boolean.cls</filename>,
+built into <filename>Rexx.Net.dll</filename> as <filename>net.cls</filename> is;
+one that comes back is a <literal>bool</literal> again: <computeroutput>Run&lt;object&gt;</computeroutput>,
+the arguments of functions), <literal>null</literal> as &nil;, a
 <classname>RexxObject</classname> as its Rexx object,
 <methodname>RexxValue.Omitted</methodname> as an omitted argument, and any
 other object (arrays and collections too) as a <classname>NetObject</classname>,

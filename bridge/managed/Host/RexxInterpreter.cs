@@ -369,7 +369,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
                 return r.Live;
             case string s: return c.Str(s);
             case char ch: return c.Str(ch.ToString());
-            case bool b: return b ? c.True : c.False;
+            case bool b: return BoolToRexx(c, b);               // .Boolean~true / ~false
             case double d: return c.Str(d.ToString("R", Inv));
             case float f: return c.Str(f.ToString("R", Inv));
             case decimal m: return c.Str(m.ToString(Inv));

@@ -41,7 +41,7 @@ dir="$stage/rexxnet"
 mkdir -p "$dir/native" "$dir/docs" "$dir/samples"
 
 # the managed part
-for f in Rexx.Net.dll Rexx.Net.deps.json Rexx.Net.pdb net.cls CLR.CLS; do
+for f in Rexx.Net.dll Rexx.Net.deps.json Rexx.Net.pdb net.cls boolean.cls CLR.CLS; do
   cp "$managed/$f" "$dir/"
 done
 # each system's native library and runtime configuration

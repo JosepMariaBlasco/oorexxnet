@@ -30,9 +30,10 @@
     <None Include="../nuget/README.md" Pack="true" PackagePath="/" Condition="Exists('../nuget/README.md')" />
     <None Include="$(RexxNetNatives)/**" Pack="true" PackagePath="runtimes/" Condition="'$(RexxNetNatives)' != ''" />
   </ItemGroup>
-  <!-- net.cls and CLR.CLS, built in: a .NET application hosting ooRexx needs
+  <!-- net.cls (with boolean.cls, which it requires) and CLR.CLS, built in: a .NET application hosting ooRexx needs
        no file for them (RexxInterpreter.SetUpNet) -->
   <ItemGroup>
+    <EmbeddedResource Include="../rexx/boolean.cls" LogicalName="boolean.cls" />
     <EmbeddedResource Include="../rexx/net.cls" LogicalName="net.cls" />
     <EmbeddedResource Include="../rexx/CLR.CLS" LogicalName="CLR.CLS" />
   </ItemGroup>

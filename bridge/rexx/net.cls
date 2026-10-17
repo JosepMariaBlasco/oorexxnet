@@ -47,8 +47,10 @@
  * ValueTask: o~await waits (blocking this thread) and gives its result.
  * Structs come as a boxed copy: setting a field changes that copy.
  *
- * Values: .NET strings, numbers, bools (1/0) and chars come back as Rexx
- * strings, null as .nil, anything else as a .NetObject. An enum value is a
+ * Values: .NET strings, numbers and chars come back as Rexx strings, bools
+ * as .Boolean~true and .Boolean~false (boolean.cls: they behave as 1 and 0
+ * in Rexx, and go back to .NET as bools), null as .nil, anything else as a
+ * .NetObject. An enum value is a
  * .NetEnum (as BSF4ooRexx's Java enums): its string value is its name (say d
  * shows Monday; flags: "Bold, Italic"), d~name, d~ordinal (its number: the
  * underlying value); d = "monday" (caseless; flags in any order), d = 1 (its
@@ -58,8 +60,9 @@
  * wants one (p~Day("monday")).
  * A Rexx string goes as the type of the parameter it is for ("007" stays
  * "007" for a string, is 7 for an int); .net~int16(x) ... .net~decimal(x),
- * .net~bool(x), .net~char(x), .net~string(x), .net~as(x, type) and .net~null
- * force a type; .net~box(type, x) makes a .NET object holding x as type (a
+ * .net~char(x), .net~string(x), .net~as(x, type) and .net~null force a
+ * type; an object that isA(.Boolean) goes as a bool (also to an object
+ * parameter), and .net~bool(x) gives one (x: 1, 0, true, false); .net~box(type, x) makes a .NET object holding x as type (a
  * .NetObject: CLR.CLS's names "INT16", "BOolean", "STring"... work too) and
  * .net~unbox(o) gives its Rexx value back; a Rexx Array goes as an array or
  * List (a copy); any other
@@ -158,6 +161,7 @@
  */
 .environment~net = .NetGlobal~new("")
 
+::requires "boolean.cls"                -- .Boolean: .NET's bools (the ooRexx bridges' shared class)
 ::requires "rexxnet" LIBRARY
 
 /** A .NET object. */
@@ -671,7 +675,14 @@ syntax: raise propagate
 ::method single unguarded;  use strict arg x; return .NetTyped~new("System.Single", x)
 ::method double unguarded;  use strict arg x; return .NetTyped~new("System.Double", x)
 ::method decimal unguarded; use strict arg x; return .NetTyped~new("System.Decimal", x)
-::method bool unguarded;    use strict arg x; return .NetTyped~new("System.Boolean", x)
+::method bool unguarded             -- .net~bool(x): .Boolean~true or ~false, from 1, 0, true or false
+  use strict arg x
+  s = x~request("string")
+  if s \== .nil then do
+    if s~strip~caselessEquals("true") then return .Boolean~true
+    if s~strip~caselessEquals("false") then return .Boolean~false
+  end
+  return .Boolean~of(x)
 ::method char unguarded;    use strict arg x; return .NetTyped~new("System.Char", x)
 ::method null unguarded;    return .NetTyped~new("null", .nil)
 ::method ref unguarded               -- .net~ref([value]): a .NetRef, for ref / out parameters

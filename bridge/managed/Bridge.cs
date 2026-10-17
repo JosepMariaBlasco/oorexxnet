@@ -104,16 +104,18 @@ public static unsafe class Bridge
         Callbacks.SetGone(gone);
     }
 
-    /// net.cls's NetObject and NetType classes (global references), from
-    /// rexxnet or from a host that loaded net.cls: a .NetObject that reaches
-    /// .NET becomes its .NET object again.
+    /// net.cls's NetObject and NetType classes (global references), and the
+    /// .Boolean it requires (boolean.cls), from rexxnet or from a host that
+    /// loaded net.cls: a .NetObject that reaches .NET becomes its .NET object
+    /// again, a .Boolean a bool.
     [UnmanagedCallersOnly]
-    public static void Classes(nint netObject, nint netType, nint netArray, nint netEnum) =>
-        SetClasses(netObject, netType, netArray, netEnum);
+    public static void Classes(nint netObject, nint netType, nint netArray, nint netEnum, nint boolean) =>
+        SetClasses(netObject, netType, netArray, netEnum, boolean);
 
-    internal static nint NetObjectClass, NetTypeClass, NetArrayClass, NetEnumClass;
-    internal static void SetClasses(nint netObject, nint netType, nint netArray, nint netEnum)
+    internal static nint NetObjectClass, NetTypeClass, NetArrayClass, NetEnumClass, BooleanClass;
+    internal static void SetClasses(nint netObject, nint netType, nint netArray, nint netEnum, nint boolean)
     {
+        if (BooleanClass == 0) BooleanClass = boolean;
         if (NetObjectClass == 0) { NetTypeClass = netType; NetArrayClass = netArray; NetEnumClass = netEnum; NetObjectClass = netObject; }
     }
 

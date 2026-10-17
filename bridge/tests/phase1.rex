@@ -86,6 +86,20 @@ call ok "Array to object",      p~Kind(.array~of(1)), "System.Object[]"
 call ok "forced int16",         p~Kind(.net~int16(5)), "System.Int16"
 call ok "forced decimal",       p~Kind(.net~decimal("1.5")), "System.Decimal"
 call ok "forced bool",          p~Kind(.net~bool(1)), "System.Boolean"
+-- .Boolean (boolean.cls, topic "Booleans" of oorexx-bridges): a bool in .NET,
+-- also to an object parameter; .NET's bools come back as .Boolean~true / ~false
+call ok ".net~bool is a .Boolean", .net~bool(1)~isA(.Boolean) .net~bool(" False ") .net~bool(.true)~class~id, "1 0 Boolean"
+call ok ".Boolean to object",   p~Kind(.Boolean~true), "System.Boolean"
+call ok ".true to object: a string", p~Kind(.true), "System.String"
+call ok ".Boolean picks bool",  .net~System~Convert~ToString(.Boolean~false) .net~System~Convert~ToString(0), "False 0"
+call ok ".Boolean over string", .net~System~String~Concat("a", .Boolean~true), "aTrue"
+call ok ".Boolean to an int",   .net~System~Math~Abs(.Boolean~true), 1
+r = .net~System~String~IsNullOrEmpty("")
+call ok "bool result: a .Boolean", r~isA(.Boolean) r (r = .true) (\r) r~class~id, "1 1 1 0 Boolean"
+l = .net~type("System.Collections.Generic.List<object>")~new; l~Add(.Boolean~false); l~Add(.true)
+call ok "bool through .NET and back", l[0]~isA(.Boolean) l[0] l[1]~isA(.Boolean), "1 0 0"
+a = .net~System~Array~CreateInstance(.net~System~Boolean, 2); a[1] = .Boolean~true
+call ok "bool[] items", a[1]~class~id a[1] a[2], "Boolean 1 0"
 call ok ".net~string(x)",       p~Kind(.net~string(5)), "System.String"
 call ok ".net~as type",         p~Kind(.net~as(7, .net~System~Byte)), "System.Byte"
 call ok ".net~as name",         p~Kind(.net~as(7, "long")), "System.Int64"

@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Rexx.Net;
 
@@ -168,10 +169,22 @@ public sealed unsafe partial class RexxInterpreter
         return p;
     }
 
-    /// The .NET object of a .NetObject (a NetType: its System.Type); null
-    /// for any other Rexx object.
+    /// The .NET object of a .NetObject (a NetType: its System.Type), the
+    /// bool of a .Boolean; null for any other Rexx object.
     internal object? NetOf(Ctx c, nint o)
     {
+        EnsureBoolean(c);
+        if (Bridge.BooleanClass != 0 && c.IsInstanceOf(o, Bridge.BooleanClass))
+        {
+            if (o == booleanTrue) return true;
+            if (o == booleanFalse) return false;
+            nint empty = c.NewArray(0), v = c.Send(o, "VALUE", empty);  // (a subclass's own instances)
+            c.ReleaseLocal(empty);
+            if (v == 0 || c.CheckCondition()) { c.ClearCondition(); return null; }
+            bool b = c.ToStr(v) == "1";
+            c.ReleaseLocal(v);
+            return b;
+        }
         if (Bridge.NetObjectClass == 0 || !c.IsInstanceOf(o, Bridge.NetObjectClass)) return null;
         nint none = c.NewArray(0);
         nint id = c.Send(o, "NETID", none);
@@ -218,17 +231,91 @@ public sealed unsafe partial class RexxInterpreter
                     "a .NET object cannot go to Rexx: net.cls and rexxnet are needed (in ooRexx's search path, in " +
                     "REXXNET_DIR, or next to Rexx.Net.dll)" + (why != null ? ": " + why.Message : ""), why);
             nint k1 = c.FindPackageClass(pkg, "NETOBJECT"), k2 = c.FindPackageClass(pkg, "NETTYPE"),
-                 k3 = c.FindPackageClass(pkg, "NETARRAY"), k4 = c.FindPackageClass(pkg, "NETENUM");
+                 k3 = c.FindPackageClass(pkg, "NETARRAY"), k4 = c.FindPackageClass(pkg, "NETENUM"),
+                 k5 = c.FindPackageClass(pkg, "BOOLEAN");                  // (required by net.cls)
             if (k1 == 0 || k2 == 0 || k3 == 0 || k4 == 0) throw new InvalidOperationException("net.cls has no NetObject class");
-            Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4));
+            Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4), k5 != 0 ? c.Global(k5) : 0);
             c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4); c.ReleaseLocal(pkg);
+            if (k5 != 0) c.ReleaseLocal(k5);
         }
     }
 
     // ------------------------------------------------------ .net from the start
 
     static bool netSetUp;
-    static readonly List<nint> builtIn = new();          // net.cls and CLR.CLS: global references
+    static readonly Dictionary<string, nint> builtIn = new();   // boolean.cls, net.cls and CLR.CLS: global references
+
+    /// One of the packages built into this assembly, loaded once for the
+    /// process under its name (LoadPackageFromData), so that ::requires finds
+    /// it without a file; 0 if it is not built in. A global reference.
+    nint BuiltIn(Ctx c, string name)
+    {
+        lock (netGate)
+        {
+            if (builtIn.TryGetValue(name, out nint kept)) return kept;
+            using var s = typeof(Bridge).Assembly.GetManifestResourceStream(name);
+            if (s == null) return 0;
+            nint p = c.LoadPackageFromData(name, new StreamReader(s).ReadToEnd());
+            if (c.CheckCondition())
+            {
+                var e = RexxException.FromPending(this, c);           // (cleared)
+                if (p != 0) c.ReleaseLocal(p);
+                throw new InvalidOperationException($"the built-in {name} could not be loaded: {e.Message}", e);
+            }
+            if (p == 0) return 0;
+            // kept for the process: ooRexx forgets a package loaded from
+            // data when nothing refers to it (a collection, as when another
+            // instance terminates), and ::requires would then look for a file
+            // (ooRexx bug #2108; patch: patches/oorexx/package-from-data-cache.diff)
+            nint g = c.Global(p);
+            c.ReleaseLocal(p);
+            builtIn[name] = g;
+            return g;
+        }
+    }
+
+    static nint booleanTrue, booleanFalse;
+    static bool booleanSought;
+
+    /// .Boolean (boolean.cls) and its two instances, for .NET's bools: the one
+    /// net.cls required (rexxnet or SetUpNet said which), else the built-in
+    /// boolean.cls, loaded now. Sought once per process.
+    void EnsureBoolean(Ctx c)
+    {
+        if (Volatile.Read(ref booleanSought)) return;
+        lock (netGate)
+        {
+            if (booleanSought) return;
+            nint k = Bridge.BooleanClass, local = 0;
+            if (k == 0)
+            {
+                nint p = BuiltIn(c, "boolean.cls");
+                if (p != 0) k = local = c.FindPackageClass(p, "BOOLEAN");
+                if (k != 0) Bridge.BooleanClass = c.Global(k);
+            }
+            if (k != 0)
+            {
+                nint none = c.NewArray(0);
+                nint t = c.Send(k, "TRUE", none), f = c.Send(k, "FALSE", none);
+                c.ReleaseLocal(none);
+                if (t != 0 && f != 0 && !c.CheckCondition()) { booleanTrue = c.Global(t); booleanFalse = c.Global(f); }
+                else c.ClearCondition();
+                if (t != 0) c.ReleaseLocal(t);
+                if (f != 0) c.ReleaseLocal(f);
+            }
+            if (local != 0) c.ReleaseLocal(local);
+            Volatile.Write(ref booleanSought, true);
+        }
+    }
+
+    /// A bool as a Rexx object: .Boolean~true or .Boolean~false (.true and
+    /// .false if boolean.cls cannot be had).
+    internal nint BoolToRexx(Ctx c, bool b)
+    {
+        EnsureBoolean(c);
+        nint o = b ? booleanTrue : booleanFalse;
+        return o != 0 ? o : b ? c.True : c.False;
+    }
 
     /// Host mode, once per process (RexxOptions.Net, or the first .NET object
     /// going to Rexx): the native half, rexxnet, is looked for as the
@@ -259,35 +346,20 @@ public sealed unsafe partial class RexxInterpreter
                 (nint)(delegate* unmanaged<byte*, void>)&Bridge.Free,
                 (nint)(delegate* unmanaged<int, void>)&Bridge.Release,
                 (nint)(delegate* unmanaged<nint, nint, nint, nint, void>)&Bridge.Init,
-                (nint)(delegate* unmanaged<nint, nint, nint, nint, void>)&Bridge.Classes);
+                (nint)(delegate* unmanaged<nint, nint, nint, nint, nint, void>)&Bridge.Classes);
             if (!Callbacks.Started) return;          // rexxnet had started a runtime of its own first
             c.RegisterLibrary("rexxnet", ((delegate* unmanaged<nint>)getPackage)());
-            nint net = 0;
-            foreach (var name in new[] { "net.cls", "CLR.CLS" })
-            {
-                using var s = typeof(Bridge).Assembly.GetManifestResourceStream(name);
-                if (s == null) continue;
-                nint p = c.LoadPackageFromData(name, new StreamReader(s).ReadToEnd());
-                if (c.CheckCondition())
-                {
-                    var e = RexxException.FromPending(this, c);           // (cleared)
-                    if (p != 0) c.ReleaseLocal(p);
-                    throw new InvalidOperationException($"the built-in {name} could not be loaded: {e.Message}", e);
-                }
-                if (p == 0) continue;
-                // kept for the process: ooRexx forgets a package loaded from
-                // data when nothing refers to it (a collection, as when another
-                // instance terminates), and ::requires would then look for a file
-                // (ooRexx bug #2108; patch: patches/oorexx/package-from-data-cache.diff)
-                builtIn.Add(c.Global(p));
-                if (name == "net.cls") net = p; else c.ReleaseLocal(p);
-            }
+            // boolean.cls first: net.cls requires it (found by its name, loaded)
+            nint boolean = BuiltIn(c, "boolean.cls"), net = BuiltIn(c, "net.cls");
+            BuiltIn(c, "CLR.CLS");
             if (net == 0) return;
             nint k1 = c.FindPackageClass(net, "NETOBJECT"), k2 = c.FindPackageClass(net, "NETTYPE"),
-                 k3 = c.FindPackageClass(net, "NETARRAY"), k4 = c.FindPackageClass(net, "NETENUM");
+                 k3 = c.FindPackageClass(net, "NETARRAY"), k4 = c.FindPackageClass(net, "NETENUM"),
+                 k5 = boolean != 0 ? c.FindPackageClass(boolean, "BOOLEAN") : 0;
             if (k1 != 0 && k2 != 0 && k3 != 0 && k4 != 0)
-                Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4));
-            c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4); c.ReleaseLocal(net);
+                Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4), k5 != 0 ? c.Global(k5) : 0);
+            c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4);
+            if (k5 != 0) c.ReleaseLocal(k5);
         }
     }
 

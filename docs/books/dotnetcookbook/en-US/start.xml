@@ -71,8 +71,10 @@ reaches a namespace (<literal>System</literal>), then a type
 instance, whose messages are its members: a method call
 (<computeroutput>sb~Append(", ")</computeroutput>), or a property read
 (<computeroutput>sb~Length</computeroutput>). Names are caseless. Numbers come
-back as Rexx strings, and <literal>bool</literal>s as <literal>1</literal> and
-<literal>0</literal>: a .NET object is a Rexx object, and a .NET value a Rexx
+back as Rexx strings, and <literal>bool</literal>s as
+<computeroutput>.Boolean~true</computeroutput> and
+<computeroutput>.Boolean~false</computeroutput>, which are <literal>1</literal>
+and <literal>0</literal> to Rexx: a .NET object is a Rexx object, and a .NET value a Rexx
 value.</para>
 <para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Introduction</emphasis>, <emphasis>Names and Messages</emphasis>.</para>
 </section>

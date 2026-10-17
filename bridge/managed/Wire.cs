@@ -2,6 +2,8 @@
 // bytes of the UTF-8 payload (JDOR's format, as .JSObject). Request records:
 //   S string   N nil (.nil)   O handle id   A list (payload: records)
 //   L .true or .false themselves: "1" or "0", read as an S marked Logical
+//   B a .Boolean (boolean.cls): "1" or "0", read as an S marked Logical and
+//     Boolean (a bool to a bool or object parameter, else its string)
 //   M a multidimensional Rexx Array: "d1,d2,...\t" + its items' records, in
 //     Rexx's order (the first index fastest); read as an A with Dims
 //   T typed: payload "kind\t" + one record (kind: a type name, "#id" of a
@@ -15,6 +17,7 @@
 //     reference handed over to the managed side
 // Response records: the same, plus
 //   V void (no result)   P namespace (payload: its full name)
+//   B a bool: "1" or "0" (.Boolean~true / .Boolean~false in Rexx)
 //   R a result with ref / out values: payload the result record, then one
 //     record per R argument of the request, in order (their new values)
 //   O "id\tkind\tdisplay" (kind o = object, t = type)
@@ -47,6 +50,7 @@ public sealed class Rec
     public string Text = "";
     public List<Rec> Items = new();
     public int[]? Dims;
+    public bool Boolean;                // S from a .Boolean (B): a bool where .NET can take one
     public bool Logical;                // S from .true or .false themselves (L)                 // A from a multidimensional Rexx Array (M): its dimensions; Items in Rexx's order
     public Rec? Inner;                  // T, R: the value
                                         // (A: Text, the Rexx Array's pointer if it came from Rexx, else "")
@@ -91,6 +95,7 @@ public static class Wire
                     if (r.Items.Count > 0 && r.Items[^1].Tag == 'P') { r.Text = r.Items[^1].Text; r.Items.RemoveAt(r.Items.Count - 1); }
                     break;
                 case 'L': r.Tag = 'S'; r.Logical = true; r.Text = Encoding.UTF8.GetString(payload); break;
+                case 'B': r.Tag = 'S'; r.Logical = r.Boolean = true; r.Text = Encoding.UTF8.GetString(payload); break;
                 case 'M':                                   // "d1,d2,...\t" items: an A with dimensions
                 {
                     int tab = payload.IndexOf((byte)'\t');

@@ -22,12 +22,15 @@
 //   27     a Rexx string that is a whole number to BigInteger (exactly, any
 //          number of digits, an exponent too: "1E40")
 //   30     a Rexx string to bool, char, char[], an enum
+//   0 / 1  a .Boolean (B) to bool / to object, ValueType or an interface bool
+//          implements (a boxed bool); to anything else, as its string "1"/"0"
 //   31     a Rexx string to DateTime, DateTimeOffset, TimeSpan, Guid
 //   +1 per item when a Rexx Array becomes an array; +2 for a List<T> or an
 //   interface; a params array expanded: +1
 // .NET -> Rexx: strings, numbers (culture-invariant; BigInteger, Int128,
-// UInt128 and Half too), bools (1/0), chars and
-// enums (their names) as Rexx strings, null as .nil, void as nothing; a
+// UInt128 and Half too), chars and
+// enums (their names) as Rexx strings, bools as .Boolean~true / ~false (B),
+// null as .nil, void as nothing; a
 // RexxObject as the Rexx object itself (X), a RexxString as its string;
 // everything else by reference (a handle).
 using System;
@@ -86,6 +89,13 @@ public static class Conv
                 }
                 return r.Dims == null ? FromArray(r.Items, to, out value) : FromMultiArray(r, to, out value);
             case 'S':
+                if (r.Boolean)
+                {
+                    var t = under ?? to;
+                    if (t == typeof(bool)) { value = r.Text == "1"; return 0; }
+                    if (t == typeof(object) || t == typeof(ValueType) || (t.IsInterface && t.IsAssignableFrom(typeof(bool))))
+                    { value = r.Text == "1"; return 1; }
+                }
                 return FromString(r.Text, under ?? to, out value);
             case 'H':
                 return FromHandler(r, under ?? to, out value);
@@ -526,7 +536,7 @@ public static class Conv
         {
             case null: w.Add('N', ""); return;
             case string s: w.Add('S', s); return;
-            case bool b: w.Add('S', b ? "1" : "0"); return;
+            case bool b: w.Add('B', b ? "1" : "0"); return;   // .Boolean~true / ~false
             case char c: w.Add('S', c.ToString()); return;
             case double d: w.Add('S', d.ToString("R", Inv)); return;
             case float f: w.Add('S', f.ToString("R", Inv)); return;

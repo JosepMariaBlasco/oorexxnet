@@ -67,6 +67,12 @@ static partial class Program
         Ok("a sign and blanks: '- 7'", rexx.Run<int>("return '- 7'"), -7);
         Ok("1E3 is 1000", rexx.Run<long>("return '1E3'"), 1000L);
         Ok("BigInteger, exactly", rexx.Run<System.Numerics.BigInteger>("numeric digits 40; return 2 ** 100").ToString(), "1267650600228229401496703205376");
+        // bools: .Boolean~true / ~false in Rexx (boolean.cls, built in), bools again in .NET
+        Ok("a bool is a .Boolean",   rexx.Run("use arg t, f; return t~class~id t f (t = 1) (\\f)", true, false), "Boolean 1 0 1 1");
+        Ok("a .Boolean back: a bool", rexx.Run<object>("return arg(1)", true) is bool b1 && b1, true);
+        Ok("a .Boolean false",       rexx.Run<object>("return arg(1)", false) is bool b2 && !b2, true);
+        Ok("Run<bool> of a .Boolean", rexx.Run<bool>("return arg(1)", true), true);
+        Ok(".true stays a string",   rexx.Run<object>("return .true")?.GetType().Name, "RexxString");
         Ok(".nil -> null",           rexx.Run("return .nil") == null, true);
         Ok("Run<int[]>: an Array copied", string.Join(",", rexx.Run<int[]>("return .array~of(1, '2', 3)")), "1,2,3");
         Ok("Run<List<string>>",      string.Join(",", rexx.Run<List<string>>("return .array~of('a', 'b')")), "a,b");

@@ -103,7 +103,7 @@ typedef unsigned char *(CORECLR_DELEGATE_CALLTYPE *request_fn)(RexxThreadContext
 typedef void (CORECLR_DELEGATE_CALLTYPE *free_fn)(unsigned char *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *release_fn)(int);
 typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *, void *, void *);
-typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
+typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
 
 static request_fn mRequest;
 static free_fn mFree;
@@ -195,7 +195,8 @@ REXXNET_EXPORT void RexxNetRegister(void *request, void *freeFn, void *release, 
 // ---------------------------------------------------------------- the classes
 
 // net.cls's classes, found once from a context inside net.cls.
-struct Classes { RexxClassObject netObject, netType, netArray, netEnum, netNamespace, netTyped, netRef, netHandler, netEvent, string; };
+struct Classes { RexxClassObject netObject, netType, netArray, netEnum, netNamespace, netTyped, netRef, netHandler, netEvent, string, boolean;
+                 RexxObjectPtr yes, no; };     // (boolean.cls's .Boolean, and its two instances)
 static Classes cls;
 static std::once_flag clsOnce;
 
@@ -207,6 +208,12 @@ template <class Ctx> static void findClasses(Ctx *c)
         cls.netNamespace = find("NETNAMESPACE"); cls.netTyped = find("NETTYPED"); cls.netRef = find("NETREF");
         cls.netHandler = find("NETHANDLER"); cls.netEvent = find("NETEVENT");
         cls.string = find("STRING");
+        cls.boolean = find("BOOLEAN");                       // (net.cls requires boolean.cls)
+        if (cls.boolean)
+        {
+            cls.yes = c->RequestGlobalReference(c->SendMessage0(cls.boolean, "TRUE"));
+            cls.no = c->RequestGlobalReference(c->SendMessage0(cls.boolean, "FALSE"));
+        }
     });
 }
 
@@ -470,6 +477,14 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     // an S "1" / "0" that remembers it was a logical (COM: VT_BOOL, as
     // .OLEObject sends them)
     if (o == c->True() || o == c->False()) { record(out, 'L', o == c->True() ? "1" : "0"); return true; }
+    // a .Boolean (boolean.cls; JSON's and YAML's when they subclass it): B,
+    // "1" or "0", a bool in .NET (to a bool or an object parameter)
+    if (cls.boolean && c->IsInstanceOf(o, cls.boolean))
+    {
+        RexxObjectPtr v = c->SendMessage0(o, "VALUE");
+        record(out, 'B', v != NULLOBJECT && strcmp(c->ObjectToStringValue(v), "1") == 0 ? "1" : "0");
+        return true;
+    }
     if (c->IsInstanceOf(o, cls.string))
     {
         size_t len = c->StringLength((RexxStringObject)c->ObjectToString(o));
@@ -537,6 +552,7 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
     switch (tag)
     {
         case 'S': return c->String(payload.data(), payload.size());
+        case 'B': return payload == "1" ? (cls.yes ? cls.yes : c->True()) : (cls.no ? cls.no : c->False());   // a bool
         case 'N': return c->Nil();
         case 'V': return NULLOBJECT;
         case 'P': return c->SendMessage1(cls.netNamespace, "NEW", c->String(payload.c_str()));
@@ -652,7 +668,7 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
         return NULLOBJECT;
     }
     static std::once_flag classesOnce;           // net.cls's classes, for the managed side (.NetObjects in RexxObject's world)
-    if (cls.netObject) std::call_once(classesOnce, [] { mClasses(cls.netObject, cls.netType, cls.netArray, cls.netEnum); });
+    if (cls.netObject) std::call_once(classesOnce, [] { mClasses(cls.netObject, cls.netType, cls.netArray, cls.netEnum, cls.boolean); });
     int len = 0;
     // The thread context goes with the request: .NET code called from here
     // calls Rexx back on this thread, nested (RexxInterpreter.Current).

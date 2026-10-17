@@ -144,7 +144,8 @@ are not visible to reflection: their members go through `IDispatch`
   culture-invariant; `NaN` / `Infinity` as such; `BigInteger`, `Int128`,
   `UInt128` and `Half` too, since 16/10/2026 (see "Big integers as Rexx
   numbers");
-- `bool` → `1` / `0`; `null` → `.nil`;
+- `bool` → `.Boolean~true` / `.Boolean~false` (since 17/10/2026, before
+  `1` / `0`: see "Booleans: .Boolean"); `null` → `.nil`;
 - **enums → a `.NetEnum`** (since 09/10/2026; before, their name): an
   object whose string value is its name (`"Yes"`, flags `"Bold, Italic"`);
   see "Enums as objects: built";
@@ -1608,3 +1609,40 @@ static ones take the number back (`BigInteger.Log(x)`), and `.net~as` or a
 the same with Python's `int`; the comparison table of `oorexx-bridges`, row
 7. Converted in `Convert.ToRexx`, the host's `RexxInterpreter.ToRexx` and
 the unboxing of `.net~unbox`. Tests in `phase2.rex` (164).
+
+## Booleans: .Boolean (17/10/2026)
+
+The ooRexx bridges share one class for booleans, `.Boolean` of
+`boolean.cls` (`JosepMariaBlasco/oorexx-bridges`, topic "Booleans", decided
+17/10/2026; the class proposed for the ooRexx core in RFE #880). Its two
+instances behave as `1` and `0` in Rexx and answer `isA(.Boolean)`. The
+bridge carries a verbatim copy (`bridge/rexx/boolean.cls`, its version in
+`bridge/rexx/SHARED.md`, its tests `bridge/tests/boolean-test.rex`), which
+`net.cls` requires; it is built into `Rexx.Net.dll` as `net.cls` is, and
+loaded first, so that `net.cls`'s `::requires` finds it by name.
+
+- **Rexx → .NET**: `rexxnet` sends an object that `isA(.Boolean)` as a
+  record `B` (`"1"` / `"0"`), read as an `S` marked Logical and Boolean: a
+  `bool` to a `bool` parameter (cost 0) and to `object`, `ValueType` or an
+  interface `bool` implements (cost 1, a boxed `bool`); to anything else, as
+  its string. So `Convert.ToString(.Boolean~false)` is `False`, and
+  `String.Concat("a", .Boolean~true)` is `aTrue` (the `object` overload
+  wins). COM sends it as `VT_BOOL` (Logical), as `.true` itself.
+- **.NET → Rexx**: a `bool` is a record `B`, which `rexxnet` answers with the
+  two instances (global references made when it finds net.cls's classes;
+  `FindContextClass("BOOLEAN")` from net.cls sees the class it requires).
+- **.NET hosting Rexx**: `ToRexx` gives the same instances; `NetOf` gives a
+  `bool` for a `.Boolean`, so a result, a function's argument or
+  `Run<object>` is a `bool` again (as a `.NetObject` gives its .NET object).
+  The class comes from rexxnet (`Classes`, a fifth argument) or from net.cls's
+  package, else from the built-in `boolean.cls`, loaded when first needed.
+- `.net~bool(x)` returns the instance (from `1`, `0`, `true`, `false`), not a
+  `.NetTyped`: the same effect at a `bool` parameter, and a Rexx value too.
+- `.true` and `.false` stay strings to .NET (an `object` parameter gets
+  `"1"`): only the class tells a boolean.
+- Found: ooRexx's `Array~makeString` and `toString` show an item that is a
+  `.Boolean` as `a Boolean` (its default name), so a `bool[]`'s
+  `makeString` does too; reported in the topic (a `defaultName` method in the
+  shared class fixes it).
+
+Tests: `phase1.rex` (153), `HostTests` (286), `boolean-test.rex` (20).

@@ -129,7 +129,7 @@ install:
     if fromDir \== "" then call fail "no" native "in" from": a build folder for this system is needed"
     call fail "no binaries for this system ("rid") in this package: build the bridge from its sources"
   end
-  managed = .array~of("Rexx.Net.dll", "Rexx.Net.deps.json", "net.cls")
+  managed = .array~of("Rexx.Net.dll", "Rexx.Net.deps.json", "net.cls", "boolean.cls")
   do f over managed
     if \.File~new(join(from, f))~exists then
       call fail "no" f "next to install.rex: run it from the unzipped rexxnet folder (or give --from)"
@@ -166,7 +166,8 @@ install:
   if \windows then do
     call link join(home, native), join(lib, native)
     call link join(home, "net.cls"), join(bin, "net.cls")
-    say "  linked" native "into" lib "and net.cls into" bin
+    call link join(home, "boolean.cls"), join(bin, "boolean.cls")   -- (net.cls requires it: found beside it)
+    say "  linked" native "into" lib "and net.cls (with boolean.cls) into" bin
   end
 
   -- CLR.CLS: beside rexx unless another one would be found first (BSF4ooRexx's)

@@ -268,12 +268,16 @@ Each returns <emphasis role="italic">value</emphasis> marked as a
 <methodname>single</methodname> <literal>System.Single</literal>,
 <methodname>double</methodname> <literal>System.Double</literal>,
 <methodname>decimal</methodname> <literal>System.Decimal</literal>,
-<methodname>bool</methodname> <literal>System.Boolean</literal>,
 <methodname>char</methodname> <literal>System.Char</literal>, and
 <methodname>string</methodname> <literal>System.String</literal> (without an
 argument, <computeroutput>.net~string</computeroutput> describes &net;). The
 value is converted when it goes to .NET, which chooses the overload that
-takes that type (<xref linkend="valuesForced"/>).</para>
+takes that type (<xref linkend="valuesForced"/>).
+<methodname>bool</methodname> returns <computeroutput>.Boolean~true</computeroutput>
+or <computeroutput>.Boolean~false</computeroutput> instead (from
+<literal>1</literal>, <literal>0</literal>, <literal>true</literal> or
+<literal>false</literal>), which goes as a <literal>bool</literal>
+(<xref linkend="valuesBooleans"/>).</para>
 </section>
 
 <section id="mthNetGet"><title>get</title>
