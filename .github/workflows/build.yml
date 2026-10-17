@@ -60,18 +60,24 @@ jobs:
       - run: rexx -v
       - name: Test suites
         run: bridge/tests/run.sh
-      - name: lifetime-end under lldb (debug)
+      - name: lifetime-end, core dumps (debug)
         if: failure() && runner.os == 'macOS'
         run: |
           OUT="$REXXNET_BUILD/rexxnet"
           dotnet build bridge/tests/TestLib -c Release -o "$RUNNER_TEMP/tl" -p:RexxNetDir="$OUT" -nologo -v q
+          sudo sysctl kern.coredump=1 || true
+          sudo chmod 1777 /cores || true
+          ulimit -c unlimited
           cd "$OUT"
-          for i in 1 2; do
-            lldb --batch -o "settings set target.env-vars DYLD_LIBRARY_PATH=$OUT DOTNET_ROOT=$DOTNET_ROOT" \
-              -o "process handle SIGUSR1 SIGUSR2 SIGPIPE -n false -p true -s false" -o run \
-              -k "thread backtrace all" -k "image list rexxnet librexx" -k quit \
-              -- "$(command -v rexx)" "$GITHUB_WORKSPACE/bridge/tests/lifetime-end.rex" "$RUNNER_TEMP/tl/TestLib.dll" || true
+          for i in 1 2 3 4 5 6; do
+            env DYLD_LIBRARY_PATH=. rexx "$GITHUB_WORKSPACE/bridge/tests/lifetime-end.rex" "$RUNNER_TEMP/tl/TestLib.dll" > le.out 2>&1
+            echo "run $i: rc $? uninits $(grep -c '^uninit' le.out)"; grep -v '^uninit' le.out || true
           done
+          ls -la /cores || true
+          core=$(ls -t /cores/core.* 2>/dev/null | head -1)
+          if [ -n "$core" ]; then
+            lldb --batch -c "$core" "$(command -v rexx)" -o "thread backtrace all" -o "image list" | head -400
+          fi
       - name: The guide's examples
         run: rexx docs/check-guide.rex
       - name: The books' examples
