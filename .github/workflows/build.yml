@@ -60,18 +60,9 @@ jobs:
       - run: rexx -v
       - name: Test suites
         run: bridge/tests/run.sh
-      - name: lifetime.rex, with and without timeout (debug)
+      - name: lifetime.rex, one difference at a time (debug)
         if: failure() && runner.os == 'macOS'
-        run: |
-          OUT="$REXXNET_BUILD/rexxnet"
-          dotnet build bridge/tests/TestLib -c Release -o "$RUNNER_TEMP/tl" -p:RexxNetDir="$OUT" -nologo -v q
-          cd "$OUT"
-          L="$GITHUB_WORKSPACE/bridge/tests/lifetime.rex"; T="$RUNNER_TEMP/tl/TestLib.dll"
-          command -v timeout; timeout --version | head -1 || true
-          for i in 1 2 3; do echo "plain $i: $(env DYLD_LIBRARY_PATH=. rexx "$L" "$T" 2>&1 | tail -1)"; done
-          for i in 1 2 3; do echo "timeout $i: $(timeout 300 env DYLD_LIBRARY_PATH=. rexx "$L" "$T" 2>&1 | tail -1)"; done
-          for i in 1 2 3; do echo "timeout, not piped $i:"; timeout 300 env DYLD_LIBRARY_PATH=. rexx "$L" "$T" > l.out 2>&1; tail -1 l.out; done
-          for i in 1 2 3; do echo "timeout --foreground $i:"; timeout --foreground 300 env DYLD_LIBRARY_PATH=. rexx "$L" "$T" > l.out 2>&1; tail -1 l.out; done
+        run: bridge/tests/debug-lifetime.sh
       - name: The guide's examples
         run: rexx docs/check-guide.rex
       - name: The books' examples
