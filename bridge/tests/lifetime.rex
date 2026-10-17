@@ -150,7 +150,8 @@ call ok "the ::CLASS ones live on", .Sq~new(6)~Report, "<sq: 36>"
 -- 10. the end of the program: the pairs still alive are over, UNINIT once each
 parse source . . me
 cmd = 'rexx "'me~left(me~lastPos(.file~separator))'lifetime-end.rex" "'testlib'"'
-address system cmd with output stem out.
+address system cmd with output stem out. error stem err.
+endRc = rc
 got = 0; bad = 0
 do i = 1 to out.0
   if out.i~word(1) == "uninit" then do
@@ -160,6 +161,11 @@ do i = 1 to out.0
   end
 end
 call ok "at the end: all 11 pairs over, UNINIT once each, their overrides working", got bad, "11 0"
+if got bad \== "11 0" then do        -- what the program said, to see why
+  say "  lifetime-end.rex: rc" endRc
+  do i = 1 to out.0; say "  out:" out.i; end
+  do i = 1 to err.0; say "  err:" err.i; end
+end
 
 say
 if .fails = 0 then say "lifetime: all" .count "tests passed"
