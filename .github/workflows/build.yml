@@ -69,9 +69,12 @@ jobs:
           sudo chmod 1777 /cores || true
           ulimit -c unlimited
           cd "$OUT"
-          for i in 1 2 3 4 5 6; do
-            env DYLD_LIBRARY_PATH=. rexx "$GITHUB_WORKSPACE/bridge/tests/lifetime-end.rex" "$RUNNER_TEMP/tl/TestLib.dll" > le.out 2>&1
-            echo "run $i: rc $? uninits $(grep -c '^uninit' le.out)"; grep -v '^uninit' le.out || true
+          for i in 1 2 3; do
+            env DYLD_LIBRARY_PATH=. rexx "$GITHUB_WORKSPACE/bridge/tests/lifetime.rex" "$RUNNER_TEMP/tl/TestLib.dll" 2>&1 | grep -v "^ok" || true
+          done
+          for i in 1 2 3; do       # the child alone, its output through a pipe
+            env DYLD_LIBRARY_PATH=. rexx "$GITHUB_WORKSPACE/bridge/tests/lifetime-end.rex" "$RUNNER_TEMP/tl/TestLib.dll" 2>&1 | cat > le.out
+            echo "piped $i: uninits $(grep -c '^uninit' le.out)"
           done
           ls -la /cores || true
           core=$(ls -t /cores/core.* 2>/dev/null | head -1)
