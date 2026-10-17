@@ -73,6 +73,11 @@ static partial class Program
         Ok("a .Boolean false",       rexx.Run<object>("return arg(1)", false) is bool b2 && !b2, true);
         Ok("Run<bool> of a .Boolean", rexx.Run<bool>("return arg(1)", true), true);
         Ok(".true stays a string",   rexx.Run<object>("return .true")?.GetType().Name, "RexxString");
+        using (var r2 = RexxInterpreter.Create())        // another instance: the same class, the same instances
+        {
+            Ok("a second instance's .Boolean", r2.Run("use arg b; return b~isA(.Boolean) b~class~id\n::requires 'boolean.cls'", true), "1 Boolean");
+            Ok("a second instance, back", r2.Run<object>("return arg(1)", false) is bool b3 && !b3, true);
+        }
         Ok(".nil -> null",           rexx.Run("return .nil") == null, true);
         Ok("Run<int[]>: an Array copied", string.Join(",", rexx.Run<int[]>("return .array~of(1, '2', 3)")), "1,2,3");
         Ok("Run<List<string>>",      string.Join(",", rexx.Run<List<string>>("return .array~of('a', 'b')")), "a,b");
@@ -281,6 +286,7 @@ static partial class Program
     static void LeakChecks()
     {
         using var r = RexxInterpreter.Create();
+        Ok("a later instance's .Boolean", r.Run("use arg b; return b~isA(.Boolean) b\n::requires 'boolean.cls'", true), "1 1");
         var same = r.LoadPackage("same.cls", "::class Same public\n::method same; use arg x; return x\n" +
                                               "::method fail; raise syntax 98.900 array('x')\n").FindClass("Same")!.New()!;
         var arr = r.NewArray("a", "b");
