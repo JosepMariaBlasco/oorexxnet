@@ -84,6 +84,28 @@ say left("array a[1] (first), list l[0] (first)", 40) .net~System~Text~Encoding~
 say left("same .NET object twice: ==, =", 40) (sb == sb~Append("")) (sb = sb~Append(""))
 say left("enum value = 'friday', == 'friday'", 40) (.net~System~DayOfWeek~Friday = "friday") (.net~System~DayOfWeek~Friday == "friday")
 say left("Rexx Directory to .NET and back: ==", 40) dirBack()
+say
+say "--- the text of a float (oorexx-bridges, topics/float-text.md): doubles made in .NET, as Rexx gets them"
+say left("", 40) left("text", 26) "length datatype(N)"
+d = .net~System~Double; inv = .net~System~Globalization~CultureInfo~InvariantCulture; m = .net~System~Math
+call float " 1 1.0",                   d~Parse("1.0", inv)
+call float " 2 1/3",                   .net~System~Convert~ToDouble(.net~System~Decimal~Divide(1, 3))
+call float " 3 0.1 + 0.2",             m~FusedMultiplyAdd(d~Parse("0.1", inv), 1, d~Parse("0.2", inv))
+call float " 4 1e16",                  m~Pow(10, 16)
+call float " 5 1e21",                  m~Pow(10, 21)
+call float " 6 1e-7",                  d~Parse("1e-7", inv)
+call float " 7 -0.0",                  d~NegativeZero
+call float " 8 2**53 + 1, a double",   d~Parse("9007199254740993", inv)
+call float " 8 2**53 + 1, a long",     .net~System~Int64~Parse("9007199254740993")
+call float " 9 largest finite",        d~MaxValue
+call float "10 smallest subnormal",    d~Epsilon
+call float "11 NaN",                   d~NaN
+call float "12 +infinity",             d~PositiveInfinity
+call float "12 -infinity",             d~NegativeInfinity
+say '--- Rexx strings to a .NET double (List<double>~Add), and what .NET has (ToString("R"), IsNegative)'
+do s over "1E+16", "1e16", "1E16", " 1.5 ", "-0", "NaN", "nan", "Infinity", "inf", "1E+999"
+  call toDouble s
+end
 exit
 
 row: procedure expose e types
@@ -174,4 +196,19 @@ dirBack: procedure
   l~Add(d)
   return l[0] == d
 
+float: procedure                       -- a .NET double (or long) as Rexx gets it
+  use arg label, x
+  say left(label, 40) left("'" || x || "'", 26) right(x~length, 6) " " datatype(x, "N")
+  return
+toDouble: procedure                    -- a Rexx string to a double parameter
+  use arg s
+  l = .net~type("System.Collections.Generic.List<double>")~new
+  signal on syntax name noDouble
+  l~Add(s)
+  r = .net~invoke(.net~box("double", l[0]), "ToString", "R", .net~System~Globalization~CultureInfo~InvariantCulture)
+  say left("'"s"'", 40) r .net~System~Double~IsNegative(l[0])
+  return
+noDouble:
+  say left("'"s"'", 40) "no conversion:" condition("O")~message~left(60)
+  return
 ::requires "net.cls"
