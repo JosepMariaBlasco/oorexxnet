@@ -652,6 +652,16 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
     return NULLOBJECT;
 }
 
+// The thread context of the request this thread is making to the managed side
+// (innermost), for the calls back into Rexx that .NET makes meanwhile on this
+// thread (rexxCallback): they run in it, nested, rather than attaching the
+// thread to the instance again. That instance may be gone: the UNINITs that
+// ooRexx runs as the interpreter ends (MemoryObject::runUninits, from
+// Interpreter::terminateInterpreter) run after the instances have terminated,
+// and attaching to a terminated instance read freed memory (a pair's UNINIT,
+// calling .NET, whose override calls Rexx back: SIGBUS / SIGSEGV on macOS).
+static thread_local RexxThreadContext *requesting = nullptr;
+
 // Sends a request to the managed side and decodes the response. A response
 // R (a call with .NetRef arguments) is the result, then the refs' new values.
 static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const Refs *refs = nullptr,
@@ -672,7 +682,10 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
     int len = 0;
     // The thread context goes with the request: .NET code called from here
     // calls Rexx back on this thread, nested (RexxInterpreter.Current).
+    RexxThreadContext *outer = requesting;
+    requesting = c;
     unsigned char *resp = mRequest(c, (const unsigned char *)req.data(), (int)req.size(), &len);
+    requesting = outer;
     answering = receiver;
     char tag; std::string payload;
     parseRecord(resp, (size_t)len, 0, tag, payload);
@@ -1001,12 +1014,18 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
     }
     RexxThreadContext *tc = nullptr;
     RexxInstance *in = h.inst ? h.inst : instance;
-    if (!h.target || !in || !in->AttachThread(&tc)) return answer("X1:u", outLen);   // u: it never reached Rexx
+    if (!h.target || !in) return answer("X1:u", outLen);                              // u: it never reached Rexx
+    // nested in a request of this thread to the same instance: in its context
+    // (see requesting); else this thread attached to the instance for the call
+    bool nested = requesting && requesting->instance == in;
+    if (nested) tc = requesting;
+    else if (!in->AttachThread(&tc)) return answer("X1:u", outLen);
+    auto done = [&] { if (!nested) tc->DetachThread(); };
     drainDead(tc);
     if (h.peer)                                     // an override: a crossing (its Rexx object held by Rexx again)
     {
         RexxObjectPtr o = peerCrossing(tc, id);
-        if (o == NULLOBJECT) { tc->DetachThread(); return answer("X1:u", outLen); }
+        if (o == NULLOBJECT) { done(); return answer("X1:u", outLen); }
         h.target = o;
     }
     std::string out;
@@ -1021,7 +1040,12 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
         else if (!encode(tc, r, out, nullptr, true)) out.clear();
     }
     if (tc->CheckCondition()) out = (flags & 1) ? reportCondition(tc) : conditionRecord(tc);
-    tc->DetachThread();
+    if (nested)                                     // (the outer method's context: no local references left behind)
+    {
+        if (args) tc->ReleaseLocalReference(args);
+        if (r) tc->ReleaseLocalReference(r);
+    }
+    done();
     return answer(out, outLen);
 }
 
