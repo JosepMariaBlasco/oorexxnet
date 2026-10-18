@@ -980,6 +980,8 @@ for any object.</para>
    <member><xref linkend="mthNetArrayItems" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetArraySize" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetArrayDimension" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayDimensions" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetArrayHasIndex" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetArrayMakeArray" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetArraySupplier" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetArrayMakeString" xrefstyle="select:title"/></member>
@@ -995,9 +997,12 @@ for any object.</para>
 <mediaobject><imageobject>
 <imagedata fileref="images/netarray_atget.svg" scale="55" />
 </imageobject></mediaobject>
-<para>Returns the element at the positions, from 1 in every dimension. A
-position out of the array's bounds is .NET's
-<literal>IndexOutOfRangeException</literal> (SYNTAX 98.900); 0, a negative or
+<para>Returns the element at the positions, from 1 in every dimension
+(whatever the array's lower bounds: an array from COM that starts at 1 is
+from 1 here too). A position past the end of its dimension is an error that
+says the length (SYNTAX 98.900: <computeroutput>position 4 is past the end of
+a .NET array of 3 elements (positions 1 to 3; a .NET array cannot
+grow)</computeroutput>); 0, a negative or
 a non-whole position, or the wrong number of them, Rexx's own errors (93.907,
 93.924, 93.925, 93.926).</para>
 </section>
@@ -1075,6 +1080,29 @@ fixed size (a Rexx Array counts those that hold an item).</para>
 <emphasis role="italic">n</emphasis>, the length of dimension
 <emphasis role="italic">n</emphasis> (0 past the rank, as for a Rexx
 Array).</para>
+</section>
+
+<section id="mthNetArrayDimensions"><title>dimensions</title>
+<indexterm><primary>dimensions method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_dimensions.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a Rexx Array with the length of each dimension, as a Rexx
+Array's <methodname>dimensions</methodname>.</para>
+</section>
+
+<section id="mthNetArrayHasIndex"><title>hasIndex</title>
+<indexterm><primary>hasIndex method</primary>
+<secondary>of NetArray Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netarray_hasindex.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns 1 if the positions are within the array's bounds, 0 if one is
+past the end of its dimension. Every element of a .NET array exists, a
+<literal>null</literal> one too (as a Rexx Array's item that is &nil;). Wrong
+positions raise what <methodname>[]</methodname> raises; they may also come
+as one Rexx Array.</para>
 </section>
 
 <section id="mthNetArrayMakeArray"><title>makeArray</title>

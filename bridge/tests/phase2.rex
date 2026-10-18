@@ -42,7 +42,11 @@ call ok ".NET members still",   bytes~Length bytes~Rank, "3 1"
 call err "byte[] range",        ".local~b2[1] = 1E10", "cannot store"
 call err "index 0",             "x = .local~b2[0]", "Method argument 1 must be a positive whole number"
 call err "index not a number",  ".local~b2~put(1, 'x')", "Method argument 2 must be a positive whole number"
-call err "past the end",        "x = .local~b2[4]", "IndexOutOfRangeException"
+call err "past the end",        "x = .local~b2[4]", "position 4 is past the end of a .NET array of 3 elements (positions 1 to 3"
+call err "past the end (put)",  ".local~b2[4] = 1", "a .NET array cannot grow"
+call ok "hasIndex",             bytes~hasIndex(1) bytes~hasIndex(3) bytes~hasIndex(4), "1 1 0"
+call err "hasIndex(0)",         "x = .local~b2~hasIndex(0)", "Method argument 1 must be a positive whole number"
+call ok "dimensions",           bytes~dimensions~class~id bytes~dimensions~makeString("L", ","), "Array 3"
 call err "too many subscripts", "x = .local~b2[1, 1]", "Too many subscripts for array; 1 expected"
 call err "put without value",   ".local~b2~put", "Not enough arguments for method; 2 expected"
 call err "dimension(0)",        "x = .local~b2~dimension(0)", "Method argument 1 must be a positive whole number"
@@ -62,7 +66,22 @@ g~put(7, .array~of(2, 2))
 call ok "int[,] put(v, Array)", g[2, 2], 7
 call ok "int[,] items",         g~items, 6
 call ok "int[,] dimension",     g~dimension g~dimension(1) g~dimension(2) g~dimension(3), "2 2 3 0"
+call ok "int[,] dimensions",    g~dimensions~makeString("L", ","), "2,3"
+call ok "int[,] hasIndex",      g~hasIndex(2, 3) g~hasIndex(3, 1) g~hasIndex(.array~of(1, 4)), "1 0 0"
+call err "int[,] past the end", "x = .local~g2[1, 4]", "position 4 of dimension 2 is past its end (positions 1 to 3"
 call err "not enough subscripts", "x = .local~g2[1]", "Not enough subscripts for array; 2 expected"
+-- arrays whose lower bounds are not 0 (COM's SAFEARRAYs: Excel's Range.Value is from 1): still from 1 here
+lb = .net~System~Array~CreateInstance(.net~type("object"), .array~of(2, 3), .array~of(1, 1))
+lb~SetValue("first", 1, 1); lb~SetValue("last", 2, 3)
+call ok "lower bounds 1: lb[1, 1] lb[2, 3]", lb[1, 1] lb[2, 3], "first last"
+lb[2, 1] = "x"
+call ok "lower bounds 1: put", lb~GetValue(2, 1), "x"
+r = ""; do with index i item v over lb; if v \== .nil then r = r i~makeString("L", ",")"="v; end
+call ok "lower bounds 1: DO WITH from 1", r, " 1,1=first 2,1=x 2,3=last"
+l5 = .net~System~Array~CreateInstance(.net~type("int"), .array~of(3), .array~of(5))
+l5[1] = 7; l5[3] = 9
+call ok "lower bound 5: from 1 too", l5~GetValue(5) l5~GetValue(7) l5~makeString("L", ","), "7 9 7,0,9"
+call ok "lower bound 5: hasIndex", l5~hasIndex(3) l5~hasIndex(4), "1 0"
 call err "too many (Array)",    "x = .local~g2~at(.array~of(1, 1, 1))", "Too many subscripts for array; 2 expected"
 call err "bad position",        "x = .local~g2['a', 1]", "Invalid position argument specified; found ""a"""
 call err "bad element",         ".local~g2[1, 1] = 'x'", "cannot store"

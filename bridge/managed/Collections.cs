@@ -80,9 +80,15 @@ public static class Collections
             for (long n = 0; n < arr.LongLength; n++)
             {
                 long rest = n;                                   // n as positions, the last one fastest
-                for (int k = arr.Rank - 1; k >= 0; k--) { at[k] = rest % arr.GetLength(k); rest /= arr.GetLength(k); }
                 var pos = new Writer();
-                foreach (var p in at) pos.Add('S', (p + 1).ToString());   // from 1, as a Rexx Array
+                var from1 = new long[arr.Rank];
+                for (int k = arr.Rank - 1; k >= 0; k--)
+                {
+                    long p = rest % arr.GetLength(k); rest /= arr.GetLength(k);
+                    from1[k] = p + 1;                            // from 1, as a Rexx Array
+                    at[k] = p + arr.GetLowerBound(k);            // .NET's: from its lower bound (COM's: 1)
+                }
+                foreach (var p in from1) pos.Add('S', p.ToString());
                 idx.Add('A', pos.ToArray());
                 Conv.ToRexx(items, arr.GetValue(at));
             }
@@ -142,13 +148,27 @@ public static class Collections
 
     // a~at(i, j), a[i, j], a~at(.array~of(i, j)): from 1 in every dimension.
     public static void ArrayAt(Array a, List<Rec> idx, Writer w) =>
-        Conv.ToRexx(w, a.GetValue(Positions(a, idx, 1)));
+        Conv.ToRexx(w, a.GetValue(Positions(a, idx, 1)!));
+
+    // a~hasIndex(i, j): 1 within the bounds (every element of a .NET array
+    // exists, null too, as a Rexx Array's .nil item), 0 past them; wrong
+    // positions raise the errors a Rexx Array raises.
+    public static void ArrayHasIndex(Array a, List<Rec> idx, Writer w) =>
+        w.Add('S', Positions(a, idx, 1, probe: true) != null ? "1" : "0");
+
+    // a~dimensions: a Rexx Array with the length of each dimension.
+    public static void ArrayDimensions(Array a, Writer w)
+    {
+        var d = new Writer();
+        for (int k = 0; k < a.Rank; k++) d.Add('S', a.GetLength(k).ToString());
+        w.Add('A', d.ToArray());
+    }
 
     // a~put(v, i, j), a[i, j] = v; first: the argument number of the first
     // index (2 for put, 3 for putStrict), for Rexx's error messages.
     public static void ArrayPut(Array a, Rec value, int first, List<Rec> idx)
     {
-        var at = Positions(a, idx, first);
+        var at = Positions(a, idx, first)!;
         var et = a.GetType().GetElementType()!;
         if (Conv.TryConvert(value, et, out var v) == Conv.Fail)
             throw new BridgeException($"cannot store \"{Conv.Describe(value)}\" in a {Types.Display(a.GetType())}");
@@ -165,11 +185,12 @@ public static class Collections
         w.Add('S', (n > a.Rank ? 0 : a.GetLength((int)n - 1)).ToString());
     }
 
-    // The 0-based positions .NET wants, from the 1-based ones Rexx gives
-    // (one per dimension, or one Rexx Array of them). Wrong ones raise the
-    // errors a Rexx Array raises; one past the bounds is .NET's
-    // IndexOutOfRangeException (a .NET array cannot grow).
-    static long[] Positions(Array a, List<Rec> idx, int first)
+    // The positions .NET wants (from each dimension's lower bound: 0, or 1
+    // for an array from COM), from the 1-based ones Rexx gives (one per
+    // dimension, or one Rexx Array of them). Wrong ones raise the errors a
+    // Rexx Array raises; one past the end is an error that says the length
+    // (a .NET array cannot grow), or null when probing (hasIndex).
+    static long[]? Positions(Array a, List<Rec> idx, int first, bool probe = false)
     {
         bool one = idx.Count == 1 && idx[0].Tag == 'A';            // at(.array~of(i, j))
         if (one) idx = idx[0].Items;
@@ -184,7 +205,15 @@ public static class Collections
                 throw a.Rank == 1
                     ? new RexxSyntaxException(93907, (one ? first : first + i).ToString(), Conv.Describe(idx[i]))
                     : new RexxSyntaxException(93924, Conv.Describe(idx[i]));
-            at[i] = n.Value - 1;
+            long length = a.GetLength(i);
+            if (n.Value > length)
+            {
+                if (probe) return null;
+                throw new BridgeException(a.Rank == 1
+                    ? $"position {n.Value} is past the end of a .NET array of {length} element{(length == 1 ? "" : "s")} (positions 1 to {length}; a .NET array cannot grow)"
+                    : $"position {n.Value} of dimension {i + 1} is past its end (positions 1 to {length}; a .NET array cannot grow)");
+            }
+            at[i] = n.Value - 1 + a.GetLowerBound(i);
         }
         return at;
     }

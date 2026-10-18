@@ -627,6 +627,7 @@ unchanged (.NET 10, ooRexx r13267). Changes: `Collections.cs`, `Bridge.cs`,
 | `a~putStrict(type, v, i...)` | set one as that .NET type (a name, `"short"`, or a `.NetType`): `.net~as(v, type)` |
 | `a~items`, `a~size` | the number of elements (all of them: a .NET array has a fixed size; `BSF_ARRAY_REFERENCE` answers the same) |
 | `a~dimension`, `a~dimension(n)` | the rank; the length of dimension n (0 past the rank, as a Rexx Array) |
+| `a~dimensions`, `a~hasIndex(i...)` | the lengths, as a Rexx Array; 1 within the bounds, 0 past them (18/10/2026) |
 | `DO x OVER a`, `a~makeArray` | every element, row by row (the last index fastest) |
 | `DO WITH INDEX i ITEM v OVER a`, `a~supplier` | positions from 1; rank > 1: an Array of positions, as a Rexx Array's supplier gives |
 | `a~Length`, `a~Rank`, `a~GetValue(0)` | .NET's own members, as before (they are 0-based: .NET's) |
@@ -640,10 +641,25 @@ Settled while building:
   enough / Too many subscripts for array; *r* expected"), 93.901 (no index,
   or `put` without a value). A new response record carries them from the
   managed side (`Y`: code and substitutions; `RexxSyntaxException`).
-- **One past the bounds** is .NET's `IndexOutOfRangeException` (98.900),
-  as `BSF_ARRAY_REFERENCE` gives Java's. A Rexx Array returns `.nil` from
-  `at` past its end and grows on `put`; a .NET array cannot grow, and a
-  `.nil` there would hide a mistake.
+- **One past the bounds** is an error (98.900), as `BSF_ARRAY_REFERENCE`
+  gives Java's. A Rexx Array returns `.nil` from `at` past its end and grows
+  on `put`; a .NET array cannot grow, and a `.nil` there would hide a
+  mistake. Since 18/10/2026 (the family's *positions* check) the error says
+  the length, in Rexx's terms ("position 4 is past the end of a .NET array of
+  3 elements (positions 1 to 3; a .NET array cannot grow)"; rank > 1: which
+  dimension), rather than .NET's `IndexOutOfRangeException`, which spoke of
+  0-based indexes the Rexx code never wrote.
+- **Lower bounds** (18/10/2026): a .NET array need not start at 0; COM's
+  SAFEARRAYs start at 1 (Excel's `Range.Value` is an `object[1..r, 1..c]`).
+  Positions here are still from 1 in every dimension, mapped to each
+  dimension's lower bound (`GetLowerBound`), for `[]`, `at`, `put`,
+  `hasIndex` and `DO WITH`. Before, such an array could not be indexed from
+  Rexx at all (`x[1, 1]` reached .NET as `[0, 0]`: out of bounds).
+- **`hasIndex` and `dimensions`** (18/10/2026, the *positions* check:
+  messages a Rexx Array answers): `hasIndex(i...)` is 1 within the bounds
+  (every element of a .NET array exists, `null` too, as a Rexx Array's
+  `.nil` item) and 0 past them, with `[]`'s errors for wrong positions;
+  `dimensions`, a Rexx Array of the lengths.
 - **Differences from a Rexx Array that stay:** `items` counts every element
   (a Rexx Array counts the non-empty ones), and `makeArray` / `supplier`
   give `null` elements as `.nil` (a Rexx Array skips empty ones): as

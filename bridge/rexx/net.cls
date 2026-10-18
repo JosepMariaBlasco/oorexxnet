@@ -359,6 +359,14 @@ syntax: raise propagate
   signal on syntax
   return NetRequest("arrayDim", self, arg(1, "A"))
 syntax: raise propagate
+::method dimensions unguarded        -- a Rexx Array with the length of each dimension
+  signal on syntax
+  return NetRequest("arrayDims", self)
+syntax: raise propagate
+::method hasIndex unguarded          -- a~hasIndex(i, j): 1 within the bounds, 0 past them
+  signal on syntax
+  return NetRequest("arrayHas", self, arg(1, "A"))
+syntax: raise propagate
 ::method makeString unguarded        -- as Array's: makeString([format [, separator]]), its elements (say and || use it)
   forward to (self~makeArray)
 ::method toString unguarded          -- as Array's

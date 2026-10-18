@@ -21,6 +21,7 @@ dimension</emphasis>, with <computeroutput>a[i]</computeroutput>,
 <computeroutput>a[i, j] = v</computeroutput>, <methodname>at</methodname>,
 <methodname>put</methodname>, <methodname>items</methodname>,
 <methodname>size</methodname>, <methodname>dimension</methodname>,
+<methodname>dimensions</methodname>, <methodname>hasIndex</methodname>,
 <methodname>makeArray</methodname>, <methodname>supplier</methodname>, and
 <methodname>makeString</methodname> and <methodname>toString</methodname> as
 an Array's, so that <computeroutput>say a</computeroutput> shows its elements.
@@ -31,15 +32,17 @@ to .NET as itself.</para>
 <para>Where it differs from a Rexx Array, it is because a .NET array has a
 fixed size and a type: <methodname>items</methodname> counts every element,
 not only those that hold a value; <literal>null</literal> elements are &nil;
-in <literal>DO OVER</literal>; one past the end is .NET's
-<literal>IndexOutOfRangeException</literal> rather than &nil; or a bigger
-array; and an element that is put is converted to the array's element type
+in <literal>DO OVER</literal>; one past the end is an error that says the
+length rather than &nil; or a bigger array; and an element that is put is converted to the array's element type
 (<methodname>putStrict</methodname> forces another type). A wrong index raises
 what a Rexx Array raises: 93.907 for <computeroutput>a[0]</computeroutput>,
 93.925 and 93.926 for too few or too many indexes. A jagged array
 (<literal>int[][]</literal>) is an array of arrays:
 <computeroutput>jag[2]</computeroutput> is a <classname>NetArray</classname>,
-<computeroutput>jag[2][3]</computeroutput> its element.</para>
+<computeroutput>jag[2][3]</computeroutput> its element. An array whose lower
+bounds are not 0 (COM's arrays start at 1: Excel's
+<literal>Range.Value</literal>) is from 1 here as well; its own
+<literal>GetValue</literal> takes .NET's positions.</para>
 
 <example id="ex.collections-arrays">
 <title>.NET arrays as Rexx Arrays</title>
@@ -52,6 +55,14 @@ grid[2, 3] = 7
 do with index i item v over grid
   if v \= 0 then say i~makeString("L", ",") "=" v
 end
+say grid~dimensions~makeString("L", ",") grid~hasIndex(2, 3) grid~hasIndex(3, 1)
+com = .net~System~Array~CreateInstance(.net~type("string"), .array~of(2), .array~of(1))
+com[1] = "first"
+say com~GetLowerBound(0) com[1] com~GetValue(1)
+signal on syntax name past
+say bytes[4]
+past:
+  say condition("O")~message
 signal on syntax
 say bytes[0]
 syntax:
@@ -61,6 +72,9 @@ syntax:
 <screen>97 3 1 3
 Abc 65,98,99
 2,3 = 7
+2,3 1 0
+1 first first
+position 4 is past the end of a .NET array of 3 elements (positions 1 to 3; a .NET array cannot grow).
 93.907</screen>
 </example>
 </section>

@@ -228,7 +228,8 @@ send messages to; it comes back to Rexx as itself.
 
 **A .NET array is a Rexx Array**, from 1 in every dimension (as BSF4ooRexx
 does for Java arrays): `a[i]`, `a[i, j] = v`, `at`, `put`, `putStrict`,
-`items`, `size`, `dimension`, `makeArray`, `supplier`, and `makeString` /
+`items`, `size`, `dimension`, `dimensions`, `hasIndex`, `makeArray`,
+`supplier`, and `makeString` /
 `toString` as an Array's (so `say` shows its elements). It is still the .NET
 array, by reference, so its .NET members work too.
 
@@ -252,7 +253,9 @@ Abc 65,98,99
 ```
 
 A wrong index raises the error a Rexx Array raises (93.907 for `a[0]`); one
-past the end is .NET's `IndexOutOfRangeException` (a .NET array cannot grow).
+past the end is an error that says the length (a .NET array cannot grow).
+An array whose lower bounds are not 0 (COM's start at 1, as Excel's
+`Range.Value`) is from 1 here too.
 
 **A Rexx Array to .NET**: a one-dimensional one goes to an array, a `List`
 or an `IEnumerable` parameter; a multidimensional one to a .NET array of the

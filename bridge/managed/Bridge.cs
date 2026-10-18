@@ -228,6 +228,8 @@ public static unsafe class Bridge
             case "arrayPut": Collections.ArrayPut(ArrayOf(r[1]), r[2], int.Parse(r[3].Text), r[4].Items); w.Add('V', ""); break;
             case "arrayDim": Collections.ArrayDimension(ArrayOf(r[1]), r[2].Items, w); break;
             case "arraySize": w.Add('S', ArrayOf(r[1]).LongLength.ToString()); break;
+            case "arrayHas": Collections.ArrayHasIndex(ArrayOf(r[1]), r[2].Items, w); break;
+            case "arrayDims": Collections.ArrayDimensions(ArrayOf(r[1]), w); break;
             case "event": Event(r[1], r[2].Text, r[3].Text, r[4]); w.Add('V', ""); break;
             case "events":
             {

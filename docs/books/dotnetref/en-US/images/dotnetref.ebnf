@@ -123,6 +123,10 @@ netarray_size ::= 'size'
 
 netarray_dimension ::= 'dimension' ( '(' n ')' )?
 
+netarray_dimensions ::= 'dimensions'
+
+netarray_hasindex ::= 'hasIndex(' ( index ( ',' index )* | array ) ')'
+
 netarray_makearray ::= 'makeArray'
 
 netarray_supplier ::= 'supplier'
