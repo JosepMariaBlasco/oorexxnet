@@ -14,6 +14,17 @@ $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'; $env:DOTNET_NOLOGO = '1'
 $here = $PSScriptRoot
 & (Join-Path $here '..\build.ps1') -Out $Out
 if (-not $?) { exit 1 }
+# An installed bridge (rexx install: rexxnet.dll and Rexx.Net.dll beside
+# rexx.exe) would be loaded instead of this build, as Windows looks in the
+# program's folder before the PATH: the tests would run the old bridge with
+# the new net.cls. Stop and say so.
+$rexxBin = Split-Path (Get-Command rexx.exe).Source
+if ((Test-Path (Join-Path $rexxBin 'rexxnet.dll')) -and
+    ((Resolve-Path $rexxBin).Path.TrimEnd('\') -ne (Resolve-Path $Out).Path.TrimEnd('\'))) {
+    Write-Output "an installed bridge is in $rexxBin (rexxnet.dll beside rexx.exe): Windows would load it instead of the build in $Out."
+    Write-Output "Uninstall it first (rexx oorexxnet-uninstall, in an administrator terminal), then run this again."
+    exit 1
+}
 $dotnet = Join-Path $(if ($env:DOTNET_ROOT) { $env:DOTNET_ROOT } else { Split-Path (Get-Command dotnet.exe).Source }) 'dotnet.exe'
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ('rexxnet-tests-' + [guid]::NewGuid())

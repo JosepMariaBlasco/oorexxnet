@@ -68,7 +68,7 @@ static partial class Program
         Throws<InvalidCastException>("1E-999 underflows a double", () => rexx.Run<double>("return '-1E-999'"), "-1E-999 is out of range for a Double");
         Throws<InvalidCastException>("5E-324 underflows a float", () => rexx.Run<float>("return '5E-324'"), "5E-324 is out of range for a Single");
         Throws<InvalidCastException>("1E-29 underflows a decimal", () => rexx.Run<decimal>("return '1E-29'"), "1E-29 is out of range for a Decimal");
-        Ok("zeros are zeros",        $"{rexx.Run<double>("return '0E-999'")} {rexx.Run<decimal>("return '-0.000'")} {rexx.Run<double>("return '5E-324'") > 0}", "0 0.000 True");
+        Ok("zeros are zeros",        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{rexx.Run<double>("return '0E-999'")} {rexx.Run<decimal>("return '-0.000'")} {rexx.Run<double>("return '5E-324'") > 0}"), "0 0.000 True");   // (invariant: not the machine's decimal comma)
         Ok("a sign and blanks: '- 7'", rexx.Run<int>("return '- 7'"), -7);
         Ok("1E3 is 1000", rexx.Run<long>("return '1E3'"), 1000L);
         Ok("Run<double>: as a double, not a decimal", $"{rexx.Run<double>("return '5E-324'") == double.Epsilon} {rexx.Run<double>("return 1E-30") == 1e-30}", "True True");
