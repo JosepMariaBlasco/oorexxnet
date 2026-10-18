@@ -63,6 +63,9 @@ call ok "a Rexx Array to a RexxObject: itself", bw~Fill(a) a~items a[3], "3 3 x"
 call ok "a Directory subclass",  bw~Ints(.MyDir~new~~put(5, "q")), "q=6"
 mst = .MyST~new; mst["a"] = 1; mst~b = 2
 call ok "a StringTable subclass, keys as stored", bw~Ints(mst), "B=3,a=2"
+-- a subclass is read by SUPPLIER, as DO WITH reads it: an own AT is not used, an own SUPPLIER is
+call ok "a subclass with its own AT: the stored values", bw~Ints(.OwnAt~new~~put(1, "a")), "a=2"
+call ok "a subclass with its own SUPPLIER: its pairs", bw~Ints(.OwnSupplier~new~~put(1, "a")), "z=100"
 .local~arrArg = .array~of(1)
 call ok "an Array is no dictionary", message(".bw~Ints(.arrArg)")~pos("accepts") > 0, 1
 
@@ -113,3 +116,7 @@ syntax:
 
 ::class MyDir subclass Directory      -- a Directory subclass (tests)
 ::class MyST subclass StringTable    -- a StringTable subclass (tests)
+::class OwnAt subclass Directory      -- its own AT (tests)
+::method at; use arg k; return self~at:super(k) * 2
+::class OwnSupplier subclass Directory -- its own SUPPLIER (tests)
+::method supplier; return .supplier~new(.array~of(99), .array~of("z"))

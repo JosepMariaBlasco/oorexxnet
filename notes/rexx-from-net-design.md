@@ -861,6 +861,15 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
   appears with its method's result (`CALC` → 42; the method runs), an
   `UNKNOWN` method does not. Subclasses of either class count. A Directory
   is still a `RexxObject` everywhere else (an overload taking one wins).
+- **Entries read by `SUPPLIER`, for subclasses too** (18/10/2026). **Δ** from
+  ooRexx/WASM, which reads a subclass by `ALLINDEXES` and `AT`. Reason: the
+  copy holds what ooRexx itself gives as the object's (index, item) pairs:
+  `DO WITH INDEX k ITEM v OVER x` reads `SUPPLIER` too, so .NET sees what a
+  Rexx loop over the object sees (a subclass with its own `AT` is copied
+  with the stored values, as `DO WITH` gives them; one with its own
+  `SUPPLIER`, with that supplier's pairs); and it is one message, not N+1.
+  Keys are as stored (`d~name` stores `NAME`, `d["name"]` keeps the case),
+  the family's rule.
 - **Nothing else** is a dictionary: an Array, a Stem, a Table, an instance
   of another class (an error where only a dictionary fits;
   `InvalidCastException` from a host).
