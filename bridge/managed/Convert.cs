@@ -115,6 +115,7 @@ public static class Conv
             case 'X':
             case 'G':
                 if (DictionaryOf(under ?? to) is Type vt) return FromMap(r, vt, out value);
+                if (SequenceOf(under ?? to) is Type et && FromSequence(r, under ?? to, et, out value) is int sc && sc != Fail) return sc;
                 return FromRexx(r, under ?? to, out value);
         }
         return Fail;
@@ -319,6 +320,23 @@ public static class Conv
         return 20;
     }
 
+    // An instance of an Array subclass (the Array class itself comes as an A
+    // record) to a .NET array or list: a copy, as for an Array (ArrayCopy:
+    // read by DIMENSIONS and SUPPLIER). Ranked as a dictionary copy, so an
+    // overload taking a RexxObject wins; among copies, as FromArray prefers
+    // them: an array before a list or interface, a typed element before
+    // object (String.Join: string[] before IEnumerable<string>, object[]).
+    static int FromSequence(Rec r, Type to, Type et, out object? value)
+    {
+        value = null;
+        var o = Adopt(r);
+        r.IsSequence ??= IsRexxArray(o);
+        if (r.IsSequence != true) return Fail;
+        try { value = ArrayCopy(o, to, et); }
+        catch (Exception e) when (e is InvalidCastException or FormatException or OverflowException) { return Fail; }
+        return 20 + (to.IsArray ? 0 : 2) + (et == typeof(object) ? 3 : 0);
+    }
+
     // The element type of a .NET array or list a Rexx Array can become as a
     // result or a value (T[], List<T>, and the interfaces a T[] has).
     internal static Type? SequenceOf(Type t)
@@ -359,10 +377,15 @@ public static class Conv
     // A one-dimensional Rexx Array's items, converted as Rexx results, in a
     // new T[] (a List<T> for a List<T>). An omitted item: null, where T takes
     // one (the size is kept, as when the Array goes to .NET as an argument).
+    // An instance of a subclass is read by messages, the family's rule
+    // (oorexx-bridges, directory-crossing): DIMENSIONS for its size and
+    // SUPPLIER for its items, what DO WITH ... OVER sees (an own SUPPLIER is
+    // honoured; an own AT only as far as that SUPPLIER uses it).
     internal static object ArrayCopy(RexxObject a, Type t, Type et) => Copying(memo =>
     {
         bool list = t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>);
         if (memo.TryGetValue(a, out var made) && t.IsInstanceOfType(made)) return made;
+        if (!a.IsPlainArray) return SubclassCopy(a, t, et, list, memo);
         int n = a.Send("SIZE") is RexxString size ? int.Parse(size.Value) : 0;
         var arr = Array.CreateInstance(et, n);
         var lst = list ? (IList)Activator.CreateInstance(t)! : null;
@@ -385,6 +408,38 @@ public static class Conv
         }
         return lst ?? (object)arr;
     });
+
+    // ArrayCopy for an instance of an Array subclass: its size from
+    // DIMENSIONS, its items from SUPPLIER (a position it gives outside 1 to
+    // that size, or not a whole number, makes the copy fail).
+    static object SubclassCopy(RexxObject a, Type t, Type et, bool list, Dictionary<RexxObject, object> memo)
+    {
+        var dims = a.Send("DIMENSIONS") as RexxObject;
+        int rank = dims?.Send("ITEMS") is RexxString rk ? int.Parse(rk.Value) : 0;
+        if (rank > 1) throw new InvalidCastException($"a {rank}-dimensional Array cannot become a .NET array or list of {et.Name}");
+        int n = rank == 1 && dims!.Send("AT", 1) is RexxString d1 ? int.Parse(d1.Value) : 0;
+        var items = new object?[n];
+        var given = new bool[n];
+        var arr = Array.CreateInstance(et, n);
+        var lst = list ? (IList)Activator.CreateInstance(t)! : null;
+        memo[a] = lst ?? (object)arr;                       // (before its items: one of them may be a itself)
+        foreach (var (k, v) in a.Supplier())
+        {
+            string ks = k is RexxString s ? s.Value : k?.ToString() ?? "";
+            if (!int.TryParse(ks.Trim(), out int i) || i < 1 || i > n)
+                throw new InvalidCastException($"an Array whose supplier gives the position \"{ks}\" (its size is {n}) cannot become a .NET array or list");
+            try { items[i - 1] = RexxConvert.To(v, et); }
+            catch (Exception e) when (e is FormatException or OverflowException) { throw new InvalidCastException(e.Message, e); }
+            given[i - 1] = true;
+        }
+        bool takesNull = !et.IsValueType || Nullable.GetUnderlyingType(et) != null;
+        for (int i = 0; i < n; i++)
+        {
+            if (!given[i] && !takesNull) throw new InvalidCastException($"an Array with omitted items cannot become a .NET array or list of {et.Name}");
+            if (lst != null) lst.Add(items[i]); else arr.SetValue(items[i], i);
+        }
+        return lst ?? (object)arr;
+    }
 
     // A StringTable or a Directory (or an instance of a subclass): what
     // becomes a dictionary with string keys.

@@ -97,7 +97,11 @@ that appears twice is one .NET array (each argument is copied on its own;
 Arrays nested more than 1000 deep are an error). To a
 <classname>RexxObject</classname> (or <literal>object</literal>) parameter the
 Array goes as itself, by reference: an overload that takes it so wins over a
-copy.</para>
+copy. An instance of a one-dimensional subclass of Array is copied too, read
+as <literal>DO WITH ... OVER</literal> reads it: its size from
+<methodname>dimensions</methodname>, its items from its
+<methodname>supplier</methodname> (an own <methodname>at</methodname> is not
+used; an own <methodname>supplier</methodname> is).</para>
 
 <example id="ex.collections-rexx-arrays">
 <title>Rexx Arrays given to .NET</title>

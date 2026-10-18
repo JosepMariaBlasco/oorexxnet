@@ -153,6 +153,21 @@ public class RexxObject : DynamicObject, IEnumerable<object?>, IDisposable
         return b;
     }
 
+    /// Whether the object is an instance of the Array class itself, not of a
+    /// subclass (IsArray).
+    internal bool IsPlainArray
+    {
+        get
+        {
+            var r = Interpreter;
+            using var u = r.Context();
+            nint t = Target(u.C);
+            bool b = u.C.IsArray(t);
+            Done(u.C, t);
+            return b;
+        }
+    }
+
     /// Whether the object has a method of that name.
     public bool HasMethod(string name)
     {

@@ -63,6 +63,7 @@ public sealed class Rec
                                         // (A: Text, the Rexx Array's pointer if it came from Rexx, else "")
     internal RexxObject? Adopted;       // X, G: its proxy, made once (overloads try a record many times)
     internal bool? IsMap;               // X, G: a StringTable or a Directory? asked once
+    internal bool? IsSequence;          // X, G: a one-dimensional Array subclass? asked once
     internal IReadOnlyList<KeyValuePair<object?, object?>>? Pairs;   // X, G: its entries, read once
 
     /// The handle of a .NET object (an O record). Anything else, a Rexx string

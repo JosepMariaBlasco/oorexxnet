@@ -66,6 +66,15 @@ call ok "a StringTable subclass, keys as stored", bw~Ints(mst), "B=3,a=2"
 -- a subclass is read by SUPPLIER, as DO WITH reads it: an own AT is not used, an own SUPPLIER is
 call ok "a subclass with its own AT: the stored values", bw~Ints(.OwnAt~new~~put(1, "a")), "a=2"
 call ok "a subclass with its own SUPPLIER: its pairs", bw~Ints(.OwnSupplier~new~~put(1, "a")), "z=100"
+-- an Array subclass to a .NET array or list: a copy too, read by DIMENSIONS and SUPPLIER (as DO WITH)
+call ok "an Array subclass to int[]", .net~RexxNetTests~Probe~Arr(.MyArr~of(1, 2, 3)), 6
+call ok "... its own AT not used", .net~RexxNetTests~Probe~Arr(.ArrOwnAt~of(1, 2, 3)), 6
+call ok "... its own SUPPLIER used", .net~System~String~Join("-", .ArrOwnSupplier~of("a", "b", "c")), "-z-"
+call ok "... its size kept (DIMENSIONS)", .net~System~String~Join("-", .MyArr~new(4)~~put("x", 1)), "x---"
+call ok "... as a dictionary's value", bw~Lists(.stringTable~new~~put(.ArrOwnAt~of(1, 2, 3), "p")), "p:6"
+call ok "... a RexxObject parameter: itself", bw~ClassOf(.MyArr~of(1)), "MYARR"
+.local~badSup = .ArrBadSupplier~of(1, 2, 3)
+call ok "... a position past its size: no copy", message(".net~RexxNetTests~Probe~Arr(.badSup)")~pos("accepts") > 0, 1
 .local~arrArg = .array~of(1)
 call ok "an Array is no dictionary", message(".bw~Ints(.arrArg)")~pos("accepts") > 0, 1
 
@@ -120,3 +129,10 @@ syntax:
 ::method at; use arg k; return self~at:super(k) * 2
 ::class OwnSupplier subclass Directory -- its own SUPPLIER (tests)
 ::method supplier; return .supplier~new(.array~of(99), .array~of("z"))
+::class MyArr subclass Array          -- an Array subclass (tests)
+::class ArrOwnAt subclass Array       -- its own AT (tests)
+::method at; use arg i; return self~at:super(i) * 10
+::class ArrOwnSupplier subclass Array -- its own SUPPLIER: only position 2 (tests)
+::method supplier; return .supplier~new(.array~of("z"), .array~of(2))
+::class ArrBadSupplier subclass Array -- a position past its size (tests)
+::method supplier; return .supplier~new(.array~of(1), .array~of(7))

@@ -365,6 +365,7 @@ internal readonly unsafe struct Ctx
 
     public nint SupplierItem(nint s) => ((delegate* unmanaged<nint, nint, nint>)F(ThreadInterface.SupplierItem))(P, s);
     public nint SupplierIndex(nint s) => ((delegate* unmanaged<nint, nint, nint>)F(ThreadInterface.SupplierIndex))(P, s);
+    public bool IsArray(nint o) => ((delegate* unmanaged<nint, nint, nuint>)F(ThreadInterface.IsArray))(P, o) != 0;
     public bool SupplierAvailable(nint s) => ((delegate* unmanaged<nint, nint, nuint>)F(ThreadInterface.SupplierAvailable))(P, s) != 0;
     public void SupplierNext(nint s) => ((delegate* unmanaged<nint, nint, void>)F(ThreadInterface.SupplierNext))(P, s);
 

@@ -861,15 +861,29 @@ Changes: `Convert.cs`, `Wire.cs`, `Host/RexxObject.cs`.
   appears with its method's result (`CALC` → 42; the method runs), an
   `UNKNOWN` method does not. Subclasses of either class count. A Directory
   is still a `RexxObject` everywhere else (an overload taking one wins).
-- **Entries read by `SUPPLIER`, for subclasses too** (18/10/2026). **Δ** from
-  ooRexx/WASM, which reads a subclass by `ALLINDEXES` and `AT`. Reason: the
-  copy holds what ooRexx itself gives as the object's (index, item) pairs:
+- **Entries read by `SUPPLIER`, for subclasses too** (18/10/2026; first a
+  difference from ooRexx/WASM, which read a subclass by `ALLINDEXES` and
+  `AT`, then the family's rule: oorexx-bridges, *directory-crossing*,
+  amendment to point 2). Reason: the copy holds what ooRexx itself gives as the object's (index, item) pairs:
   `DO WITH INDEX k ITEM v OVER x` reads `SUPPLIER` too, so .NET sees what a
   Rexx loop over the object sees (a subclass with its own `AT` is copied
   with the stored values, as `DO WITH` gives them; one with its own
   `SUPPLIER`, with that supplier's pairs); and it is one message, not N+1.
   Keys are as stored (`d~name` stores `NAME`, `d["name"]` keeps the case),
   the family's rule.
+- **Array subclasses, the same rule** (18/10/2026). Measured first: a
+  one-dimensional Array subclass given to an `int[]` parameter was refused
+  ("a Rexx object": the native side sends only the Array class itself as an
+  `A` record, `IsArray`), while as a dictionary's value or from a host
+  (`RexxConvert.To`) it was copied by `SIZE` / `HASINDEX` / `AT`. Now both
+  copy it, read by **`DIMENSIONS` and `SUPPLIER`** (`Conv.SubclassCopy`): the
+  size kept (trailing empty slots too), an own `SUPPLIER` honoured, an own
+  `AT` not; a position the supplier gives outside 1 to the size makes the
+  copy fail; a multidimensional subclass is not copied. The Array class
+  itself keeps its paths. Ranked as a dictionary copy (20, plus FromArray's
+  preferences: an array before a list or interface, a typed element before
+  `object`), so an overload taking a `RexxObject` still gets the object.
+  `tests/bothways.rex` 49.
 - **Nothing else** is a dictionary: an Array, a Stem, a Table, an instance
   of another class (an error where only a dictionary fits;
   `InvalidCastException` from a host).
