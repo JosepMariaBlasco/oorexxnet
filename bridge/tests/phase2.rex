@@ -273,6 +273,14 @@ call ok "float text: float, Half", .net~System~Single~Parse("1e-7", ci) .net~Sys
 call ok "float text: = Rexx's x + 0, read back: 3000 random doubles", floatCheck(3000), "0 0"
 call ok "float text: the way back", backDouble("1E+17") backDouble("0.0000001") backDouble("-0") backDouble("nan") backDouble("+infinity") backDouble("-infinity") backDouble("NaN") backDouble("Infinity"), -
   "1E+17 0.0000001 -0 nan +infinity -infinity nan +infinity"
+-- a Rexx number out of range for a floating type: refused, the cause named
+-- (oorexx-bridges, topics/explicit-float-range.md); zeros and names are fine
+call err "underflow to a double: refused", "x = .net~System~Math~Sqrt('1E-999')", "1E-999 is out of range for a Double"
+call err "overflow of a double: refused", "x = .net~System~Math~Sqrt('-1E+999')", "-1E+999 is out of range for a Double"
+call err "underflow to a float, forced", "l = .net~type('System.Collections.Generic.List<object>')~new; l~Add(.net~single('5E-324'))", "5E-324 is out of range for a Single"
+call err "underflow to a decimal", "x = .net~System~Decimal~Negate('1E-29')", "1E-29 is out of range for a Decimal"
+call err "... in .net~box", "x = .net~box('double', '1E-999')", "1E-999 is out of range for a Double"
+call ok "zeros, subnormals, names: fine", .net~System~Math~Sqrt("0E-999") .net~System~Math~Abs(.net~double("-5E-324")) .net~System~Math~Sqrt("+infinity"), "0 5E-324 +infinity"
 -- numbers at the edges (the conversion probe of oorexx-bridges): exactly, or not at all
 e = .net~System~Linq~Enumerable
 call ok "a sign and blanks: '- 7' an int", .net~invoke(e, "Repeat<int>", "- 7", 1)~makeArray[1], -7

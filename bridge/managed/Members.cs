@@ -289,6 +289,7 @@ public static class Members
         where T : MethodBase
     {
         var fits = new List<(T m, int cost, object?[] conv)>();
+        Conv.ClearRangeError();
         foreach (var c in candidates)
         {
             var (cost, conv) = Fit(SigOf(c), args);
@@ -297,7 +298,9 @@ public static class Members
         if (fits.Count == 0)
         {
             var sigs = candidates.Select(c => Signature(c.GetParameters())).ToList();
-            throw new BridgeException($"no {what} accepts ({string.Join(", ", args.Select(Conv.Describe))})" +
+            var why = Conv.TakeRangeError();                // (a number out of range for a floating type: said first)
+            throw new BridgeException((why != null ? why + ": " : "") +
+                                      $"no {what} accepts ({string.Join(", ", args.Select(Conv.Describe))})" +
                                       (sigs.Count > 0 ? "; there are: " + string.Join("; ", sigs) : ""));
         }
         int best = int.MaxValue, count = 0, at = -1;

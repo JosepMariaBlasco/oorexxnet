@@ -103,7 +103,8 @@ call float "11 NaN",                   d~NaN
 call float "12 +infinity",             d~PositiveInfinity
 call float "12 -infinity",             d~NegativeInfinity
 say '--- Rexx strings to a .NET double (List<double>~Add), and what .NET has (ToString("R"), IsNegative)'
-do s over "1E+16", "1e16", "1E16", " 1.5 ", "-0", "NaN", "nan", "Infinity", "+infinity", "-infinity", "inf", "1E+999"
+do s over "1E+16", "1e16", "1E16", " 1.5 ", "-0", "NaN", "nan", "Infinity", "+infinity", "-infinity", "inf", -
+          "1E+999", "-1E+999", "1E-999", "-1E-999", "5E-324", "1.7976931348623157E+308", "1.8E+308"
   call toDouble s
 end
 exit

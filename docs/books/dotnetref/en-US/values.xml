@@ -25,7 +25,7 @@ each argument is converted to its parameter's type:</para>
 <colspec colwidth="2*"/><colspec colwidth="5*"/>
 <thead><row><entry>Rexx</entry><entry>.NET</entry></row></thead>
 <tbody>
-<row><entry>a string</entry><entry>the parameter's type: a <literal>string</literal> as it is (<literal>"007"</literal> stays <literal>"007"</literal>); any numeric type the number fits, with no rounding and no truncation (<literal>"007"</literal> is 7 for an <literal>int</literal>, <literal>3.7</literal> fits no integer type); a <literal>bool</literal> from <literal>1</literal> or <literal>0</literal> (or <literal>true</literal>, <literal>false</literal>); a <literal>char</literal> from one character; an enum from a name or a number; <literal>DateTime</literal>, <literal>DateTimeOffset</literal>, <literal>TimeSpan</literal> and <literal>Guid</literal> by their culture-invariant parsing; for an <literal>object</literal> parameter (or a generic type parameter not otherwise known), a <literal>string</literal></entry></row>
+<row><entry>a string</entry><entry>the parameter's type: a <literal>string</literal> as it is (<literal>"007"</literal> stays <literal>"007"</literal>); an integer type the number fits exactly, with no rounding and no truncation (<literal>"007"</literal> is 7 for an <literal>int</literal>, <literal>3.7</literal> fits no integer type); a <literal>double</literal>, <literal>float</literal> or <literal>decimal</literal> any number in its range, rounded to its precision, but not one too large for it nor one that is not zero and would be read as zero (<literal>1E-999</literal>: the error says <computeroutput>1E-999 is out of range for a Double</computeroutput>), and, for a <literal>double</literal> or <literal>float</literal>, <literal>nan</literal>, <literal>+infinity</literal> and <literal>-infinity</literal> by name; a <literal>bool</literal> from <literal>1</literal> or <literal>0</literal> (or <literal>true</literal>, <literal>false</literal>); a <literal>char</literal> from one character; an enum from a name or a number; <literal>DateTime</literal>, <literal>DateTimeOffset</literal>, <literal>TimeSpan</literal> and <literal>Guid</literal> by their culture-invariant parsing; for an <literal>object</literal> parameter (or a generic type parameter not otherwise known), a <literal>string</literal></entry></row>
 <row><entry>a <classname>Boolean</classname> (<computeroutput>.Boolean~true</computeroutput>, <computeroutput>.Boolean~false</computeroutput>)</entry><entry>a <literal>bool</literal>, also to an <literal>object</literal> parameter (or an interface <literal>bool</literal> implements); to any other parameter, as its string, <literal>1</literal> or <literal>0</literal> (<xref linkend="valuesBooleans"/>)</entry></row>
 <row><entry>&nil;</entry><entry><literal>null</literal>, for a reference type or a nullable value type</entry></row>
 <row><entry>a <classname>NetObject</classname></entry><entry>its .NET object; a <classname>NetType</classname> gives its <literal>System.Type</literal> where one is wanted</entry></row>
@@ -56,6 +56,20 @@ say .net~System~Char~IsDigit("7") .net~System~String~IsNullOrEmpty(.nil)
 01:30:00
 2026-10-17
 1 1</screen>
+</example>
+
+<example id="ex.values-range">
+<title>Numbers out of range for a double</title>
+<programlisting language="rexx">m = .net~System~Math
+say m~Sqrt("5E-324") m~Sqrt("+infinity")   -- a subnormal, an infinity by name
+signal on syntax
+say m~Sqrt("1E-999")                        -- not zero, but a double would make it 0
+syntax:
+  say condition("O")~message~left(36)
+
+::requires "net.cls"</programlisting>
+<screen>2.2227587494850775E-162 +infinity
+1E-999 is out of range for a Double:</screen>
 </example>
 
 <para>A Rexx string prefers a <literal>string</literal> parameter when the

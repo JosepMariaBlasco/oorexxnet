@@ -21,7 +21,7 @@ Rexx value                       int          long         double       decimal 
 '12345678901234567890123456789'  -            -            '1.234567890 '12345678901 -            -            '12345678901 '12345678901 String
 '3.14159265358979323846264'      -            -            '3.141592653 '3.141592653 -            -            '3.141592653 -            String
 '1E999'                          -            -            -            -            -            -            '1E999'      '10000000000 String
-'1E-999'                         -            -            '0'          '0.000000000 -            -            '1E-999'     -            String
+'1E-999'                         -            -            -            -            -            -            '1E-999'     -            String
 '.'                              -            -            -            -            -            '.'          '.'          -            String
 '-'                              -            -            -            -            -            '-'          '-'          -            String
 'E3'                             -            -            -            -            -            -            'E3'         -            String
@@ -120,4 +120,10 @@ Rexx Directory to .NET and back: ==      1
 '+infinity'                              Infinity 0
 '-infinity'                              -Infinity 1
 'inf'                                    no conversion: no System.Collections.Generic.List<System.Double>.Add accept
-'1E+999'                                 no conversion: no System.Collections.Generic.List<System.Double>.Add accept
+'1E+999'                                 no conversion: 1E+999 is out of range for a Double: no System.Collections.G
+'-1E+999'                                no conversion: -1E+999 is out of range for a Double: no System.Collections.
+'1E-999'                                 no conversion: 1E-999 is out of range for a Double: no System.Collections.G
+'-1E-999'                                no conversion: -1E-999 is out of range for a Double: no System.Collections.
+'5E-324'                                 5E-324 0
+'1.7976931348623157E+308'                1.7976931348623157E+308 0
+'1.8E+308'                               no conversion: 1.8E+308 is out of range for a Double: no System.Collections

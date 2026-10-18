@@ -531,8 +531,10 @@ public static unsafe class Bridge
         var t = BoxType(type);
         if (t.ContainsGenericParameters || t == typeof(void))
             throw new BridgeException($".net~box: cannot make a {Types.Display(t)}");
+        Conv.ClearRangeError();
         if (Conv.TryConvert(value, t, out var v) == Conv.Fail)
-            throw new BridgeException($".net~box: \"{Conv.Describe(value)}\" cannot be a {Types.Display(t)}");
+            throw new BridgeException($".net~box: \"{Conv.Describe(value)}\" cannot be a {Types.Display(t)}" +
+                                      (Conv.TakeRangeError() is string why ? ": " + why : ""));
         if (v == null) { w.Add('N', ""); return; }
         Conv.AddObject(w, v);
     }

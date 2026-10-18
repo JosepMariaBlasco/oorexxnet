@@ -465,17 +465,22 @@ public static class RexxConvert
         if (t == typeof(double))
         {
             if (FloatName(s) is double named) return named;
-            double d = double.Parse(RexxNumber(s), NumberStyles.Float, Inv);
-            return double.IsInfinity(d) ? throw new InvalidCastException($"{s} is too large for a Double") : d;
+            // too large, or not zero but read as zero: refused
+            // (oorexx-bridges, topics/explicit-float-range.md)
+            var text = RexxNumber(s);
+            double d = double.Parse(text, NumberStyles.Float, Inv);
+            return double.IsInfinity(d) || d == 0 && !Conv.IsZero(text) ? throw new InvalidCastException($"{text} is out of range for a Double") : d;
         }
         if (t == typeof(float))
         {
             if (FloatName(s) is double named) return (float)named;
-            float f = float.Parse(RexxNumber(s), NumberStyles.Float, Inv);
-            return float.IsInfinity(f) ? throw new InvalidCastException($"{s} is too large for a Single") : f;
+            var text = RexxNumber(s);
+            float f = float.Parse(text, NumberStyles.Float, Inv);
+            return float.IsInfinity(f) || f == 0 && !Conv.IsZero(text) ? throw new InvalidCastException($"{text} is out of range for a Single") : f;
         }
         var n = Number(s);
-        if (t == typeof(decimal)) return n is decimal m ? m : throw new InvalidCastException($"{s} is too large for a Decimal");
+        if (t == typeof(decimal))
+            return n is decimal m && (m != 0 || Conv.IsZero(RexxNumber(s))) ? m : throw new InvalidCastException($"{RexxNumber(s)} is out of range for a Decimal");
         if (t == typeof(System.Numerics.BigInteger) || Conv.IsNumber(t))
         {
             // exactly: "1E-999" is no whole number (a decimal would read it as 0)

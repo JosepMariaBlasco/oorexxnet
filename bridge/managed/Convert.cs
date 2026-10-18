@@ -160,8 +160,9 @@ public static class Conv
         Type forced = r.Text.StartsWith('#') ? ((StaticOf)Handles.Get(int.Parse(r.Text.Substring(1)))).Type
                                              : Types.Parse(r.Text);
         // First the value as the forced type, then the forced type to `to`.
+        ClearRangeError();
         int c = TryConvert(r.Inner!, forced, out var v);
-        if (c == Fail) throw new BridgeException($"cannot make a {Types.Display(forced)} of \"{Describe(r.Inner!)}\"");
+        if (c == Fail) throw new BridgeException(TakeRangeError() ?? $"cannot make a {Types.Display(forced)} of \"{Describe(r.Inner!)}\"");
         if (forced == to) { value = v; return 0; }
         if (v == null) return !to.IsValueType ? 1 : Fail;
         int k = FromObject(v, to, out value);
@@ -459,21 +460,26 @@ public static class Conv
         // a Rexx number may have blanks after its sign ("- 7")
         if (s.Length > 1 && (s[0] == '+' || s[0] == '-') && s[1] == ' ') s = s[0] + s.Substring(1).TrimStart();
         const NumberStyles st = NumberStyles.Float;
+        // A Rexx number that does not fit: refused, the reason kept for the
+        // error (oorexx-bridges, topics/explicit-float-range.md): too large
+        // ("1E999" would be an infinity), or not zero but read as zero
+        // ("1E-999"); nan, +infinity, -infinity by name are fine.
         if (to == typeof(double))
         {
             if (!double.TryParse(s, st, Inv, out var d)) return false;
-            if (double.IsInfinity(d) && HasDigit(s)) return false;     // "1E999": too large, not Infinity
+            if (double.IsInfinity(d) && HasDigit(s) || d == 0 && !IsZero(s)) return OutOfRange(s, to);
             value = d; return true;
         }
         if (to == typeof(float))
         {
             if (!float.TryParse(s, st, Inv, out var f)) return false;
-            if (float.IsInfinity(f) && HasDigit(s)) return false;
+            if (float.IsInfinity(f) && HasDigit(s) || f == 0 && !IsZero(s)) return OutOfRange(s, to);
             value = f; return true;
         }
         if (to == typeof(decimal))
         {
-            if (!decimal.TryParse(s, st, Inv, out var m)) return false;
+            if (!decimal.TryParse(s, st, Inv, out var m)) return HasDigit(s) && IsRexxNumberText(s) ? OutOfRange(s, to) : false;
+            if (m == 0 && !IsZero(s)) return OutOfRange(s, to);
             value = m; return true;
         }
         // Integers: plain digits through long (fast), else exactly through
@@ -486,6 +492,37 @@ public static class Conv
         else if (!TryWhole(s, out b)) return false;
         value = IntegerOf(b, to);
         return value != null;
+    }
+
+    /// Why the last Rexx number was refused for a floating type on this
+    /// thread ("1E-999 is out of range for a Double"), for the error that
+    /// follows (Members, .net~box, a forced type); null if none. Cleared by
+    /// TakeRangeError.
+    [ThreadStatic] static string? rangeError;
+    static bool OutOfRange(string s, Type to)
+    {
+        rangeError ??= $"{s.Trim()} is out of range for a {to.Name}";      // (the first one, as overloads are tried)
+        return false;
+    }
+    internal static string? TakeRangeError() { var e = rangeError; rangeError = null; return e; }
+    internal static void ClearRangeError() => rangeError = null;
+
+    // A Rexx number whose digits are all zeros (before any exponent): "0",
+    // "-0.000", "0E5"
+    internal static bool IsZero(string s)
+    {
+        foreach (char ch in s)
+        {
+            if (ch is 'e' or 'E') break;
+            if (ch is >= '1' and <= '9') return false;
+        }
+        return true;
+    }
+
+    static bool IsRexxNumberText(string s)
+    {
+        var t = s.Trim();
+        return t.Length > 0 && (char.IsAsciiDigit(t[^1]) || t[^1] == '.') && t.All(ch => char.IsAsciiDigit(ch) || ch is '.' or 'e' or 'E' or '+' or '-' or ' ');
     }
 
     static bool HasDigit(string s)

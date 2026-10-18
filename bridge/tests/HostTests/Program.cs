@@ -63,7 +63,12 @@ static partial class Program
         Throws<InvalidCastException>("not a number", () => rexx.Run<int>("return 'abc'"), "not a Rexx number");
         // the edges (oorexx-bridges' conversion probe): exactly, or not at all
         Throws<InvalidCastException>("1E-999 is no whole number", () => rexx.Run<int>("return '1E-999'"), "not a whole number");
-        Throws<InvalidCastException>("1E999 is too large for a double", () => rexx.Run<double>("return '1E999'"), "too large");
+        Throws<InvalidCastException>("1E999 is too large for a double", () => rexx.Run<double>("return '1E999'"), "1E999 is out of range for a Double");
+        // and not zero but read as zero (oorexx-bridges, topics/explicit-float-range.md): refused too
+        Throws<InvalidCastException>("1E-999 underflows a double", () => rexx.Run<double>("return '-1E-999'"), "-1E-999 is out of range for a Double");
+        Throws<InvalidCastException>("5E-324 underflows a float", () => rexx.Run<float>("return '5E-324'"), "5E-324 is out of range for a Single");
+        Throws<InvalidCastException>("1E-29 underflows a decimal", () => rexx.Run<decimal>("return '1E-29'"), "1E-29 is out of range for a Decimal");
+        Ok("zeros are zeros",        $"{rexx.Run<double>("return '0E-999'")} {rexx.Run<decimal>("return '-0.000'")} {rexx.Run<double>("return '5E-324'") > 0}", "0 0.000 True");
         Ok("a sign and blanks: '- 7'", rexx.Run<int>("return '- 7'"), -7);
         Ok("1E3 is 1000", rexx.Run<long>("return '1E3'"), 1000L);
         Ok("Run<double>: as a double, not a decimal", $"{rexx.Run<double>("return '5E-324'") == double.Epsilon} {rexx.Run<double>("return 1E-30") == 1e-30}", "True True");

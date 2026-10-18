@@ -153,7 +153,9 @@ say w~IsRunning
 ## 3. Values: what goes, what comes back
 
 **To .NET**, a Rexx string becomes whatever the parameter wants: `"007"` is
-`"007"` for a `string` and `7` for an `int`; `1` / `0` for a `bool`; a name
+`"007"` for a `string` and `7` for an `int`; a number out of range for a
+`double`, `float` or `decimal` (too large, or not zero but read as zero:
+`1E-999`) fits none, and the error says so; `1` / `0` for a `bool`; a name
 for an enum. A `.Boolean` (`.Boolean~true`, `.Boolean~false`: `boolean.cls`,
 the class the ooRexx bridges share, loaded with `net.cls`) goes as a `bool`,
 also where .NET takes an `object`; `.true` and `.false` are strings. When overloads compete, the one that fits best wins (as C#

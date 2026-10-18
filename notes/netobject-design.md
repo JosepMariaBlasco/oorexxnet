@@ -1710,3 +1710,26 @@ The way back was already there: `Double.Parse` (invariant) reads every
 form, these three included, and .NET's own spellings still. Checked against ooRexx itself: 3000 doubles of random bits, each as
 Rexx gets it, equal (`==`) to its own `x + 0` under `numeric digits 17`,
 and back to the same bits (`phase2.rex`, 169).
+
+## A Rexx number out of range for a floating type (18/10/2026)
+
+The ooRexx bridges' decision (`JosepMariaBlasco/oorexx-bridges`,
+`topics/explicit-float-range.md`): a Rexx number that does not fit a host
+floating type is refused, both ways it can fail: too large (it would be an
+infinity; `double` and `float` refused it already, as "fits no overload")
+and not zero but read as zero (`1E-999` was `0`, `-1E-999` was `-0`,
+silently; `1E-29` was a `decimal` zero). Every floating type: `double`,
+`float`, `decimal` (`Half` takes no Rexx string). In .NET there is no
+separate explicit path: overload resolution sends a string to a `double`
+parameter, a forced `.net~double(x)`, or `.net~box("double", x)`, all
+through `Conv.TryNumber`, which now refuses both cases and keeps the
+reason; the error names it (`1E-999 is out of range for a Double: no
+System.Math.Sqrt accepts (1E-999); ...`, `.net~box: "1E-999" cannot be a
+System.Double: 1E-999 is out of range for a Double`). A .NET host's
+`RexxConvert` (`Run<double>`, `<float>`, `<decimal>`) throws
+`InvalidCastException` with the same text (the exception it uses for every
+conversion it refuses). Zeros stay zeros (`0E-999`, `-0.000`: the digits
+before the exponent), subnormals are numbers (`5E-324`), and `nan`,
+`+infinity`, `-infinity` by name convert as before. Only Rexx strings are
+checked: a value that is already a .NET object keeps .NET's semantics.
+Tests: `phase2.rex` (175), `HostTests` (299); the probe.
