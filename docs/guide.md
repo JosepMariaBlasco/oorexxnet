@@ -321,7 +321,8 @@ first / second / second / first
 **A Rexx Array** goes to .NET as a new array or `List<T>` (a copy, items
 converted); **a StringTable or a Directory** as a new `Dictionary<string, T>`
 where a dictionary with string keys is asked for (a copy too; anywhere else
-they go by reference).
+they go by reference). Subclasses count; the keys are as stored (`d~name`
+stores `NAME`, `d["name"]` keeps the case).
 
 ```rexx
 say .net~System~String~Join("-", .array~of("a", "b", "c"))

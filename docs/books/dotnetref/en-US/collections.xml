@@ -136,8 +136,11 @@ This is the one place where a Rexx string does not prefer a
 <literal>string</literal> parameter (<xref linkend="valuesToNet"/>).</para>
 <para>A StringTable or a Directory goes to a parameter that is a dictionary
 with string keys as a new <literal>Dictionary&lt;string, T&gt;</literal> with
-its entries, each value converted to <literal>T</literal> (a copy; the keys
-keep their case).</para>
+its entries, each value converted to <literal>T</literal> (a copy). An
+instance of a subclass of either class goes the same way. The keys are as
+stored: <computeroutput>d~name = v</computeroutput> stores
+<computeroutput>NAME</computeroutput>, <computeroutput>d["name"] = v</computeroutput>
+keeps the case.</para>
 
 <example id="ex.collections-indexers">
 <title>Lists, dictionaries and indexers</title>

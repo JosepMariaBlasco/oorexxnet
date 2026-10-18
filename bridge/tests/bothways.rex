@@ -61,6 +61,8 @@ call ok "Arrays as values to Dictionary<string, int[]>", bw~Lists(l), "P:6;Q:10"
 a = .array~of(1, 2)
 call ok "a Rexx Array to a RexxObject: itself", bw~Fill(a) a~items a[3], "3 3 x"
 call ok "a Directory subclass",  bw~Ints(.MyDir~new~~put(5, "q")), "q=6"
+mst = .MyST~new; mst["a"] = 1; mst~b = 2
+call ok "a StringTable subclass, keys as stored", bw~Ints(mst), "B=3,a=2"
 .local~arrArg = .array~of(1)
 call ok "an Array is no dictionary", message(".bw~Ints(.arrArg)")~pos("accepts") > 0, 1
 
@@ -110,3 +112,4 @@ syntax:
 ::method makeDir; d = .directory~new; d~x = 5; return d
 
 ::class MyDir subclass Directory      -- a Directory subclass (tests)
+::class MyST subclass StringTable    -- a StringTable subclass (tests)
