@@ -458,17 +458,23 @@ public static class RexxConvert
         if (t == typeof(DateTime)) return DateTime.Parse(s, Inv);
         if (t == typeof(TimeSpan)) return TimeSpan.Parse(s, Inv);
         if (t == typeof(Guid)) return Guid.Parse(s);
-        var n = Number(s);
+        // a double or float: read as one, not through a decimal (which made
+        // anything below 1E-28 zero: 5E-324, 1E-30); NaN and the infinities by
+        // name, as ooRexx writes them (nan, +infinity, -infinity; .NET's own
+        // spellings too: oorexx-bridges, topics/float-text.md, point 6)
         if (t == typeof(double))
         {
-            double d = n is double x ? x : (double)(decimal)n;
+            if (FloatName(s) is double named) return named;
+            double d = double.Parse(RexxNumber(s), NumberStyles.Float, Inv);
             return double.IsInfinity(d) ? throw new InvalidCastException($"{s} is too large for a Double") : d;
         }
         if (t == typeof(float))
         {
-            float f = n is double x2 ? (float)x2 : (float)(decimal)n;
+            if (FloatName(s) is double named) return (float)named;
+            float f = float.Parse(RexxNumber(s), NumberStyles.Float, Inv);
             return float.IsInfinity(f) ? throw new InvalidCastException($"{s} is too large for a Single") : f;
         }
+        var n = Number(s);
         if (t == typeof(decimal)) return n is decimal m ? m : throw new InvalidCastException($"{s} is too large for a Decimal");
         if (t == typeof(System.Numerics.BigInteger) || Conv.IsNumber(t))
         {
@@ -493,7 +499,24 @@ public static class RexxConvert
     // A Rexx number: blanks around, a sign (blanks after it allowed), digits
     // with an optional point, an optional exponent. A decimal when it fits,
     // else a double.
+    static double? FloatName(string s) => s.Trim().ToLowerInvariant() switch
+    {
+        "nan" => double.NaN,
+        "+infinity" or "infinity" => double.PositiveInfinity,
+        "-infinity" => double.NegativeInfinity,
+        _ => null,
+    };
+
     static object Number(string s)
+    {
+        var t = RexxNumber(s);
+        if (decimal.TryParse(t, NumberStyles.Float, Inv, out var m)) return m;
+        return double.Parse(t, NumberStyles.Float, Inv);
+    }
+
+    // s if it is a Rexx number (blanks around, and after a sign, removed);
+    // else an InvalidCastException
+    static string RexxNumber(string s)
     {
         var t = s.Trim();
         if (t.Length > 1 && (t[0] == '+' || t[0] == '-')) t = t[0] + t.Substring(1).TrimStart();
@@ -513,7 +536,6 @@ public static class RexxConvert
             if (e == 0) ok = false;
         }
         if (!ok || i != t.Length) throw new InvalidCastException($"\"{s}\" is not a Rexx number");
-        if (decimal.TryParse(t, NumberStyles.Float, Inv, out var m)) return m;
-        return double.Parse(t, NumberStyles.Float, Inv);
+        return t;
     }
 }

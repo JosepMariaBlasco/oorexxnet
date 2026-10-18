@@ -66,6 +66,8 @@ static partial class Program
         Throws<InvalidCastException>("1E999 is too large for a double", () => rexx.Run<double>("return '1E999'"), "too large");
         Ok("a sign and blanks: '- 7'", rexx.Run<int>("return '- 7'"), -7);
         Ok("1E3 is 1000", rexx.Run<long>("return '1E3'"), 1000L);
+        Ok("Run<double>: as a double, not a decimal", $"{rexx.Run<double>("return '5E-324'") == double.Epsilon} {rexx.Run<double>("return 1E-30") == 1e-30}", "True True");
+        Ok("Run<double>: nan, +infinity, -infinity", $"{double.IsNaN(rexx.Run<double>("return 'nan'"))} {double.IsPositiveInfinity(rexx.Run<double>("return '+infinity'"))} {float.IsNegativeInfinity(rexx.Run<float>("return '-infinity'"))}", "True True True");
         Ok("BigInteger, exactly", rexx.Run<System.Numerics.BigInteger>("numeric digits 40; return 2 ** 100").ToString(), "1267650600228229401496703205376");
         // bools: .Boolean~true / ~false in Rexx (boolean.cls, built in), bools again in .NET
         Ok("a bool is a .Boolean",   rexx.Run("use arg t, f; return t~class~id t f (t = 1) (\\f)", true, false), "Boolean 1 0 1 1");
