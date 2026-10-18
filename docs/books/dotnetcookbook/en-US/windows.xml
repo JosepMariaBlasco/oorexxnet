@@ -92,15 +92,20 @@ grid[2, 1] = "Tea";  grid[2, 2] = 3.5
 sheet~Range("A1:B2")~Value = grid
 sheet~Range("B3")~Formula = "=SUM(B2:B2)"
 say sheet~Range("B3")~Value
+back = sheet~Range("A1:B2")~Value                    -- a .NET object[,] from 1 (COM's)
+say back[2, 1] back[2, 2] back~dimensions~makeString("L", "x") back~GetLowerBound(0)
 book~Close(.false); excel~Quit; .net~releaseObject(excel)
 
 ::requires "net.cls"</programlisting>
-<screen>3.5</screen>
+<screen>3.5
+Tea 3.5 2x2 1</screen>
 </example>
 <para><emphasis role="bold">How it works.</emphasis> <computeroutput>.net~createObject(progID)</computeroutput> is
 <computeroutput>.OLEObject~new(progID)</computeroutput>, with the same messages.
 A two-dimensional Rexx Array goes to Excel as a two-dimensional
-<literal>SAFEARRAY</literal>, a whole range at once. Calls are made in
+<literal>SAFEARRAY</literal>, a whole range at once; reading the range's
+<literal>Value</literal> gives one back, a <classname>NetArray</classname>
+from 1 in both dimensions (its .NET lower bounds are 1 too, as COM's). Calls are made in
 English, as VBA's are, so <literal>=SUM(...)</literal> works on any Windows.
 <computeroutput>.net~releaseObject(excel)</computeroutput> lets Excel's process
 end now. The project's <filename>samples/office</filename> has Excel, Word and
