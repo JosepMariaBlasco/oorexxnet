@@ -1,2 +1,8 @@
 # patches apply to files with LF endings: keep them as they are on Windows too
 *.diff -text
+
+# Rexx code is Rexx for GitHub's language detection (oorexx-bridges CONVENTIONS.md)
+*.cls       linguist-language=REXX
+*.testGroup linguist-language=REXX
+*.CLS       linguist-language=REXX
+*.frm       linguist-language=REXX
