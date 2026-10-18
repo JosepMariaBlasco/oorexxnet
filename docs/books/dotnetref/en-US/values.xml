@@ -280,4 +280,70 @@ x</screen>
 </example>
 </section>
 
+<section id="valuesCulture"><title>Numbers, Dates and the Culture</title>
+<indexterm><primary>culture</primary></indexterm>
+<indexterm><primary>InvariantCulture</primary></indexterm>
+<para>What the bridge converts does not depend on the machine: a Rexx number
+goes to a <literal>double</literal>, <literal>decimal</literal> or integer
+parameter as Rexx writes it (with a point), and a .NET number comes back the
+same way, on any Windows, Linux or macOS. But the bridge does not change
+.NET's own culture: a .NET method that reads text as a number or a date, or
+writes one as text, uses the culture of the machine
+(<literal>CultureInfo.CurrentCulture</literal>, from Windows' regional
+settings) unless it is given another. On a Spanish Windows the point
+separates thousands, so a Rexx number given to such a method as text is read
+wrongly: <computeroutput>.net~System~Convert~ToDouble("0.5")</computeroutput>
+is 5 there, and nothing warns.</para>
+<para>.NET's methods that read or write text have an overload with one
+argument more, an <literal>IFormatProvider</literal>: a
+<literal>CultureInfo</literal> is one, and
+<literal>CultureInfo.InvariantCulture</literal> is the culture that is the
+same everywhere (a point, English names). Give it whenever the text is a
+Rexx number or is meant for a program; give none (or the user's) when the
+text is for a person.</para>
+
+<table id="tabCulture" frame="all">
+<title>Where the culture goes</title>
+<tgroup cols="3">
+<colspec colwidth="1*"/><colspec colwidth="2*"/><colspec colwidth="2*"/>
+<thead><row><entry>To</entry><entry>The machine's culture</entry><entry>A culture given</entry></row></thead>
+<tbody>
+<row><entry>read a number</entry><entry><literal>Double.Parse(s)</literal>, <literal>Convert.ToDouble(s)</literal></entry><entry><literal>Double.Parse(s, inv)</literal>, <literal>Convert.ToDouble(s, inv)</literal></entry></row>
+<row><entry>write a number</entry><entry><literal>x.ToString("N2")</literal></entry><entry><literal>x.ToString("N2", inv)</literal></entry></row>
+<row><entry>a composite format</entry><entry><literal>String.Format("{0:N2}", x)</literal></entry><entry><literal>String.Format(inv, "{0:N2}", x)</literal>: the culture first</entry></row>
+<row><entry>dates</entry><entry><literal>d.ToString("D")</literal>, <literal>DateTime.Parse(s)</literal></entry><entry><literal>d.ToString("D", es)</literal>, <literal>DateTime.ParseExact(s, "dd/MM/yyyy", inv)</literal></entry></row>
+<row><entry>C#'s interpolation</entry><entry><literal>$"{x}"</literal></entry><entry><literal>FormattableString.Invariant($"{x}")</literal></entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<para>Often the simplest is not to let .NET read the text at all: a number
+whose type is forced (<computeroutput>.net~double(x)</computeroutput>,
+<xref linkend="valuesForced"/>) is converted by the bridge, with no culture.
+The conversions the bridge makes itself are culture-invariant too where .NET
+has a culture: <literal>DateTime</literal>, <literal>TimeSpan</literal> and
+the like from a Rexx string (<xref linkend="valuesToNet"/>). The COM bridge
+calls in English, as VBA does (<xref linkend="comArguments"/>).</para>
+
+<example id="ex.values-culture">
+<title>The culture, given</title>
+<programlisting language="rexx">inv = .net~System~Globalization~CultureInfo~InvariantCulture
+es  = .net~System~Globalization~CultureInfo~GetCultureInfo("es-ES")
+say .net~System~Convert~ToDouble("0.5", inv) .net~System~Double~Parse("1E3", inv)
+x = .net~box("double", 1234.5)                 -- a .NET double, with its methods
+say x~ToString("N2", inv) "/" x~ToString("N2", es)
+say .net~System~String~Format(inv, "{0:N1} {1:P0}", x, .net~double(0.25))
+d = .net~System~DateTime~new(2026, 10, 18)
+say d~ToString("D", inv) "/" d~ToString("D", es)
+say .net~System~DateTime~ParseExact("18/10/2026", "dd/MM/yyyy", inv)~DayOfYear
+
+::requires "net.cls"</programlisting>
+<screen>0.5 1000
+1,234.50 / 1.234,50
+1,234.5 25 %
+Sunday, 18 October 2026 / domingo, 18 de octubre de 2026
+291</screen>
+</example>
+</section>
+
 </chapter>

@@ -18,15 +18,16 @@ text, numbers, files, regular expressions, JSON and hashes.</para>
 <example id="ex.ckDates">
 <title>Dates and Times</title>
 <programlisting language="rexx">dt = .net~System~DateTime
+inv = .net~System~Globalization~CultureInfo~InvariantCulture
+es = .net~System~Globalization~CultureInfo~GetCultureInfo("es-ES")
 d = dt~new(2026, 10, 16, 15, 30, 0)
-say d~ToString("yyyy-MM-dd HH:mm") "is a" d~DayOfWeek
-say "In 100 days:" d~AddDays(100)~ToString("dddd, d MMMM yyyy")
+say d~ToString("yyyy-MM-dd HH:mm", inv) "is a" d~DayOfWeek
+say "In 100 days:" d~AddDays(100)~ToString("dddd, d MMMM yyyy", inv)
 say "Until 2027:" dt~new(2027, 1, 1)~Subtract(d)~TotalDays~format(, 2) "days"
 span = .net~System~TimeSpan~FromSeconds(3725)
 say "3725 s =" span~Hours"h" span~Minutes"m" span~Seconds"s"
-es = .net~System~Globalization~CultureInfo~GetCultureInfo("es-ES")
 say d~ToString("D", es)
-p = dt~ParseExact("16/10/2026", "dd/MM/yyyy", .net~System~Globalization~CultureInfo~InvariantCulture)
+p = dt~ParseExact("16/10/2026", "dd/MM/yyyy", inv)
 say p~Year p~Month p~Day p~DayOfYear
 
 ::requires "net.cls"</programlisting>
@@ -41,9 +42,11 @@ viernes, 16 de octubre de 2026
 (<methodname>ParseExact</methodname> with a format, culture-invariant). Its
 methods return new values (<methodname>AddDays</methodname>,
 <methodname>Subtract</methodname>, which gives a <literal>TimeSpan</literal>),
-and <methodname>ToString</methodname> formats it, in the current culture or
-in the one given: <literal>CultureInfo.GetCultureInfo("es-ES")</literal> for
-Spanish. <literal>DayOfWeek</literal> is an enum value, which shows its name.
+and <methodname>ToString</methodname> formats it in the culture given:
+<literal>InvariantCulture</literal> for the same text on every machine,
+<literal>CultureInfo.GetCultureInfo("es-ES")</literal> for Spanish; without
+one, in the machine's (Windows' regional settings), which may name the
+month in another language. <literal>DayOfWeek</literal> is an enum value, which shows its name.
 <literal>DateTime</literal> is a struct: what Rexx holds is a copy.</para>
 <para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>, <emphasis>Messages to Types and Objects</emphasis>.</para>
 </section>
@@ -56,8 +59,8 @@ Spanish. <literal>DayOfWeek</literal> is an enum value, which shows its name.
 <title>Formatting Text</title>
 <programlisting language="rexx">s = .net~System~String
 say s~Format("{0,-6}|{1,6}|", "left", "right")
-say s~Format("{0:N2} {1:N2}", 1234.5, .net~double(1234.5))   -- a Rexx string is a string
 inv = .net~System~Globalization~CultureInfo~InvariantCulture
+say s~Format(inv, "{0:N2} {1:N2}", 1234.5, .net~double(1234.5))   -- a Rexx string is a string
 de = .net~System~Globalization~CultureInfo~GetCultureInfo("de-DE")
 n = .net~double(1234567.891)
 say s~Format(inv, "{0:N2}", n) "/" s~Format(de, "{0:N2}", n)
@@ -81,7 +84,9 @@ parameters as the string <literal>"1234.5"</literal>, which
 <literal>N2</literal> leaves alone. <computeroutput>.net~double(x)</computeroutput>
 makes it a <literal>double</literal>, which <literal>N2</literal> formats; it is
 only a mark for the call (a <classname>NetTyped</classname>), not a number of
-its own. A culture as the first argument formats in that culture's way.</para>
+its own. A culture as the first argument formats in that culture's way;
+without one, <literal>N2</literal> uses the machine's (on a Spanish Windows,
+<literal>1.234,50</literal>).</para>
 <para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>Values</emphasis>, <emphasis>Forcing a Type</emphasis>.</para>
 </section>
 

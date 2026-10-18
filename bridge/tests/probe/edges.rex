@@ -89,7 +89,7 @@ say "--- the text of a float (oorexx-bridges, topics/float-text.md): doubles mad
 say left("", 40) left("text", 26) "length datatype(N)"
 d = .net~System~Double; inv = .net~System~Globalization~CultureInfo~InvariantCulture; m = .net~System~Math
 call float " 1 1.0",                   d~Parse("1.0", inv)
-call float " 2 1/3",                   .net~System~Convert~ToDouble(.net~System~Decimal~Divide(1, 3))
+call float " 2 1/3",                   d~Parse(.net~System~Decimal~Divide(1, 3), inv)   -- (with inv: Convert.ToDouble(text) read the machine's culture)
 call float " 3 0.1 + 0.2",             m~FusedMultiplyAdd(d~Parse("0.1", inv), 1, d~Parse("0.2", inv))
 call float " 4 1e16",                  m~Pow(10, 16)
 call float " 5 1e21",                  m~Pow(10, 21)

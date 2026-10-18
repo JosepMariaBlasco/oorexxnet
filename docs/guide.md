@@ -224,6 +224,24 @@ Any other Rexx object (a Directory, an instance of your own class) goes to
 .NET by reference too, as a `Rexx.Net.RexxObject` that .NET code can keep and
 send messages to; it comes back to Rexx as itself.
 
+**The culture.** What the bridge converts is the same on every machine (a
+point in numbers). .NET's own methods that read or write numbers and dates as
+text use the machine's culture unless given one: on a Spanish Windows
+`.net~System~Convert~ToDouble("0.5")` is 5. Pass
+`CultureInfo~InvariantCulture` (or force the type, `.net~double(x)`) when the
+text is a Rexx number; the Reference (*Values*, *Numbers, Dates and the
+Culture*) has where it goes in each kind of call.
+
+```rexx
+inv = .net~System~Globalization~CultureInfo~InvariantCulture
+say .net~System~Convert~ToDouble("0.5", inv) .net~System~String~Format(inv, "{0:N2}", .net~double(1234.5))
+::requires "net.cls"
+```
+
+```text
+0.5 1,234.50
+```
+
 ## 4. Arrays, collections, dictionaries
 
 **A .NET array is a Rexx Array**, from 1 in every dimension (as BSF4ooRexx

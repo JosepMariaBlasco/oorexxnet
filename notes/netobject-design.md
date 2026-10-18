@@ -1749,3 +1749,43 @@ before the exponent), subnormals are numbers (`5E-324`), and `nan`,
 `+infinity`, `-infinity` by name convert as before. Only Rexx strings are
 checked: a value that is already a .NET object keeps .NET's semantics.
 Tests: `phase2.rex` (175), `HostTests` (299); the probe.
+
+## The culture: .NET's, left alone (18/10/2026)
+
+Found running the tests on a Windows set to Spanish (the CI's runners are
+in English): the probe's `Convert.ToDouble(Decimal.Divide(1, 3))` gave
+`3.3333333333333336E+27`. The decimal came back to Rexx as the number
+`0.3333...`; given back, a Rexx string prefers `ToDouble(string)`, which
+reads the text in the machine's culture, where the point separates
+thousands. Four Cookbook examples formatted dates and numbers in the
+machine's culture too (`ToString("dddd, d MMMM yyyy")`, `{0:N2}`, C#'s
+`$"..."`).
+
+**Decided: the bridge does not change .NET's culture** (`CurrentCulture`,
+`CurrentUICulture`), in either direction. The other way (the bridge setting
+`CultureInfo.DefaultThreadCurrentCulture` to the invariant culture when Rexx
+loads .NET) would make every text a Rexx number turns into read right, as in
+the sister bridges, whose hosts parse numbers the same everywhere (Python's
+`float`, JavaScript's `Number`, Java's `Double.parseDouble`); but it would
+also turn the dates, amounts and Windows Forms controls that a Rexx program
+shows its user into the invariant culture's English, and the culture of a
+process is the program's choice, not a library's. So:
+
+- **The bridge's own conversions are culture-invariant**, as they were: a
+  Rexx number to a numeric parameter, numbers back to Rexx, `DateTime`,
+  `TimeSpan`, `Guid` from a Rexx string (`Inv` in `Convert.cs`); COM calls
+  in English (`en-US`, `Com.cs`), as VBA's.
+- **.NET's methods keep their culture**: what reads or writes text without
+  an `IFormatProvider` uses the machine's. Documented (Reference, *Values*,
+  *Numbers, Dates and the Culture*, with where the culture goes in each kind
+  of call; the guide, section 3): give `InvariantCulture` when the text is a
+  Rexx number or for a program, or force the type (`.net~double(x)`), so that
+  the bridge converts.
+- The probe and the four examples give the culture (or the type), so that
+  they say the same on every machine; a CI step runs the books, the guide
+  and the probe under `es_ES.UTF-8` (on Linux, .NET takes `LANG`), so that a
+  dependency on the culture shows.
+
+Measured on the way: .NET's `decimal` to `double` (`Convert.ToDouble(decimal)`)
+is not correctly rounded (1/3 as a decimal gives `0.33333333333333337`; its
+text read by `Double.Parse` gives `0.3333333333333333`, the nearest double).

@@ -34,7 +34,7 @@ var discount = rexx.Compile("discount",          // a rule, kept in Rexx
     "if total &gt; 100 then return total * 0.9\n" +
     "return total");
 foreach (var total in new[] { 50, 120 })
-    Console.WriteLine($"{total} -&gt; {discount.Call&lt;decimal&gt;(total)}");
+    Console.WriteLine(FormattableString.Invariant($"{total} -&gt; {discount.Call&lt;decimal&gt;(total)}"));
 
 public class Shop
 {
@@ -53,7 +53,9 @@ calls the application's own methods and properties. A routine compiled once
 (<methodname>Compile</methodname>) is called many times, cheaply, and its
 result converted (<methodname>Call&lt;decimal&gt;</methodname>): rules that
 users can change without rebuilding the application. Rexx's arithmetic is
-decimal, so 120 × 0.9 is exactly 108.0.</para>
+decimal, so 120 × 0.9 is exactly 108.0. (<literal>FormattableString.Invariant</literal>
+writes it with a point on every machine; C#'s <literal>$"..."</literal> alone
+uses the machine's culture.)</para>
 <para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>.NET Using ooRexx: the Rexx.Net API</emphasis>, <emphasis>Both Ways in One Process</emphasis>.</para>
 </section>
 
@@ -75,7 +77,7 @@ var pkg = rexx.LoadPackage("account.cls",
 RexxClass account = pkg.FindClass("Account")!;
 dynamic a = account.New(10)!;
 a.deposit(5).deposit(2.5);
-Console.WriteLine($"{a.balance} {(decimal)a.balance * 2}");
+Console.WriteLine(FormattableString.Invariant($"{a.balance} {(decimal)a.balance * 2}"));
 RexxObject b = account.New()!;
 b.Send("deposit", 100);
 Console.WriteLine(b.Send&lt;int&gt;("balance") + 1);</programlisting>

@@ -64,6 +64,18 @@ jobs:
         run: rexx docs/check-guide.rex
       - name: The books' examples
         run: rexx docs/check-books.rex
+      # The runners are in English; .NET's own methods use the machine's
+      # culture (notes/netobject-design.md, "The culture"): the same again in
+      # Spanish (a decimal comma), so that a test or an example that depends
+      # on the culture shows here (on Linux .NET takes LANG)
+      - name: The same under another culture (es-ES)
+        if: runner.os == 'Linux'
+        env:
+          LANG: es_ES.UTF-8
+        run: |
+          bridge/tests/run.sh
+          rexx docs/check-guide.rex
+          rexx docs/check-books.rex
       - name: Smoke tests
         if: runner.os == 'Linux'
         run: smoke/run.sh && smoke/hostapi/run.sh
