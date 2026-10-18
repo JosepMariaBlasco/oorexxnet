@@ -140,8 +140,11 @@ are not visible to reflection: their members go through `IDispatch`
 **.NET → Rexx**
 
 - `string` → string; `char` → one-character string;
-- integers, `float`, `double` (round-trip), `decimal` → Rexx number strings,
-  culture-invariant; `NaN` / `Infinity` as such; `BigInteger`, `Int128`,
+- integers, `float`, `double` (shortest round-trip digits, written as ooRexx
+  writes `x + 0` under `numeric digits 17`, since 18/10/2026: see "The text
+  of a float"), `decimal` → Rexx number strings,
+  culture-invariant; NaN and the infinities as `nan`, `+infinity`,
+  `-infinity` (ooRexx's own spelling; before 18/10/2026 `NaN` / `Infinity`); `BigInteger`, `Int128`,
   `UInt128` and `Half` too, since 16/10/2026 (see "Big integers as Rexx
   numbers");
 - `bool` → `.Boolean~true` / `.Boolean~false` (since 17/10/2026, before
@@ -1684,3 +1687,26 @@ topics "array-shape" and "cyclic-arrays"):
 
 Tests: `phase1.rex` (164), `HostTests` (293); the probe
 (`bridge/tests/probe/`) shows both.
+
+## The text of a float (18/10/2026)
+
+The ooRexx bridges' decision (`JosepMariaBlasco/oorexx-bridges`,
+`topics/float-text.md`, points 1 to 6): a host float arrives in Rexx with its shortest digits
+that read back as the same double, written exactly as ooRexx writes `x + 0`
+under `numeric digits 17`, so plain digits unless the integer part needs
+more than 17 places or the decimals more than 34; otherwise one digit, the
+point, the rest, `E`, the sign and the exponent without leading zeros.
+.NET's `ToString("R")` already gave the shortest digits, with no `.0`
+(.NET is on the side of point 3 without it: a .NET program does not tell a
+`double` from an `int` by its text) and `-0` kept; what changed is where
+the exponent starts (it was below 1e-4 and from 1e17, and padded to two
+digits: `1E-07`, now `0.0000001`; `5E-324` stays). `Conv.FloatText`
+reformats the round-trip text, for `double`, `float` and `Half`, in the
+three places that write one for Rexx (`Convert.ToRexx`, the host's
+`RexxInterpreter.ToRexx`, COM events). Points 5 and 6, settled the same
+day: NaN and the infinities in ooRexx's own spelling, `nan`, `+infinity`,
+`-infinity` (what ooRexx writes for a double), not .NET's `NaN`, `Infinity`.
+The way back was already there: `Double.Parse` (invariant) reads every
+form, these three included, and .NET's own spellings still. Checked against ooRexx itself: 3000 doubles of random bits, each as
+Rexx gets it, equal (`==`) to its own `x + 0` under `numeric digits 17`,
+and back to the same bits (`phase2.rex`, 169).

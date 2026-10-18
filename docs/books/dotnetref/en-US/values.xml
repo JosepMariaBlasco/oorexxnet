@@ -198,7 +198,7 @@ System.Int32 System.Decimal
 <thead><row><entry>.NET</entry><entry>Rexx</entry></row></thead>
 <tbody>
 <row><entry><literal>string</literal>, <literal>char</literal></entry><entry>a string</entry></row>
-<row><entry>every numeric type, <literal>BigInteger</literal>, <literal>Int128</literal>, <literal>UInt128</literal> and <literal>Half</literal> included</entry><entry>a string with the number, culture-invariant: whole numbers with all their digits (a <literal>BigInteger</literal> of any size), a <literal>double</literal> or <literal>float</literal> as its shortest round-trip form (<literal>NaN</literal>, <literal>Infinity</literal> and <literal>-Infinity</literal> as such), a <literal>decimal</literal> with its digits</entry></row>
+<row><entry>every numeric type, <literal>BigInteger</literal>, <literal>Int128</literal>, <literal>UInt128</literal> and <literal>Half</literal> included</entry><entry>a string with the number, culture-invariant: whole numbers with all their digits (a <literal>BigInteger</literal> of any size), a <literal>double</literal> or <literal>float</literal> with its shortest digits that read back as the same value, written as Rexx writes <computeroutput>x + 0</computeroutput> under <computeroutput>NUMERIC DIGITS 17</computeroutput>: plain digits (<literal>0.0000001</literal>, <literal>10000000000000000</literal>) unless the integer part needs more than 17 places or the decimals more than 34 (<literal>1E+17</literal>, <literal>1E-35</literal>), no <literal>.0</literal> on a whole value (<literal>1</literal>), <literal>-0</literal> kept, and NaN and the infinities as ooRexx writes them, <literal>nan</literal>, <literal>+infinity</literal> and <literal>-infinity</literal> (which go back to a <literal>double</literal> as they are; .NET's own spellings, <literal>NaN</literal> and <literal>Infinity</literal>, do too); a <literal>decimal</literal> with its digits</entry></row>
 <row><entry><literal>bool</literal></entry><entry><computeroutput>.Boolean~true</computeroutput> or <computeroutput>.Boolean~false</computeroutput>, which are <literal>1</literal> and <literal>0</literal> to Rexx (<xref linkend="valuesBooleans"/>)</entry></row>
 <row><entry><literal>null</literal></entry><entry>&nil;</entry></row>
 <row><entry>an enum value</entry><entry>a <classname>NetEnum</classname>, whose string value is its name (<xref linkend="clsNetEnum"/>)</entry></row>
@@ -217,6 +217,7 @@ string again.</para>
 <title>.NET values in Rexx</title>
 <programlisting language="rexx">m = .net~System~Math
 say m~Sqrt(2) m~PI
+say m~Pow(10, -7) m~Pow(10, 17) m~Pow(2, 53) m~Round(-0.4)   -- as Rexx writes them
 say .net~System~Double~NaN .net~System~Double~PositiveInfinity
 say .net~System~Int64~MaxValue .net~System~UInt64~MaxValue
 say 1/3 .net~System~Decimal~Divide(1, 3)
@@ -226,7 +227,8 @@ say .net~System~Environment~GetEnvironmentVariable("NO_SUCH_VARIABLE") == .nil
 
 ::requires "net.cls"</programlisting>
 <screen>1.4142135623730951 3.141592653589793
-NaN Infinity
+0.0000001 1E+17 9007199254740992 -0
+nan +infinity
 9223372036854775807 18446744073709551615
 0.333333333 0.3333333333333333333333333333
 1267650600228229401496703205376 1267650600228229401496703205377 1

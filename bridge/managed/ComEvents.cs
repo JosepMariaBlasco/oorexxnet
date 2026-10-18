@@ -50,7 +50,7 @@ public sealed class ComRef
     internal bool Changed;
     internal ComRef(object? v) => value = v;
     public object? Value { get => value; set { this.value = value; Changed = true; } }
-    public override string ToString() => value is bool b ? (b ? "1" : "0") : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+    public override string ToString() => value is bool b ? (b ? "1" : "0") : value is double or float ? Conv.FloatText(Convert.ToString(value, CultureInfo.InvariantCulture)!) : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
 }
 
 /// IDispatch, as a sink implements it (the parameters raw: Invoke reads
@@ -458,7 +458,7 @@ static class ComEvents
 
     static object? ToCom(object? v) => v is string s ? Com.Number(s) : v;
 
-    static string Text(object? v) => v is bool b ? (b ? "1" : "0") : Convert.ToString(v, CultureInfo.InvariantCulture) ?? "";
+    static string Text(object? v) => v is bool b ? (b ? "1" : "0") : v is double or float ? Conv.FloatText(Convert.ToString(v, CultureInfo.InvariantCulture)!) : Convert.ToString(v, CultureInfo.InvariantCulture) ?? "";
 
     static bool Truth(object? v) => v switch
     {

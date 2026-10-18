@@ -262,13 +262,24 @@ call ok "BigInteger in a NetArray", a[2] a~makeString("L", " "), "10000000000000
 call ok "Int128, UInt128", .net~System~Int128~MaxValue .net~System~UInt128~MinValue, "170141183460469231731687303715884105727 0"
 call ok "Half", .net~System~Half~MaxValue .net~System~Half~Epsilon~datatype("N"), "65500 1"
 call ok "Complex stays a NetObject", .net~typeOf(.net~System~Numerics~Complex~One), "System.Numerics.Complex"
+-- the text of a .NET float (oorexx-bridges, topics/float-text.md): shortest
+-- digits, the exponent where ooRexx puts it for x + 0 under NUMERIC DIGITS 17,
+-- no ".0", -0 kept, nan/+infinity/-infinity (ooRexx's own); every form read back
+dp = .net~System~Double; ci = .net~System~Globalization~CultureInfo~InvariantCulture
+call ok "float text: the decision's table", ftext("1e16 1e17 1.5e17 1e21 1e-7 1e-20 1e-34 1e-35 1.2345678901234567e-10 1.2345678901234567e-20 1.7976931348623157e308 5e-324 1.0 0.1"), -
+  "10000000000000000 1E+17 1.5E+17 1E+21 0.0000001 0.00000000000000000001 0.0000000000000000000000000000000001 1E-35 0.00000000012345678901234568 1.2345678901234567E-20 1.7976931348623157E+308 5E-324 1 0.1"
+call ok "float text: -0, NaN, infinities", dp~NegativeZero dp~NaN dp~PositiveInfinity dp~NegativeInfinity, "-0 nan +infinity -infinity"
+call ok "float text: float, Half", .net~System~Single~Parse("1e-7", ci) .net~System~Half~Epsilon .net~System~Single~MaxValue, "0.0000001 0.00000006 3.4028235E+38"
+call ok "float text: = Rexx's x + 0, read back: 3000 random doubles", floatCheck(3000), "0 0"
+call ok "float text: the way back", backDouble("1E+17") backDouble("0.0000001") backDouble("-0") backDouble("nan") backDouble("+infinity") backDouble("-infinity") backDouble("NaN") backDouble("Infinity"), -
+  "1E+17 0.0000001 -0 nan +infinity -infinity nan +infinity"
 -- numbers at the edges (the conversion probe of oorexx-bridges): exactly, or not at all
 e = .net~System~Linq~Enumerable
 call ok "a sign and blanks: '- 7' an int", .net~invoke(e, "Repeat<int>", "- 7", 1)~makeArray[1], -7
 call ok "... and a double",                .net~invoke(e, "Repeat<double>", "- 7", 1)~makeArray[1], -7
 call err "1E-999 is no whole number",      "x = .net~invoke(.net~System~Linq~Enumerable, 'Repeat<int>', '1E-999', 1)", "accepts"
 call err "1E999 is too large for a double", "x = .net~invoke(.net~System~Linq~Enumerable, 'Repeat<double>', '1E999', 1)", "accepts"
-call ok "but Infinity is a double",        .net~invoke(e, "Repeat<double>", "Infinity", 1)~makeArray[1], "Infinity"
+call ok "but Infinity is a double",        .net~invoke(e, "Repeat<double>", "Infinity", 1)~makeArray[1], "+infinity"
 call ok "1E3 still a whole number",        .net~invoke(e, "Repeat<long>", "1E3", 1)~makeArray[1], 1000
 
 say
@@ -278,6 +289,27 @@ exit .fails > 0
 
 ::requires "net.cls"
 
+::routine ftext                       -- each word parsed by .NET as a double, as Rexx gets it
+  ci = .net~System~Globalization~CultureInfo~InvariantCulture
+  out = ""
+  do w over arg(1)~makeArray(" "); out = out .net~System~Double~Parse(w, ci); end
+  return out~strip
+::routine backDouble                   -- a Rexx string to a double parameter and back
+  l = .net~type("System.Collections.Generic.List<double>")~new; l~Add(arg(1)); return l[0]
+::routine floatCheck                   -- random doubles (any bits): text \== x + 0, or not the same bits back
+  use arg n
+  r = .net~System~Random~new(20261018); bc = .net~System~BitConverter
+  differ = 0; lost = 0
+  do n
+    bits = r~NextInt64("-9223372036854775807", "9223372036854775807")   -- (quoted: -n is arithmetic)
+    t = bc~Int64BitsToDouble(bits)
+    if \datatype(t, "N") then iterate             -- NaN, infinities
+    numeric digits 17
+    if t \= 0, t + 0 \== t then do; differ += 1; if differ < 4 then say "  differs:" t (t + 0); end
+    numeric digits
+    if bc~DoubleToInt64Bits(t) \== bits then do; lost += 1; if lost < 4 then say "  not the same bits:" t; end   -- (\==: = compares 9 digits)
+  end
+  return differ lost
 ::routine ok
   use arg name, got, want
   .local~count += 1

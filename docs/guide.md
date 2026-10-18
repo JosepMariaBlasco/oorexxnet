@@ -196,7 +196,9 @@ System.Int16 5
 ```
 
 **From .NET**, strings, numbers (`BigInteger`, `Int128` and `UInt128` with
-all their digits) and `char`s come back as Rexx strings, `bool`s as
+all their digits; a `double` with its shortest digits, as Rexx writes `x + 0`
+under `numeric digits 17`: `0.0000001`, `1E+17`, `1` for `1.0`, `-0` kept;
+NaN and the infinities as ooRexx writes them: `nan`, `+infinity`, `-infinity`) and `char`s come back as Rexx strings, `bool`s as
 `.Boolean~true` and `.Boolean~false` (they are `1` and `0` to Rexx, and go back
 to .NET as `bool`s), `null` as `.nil`; enums as `.NetEnum`s and arrays as
 `.NetArray`s (sections 4 and 5); everything else as a `.NetObject`, **by

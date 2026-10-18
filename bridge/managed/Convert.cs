@@ -584,10 +584,10 @@ public static class Conv
             case string s: w.Add('S', s); return;
             case bool b: w.Add('B', b ? "1" : "0"); return;   // .Boolean~true / ~false
             case char c: w.Add('S', c.ToString()); return;
-            case double d: w.Add('S', d.ToString("R", Inv)); return;
-            case float f: w.Add('S', f.ToString("R", Inv)); return;
+            case double d: w.Add('S', FloatText(d.ToString("R", Inv))); return;
+            case float f: w.Add('S', FloatText(f.ToString("R", Inv))); return;
             case decimal m: w.Add('S', m.ToString(Inv)); return;
-            case Half h: w.Add('S', h.ToString(Inv)); return;
+            case Half h: w.Add('S', FloatText(h.ToString(Inv))); return;
             case sbyte or byte or short or ushort or int or uint or long or ulong or nint or nuint
                  or Int128 or UInt128 or BigInteger:              // every integer type: all its digits
                 w.Add('S', System.Convert.ToString(v, Inv)!); return;
@@ -595,6 +595,49 @@ public static class Conv
             case RexxObject ro: w.Add('X', RexxInterpreter.Lend(ro)); return;   // the Rexx object itself
         }
         AddObject(w, v);
+    }
+
+    /// A .NET float as Rexx gets it (oorexx-bridges, topics/float-text.md):
+    /// its shortest digits (.NET's round-trip text, given), written as ooRexx
+    /// writes x + 0 under NUMERIC DIGITS 17: plain digits unless the integer
+    /// part needs more than 17 places or the decimals more than 34; else one
+    /// digit, the point, the rest, and E with its sign and no leading zeros
+    /// (1E+17, 1E-35). No ".0" (.NET's side of the decision); -0 kept; NaN
+    /// and the infinities in ooRexx's own spelling, nan, +infinity and
+    /// -infinity (what ooRexx writes for a double: DoubleToObject), which go
+    /// back to a double as they are (Double.Parse reads them).
+    internal static string FloatText(string roundTrip)
+    {
+        string s = roundTrip;
+        switch (s)
+        {
+            case "NaN": return "nan";
+            case "Infinity": return "+infinity";
+            case "-Infinity": return "-infinity";
+            case "0" or "-0": return s;
+        }
+        bool negative = s[0] == '-';
+        if (negative) s = s.Substring(1);
+        int exp = 0, e = s.IndexOfAny(new[] { 'E', 'e' });
+        if (e >= 0) { exp = int.Parse(s.Substring(e + 1), Inv); s = s.Substring(0, e); }
+        int point = s.IndexOf('.');
+        if (point >= 0) { exp -= s.Length - point - 1; s = s.Remove(point, 1); }
+        // s: the digits, the value s * 10^exp; no leading or trailing zeros
+        s = s.TrimStart('0');
+        int trailing = s.Length - s.TrimEnd('0').Length;
+        s = s.Substring(0, s.Length - trailing); exp += trailing;
+        if (s.Length == 0) return negative ? "-0" : "0";
+        int before = s.Length + exp;                     // the places before the point
+        string text;
+        if (before > 17 || -exp > 34)
+        {
+            int x = before - 1;
+            text = s.Substring(0, 1) + (s.Length > 1 ? "." + s.Substring(1) : "") + "E" + (x < 0 ? "-" : "+") + Math.Abs(x).ToString(Inv);
+        }
+        else if (exp >= 0) text = s + new string('0', exp);
+        else if (before > 0) text = s.Substring(0, before) + "." + s.Substring(before);
+        else text = "0." + new string('0', -before) + s;
+        return negative ? "-" + text : text;
     }
 
     public static void AddObject(Writer w, object o)

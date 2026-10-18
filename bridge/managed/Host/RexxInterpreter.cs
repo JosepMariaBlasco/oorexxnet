@@ -370,10 +370,10 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             case string s: return c.Str(s);
             case char ch: return c.Str(ch.ToString());
             case bool b: return BoolToRexx(c, b);               // .Boolean~true / ~false
-            case double d: return c.Str(d.ToString("R", Inv));
-            case float f: return c.Str(f.ToString("R", Inv));
+            case double d: return c.Str(Conv.FloatText(d.ToString("R", Inv)));      // (topics/float-text.md)
+            case float f: return c.Str(Conv.FloatText(f.ToString("R", Inv)));
             case decimal m: return c.Str(m.ToString(Inv));
-            case Half h: return c.Str(h.ToString(Inv));
+            case Half h: return c.Str(Conv.FloatText(h.ToString(Inv)));
             case sbyte or byte or short or ushort or int or uint or long or ulong or nint or nuint
                  or Int128 or UInt128 or System.Numerics.BigInteger:
                 return c.Str(Convert.ToString(v, Inv)!);
