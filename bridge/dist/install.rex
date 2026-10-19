@@ -100,8 +100,8 @@ install:
   say "  ooRexx" .RexxInfo~version "r".RexxInfo~revision "("rexxExe")," .RexxInfo~architecture "bits"
   parse value .RexxInfo~version with major "."
   if major < 5 then call fail "ooRexx 5 or later is needed"
-  if .RexxInfo~revision < 13270 then                     -- (ooRexx bug #2114, a crash in SELECT CASE, fixed in r13270)
-    call fail "ooRexx 5.3.0 r13270 or later is needed (this one is r".RexxInfo~revision")"
+  if .RexxInfo~revision < 13275 then                     -- (ooRexx bugs #2111, #2112, #2114: see bridge/dist/README.md)
+    call fail "ooRexx 5.3.0 r13275 or later is needed (this one is r".RexxInfo~revision")"
   if .RexxInfo~architecture \= 64 then call fail "a 64-bit ooRexx is needed"
   if windows, \.File~new(join(bin, "rexx.dll"))~exists then
     call fail "rexx.dll is not next to rexx.exe in" bin": this layout of ooRexx is not supported"

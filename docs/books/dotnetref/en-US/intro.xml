@@ -74,13 +74,16 @@ Console.WriteLine($"{d.items} {d.name}");</programlisting>
 
 <section id="introRequirements"><title>Requirements</title>
 <indexterm><primary>requirements</primary></indexterm>
-<para><emphasis role="bold">ooRexx 5.3.0 r13270 or later, 64-bit</emphasis>
+<para><emphasis role="bold">ooRexx 5.3.0 r13275 or later, 64-bit</emphasis>
 (a trunk build until 5.3.0 is released). The bridge uses only ooRexx's public
 native API: the interpreter needs no change, and the bridge is an extension
-package, as <literal>rxsock</literal> or BSF4ooRexx are. r13270 fixes a crash
-in <literal>SELECT CASE</literal> (ooRexx bug #2114) that the installer and
-the samples could meet; on Linux, r13267 made calls from .NET into ooRexx
-much faster (ooRexx bug #2106).</para>
+package, as <literal>rxsock</literal> or BSF4ooRexx are. r13274 and r13275
+fix crashes with command environments and threads (ooRexx bugs #2111 and
+#2112: adding an environment from .NET, or <literal>ADDRESS</literal> to one
+not yet known, while other threads run Rexx); r13270, a crash in
+<literal>SELECT CASE</literal> (#2114) that the installer and the samples
+could meet; on Linux, r13267 made calls from .NET into ooRexx much faster
+(#2106).</para>
 <para><emphasis role="bold">.NET 8 or later, 64-bit.</emphasis> The runtime
 is enough to run Rexx programs; the SDK only builds .NET programs. On
 Windows, the <emphasis>.NET Desktop Runtime</emphasis> adds Windows Forms,

@@ -10,10 +10,13 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13270 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13270 fixes a crash in
-  `SELECT CASE` (ooRexx bug #2114) that the installer and the samples could
-  meet; on Linux, r13267 made calls into ooRexx from .NET much faster (#2106).
+- **ooRexx 5.3.0 r13275 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13274 and r13275 fix
+  crashes with command environments and threads (ooRexx bugs #2111, #2112:
+  adding an environment from .NET, or `ADDRESS` to one not yet known, while
+  other threads run Rexx); r13270, a crash in `SELECT CASE` (#2114) that the
+  installer and the samples could meet; on Linux, r13267 made calls into
+  ooRexx from .NET much faster (#2106).
 - **.NET 8 or later** (64-bit): the runtime is enough.
   - Windows: the **.NET Desktop Runtime, x64**, which adds Windows Forms
     (dialogs, the samples' windows) to the base runtime:

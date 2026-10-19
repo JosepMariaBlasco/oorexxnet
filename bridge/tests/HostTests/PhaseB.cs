@@ -20,6 +20,43 @@ static partial class Program
         Io(rexx, err);
         Cancellation(rexx);
         rexx.Dispose();
+        CommandsWhileRexxRuns();
+    }
+
+    // Environments added while other threads run Rexx in the instance, and
+    // ADDRESS to environments not added yet: ooRexx bugs #2111 (adding without
+    // the kernel lock: a livelock or a corrupted heap) and #2112 (resolving an
+    // unknown environment: a crash), fixed in ooRexx r13274 and r13275.
+    static void CommandsWhileRexxRuns()
+    {
+        const int envs = 200, threads = 4, n = 2000;
+        const string prog = """
+            use arg n, envs
+            hits = 0
+            do i = 1 to n
+              e = "E" || random(1, envs)
+              s = copies(e, 20)~reverse~lower
+              address value e
+              'x' s
+              if rc == 7 then hits += 1
+            end
+            return hits
+            """;
+        bool done = true; long hits = 0;
+        for (int round = 0; round < 3 && done; round++)
+        {
+            using var rexx = RexxInterpreter.Create(new RexxOptions { Error = new StringWriter() });
+            var work = Enumerable.Range(0, threads).Select(_ => Task.Run(() => long.Parse(rexx.Run(prog, n, envs)!.ToString()!))).ToArray();
+            for (int e = 1; e <= envs; e++) rexx.AddCommandEnvironment("E" + e, cmd => 7);
+            // a new name each time (adding a name again only replaces the handler
+            // here, ooRexx's table does not change), until the threads end
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (int k = 0; !work.All(t => t.IsCompleted) && sw.ElapsedMilliseconds < 60000; k++)
+                rexx.AddCommandEnvironment($"X{round}_{k}", cmd => 7);
+            done = Task.WaitAll(work, 60000);
+            if (done) hits += work.Sum(t => t.Result);
+        }
+        Ok("environments added while 4 threads run Rexx (ooRexx #2111, #2112)", done && hits > 0, true);
     }
 
     static void Commands(RexxInterpreter rexx, StringWriter err)

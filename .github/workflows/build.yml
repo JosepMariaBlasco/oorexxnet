@@ -2,9 +2,10 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13270 (ooRexx bug #2114, a crash in
-# SELECT CASE, fixed there; #2106, slow calls on Linux, was fixed in r13267),
-# and a newer one is taken deliberately, after checking it.
+# revision: the bridge needs at least r13275 (ooRexx bugs #2111 and #2112,
+# command environments and threads, fixed in r13274 and r13275; #2114, a crash
+# in SELECT CASE, in r13270; #2106, slow calls on Linux, in r13267), and a
+# newer one is taken deliberately, after checking it.
 #
 # A tag vX.Y.Z[-suffix] (git tag v0.1.0-preview.1 && git push origin
 # v0.1.0-preview.1) also publishes: the package, with that version, to
@@ -22,7 +23,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13271"
+  OOREXX_REV: "13275"
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"

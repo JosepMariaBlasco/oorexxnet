@@ -15,11 +15,11 @@ cd "$OUT"
 # the library path relative, as documented (the bridge makes its own path absolute)
 rc=0
 for t in boolean-test probe phase1 phase2 phase3 bothways clr eventthread extend lifetime; do
-  timeout 300 env "$LIBVAR=." rexx "$HERE/$t.rex" "$WORK/out/TestLib.dll" || rc=1
+  timeout -k 10 300 env "$LIBVAR=." rexx "$HERE/$t.rex" "$WORK/out/TestLib.dll" || rc=1
 done
 # .NET -> ooRexx: a .NET application hosting ooRexx (librexx found by Rexx.Net itself)
 cp -r "$HERE/HostTests" "$WORK/"
 "$DOTNET" build "$WORK/HostTests" -c Release -o "$WORK/host" -p:RexxNetDir="$OUT" -nologo -v q 2>&1 | grep -E " error " || true
 # (phase C: net.cls and rexxnet found through REXXNET_DIR)
-REXXNET_DIR="$OUT" timeout 300 "$DOTNET" "$WORK/host/HostTests.dll" || rc=1
+REXXNET_DIR="$OUT" timeout -k 10 300 "$DOTNET" "$WORK/host/HostTests.dll" || rc=1
 exit $rc
