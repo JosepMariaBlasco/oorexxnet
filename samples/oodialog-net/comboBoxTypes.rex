@@ -138,8 +138,7 @@
     expose mediumSpringGreen gold midnightBlue fireBrickRed cbSimple cbDropDown cbDropDownList
     use arg sender, e                                   -- (.NET version) ooDialog: use arg id
 
-    caseOf = sender~Name
-    select case caseOf                                   -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+    select case sender~Name
       when "IDC_RB_NONE" then do
           do cb over .array~of(cbSimple, cbDropDown, cbDropDownList)   -- ooDialog: removeFullColor
             cb~ResetBackColor

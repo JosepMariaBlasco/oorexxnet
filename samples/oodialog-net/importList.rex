@@ -413,8 +413,7 @@ return 0
     use arg ctrl, e
 
     if .net~isInstance(e, "System.Windows.Forms.KeyEventArgs") then do   -- (.NET version) the event, as ooDialog names it
-        caseOf = e~KeyCode~string
-        select case caseOf                               -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+        select case e~KeyCode~string
             when 'Enter' then keyEvent = 'enter'
             when 'Escape' then keyEvent = 'escape'
             otherwise return 0

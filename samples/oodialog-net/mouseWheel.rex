@@ -842,8 +842,7 @@ return 0
 /* ooDialog's edit~scrollCommand(kind [, reps]): EM_SCROLL, reps times */
 ::routine scrollCommand
   use arg edit, kind = "UP", reps = 1
-  caseOf = kind~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case kind~upper
     when "UP", "LEFT" then wParam = 0                     -- SB_LINEUP
     when "DOWN", "RIGHT" then wParam = 1                  -- SB_LINEDOWN
     when "PAGEUP", "PAGELEFT" then wParam = 2

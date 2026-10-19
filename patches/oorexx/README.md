@@ -103,7 +103,8 @@ The bridge works around it (a global reference to its built-in packages:
 ## `select-case-gc.diff` (13/10/2026, against trunk r13269): SELECT CASE
 
 Reported as **#2114** (<https://sourceforge.net/p/oorexx/bugs/2114/>,
-13/10/2026), from `sf-bug-report-select-case.md`. One file:
+13/10/2026), from `sf-bug-report-select-case.md`. **Fixed in ooRexx trunk
+r13270** (14/10/2026, `SelectInstruction.cpp`); kept here for the record. One file:
 `interpreter/instructions/SelectInstruction.cpp`; reproducer:
 `select-case-repro.rex`.
 
@@ -118,8 +119,7 @@ SELECT. The reproducer crashes trunk r13269 within a second.
 **Fix.** `Protected<DoBlock>` for the block and a `ProtectedObject` for the
 CASE value while the expression is evaluated, as the DO instructions do.
 
-**Until it is fixed**, this repository's programs evaluate the CASE
+**Until it was fixed**, this repository's programs evaluated the CASE
 expression into a variable first (`caseOf = expr`, `select case caseOf`):
-a plain variable allocates nothing. `git grep "SELECT CASE: #2114"`
-finds them.
-
+a plain variable allocates nothing. The workaround went when the bridge's
+minimum became r13270.

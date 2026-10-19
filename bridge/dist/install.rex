@@ -54,8 +54,7 @@ else command = "install"
 forceClr = .false; fromDir = ""
 do while args \= ""
   parse var args word args
-  caseOf = word~lower
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case word~lower
     when "install", "uninstall", "status" then command = word~lower
     when "--clr", "-clr" then forceClr = .true
     when "--from", "-from" then do
@@ -101,6 +100,8 @@ install:
   say "  ooRexx" .RexxInfo~version "r".RexxInfo~revision "("rexxExe")," .RexxInfo~architecture "bits"
   parse value .RexxInfo~version with major "."
   if major < 5 then call fail "ooRexx 5 or later is needed"
+  if .RexxInfo~revision < 13270 then                     -- (ooRexx bug #2114, a crash in SELECT CASE, fixed in r13270)
+    call fail "ooRexx 5.3.0 r13270 or later is needed (this one is r".RexxInfo~revision")"
   if .RexxInfo~architecture \= 64 then call fail "a 64-bit ooRexx is needed"
   if windows, \.File~new(join(bin, "rexx.dll"))~exists then
     call fail "rexx.dll is not next to rexx.exe in" bin": this layout of ooRexx is not supported"

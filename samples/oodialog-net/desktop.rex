@@ -112,8 +112,7 @@ say "Deleted."
   if icon \== "" then link~IconLocation = icon || "," || iconNr
   if workDir \== "" then link~WorkingDirectory = workDir
   if hotKey \== "" then link~Hotkey = "Ctrl+Alt+" || hotKey
-  caseOf = run~upper                               -- 1 normal, 3 maximized, 7 minimized
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case run~upper                            -- 1 normal, 3 maximized, 7 minimized
     when "MAX", "MAXIMIZED" then link~WindowStyle = 3
     when "MIN", "MINIMIZED" then link~WindowStyle = 7
     otherwise nop
@@ -134,8 +133,7 @@ say "Deleted."
   use strict arg name, how = ""
   group = name
   psi = .net~System~Diagnostics~ProcessStartInfo~new("explorer.exe", '"' || self~groupPath(name) || '"')
-  caseOf = how~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case how~upper
     when "MAX" then psi~WindowStyle = "Maximized"
     when "MIN" then psi~WindowStyle = "Minimized"
     otherwise nop

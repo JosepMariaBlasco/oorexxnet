@@ -513,8 +513,7 @@
 ::method connectButtonEvent
   use arg id, event = "CLICKED", methodName
   if arg(3, "O") then methodName = id
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "DBLCLK" then e = "DoubleClick"
     when "GOTFOCUS" then e = "GotFocus"
     when "LOSTFOCUS" then e = "LostFocus"
@@ -560,8 +559,7 @@
     end
     self~control(id)~LabelEdit = .true
   end
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "CLICK" then e = "MouseClick"
     when "DBLCLK" then e = "DoubleClick"
     when "ACTIVATE" then e = "ItemActivate"
@@ -576,8 +574,7 @@
   return self~connectEvent(id, e, methodName)
 ::method connectMonthCalendarEvent
   use arg id, event, methodName
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "SELECT" then e = "DateSelected"
     when "SELCHANGE" then e = "DateChanged"
     otherwise e = event
@@ -600,8 +597,7 @@
   return 0
 ::method connectEditEvent
   use arg id, event, methodName
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "CHANGE", "UPDATE" then e = "TextChanged"
     when "GOTFOCUS", "SETFOCUS" then e = "GotFocus"
     when "LOSTFOCUS", "KILLFOCUS" then e = "LostFocus"
@@ -610,8 +606,7 @@
   return self~connectEvent(id, e, methodName)
 ::method connectListBoxEvent
   use arg id, event, methodName
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "SELCHANGE" then e = "SelectedIndexChanged"
     when "DBLCLK" then e = "DoubleClick"
     otherwise e = event
@@ -619,8 +614,7 @@
   return self~connectEvent(id, e, methodName)
 ::method connectComboBoxEvent            -- SELCHANGE, SELENDOK (.NET's SelectionChangeCommitted), DROPDOWN, CLOSEUP, DBLCLK
   use arg id, event, methodName
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "SELENDOK" then return self~connectEvent(id, "SelectionChangeCommitted", methodName)
     when "DROPDOWN" then return self~connectEvent(id, "DropDown", methodName)
     when "CLOSEUP" then return self~connectEvent(id, "DropDownClosed", methodName)
@@ -636,8 +630,7 @@
 ::method connectDateTimePickerEvent
   expose defined deferred
   use arg id, event, methodName
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "DATETIMECHANGE" then e = "ValueChanged"
     when "SETFOCUS" then e = "GotFocus"
     when "KILLFOCUS" then e = "LostFocus"
@@ -673,8 +666,7 @@
   return 0
 ::method connectStaticEvent             -- CLICKED, DBLCLK (ooDialog wants SS_NOTIFY; a .NET Label has them)
   use arg id, event, methodName
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "CLICKED" then e = "Click"
     when "DBLCLK" then e = "DoubleClick"
     otherwise e = event
@@ -685,8 +677,7 @@
 ::method connectTabEvent
   use arg id, event, methodName
   if arg(3, "O") then methodName = "on" || event
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "SELCHANGE" then e = "SelectedIndexChanged"
     when "SELCHANGING" then e = "Selecting"
     when "KEYDOWN" then e = "KeyDown"
@@ -699,8 +690,7 @@
 ::method connectTrackBarEvent
   use arg id, event, methodName
   if arg(3, "O") then methodName = "on" || event
-  caseOf = event~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case event~upper
     when "ENDTRACK" then do
       self~connectEvent(id, "MouseUp", methodName)
       return self~connectEvent(id, "KeyUp", methodName)
@@ -1503,8 +1493,7 @@
   tip = .net~System~Windows~Forms~ToolTip~new
   tip~IsBalloon = .true
   tip~ToolTipTitle = title
-  caseOf = icon~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case icon~upper
     when "ERROR" then tip~ToolTipIcon = "Error"
     when "WARNING" then tip~ToolTipIcon = "Warning"
     when "NONE" then nop
@@ -2601,8 +2590,7 @@
   return .true
 ::method pressButton unguarded
   use strict arg button
-  caseOf = button~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case button~upper
     when "BACK" then self~wizardBack
     when "NEXT" then self~wizardNext
     when "FINISH" then self~wizardFinish
@@ -3354,8 +3342,7 @@
 ::method resize
   expose dialog methodName
   use arg f, e
-  caseOf = f~WindowState~string
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case f~WindowState~string
     when "Minimized" then type = 1
     when "Maximized" then type = 2
     otherwise type = 0
@@ -3573,8 +3560,7 @@
 ::method scroll                        -- a scroll bar: its up arrow is SmallDecrement
   expose dialog methodName
   use arg bar, e
-  caseOf = e~Type~string
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case e~Type~string
     when "SmallDecrement" then delta = 1
     when "SmallIncrement" then delta = -1
     otherwise return
@@ -3824,8 +3810,7 @@ syntax:
   use arg id
   id = id~string~upper
   if \id~dataType("W") then return id
-  caseOf = id + 0
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case id + 0
     when 1 then return "IDOK"
     when 2 then return "IDCANCEL"
     when 9 then return "IDHELP"
@@ -3843,8 +3828,7 @@ syntax:
   use arg name, size, dpi = 96, style = "Regular"
   D = .net~System~Drawing
   px = (size * dpi + 36) % 72          -- (MulDiv rounds)
-  caseOf = name~upper
-  select case caseOf                                     -- (not the expression itself: ooRexx bug, SELECT CASE: #2114)
+  select case name~upper
     when "MS SHELL DLG 2" then face = "Tahoma"
     when "MS SHELL DLG" then face = "Microsoft Sans Serif"
     when "SYSTEM" then do

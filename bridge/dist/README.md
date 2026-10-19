@@ -10,8 +10,10 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5, 64-bit**, with `rexx -v` working in a terminal. On Linux,
-  5.3.0 r13267 or later makes calls into ooRexx from .NET much faster.
+- **ooRexx 5.3.0 r13270 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13270 fixes a crash in
+  `SELECT CASE` (ooRexx bug #2114) that the installer and the samples could
+  meet; on Linux, r13267 made calls into ooRexx from .NET much faster (#2106).
 - **.NET 8 or later** (64-bit): the runtime is enough.
   - Windows: the **.NET Desktop Runtime, x64**, which adds Windows Forms
     (dialogs, the samples' windows) to the base runtime:

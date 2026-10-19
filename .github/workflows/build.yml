@@ -2,7 +2,8 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13267 (ooRexx bug #2106, fixed there),
+# revision: the bridge needs at least r13270 (ooRexx bug #2114, a crash in
+# SELECT CASE, fixed there; #2106, slow calls on Linux, was fixed in r13267),
 # and a newer one is taken deliberately, after checking it.
 #
 # A tag vX.Y.Z[-suffix] (git tag v0.1.0-preview.1 && git push origin
