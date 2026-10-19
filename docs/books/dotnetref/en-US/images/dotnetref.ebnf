@@ -5,6 +5,8 @@
 
 net_name ::= name
 
+net_addcommandenvironment ::= 'addCommandEnvironment(' name ',' handler ')'
+
 net_addhandler ::= 'addHandler(' object ',' event ',' handler ')'
 
 net_as ::= 'as(' value ',' type ')'
@@ -60,6 +62,8 @@ net_queuedcalls ::= 'queuedCalls'
 net_ref ::= 'ref' ( '(' value ')' )?
 
 net_releaseobject ::= 'releaseObject(' object ')'
+
+net_removecommandenvironment ::= 'removeCommandEnvironment(' name ')'
 
 net_removehandler ::= 'removeHandler(' object ',' event ',' handler ')'
 

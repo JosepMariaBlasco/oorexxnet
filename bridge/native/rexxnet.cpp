@@ -103,7 +103,7 @@ static void rexxThreadApartment() {}
 typedef unsigned char *(CORECLR_DELEGATE_CALLTYPE *request_fn)(RexxThreadContext *, const unsigned char *, int, int *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *free_fn)(unsigned char *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *release_fn)(int);
-typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *, void *, void *);
+typedef void (CORECLR_DELEGATE_CALLTYPE *init_fn)(void *, void *, void *, void *, void *);
 typedef void (CORECLR_DELEGATE_CALLTYPE *classes_fn)(RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr, RexxObjectPtr);
 
 static request_fn mRequest;
@@ -118,6 +118,7 @@ static unsigned char *rexxCallback(int handler, int flags, const unsigned char *
 static void nativeFree(unsigned char *p) { free(p); }
 static void peerDead(int id);
 static void handlerGone(int id, int seen);
+static int raiseHeld(RexxThreadContext *c, int id);
 
 static void loadClr()
 {
@@ -170,7 +171,7 @@ static void loadClr()
     };
     if (!getAll() && (loadAssembly(assembly.c_str(), nullptr, nullptr) != 0 || !getAll()))
     { loadError = "cannot load Rexx.Net.dll (next to rexxnet?)"; mRequest = nullptr; return; }
-    mInit((void *)rexxCallback, (void *)nativeFree, (void *)peerDead, (void *)handlerGone);
+    mInit((void *)rexxCallback, (void *)nativeFree, (void *)peerDead, (void *)handlerGone, (void *)raiseHeld);
 }
 
 // Host mode (a .NET application hosting ooRexx through Rexx.Net): the managed
@@ -189,7 +190,7 @@ REXXNET_EXPORT void RexxNetRegister(void *request, void *freeFn, void *release, 
     std::call_once(clrOnce, [=] {
         mRequest = (request_fn)request; mFree = (free_fn)freeFn; mRelease = (release_fn)release;
         mClasses = (classes_fn)classes;
-        ((init_fn)init)((void *)rexxCallback, (void *)nativeFree, (void *)peerDead, (void *)handlerGone);
+        ((init_fn)init)((void *)rexxCallback, (void *)nativeFree, (void *)peerDead, (void *)handlerGone, (void *)raiseHeld);
     });
 }
 
@@ -616,22 +617,8 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         }
         case 'C':                                   // a Rexx condition from a callback, raised again
         {
-            int id = atoi(field(payload, 0).c_str());
-            Condition k{0, "", 0, NULLOBJECT, NULLOBJECT};
-            {
-                std::lock_guard<std::mutex> g(tablesLock);
-                for (auto it = conditions.begin(); it != conditions.end(); ++it)
-                    if (it->id == id) { k = *it; conditions.erase(it); break; }
-            }
-            if (k.id == 0)
-            {
+            if (!raiseHeld(c, atoi(field(payload, 0).c_str())))
                 c->RaiseException1(Rexx_Error_Execution_user_defined, c->String(payload.substr(payload.find('\t') + 1).c_str()));
-                return NULLOBJECT;
-            }
-            if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
-            else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, NULLOBJECT);
-            if (k.additional) c->ReleaseGlobalReference(k.additional);
-            if (k.description) c->ReleaseGlobalReference(k.description);
             return NULLOBJECT;
         }
         case 'U':                                   // no such member: 97.1, the receiver, the name, the exception
@@ -694,6 +681,25 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
 // (running all nested calls in the request's context made ooDialog-on-.NET
 // programs, with their GUI thread, crash on Windows).
 static thread_local RexxThreadContext *requesting = nullptr;
+
+// A Rexx condition that a callback's Rexx code raised, kept by its id (the
+// callback's answer E), raised again on c: by a response C, or by the managed
+// side directly (a command handler, which no request answers). 0 if no such id.
+static int raiseHeld(RexxThreadContext *c, int id)
+{
+    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT};
+    {
+        std::lock_guard<std::mutex> g(tablesLock);
+        for (auto it = conditions.begin(); it != conditions.end(); ++it)
+            if (it->id == id) { k = *it; conditions.erase(it); break; }
+    }
+    if (k.id == 0) return 0;
+    if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
+    else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, NULLOBJECT);
+    if (k.additional) c->ReleaseGlobalReference(k.additional);
+    if (k.description) c->ReleaseGlobalReference(k.description);
+    return 1;
+}
 
 // Sends a request to the managed side and decodes the response. A response
 // R (a call with .NetRef arguments) is the result, then the refs' new values.

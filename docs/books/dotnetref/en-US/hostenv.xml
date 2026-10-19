@@ -14,6 +14,7 @@ functions and <literal>VALUE</literal> selectors it has, and when it must
 stop. These are members of <classname>RexxInterpreter</classname>:</para>
 <programlisting language="csharp">public void AddCommandEnvironment(string name, Func&lt;RexxCommand, object?&gt; handler);
 public void AddCommandEnvironment(string name, Action&lt;RexxCommand&gt; handler);
+public bool RemoveCommandEnvironment(string name);
 public TextWriter? Output { get; set; }
 public TextWriter? Error { get; set; }
 public TextReader? Input { get; set; }
@@ -39,12 +40,30 @@ makes <emphasis role="italic">handler</emphasis> the environment
 (or <computeroutput>ADDRESS name</computeroutput>, then
 <computeroutput>'command'</computeroutput>) calls it on the Rexx thread with a
 <classname>RexxCommand</classname>. Its result is <literal>RC</literal>
-(<literal>null</literal>: 0). A <classname>RexxCommandException</classname>
-raises ERROR, or FAILURE, with its <literal>RC</literal>; any other
-exception raises FAILURE, <literal>RC</literal> -1, its message as
-<computeroutput>condition("A")</computeroutput>. Names are caseless; adding
-one again replaces its handler. Each instance has its own environments, and
-every one takes <literal>ADDRESS ... WITH</literal> redirection.</para>
+(<literal>null</literal>: 0), whatever its sign: a negative
+<literal>RC</literal> raises nothing. A
+<classname>RexxCommandException</classname> raises ERROR, or FAILURE, with
+its <literal>RC</literal> and its message as
+<computeroutput>condition("A")</computeroutput>; a Rexx error of Rexx code
+that the handler called is raised again as itself; any other exception is
+SYNTAX 98.900, as a .NET error anywhere: ".NET error: Type: message", the
+exception in <computeroutput>condition("O")~additional[2]</computeroutput>,
+its stack trace in <computeroutput>[3]</computeroutput>. Names are caseless;
+adding one again replaces its handler; a <literal>null</literal> handler is
+an <classname>ArgumentNullException</classname>. Each instance has its own
+environments, and every one takes <literal>ADDRESS ... WITH</literal>
+redirection: written without it, output and errors go to the console
+(<literal>Console.Out</literal>, <literal>Console.Error</literal>), as a
+program's would, and the write methods answer <literal>false</literal>.</para>
+<para><computeroutput>rexx.RemoveCommandEnvironment(name)</computeroutput>
+removes one, and answers whether it was there: <literal>ADDRESS name</literal>
+then raises FAILURE with <literal>RC</literal> 30, as for an environment that
+does not exist (ooRexx has no way to remove an environment: its entry stays,
+and answers so). Rexx code adds and removes them too, with
+<xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/> and
+<xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>
+(<xref linkend="eventsCommands"/>). These are the rules of the whole family
+of bridges (ooRexx/Python, ooRexx/Lua, ooRexx/JavaScript).</para>
 <programlisting language="csharp">public abstract class RexxCallContext
 {
     public RexxInterpreter Interpreter { get; }
@@ -64,7 +83,7 @@ public sealed class RexxCommand : RexxCallContext
     public bool IsErrorRedirected { get; }
     public string? ReadLine();                         // null at the end
     public string? ReadToEnd();
-    public bool WriteLine(string line);                // false: not redirected
+    public bool WriteLine(string line);                // false: not redirected (to the console)
     public bool Write(string text);
     public bool WriteErrorLine(string line);
     public bool WriteError(string text);

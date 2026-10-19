@@ -177,6 +177,38 @@ call ok "released, still subscribed", b~ClickSubscribers, 1
 b~Click -= h                                       -- a released handler still goes (for -=)
 call ok "released: -= finds it", b~ClickSubscribers, 0
 
+-- command environments from Rexx (.net~addCommandEnvironment): the family's rules
+-- (oorexx-bridges, topics/command-handlers.md)
+ch = .CommandTester~new
+.net~addCommandEnvironment("CALC", .net~handler(ch, "COMMAND"))
+address calc "2+3"; call ok "command: RC", rc, 5
+address calc "nothing"; call ok "no result: RC 0", rc, 0
+signal on error name rcSign; signal on failure name rcSign
+address calc "minus"; call ok "RC -3 raises nothing", rc, -3
+rcSign: signal off error; signal off failure
+call ok "a .NET error: SYNTAX 98.900", code('address calc "throw"'), "98.900"
+call ok "... the exception, additional[2]", code('address calc "throw"', 2), "System.FormatException"
+call ok "a Rexx error: itself", code('address calc "divide"'), "42.3"
+o = .array~new; address calc "lines" with output using (o)
+call ok "WITH OUTPUT", o~makeString("l", ","), "one,two"
+.net~addCommandEnvironment("UP", dl~Upper)
+address up "abc"; call ok ".NET Func handler", rc, "ABC"
+.net~addCommandEnvironment("LEN", dl~Length)
+address len "abcd"; call ok ".NET delegate of another type", rc, 4
+.net~addCommandEnvironment("ECHO", dl~Echo)
+o = .array~new; address echo "hi" with output using (o)
+call ok ".NET Action handler", rc o[1], "0 echo hi"
+call ok "removeCommandEnvironment", .net~removeCommandEnvironment("calc") .net~removeCommandEnvironment("CALC"), "1 0"
+signal on failure name removed
+address calc "2+3"
+call ok "removed: FAILURE", "none", "FAILURE"
+removed: signal off failure
+call ok "removed: FAILURE RC 30, as unknown", condition("C") rc condition("D"), "FAILURE 30 2+3"
+call err "a .nil handler: SYNTAX", '.net~addCommandEnvironment("X", .nil)', "removeCommandEnvironment"
+call err "not a handler", '.net~addCommandEnvironment("X", "text")', "must be a .NetHandler or a .NET delegate"
+.net~addCommandEnvironment("CALC", .net~handler(ch, "COMMAND"))
+address calc "2+3"; call ok "added again", rc, 5
+
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
 exit .fails > 0
@@ -261,6 +293,19 @@ exit .fails > 0
   use arg sender, e
   loopValues = (loopValues e~Value)~strip
   if e~Value = 3 then .net~stopEventLoop
+
+::class CommandTester             -- a command handler in Rexx
+::method command
+  use arg cmd                                      -- a Rexx.Net.RexxCommand
+  select case cmd~Command
+    when "2+3" then return 5
+    when "nothing" then return
+    when "minus" then return -3
+    when "throw" then return .net~System~Convert~ToInt32("abc")
+    when "divide" then return 1 / 0
+    when "lines" then do; cmd~WriteLine("one"); cmd~WriteLine("two"); return 0; end
+    otherwise return -1
+  end
 
 ::class Collector                 -- stands for .error: collects its lines
 ::attribute text

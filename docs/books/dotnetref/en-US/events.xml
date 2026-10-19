@@ -211,6 +211,75 @@ syntax:
 </example>
 </section>
 
+<section id="eventsCommands"><title>Command Environments (ADDRESS)</title>
+<indexterm><primary>ADDRESS</primary><secondary>environments written in .NET</secondary></indexterm>
+<indexterm><primary>RexxCommand class</primary></indexterm>
+<para><computeroutput>.net~addCommandEnvironment(name, handler)</computeroutput>
+makes a handler the <literal>ADDRESS</literal> environment
+<emphasis role="italic">name</emphasis> of the running interpreter instance;
+<computeroutput>.net~removeCommandEnvironment(name)</computeroutput> removes
+it. The handler is a <classname>NetHandler</classname>, whose method gets each
+command as a <classname>Rexx.Net.RexxCommand</classname>, or a .NET delegate
+that takes one (a <literal>Func&lt;RexxCommand, object?&gt;</literal>, an
+<literal>Action&lt;RexxCommand&gt;</literal>, or another delegate type with
+that one parameter): the same environments that a .NET application adds with
+<methodname>AddCommandEnvironment</methodname>, with the same rules
+(<xref linkend="hostCommands"/>, where <classname>RexxCommand</classname>'s
+members are):</para>
+<itemizedlist>
+<listitem><para>What the handler returns is <literal>RC</literal> (nothing: 0),
+whatever its sign; ERROR and FAILURE come only from a
+<classname>RexxCommandException</classname>.</para></listitem>
+<listitem><para>An error of the handler is raised in the code that sent the
+command: a Rexx error as itself, a .NET exception as SYNTAX 98.900, the
+exception in <computeroutput>condition("O")~additional[2]</computeroutput>.</para></listitem>
+<listitem><para>Its output and errors go where <literal>ADDRESS ... WITH</literal>
+says, or, without it, to the console.</para></listitem>
+<listitem><para>A removed environment answers FAILURE, <literal>RC</literal>
+30, as one that does not exist. &nil; as a handler is an error.</para></listitem>
+</itemizedlist>
+<para>These rules are the whole family's: the ooRexx/Python, ooRexx/Lua and
+ooRexx/JavaScript bridges follow them too, with their host's names.</para>
+
+<example id="ex.events-commands">
+<title>A command environment written in Rexx, through .NET</title>
+<programlisting language="rexx">.net~addCommandEnvironment("CALC", .net~handler(.Calc~new, "COMMAND"))
+address calc "square 7"; say "rc:" rc
+out = .array~new
+address calc "table 7" with output using (out)
+say out~makeString("l", " / ")
+signal on syntax
+address calc "frobnicate"
+syntax:
+  c = condition("O")
+  say c~code .net~typeOf(c~additional[2])
+say .net~removeCommandEnvironment("calc")
+signal on failure
+trace off                                         -- (TRACE NORMAL shows failures)
+address calc "square 7"
+failure: say "FAILURE, rc" rc
+
+::requires "net.cls"
+::class Calc
+::method command
+  use arg cmd                                     -- a Rexx.Net.RexxCommand
+  parse value cmd~Command with verb n
+  select
+    when verb = "square" then return n * n
+    when verb = "table" then do
+      do i = 1 to 3; cmd~WriteLine(n "x" i "=" n * i); end
+      return 0
+    end
+    otherwise return .net~System~Int32~Parse(verb)   -- not a number: a .NET error
+  end</programlisting>
+<screen>rc: 49
+7 x 1 = 7 / 7 x 2 = 14 / 7 x 3 = 21
+98.900 System.FormatException
+1
+FAILURE, rc 30</screen>
+</example>
+</section>
+
 <section id="eventsLifetime"><title>How Long a Handler Lives</title>
 <indexterm><primary>handler</primary><secondary>lifetime</secondary></indexterm>
 <para>A handler is held while .NET can call it: by its delegates (an event

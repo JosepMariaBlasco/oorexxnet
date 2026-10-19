@@ -70,11 +70,20 @@ public static unsafe class Callbacks
     /// rexxnet has handed its callback over (the bridge's native half is running).
     internal static bool Started => native != null;
 
-    internal static void Init(IntPtr callback, IntPtr free)
+    static delegate* unmanaged<nint, int, int> nativeRaiseHeld;
+
+    internal static void Init(IntPtr callback, IntPtr free, IntPtr raiseHeld)
     {
         native = (delegate* unmanaged<int, int, byte*, int, int*, byte*>)callback;
         nativeFree = (delegate* unmanaged<byte*, void>)free;
+        nativeRaiseHeld = (delegate* unmanaged<nint, int, int>)raiseHeld;
     }
+
+    /// Raises again, on the thread context tc, the Rexx condition that a
+    /// handler's Rexx code raised (e, its RexxException, holds its id):
+    /// where no request answers rexxnet (a command handler). Whether it was.
+    internal static bool RaiseHeld(nint tc, RexxException e) =>
+        e.ConditionId > 0 && nativeRaiseHeld != null && nativeRaiseHeld(tc, e.ConditionId) != 0;
 
     // ------------------------------------------------------------- handlers
 
@@ -196,7 +205,9 @@ public static unsafe class Callbacks
         var req = w.ToArray();
         int len = 0;
         byte* resp;
-        int flags = Bridge.Depth == 0 ? 1 : 0;              // 1: no Rexx caller waits on this thread
+        // 1: no Rexx caller waits on this thread (neither a Rexx -> .NET call
+        // nor Rexx code calling the host: a command handler, a function, an exit)
+        int flags = Bridge.Depth == 0 && RexxInterpreter.Current == null ? 1 : 0;
         fixed (byte* p = req) resp = native(h.Id, flags, p, req.Length, &len);
         GC.KeepAlive(args);                                 // RexxObject arguments (X) hold their Rexx objects until Rexx has them
         Rec r;

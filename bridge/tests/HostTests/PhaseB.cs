@@ -88,11 +88,15 @@ static partial class Program
                                                    "failure: return condition('C') rc condition('A')"), "FAILURE 9 it could not run");
         Ok("FAILURE untrapped -> ERROR", rexx.Run("signal on error; address app 'failure 9'; return 'no'\n" +
                                                    "error: return condition('C') rc"), "ERROR 9");
-        int before = err.ToString().Length;
-        Ok(".NET exception: FAILURE -1", rexx.Run("signal on failure; address app 'throw'; return 'no'\n" +
-                                                   "failure: return rc condition('A')"), "-1 the application is not ready");
-        Ok("... untrapped: RC -1",       rexx.Run("address app 'throw'; return rc"), "-1");
-        Ok("... traced (TRACE N)",       err.ToString()[before..].Contains("+++   \"RC(-1)\""), true);
+        Ok(".NET exception: SYNTAX 98.900", rexx.Run("signal on syntax; address app 'throw'; return 'no'\n" +
+                                                   "syntax: o = condition('O'); return o~code '|' o~additional[1]"),
+                                         "98.900 | .NET error: System.InvalidOperationException: the application is not ready");
+        Ok("... the exception, additional[2]", rexx.Run("signal on syntax; address app 'throw'; return 'no'\n" +
+                                                   "syntax: return condition('O')~additional[2]~Message"), "the application is not ready");
+        try { rexx.Run("address app 'throw'"); Ok("... untrapped", "none", "thrown"); }
+        catch (RexxException e) { Ok("... untrapped", $"{e.Code} {e.InnerException?.GetType().Name}", "98.900 InvalidOperationException"); }
+        Ok("RC's sign raises nothing",   rexx.Run("signal on error; signal on failure; address app 'x'; a = rc\n" +
+                                                   "address app 'abc'; return a rc\nerror: failure: return 'raised'"), "1 3");
         Ok("handler calls Rexx",         rexx.Run("address app 'nested'; return rc"), "42");
         Ok("... its error, raised again", rexx.Run("signal on syntax; address app 'nested error'; return 'no'\n" +
                                                     "syntax: return condition('O')~code"), "41.1");
@@ -108,6 +112,12 @@ static partial class Program
         rexx.AddCommandEnvironment("PLAIN", cmd => "replaced");
         Ok("replaced handler",           rexx.Run("address plain 'x'; return rc"), "replaced");
         Ok("an unknown environment (RXSUBCOM_NOTREG)", rexx.Run("address nosuch 'x'; return rc"), "30");
+        Ok("RemoveCommandEnvironment",   rexx.RemoveCommandEnvironment("plain") + " " + rexx.RemoveCommandEnvironment("PLAIN"), "True False");
+        Ok("... then FAILURE, RC 30, as unknown", rexx.Run("signal on failure; address plain 'x'; return 'no'\n" +
+                                                   "failure: return condition('C') rc condition('D') (condition('O')~additional == .nil)"), "FAILURE 30 x 1");
+        rexx.AddCommandEnvironment("PLAIN", cmd => "back");
+        Ok("... added again",            rexx.Run("address plain 'x'; return rc"), "back");
+        Throws<ArgumentNullException>("a null handler", () => rexx.AddCommandEnvironment("NULL", (Func<RexxCommand, object?>)null!));
         using (var other = RexxInterpreter.Create())
         {
             other.AddCommandEnvironment("APP", cmd => "other");
@@ -138,7 +148,8 @@ static partial class Program
         // ADDRESS ... WITH
         rexx.AddCommandEnvironment("SORT", cmd =>
         {
-            if (!cmd.IsRedirected) return cmd.WriteLine("lost") ? "written" : "not redirected";
+            if (!cmd.IsRedirected)
+                return (cmd.WriteLine("to the console") ? "redirected" : "not redirected") + (cmd.WriteErrorLine("an error") ? "!" : "");
             var lines = new List<string>();
             for (string? l; (l = cmd.ReadLine()) != null;) lines.Add(l);
             lines.Sort(StringComparer.Ordinal);
@@ -151,7 +162,14 @@ static partial class Program
                                                    "return rc o.0 o.1 o.2 o.3 '/' e.1"), "3 3 apple fig pear / 3 lines");
         Ok("... into an Array",          rexx.Run("out = .array~new; address sort 'sort' with input using (.array~of('b', 'a')) output using (out)\n" +
                                                    "return out~makeString('l', ',')"), "a,b");
-        Ok("... not redirected",         rexx.Run("address sort 'x'; return rc"), "not redirected");
+        var (console, consoleErr) = (Console.Out, Console.Error);
+        var (cout, cerr) = (new StringWriter(), new StringWriter());
+        Console.SetOut(cout); Console.SetError(cerr);
+        string notRedirected;
+        try { notRedirected = rexx.Run("address sort 'x'; return rc")!.ToString()!; }
+        finally { Console.SetOut(console); Console.SetError(consoleErr); }
+        Ok("... not redirected: to the console", $"{notRedirected}|{cout.ToString().Trim()}|{cerr.ToString().Trim()}",
+                                         "not redirected|to the console|an error");
         rexx.AddCommandEnvironment("CAT", cmd => { cmd.Write(cmd.ReadToEnd() + "\nend"); return null; });
         Ok("ReadToEnd, Write (lines)",   rexx.Run("o = .array~new; address cat 'cat' with input using (.array~of('x', 'y')) output using (o)\n" +
                                                    "return o~makeString('l', ',')"), "x,y,end");

@@ -46,6 +46,7 @@ the bridge's helpers, as methods. The helpers live on &net; rather than on
  <row><entry>
   <simplelist columns="3">
    <member><xref linkend="mthNetName" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetAddHandler" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetAs" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetBox" xrefstyle="select:title"/></member>
@@ -74,6 +75,7 @@ the bridge's helpers, as methods. The helpers live on &net; rather than on
    <member><xref linkend="mthNetQueuedCalls" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetRef" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetReleaseObject" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetRemoveHandler" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetSet" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetStopEventLoop" xrefstyle="select:title"/></member>
@@ -117,6 +119,24 @@ assembly, or a type in no namespace. The answer is a
 <classname>NetNamespace</classname> or a <classname>NetType</classname>,
 remembered once found (<xref linkend="msgNamespaces"/>). A name that is
 neither is an error. A namespace takes no arguments.</para>
+</section>
+
+<section id="mthNetAddCommandEnvironment"><title>addCommandEnvironment</title>
+<indexterm><primary>addCommandEnvironment method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_addcommandenvironment.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Makes <emphasis role="italic">handler</emphasis> the
+<literal>ADDRESS</literal> environment <emphasis role="italic">name</emphasis>
+(caseless) of the interpreter instance that runs the Rexx code: each
+command goes to it as a <classname>Rexx.Net.RexxCommand</classname>, and what
+it returns is <literal>RC</literal> (<xref linkend="eventsCommands"/>).
+<emphasis role="italic">handler</emphasis> is a <classname>NetHandler</classname>
+(its method gets the <classname>RexxCommand</classname>), or a .NET delegate
+that takes one; &nil; is an error (to remove an environment:
+<xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>).
+Adding a name again replaces its handler.</para>
 </section>
 
 <section id="mthNetAddHandler"><title>addHandler</title>
@@ -547,6 +567,20 @@ parameter of a .NET method, or an argument by reference of a COM method
 now (<literal>Marshal.FinalReleaseComObject</literal>), so that its server (an
 Excel process) can end at once, rather than at .NET's next garbage
 collection. The proxy remains, and cannot be used any more.</para>
+</section>
+
+<section id="mthNetRemoveCommandEnvironment"><title>removeCommandEnvironment</title>
+<indexterm><primary>removeCommandEnvironment method</primary>
+<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/net_removecommandenvironment.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Removes the <literal>ADDRESS</literal> environment
+<emphasis role="italic">name</emphasis> that
+<xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/> (or the
+application, <xref linkend="hostCommands"/>) added, and returns 1, or 0 if
+there was none: a command for it then raises FAILURE with
+<literal>RC</literal> 30, as for an environment that does not exist.</para>
 </section>
 
 <section id="mthNetRemoveHandler"><title>removeHandler</title>

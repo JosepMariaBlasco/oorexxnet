@@ -97,9 +97,9 @@ public static unsafe class Bridge
     /// it that a pair is over (Extend.cs, Lifetime) or that nothing in .NET
     /// can call a handler any more (Callbacks.cs, Lifetime).
     [UnmanagedCallersOnly]
-    public static void Init(IntPtr callback, IntPtr free, IntPtr dead, IntPtr gone)
+    public static void Init(IntPtr callback, IntPtr free, IntPtr dead, IntPtr gone, IntPtr raiseHeld)
     {
-        Callbacks.Init(callback, free);
+        Callbacks.Init(callback, free, raiseHeld);
         Extend.SetDead(dead);
         Callbacks.SetGone(gone);
     }
@@ -162,6 +162,38 @@ public static unsafe class Bridge
         }
         return w.ToArray();
     }
+
+    // .net~addCommandEnvironment(name, handler): ADDRESS name served by .NET in
+    // the instance of the Rexx code asking. The handler: a .NetHandler (its
+    // Rexx method gets the Rexx.Net.RexxCommand; what it returns is RC), or a
+    // .NET delegate taking a RexxCommand (a Func<RexxCommand, object?>, an
+    // Action<RexxCommand>, or any delegate type with that one parameter).
+    static void CommandEnvironment(string name, Rec h)
+    {
+        var rexx = CurrentInterpreter();
+        if (h.Tag == 'H')
+        {
+            var hd = Callbacks.HandlerOf(h);
+            var f = (Func<RexxCommand, object?>)Callbacks.DelegateFor(hd, typeof(Func<RexxCommand, object?>));
+            rexx.AddCommandEnvironment(name, f);
+            return;
+        }
+        if (h.Tag == 'O' && Handles.Get(h.Id) is Delegate d)
+        {
+            if (d is Func<RexxCommand, object?> fd) { rexx.AddCommandEnvironment(name, fd); return; }
+            if (d is Action<RexxCommand> ad) { rexx.AddCommandEnvironment(name, ad); return; }
+            if (d.GetType().GetMethod("Invoke")!.GetParameters() is { Length: 1 } ip && ip[0].ParameterType.IsAssignableFrom(typeof(RexxCommand)))
+            {
+                bool returns = d.GetType().GetMethod("Invoke")!.ReturnType != typeof(void);
+                rexx.AddCommandEnvironment(name, cmd => { object? v = d.DynamicInvoke(cmd); return returns ? v : null; });
+                return;
+            }
+        }
+        throw new BridgeException(".net~addCommandEnvironment: the handler must be a .NetHandler or a .NET delegate taking a Rexx.Net.RexxCommand, found " + Conv.Describe(h));
+    }
+
+    static RexxInterpreter CurrentInterpreter() =>
+        RexxInterpreter.Current ?? throw new BridgeException("no Rexx code is asking on this thread");
 
     static void Dispatch(string op, List<Rec> r, Writer w)
     {
@@ -251,6 +283,8 @@ public static unsafe class Bridge
             case "stopLoops": Callbacks.StopLoops(); w.Add('V', ""); break;
             case "releaseHandler": Callbacks.Release(int.Parse(r[1].Text)); w.Add('V', ""); break;
             case "queued": w.Add('S', Callbacks.QueuedCount.ToString()); break;
+            case "cmdAdd": CommandEnvironment(r[1].Text, r[2]); w.Add('V', ""); break;
+            case "cmdRemove": w.Add('S', CurrentInterpreter().RemoveCommandEnvironment(r[1].Text) ? "1" : "0"); break;
             case "extend": Extend.Make(r[1].Text, r[2].Items, r[3].Items, w); break;
             case "extAlloc": Extend.Alloc(r[1], r[2], w); break;
             case "extInit": Extend.Init(r[1], r[2].Items, w); break;

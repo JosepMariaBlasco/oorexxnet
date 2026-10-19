@@ -67,6 +67,11 @@ public class Button
 
 public static class Delegates
 {
+    // command handlers written in .NET, for .net~addCommandEnvironment
+    public static Func<Rexx.Net.RexxCommand, object?> Upper => cmd => cmd.Command.ToUpperInvariant();
+    public static Action<Rexx.Net.RexxCommand> Echo => cmd => cmd.WriteLine("echo " + cmd.Command);
+    public delegate int CommandLength(Rexx.Net.RexxCommand cmd);
+    public static CommandLength Length => cmd => cmd.Command.Length;
     public static int Apply(Func<int, int, int> f, int a, int b) => f(a, b);
     public static string Text(Func<string> f) => f();
     public static bool Check(Predicate<string> p, string s) => p(s);

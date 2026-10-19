@@ -15,11 +15,15 @@
 // Conditions (ooRexx's RexxActivation::command): a handler result is RC
 // (null: 0). A RexxCommandException raises ERROR (or FAILURE) with its RC; a
 // RexxException that comes out of Rexx code the handler called is raised again
-// as that SYNTAX error; any other .NET exception raises FAILURE with RC -1 and
-// the exception's message as condition("A").
+// as that SYNTAX error; any other .NET exception raises SYNTAX 98.900, as any
+// .NET error reaching Rexx (additional: the message, the exception, its stack
+// trace). A name removed (RemoveCommandEnvironment) answers FAILURE with RC
+// 30, as ooRexx does for an environment that does not exist. Output and error
+// written without WITH go to the console (Console.Out, Console.Error).
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Rexx.Net;
@@ -138,16 +142,17 @@ public sealed class RexxCommand : RexxCallContext
         return string.Join("\n", lines);
     }
 
-    /// A line to the redirected output (WITH OUTPUT); false if the output is
-    /// not redirected (nothing written).
-    public bool WriteLine(string line) { _ = C; if (!io.OutputRedirected) return false; io.Write(false, false, line); return true; }
+    /// A line to the redirected output (WITH OUTPUT); without it, to the
+    /// console (Console.Out), as a program's output, and false.
+    public bool WriteLine(string line) { _ = C; if (!io.OutputRedirected) { Console.Out.WriteLine(line); return false; } io.Write(false, false, line); return true; }
 
     /// Text to the redirected output, split into lines at its line ends.
-    public bool Write(string text) { _ = C; if (!io.OutputRedirected) return false; io.Write(false, true, text); return true; }
+    public bool Write(string text) { _ = C; if (!io.OutputRedirected) { Console.Out.Write(text); return false; } io.Write(false, true, text); return true; }
 
-    /// A line, or text, to the redirected error stream (WITH ERROR).
-    public bool WriteErrorLine(string line) { _ = C; if (!io.ErrorRedirected) return false; io.Write(true, false, line); return true; }
-    public bool WriteError(string text) { _ = C; if (!io.ErrorRedirected) return false; io.Write(true, true, text); return true; }
+    /// A line, or text, to the redirected error stream (WITH ERROR); without
+    /// it, to Console.Error, and false.
+    public bool WriteErrorLine(string line) { _ = C; if (!io.ErrorRedirected) { Console.Error.WriteLine(line); return false; } io.Write(true, false, line); return true; }
+    public bool WriteError(string text) { _ = C; if (!io.ErrorRedirected) { Console.Error.Write(text); return false; } io.Write(true, true, text); return true; }
 }
 
 /// Thrown by a command handler: raises ERROR (or FAILURE) in the Rexx code,
@@ -184,8 +189,10 @@ internal static unsafe class Commands
         Func<RexxCommand, object?>? handler = rexx?.CommandHandler(addr);
         if (rexx == null || handler == null)
         {
-            Raise(x, "FAILURE", command, $"no handler for the environment {addr}", c.Str("-1"));
-            return 0;
+            // removed (or never ours): as ooRexx answers an environment that does not exist
+            nint notRegistered = c.Str("30");
+            Raise(x, "FAILURE", command, null, notRegistered);
+            return notRegistered;
         }
         var cmd = new RexxCommand(rexx, x, new Redirector(redirector), addr, text);
         rexx.PushFrame(c.P);
@@ -201,18 +208,28 @@ internal static unsafe class Commands
             Raise(x, e.Failure ? "FAILURE" : "ERROR", command, e.HasMessage ? e.Message : null, rc);
             return rc;
         }
-        catch (RexxException e) when (e.Code.Length > 0)
+        catch (Exception e) when ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException called && called.Code.Length > 0)
         {
             // Rexx code that the handler called failed: the same error here
             // (on this handler's context, the innermost frame).
-            RexxInterpreter.RaiseAgain(e);
+            if (!Callbacks.RaiseHeld(c.P, called)) RexxInterpreter.RaiseAgain(called);
             return 0;
         }
         catch (Exception e)
         {
-            nint rc = c.Str("-1");
-            Raise(x, "FAILURE", command, e.Message, rc);
-            return rc;
+            // any other error of the handler: SYNTAX 98.900, as a .NET error
+            // reaching Rexx anywhere (additional: [1] the message, [2] the
+            // exception, [3] its stack trace)
+            while ((e is TargetInvocationException || e is TypeInitializationException) && e.InnerException != null)
+                e = e.InnerException;
+            string message = ".NET error: " + e.GetType().FullName + ": " + e.Message;
+            if (message.EndsWith('.')) message = message[..^1];             // 98.900 adds its own
+            nint a = c.NewArray(3);
+            c.ArrayPut(a, c.Str(message), 1);
+            c.ArrayPut(a, Safe(rexx, c, e), 2);
+            c.ArrayPut(a, c.Str((e.StackTrace ?? "").Replace("\r", "")), 3);
+            c.RaiseException(98900, a);
+            return 0;
         }
         finally
         {

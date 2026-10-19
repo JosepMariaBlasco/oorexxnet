@@ -477,6 +477,32 @@ the delegate returns at once; a Rexx thread takes them with
 `.net~stopEventLoop`. `"latest"` keeps only the newest waiting call of a
 handler.
 
+A handler can also serve an `ADDRESS` environment:
+`.net~addCommandEnvironment("CALC", .net~handler(obj, "COMMAND"))` sends
+each `address calc '...'` to the method as a `Rexx.Net.RexxCommand`
+(`cmd~Command`, `cmd~WriteLine(...)` for `WITH OUTPUT`), and what it returns
+is `RC`; `.net~removeCommandEnvironment("CALC")` removes it (a command then
+raises FAILURE, `RC` 30, as for an environment that does not exist). A .NET
+delegate taking a `RexxCommand` works too, and an application hosting Rexx
+does the same with `rexx.AddCommandEnvironment` (section 9).
+
+```rexx
+.net~addCommandEnvironment("CALC", .net~handler(.Calc~new, "COMMAND"))
+address calc "square 12"
+say rc
+::requires "net.cls"
+::class Calc
+::method command
+  use arg cmd
+  parse value cmd~Command with verb n
+  if verb = "square" then return n * n
+  return -1
+```
+
+```text
+144
+```
+
 ### The event thread: `.NetEventThread`
 
 A window belongs to the thread that made it, which runs its events; other

@@ -43,11 +43,13 @@ public sealed partial class RexxInterpreter
     // -------------------------------------------------- command environments
 
     readonly Dictionary<string, Func<RexxCommand, object?>> commands = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<string> nativeCommands = new(StringComparer.OrdinalIgnoreCase);   // added to ooRexx (never removed there)
 
     /// An ADDRESS environment of the application: ADDRESS name 'command' (or
     /// ADDRESS name, then 'command') calls handler on the Rexx thread. Its
-    /// result is RC (null: 0). Throw RexxCommandException to raise ERROR or
-    /// FAILURE; any other exception raises FAILURE (RC -1). Names are not
+    /// result is RC (null: 0), whatever its sign. Throw RexxCommandException
+    /// to raise ERROR or FAILURE; any other exception raises SYNTAX 98.900
+    /// (the exception is condition("O")~additional[2]). Names are not
     /// case-sensitive; adding a name again replaces its handler.
     public void AddCommandEnvironment(string name, Func<RexxCommand, object?> handler)
     {
@@ -55,8 +57,18 @@ public sealed partial class RexxInterpreter
         ArgumentNullException.ThrowIfNull(handler);
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
         bool first;
-        lock (commands) { first = !commands.ContainsKey(name); commands[name] = handler; }
+        lock (commands) { commands[name] = handler; first = nativeCommands.Add(name); }
         if (first) inst.AddCommandEnvironment(name, Commands.Address, Commands.Redirecting);
+    }
+
+    /// Removes an environment added by AddCommandEnvironment: ADDRESS name
+    /// then raises FAILURE with RC 30, as for an environment that does not
+    /// exist (ooRexx has no way to remove one: its entry stays, and answers
+    /// so). Whether the name had a handler.
+    public bool RemoveCommandEnvironment(string name)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        lock (commands) return commands.Remove(name);
     }
 
     /// A handler with no result (RC 0).

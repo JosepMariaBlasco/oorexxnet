@@ -295,7 +295,9 @@ Rexx objects sends Rexx `==` (open point 6).
   (it converts to `string`, so `cmd => app.Execute(cmd)` works), the calling
   Rexx code's variables, and `ADDRESS ... WITH` redirection. Its result is
   `RC`. A thrown `RexxCommandException(rc)` raises ERROR (or FAILURE); any
-  other .NET exception raises FAILURE (`RC` -1). Verified first in the probe:
+  other .NET exception raised FAILURE (`RC` -1) until the family's rules of
+  19/10/2026 made it SYNTAX 98.900 (see "Command handlers: the family's
+  rules" below). Verified first in the probe:
   `address dotnet 'open the door'` reaches a C# function, which sets `RC`.
   The handler is one fixed native entry (`[UnmanagedCallersOnly]`) that
   dispatches by instance and name; no delegate is ever handed to native code.
@@ -308,6 +310,47 @@ Rexx objects sends Rexx `==` (open point 6).
   SYSTEM`, files, `.net`). An application that wants less sets
   `InitialAddress` to its own environment and does not load `net.cls`. It
   is not a security boundary, and the documentation says so.
+
+
+### Command handlers: the family's rules (19/10/2026)
+
+The bridges' command handlers were made homogeneous (`oorexx-bridges`,
+`topics/command-handlers.md`, decided 19/10/2026). For .NET:
+
+- **A .NET exception in a handler is SYNTAX 98.900**, as a .NET error
+  reaching Rexx anywhere: `additional` [1] ".NET error: Type: message",
+  [2] the exception, [3] its stack trace (the guest mode's layout). Before,
+  FAILURE with `RC` -1 (marked Δ above). `RexxCommandException` still
+  raises ERROR or FAILURE; a Rexx error of Rexx code that the handler called
+  is raised again as itself: a `RexxException` with its condition object
+  (host mode), or one that `rexxnet` holds by id (a `.NetHandler`'s method
+  failed): `rexxnet` hands the managed side `raiseHeld` (`Bridge.Init`'s
+  fifth argument), since no request answers it there.
+- **The handler's value is `RC` whatever its sign**, as before.
+- **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
+  (the write methods still answer `false`: not redirected). Before, nothing
+  was written.
+- **Removing**: `RemoveCommandEnvironment(name)` (host) and
+  `.net~removeCommandEnvironment(name)` (Rexx), whether it was there. ooRexx
+  has no API to remove an environment, so the bridge forgets the handler and
+  the native entry, which stays registered, answers FAILURE `RC` 30 with no
+  `additional`, as ooRexx does for an unknown environment (measured:
+  `address nosuchenv 'do it'`: `RC` 30, `condition('D')` the command,
+  `additional` .nil). Before, a name without a handler answered FAILURE `RC`
+  -1. Adding it again does not call ooRexx again (`nativeCommands`): only
+  a name's first addition does, ever.
+- **From Rexx**: `.net~addCommandEnvironment(name, handler)`: a
+  `.NetHandler` (made into a `Func<RexxCommand, object?>`) or a .NET
+  delegate taking a `RexxCommand` (`Func`, `Action`, or another delegate
+  type with that one parameter, called by `DynamicInvoke`); `.nil` is SYNTAX
+  98.900, naming `removeCommandEnvironment`; the instance is the one whose
+  Rexx code asks (`RexxInterpreter.Current`, guest or host).
+- **A `.NetHandler` called while Rexx code waits on the thread for the host**
+  (a command handler, a function, an exit: `RexxInterpreter.Current` is
+  set) is a call with a Rexx caller waiting, as one inside a Rexx -> .NET
+  call: its Rexx error comes back to the caller. Before, only Rexx -> .NET
+  calls counted (`Bridge.Depth`), so the error was reported on `.error` and
+  the delegate returned its default.
 
 ## Packaging (decision 8)
 
@@ -592,6 +635,8 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    out of Rexx code the handler called (`cmd.Interpreter.Run(...)`) is
    raised again as the same SYNTAX error (its code and substitutions: the
    message is rebuilt, the traceback starts at the command).
+   *(Superseded 19/10/2026: an exception is SYNTAX 98.900 now, the Δ is
+   gone; see "Command handlers: the family's rules".)*
 4. **Lesson: the exit context's `ThrowCondition` / `ThrowException` cannot
    be called from managed code.** They unwind with a C++ `throw` back to the
    interpreter (`CallContextStubs.cpp`: "don't use try/catch to allow a
