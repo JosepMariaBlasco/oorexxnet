@@ -93,7 +93,11 @@ fi
 # coreutils' timeout: macOS has none (Homebrew's coreutils: gtimeout).
 if ! command -v timeout >/dev/null 2>&1; then
   if command -v gtimeout >/dev/null 2>&1; then timeout() { gtimeout "$@"; }
-  else timeout() { shift; "$@"; }
+  else                                   # none: no limit (skips -k SECS, -s SIG, then the duration)
+    timeout() {
+      while [ "${1#-}" != "$1" ]; do case $1 in -k|-s) shift ;; esac; shift; done
+      shift; "$@"
+    }
   fi
 fi
 
