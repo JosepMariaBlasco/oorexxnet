@@ -326,6 +326,22 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   (host mode), or one that `rexxnet` holds by id (a `.NetHandler`'s method
   failed): `rexxnet` hands the managed side `raiseHeld` (`Bridge.Init`'s
   fifth argument), since no request answers it there.
+- **Any Rexx condition, not only SYNTAX, comes back as itself** (rule 1 as
+  clarified the same day), with its description, `additional` and result:
+  the bridge passes them all (`RaiseAgain` takes `RESULT` too; `rexxnet`
+  keeps a held condition's `RESULT`). But ooRexx drops a condition other
+  than SYNTAX where its native API calls Rexx code: a `.NetHandler`'s
+  method runs in a nested activity, which only SYNTAX leaves (measured: a
+  `raise user` in a `List.Sort` comparator or a command handler's method
+  is lost; `NativeActivation::trap` keeps such a condition only when native
+  code raised it). An ooRexx bug (`oorexx-bridges`,
+  `oorexx-bugs/2026-10-19-api-calls-drop-non-syntax-conditions.md`), not
+  worked around: a Rexx trampoline with `CALL ON ANY` around the message
+  does bring them back (tried: USER and HALT, as itself), at about +3 µs a
+  callback, and was dropped by the family's decision to wait for the fix.
+  Also: with `::OPTIONS ERROR SYNTAX` ooRexx turns any condition but ERROR
+  that a command handler raises into SYNTAX 98.970 (#2119, measured through
+  the bridge).
 - **The handler's value is `RC` whatever its sign**, as before.
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing
@@ -345,14 +361,16 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   `.NetHandler` (made into a `Func<RexxCommand, object?>`) or a .NET
   delegate taking a `RexxCommand` (`Func`, `Action`, or another delegate
   type with that one parameter, called by `DynamicInvoke`); `.nil`, or
-  anything else, is SYNTAX 93.900 (an incorrect argument: 98.900 is for
+  anything else, and an empty name, are SYNTAX 93.900 (an incorrect argument: 98.900 is for
   errors from .NET), the `.nil` one naming `removeCommandEnvironment`; the
   instance is the one whose
   Rexx code asks (`RexxInterpreter.Current`, guest or host).
 - **A `.NetHandler` called while Rexx code waits on the thread for the host**
-  (a command handler, a function, an exit: `RexxInterpreter.Current` is
+  (a command handler, a function, a `VALUE` selector: `RexxInterpreter.Current` is
   set) is a call with a Rexx caller waiting, as one inside a Rexx -> .NET
-  call: its Rexx error comes back to the caller. Before, only Rexx -> .NET
+  call: its Rexx error comes back to the caller, whole (the condition that
+  `rexxnet` holds is raised again: `raiseHeld`, for functions and selectors
+  too since the coordinator's review). Before, only Rexx -> .NET
   calls counted (`Bridge.Depth`), so the error was reported on `.error` and
   the delegate returned its default.
 

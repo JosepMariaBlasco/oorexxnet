@@ -208,10 +208,12 @@ internal static unsafe class Commands
             Raise(x, e.Failure ? "FAILURE" : "ERROR", command, e.HasMessage ? e.Message : null, rc);
             return rc;
         }
-        catch (Exception e) when ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException called && called.Code.Length > 0)
+        catch (Exception e) when ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException called)
         {
-            // Rexx code that the handler called failed: the same error here
-            // (on this handler's context, the innermost frame).
+            // Rexx code that the handler called raised a condition (any:
+            // SYNTAX, USER, HALT...): the same condition here, with its
+            // description, additional and result (on this handler's
+            // context, the innermost frame).
             if (!Callbacks.RaiseHeld(c.P, called)) RexxInterpreter.RaiseAgain(called);
             return 0;
         }

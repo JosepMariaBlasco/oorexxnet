@@ -285,7 +285,13 @@ internal static unsafe class Exits
     // The error, recorded on the context and raised when the exit returns
     static void Fail(Ctx c, Exception e)
     {
-        if (e is RexxException re && re.Code.Length > 0) { RexxInterpreter.RaiseAgain(re); return; }
+        // a Rexx condition of Rexx code the function called (or of a
+        // .NetHandler's method, which rexxnet holds): raised again as itself
+        if ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException re)
+        {
+            if (!Callbacks.RaiseHeld(c.P, re)) RexxInterpreter.RaiseAgain(re);
+            return;
+        }
         var (code, subs) = e is FunctionError fe ? (fe.Code, fe.Substitutions) : (40900L, new[] { e.Message });
         nint a = c.NewArray(subs.Length);
         for (int i = 0; i < subs.Length; i++) c.ArrayPut(a, c.Str(subs[i]), i + 1);

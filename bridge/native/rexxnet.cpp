@@ -388,7 +388,7 @@ static void drainDead(RexxThreadContext *c)
 // Rexx conditions that ended a callback, kept so that if they come back out
 // of .NET they are raised again as they were. The last few only: .NET may
 // swallow the exception, and then nobody asks for it.
-struct Condition { int id; std::string name; wholenumber_t code; RexxObjectPtr additional, description; };
+struct Condition { int id; std::string name; wholenumber_t code; RexxObjectPtr additional, description, result; };
 static std::deque<Condition> conditions;
 static int nextCondition = 1;
 const size_t keptConditions = 32;
@@ -687,7 +687,7 @@ static thread_local RexxThreadContext *requesting = nullptr;
 // side directly (a command handler, which no request answers). 0 if no such id.
 static int raiseHeld(RexxThreadContext *c, int id)
 {
-    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT};
+    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT, NULLOBJECT};
     {
         std::lock_guard<std::mutex> g(tablesLock);
         for (auto it = conditions.begin(); it != conditions.end(); ++it)
@@ -695,9 +695,10 @@ static int raiseHeld(RexxThreadContext *c, int id)
     }
     if (k.id == 0) return 0;
     if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
-    else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, NULLOBJECT);
+    else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, k.result);
     if (k.additional) c->ReleaseGlobalReference(k.additional);
     if (k.description) c->ReleaseGlobalReference(k.description);
+    if (k.result) c->ReleaseGlobalReference(k.result);
     return 1;
 }
 
@@ -953,14 +954,16 @@ static std::string conditionRecord(RexxThreadContext *tc)
         char b[32]; snprintf(b, sizeof b, "%ld.%ld", (long)(k.code / 1000), (long)(k.code % 1000)); code = b;   // "41.1", as Rexx writes it
     }
     std::string exc = "0";                         // a .NET exception gone to Rexx as 98.900
-    if (k.additional && tc->ArraySize(k.additional) >= 2)
+    if (k.additional && tc->IsArray(k.additional) && tc->ArraySize(k.additional) >= 2)
     {
         RexxObjectPtr x = tc->ArrayAt(k.additional, 2);
         if (x && tc->IsInstanceOf(x, cls.netObject)) exc = tc->ObjectToStringValue(tc->SendMessage0(x, "NETID"));
     }
     RexxObjectPtr description = tc->DirectoryAt(info, "DESCRIPTION");
+    RexxObjectPtr result = tc->DirectoryAt(info, "RESULT");          // RAISE ... RETURN/EXIT result
     Condition kept{0, name, k.code, k.additional ? tc->RequestGlobalReference(k.additional) : NULLOBJECT,
-                   description && description != tc->Nil() ? tc->RequestGlobalReference(description) : NULLOBJECT};
+                   description && description != tc->Nil() ? tc->RequestGlobalReference(description) : NULLOBJECT,
+                   result && result != tc->Nil() ? tc->RequestGlobalReference(result) : NULLOBJECT};
     std::vector<Condition> dropped;
     {
         std::lock_guard<std::mutex> g(tablesLock);
@@ -972,6 +975,7 @@ static std::string conditionRecord(RexxThreadContext *tc)
     {
         if (d.additional) tc->ReleaseGlobalReference(d.additional);
         if (d.description) tc->ReleaseGlobalReference(d.description);
+        if (d.result) tc->ReleaseGlobalReference(d.result);
     }
     std::string traceback;
     RexxObjectPtr tb = tc->DirectoryAt(info, "TRACEBACK");
@@ -1078,6 +1082,9 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
     parseRecord(req, (size_t)len, 0, tag, payload);
     RexxObjectPtr args = decode(tc, tag, payload);
     RexxObjectPtr r = NULLOBJECT;
+    // (a condition other than SYNTAX that the method lets out does not reach
+    // here: ooRexx drops it at the API, oorexx-bridges' finding of 19/10/2026,
+    // api-calls-drop-non-syntax-conditions)
     if (!tc->CheckCondition()) r = tc->SendMessage(h.target, h.message.c_str(), (RexxArrayObject)args);
     if (!tc->CheckCondition())
     {

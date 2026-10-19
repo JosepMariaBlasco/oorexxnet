@@ -112,13 +112,14 @@ public sealed unsafe partial class RexxInterpreter
         if (f is not { Count: > 0 }) return false;
         var top = f[^1];
         var c = new Ctx(top.Tc);
-        nint additional = 0, description = 0;
+        nint additional = 0, description = 0, result = 0;
         if (e.Condition != null && !e.Condition.Disposed)
         {
             try
             {
-                if (e.Condition["ADDITIONAL"] is RexxObject a && a is not RexxString) additional = a.Live;
+                additional = Live(c, e.Condition["ADDITIONAL"]);
                 if (e.Condition["DESCRIPTION"] is RexxString d) description = c.Str(d.Value);
+                result = Live(c, e.Condition["RESULT"]);           // RAISE ... RETURN/EXIT result
             }
             catch (Exception) { }
         }
@@ -129,9 +130,17 @@ public sealed unsafe partial class RexxInterpreter
             if (additional == 0) additional = c.NewArray(0);
             c.RaiseException(code, additional);
         }
-        else c.RaiseCondition(e.ConditionName, description, additional, 0);
+        else c.RaiseCondition(e.ConditionName, description, additional, result);
         return true;
     }
+
+    // A condition object's entry as a Rexx object pointer (0 for none, .nil).
+    static nint Live(Ctx c, object? v) => v switch
+    {
+        RexxString s => c.Str(s.Value),
+        RexxObject o => o.Live,
+        _ => 0,
+    };
 
     // ------------------------------------------------------- .NET -> .NetObject
 

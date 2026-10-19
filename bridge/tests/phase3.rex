@@ -214,6 +214,8 @@ call err "not a handler", '.net~addCommandEnvironment("X", "text")', "must be a 
 call ok "... 93.900", code('.net~addCommandEnvironment("X", "text")'), "93.900"
 .net~addCommandEnvironment("CALC", .net~handler(ch, "COMMAND"))
 address calc "2+3"; call ok "added again", rc, 5
+call ok "an empty name: SYNTAX 93.900", code('.net~addCommandEnvironment("", .net~handler(ch, "COMMAND"))'), "93.900"
+call ok "... removing", code('.net~removeCommandEnvironment("")'), "93.900"
 
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"

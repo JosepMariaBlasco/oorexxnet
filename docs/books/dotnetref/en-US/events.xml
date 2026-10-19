@@ -232,7 +232,13 @@ whatever its sign; ERROR and FAILURE come only from a
 <classname>RexxCommandException</classname>.</para></listitem>
 <listitem><para>An error of the handler is raised in the code that sent the
 command: a Rexx error as itself, a .NET exception as SYNTAX 98.900, the
-exception in <computeroutput>condition("O")~additional[2]</computeroutput>.</para></listitem>
+exception in <computeroutput>condition("O")~additional[2]</computeroutput>.
+A condition other than SYNTAX that a <classname>NetHandler</classname>'s
+method lets out (<literal>RAISE USER</literal>, HALT) does not reach that
+code yet: ooRexx 5.3.0 drops such conditions where its native API calls
+Rexx code (an ooRexx bug, reported). And with
+<literal>::OPTIONS ERROR SYNTAX</literal>, a condition other than ERROR that
+any command handler raises becomes SYNTAX 98.970 (ooRexx bug #2119).</para></listitem>
 <listitem><para>Its output and errors go where <literal>ADDRESS ... WITH</literal>
 says, or, without it, to the console.</para></listitem>
 <listitem><para>A removed environment answers FAILURE, <literal>RC</literal>

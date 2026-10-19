@@ -8,6 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Rexx.Net;
 
+/// Holds a delegate that Rexx code hands over (HandlerAsFunction).
+public sealed class Holder { public Func<RexxFunctionCall, object?>? F; public void Set(Func<RexxFunctionCall, object?> f) => F = f; }
+
 static partial class Program
 {
     static string Execute(string command) => "ran " + command;     // a handler taking a plain string
@@ -21,6 +24,23 @@ static partial class Program
         Cancellation(rexx);
         rexx.Dispose();
         CommandsWhileRexxRuns();
+        HandlerAsFunction();
+    }
+
+    // A .NetHandler made in Rexx, given to the application, which adds it as
+    // a function: its Rexx error comes back whole (the condition rexxnet
+    // holds, raised again: its substitutions too).
+    static void HandlerAsFunction()
+    {
+        using var rexx = RexxInterpreter.Create();
+        var holder = new Holder();
+        rexx.Run("use arg h; h~Set(.net~handler(.F~new, 'TWICE')); return\n" +
+                 "::requires 'net.cls'\n::class F\n::method twice\n  use arg call\n  return call~Arguments[1] * 2", holder);
+        rexx.AddFunction("NETFN", holder.F!);
+        Ok("a .NetHandler as a function",  rexx.Run("return netfn(3)"), "6");
+        Ok("... its Rexx error, whole",    rexx.Run("signal on syntax; x = netfn('a'); return 'no'\n" +
+                                                    "syntax: return condition('O')~code '|' condition('O')~message"),
+                                          "41.1 | Nonnumeric value (\"a\") used in arithmetic operation.");
     }
 
     // Environments added while other threads run Rexx in the instance, and
@@ -113,6 +133,7 @@ static partial class Program
         Ok("replaced handler",           rexx.Run("address plain 'x'; return rc"), "replaced");
         Ok("an unknown environment (RXSUBCOM_NOTREG)", rexx.Run("address nosuch 'x'; return rc"), "30");
         rexx.RemoveCommandEnvironment("plain");
+        using (var gone = RexxInterpreter.Create()) { gone.Dispose(); Throws<ObjectDisposedException>("RemoveCommandEnvironment, disposed", () => gone.RemoveCommandEnvironment("X")); }
         Throws<InvalidOperationException>("RemoveCommandEnvironment: none there", () => rexx.RemoveCommandEnvironment("PLAIN"), "no command environment PLAIN");
         Ok("... then FAILURE, RC 30, as unknown", rexx.Run("signal on failure; address plain 'x'; return 'no'\n" +
                                                    "failure: return condition('C') rc condition('D') (condition('O')~additional == .nil)"), "FAILURE 30 x 1");

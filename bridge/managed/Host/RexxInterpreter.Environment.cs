@@ -68,6 +68,7 @@ public sealed partial class RexxInterpreter
     public void RemoveCommandEnvironment(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
+        if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
         lock (commands)
             if (!commands.Remove(name))
                 throw new InvalidOperationException($"there is no command environment {name} to remove");
