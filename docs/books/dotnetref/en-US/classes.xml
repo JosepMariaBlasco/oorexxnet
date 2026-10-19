@@ -134,8 +134,8 @@ command goes to it as a <classname>Rexx.Net.RexxCommand</classname>, and what
 it returns is <literal>RC</literal> (<xref linkend="eventsCommands"/>).
 <emphasis role="italic">handler</emphasis> is a <classname>NetHandler</classname>
 (its method gets the <classname>RexxCommand</classname>), or a .NET delegate
-that takes one; &nil; is an error (to remove an environment:
-<xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>).
+that takes one; &nil;, or anything else, is SYNTAX 93.900 (to remove an
+environment: <xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>).
 Adding a name again replaces its handler.</para>
 </section>
 
@@ -578,8 +578,8 @@ collection. The proxy remains, and cannot be used any more.</para>
 <para>Removes the <literal>ADDRESS</literal> environment
 <emphasis role="italic">name</emphasis> that
 <xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/> (or the
-application, <xref linkend="hostCommands"/>) added, and returns 1, or 0 if
-there was none: a command for it then raises FAILURE with
+application, <xref linkend="hostCommands"/>) added; a name with no handler
+is SYNTAX 93.900. A command for it then raises FAILURE with
 <literal>RC</literal> 30, as for an environment that does not exist.</para>
 </section>
 

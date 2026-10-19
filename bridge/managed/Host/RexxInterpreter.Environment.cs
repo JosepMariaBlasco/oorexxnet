@@ -64,11 +64,13 @@ public sealed partial class RexxInterpreter
     /// Removes an environment added by AddCommandEnvironment: ADDRESS name
     /// then raises FAILURE with RC 30, as for an environment that does not
     /// exist (ooRexx has no way to remove one: its entry stays, and answers
-    /// so). Whether the name had a handler.
-    public bool RemoveCommandEnvironment(string name)
+    /// so). A name with no handler is an InvalidOperationException.
+    public void RemoveCommandEnvironment(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        lock (commands) return commands.Remove(name);
+        lock (commands)
+            if (!commands.Remove(name))
+                throw new InvalidOperationException($"there is no command environment {name} to remove");
     }
 
     /// A handler with no result (RC 0).

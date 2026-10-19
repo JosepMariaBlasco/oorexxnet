@@ -14,7 +14,7 @@ functions and <literal>VALUE</literal> selectors it has, and when it must
 stop. These are members of <classname>RexxInterpreter</classname>:</para>
 <programlisting language="csharp">public void AddCommandEnvironment(string name, Func&lt;RexxCommand, object?&gt; handler);
 public void AddCommandEnvironment(string name, Action&lt;RexxCommand&gt; handler);
-public bool RemoveCommandEnvironment(string name);
+public void RemoveCommandEnvironment(string name);
 public TextWriter? Output { get; set; }
 public TextWriter? Error { get; set; }
 public TextReader? Input { get; set; }
@@ -56,7 +56,8 @@ redirection: written without it, output and errors go to the console
 (<literal>Console.Out</literal>, <literal>Console.Error</literal>), as a
 program's would, and the write methods answer <literal>false</literal>.</para>
 <para><computeroutput>rexx.RemoveCommandEnvironment(name)</computeroutput>
-removes one, and answers whether it was there: <literal>ADDRESS name</literal>
+removes one (a name with no handler is an
+<classname>InvalidOperationException</classname>): <literal>ADDRESS name</literal>
 then raises FAILURE with <literal>RC</literal> 30, as for an environment that
 does not exist (ooRexx has no way to remove an environment: its entry stays,
 and answers so). Rexx code adds and removes them too, with

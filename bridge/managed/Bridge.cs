@@ -189,7 +189,7 @@ public static unsafe class Bridge
                 return;
             }
         }
-        throw new BridgeException(".net~addCommandEnvironment: the handler must be a .NetHandler or a .NET delegate taking a Rexx.Net.RexxCommand, found " + Conv.Describe(h));
+        throw new RexxSyntaxException(93900, ".net~addCommandEnvironment: the handler must be a .NetHandler or a .NET delegate taking a Rexx.Net.RexxCommand, found " + Conv.Describe(h));
     }
 
     static RexxInterpreter CurrentInterpreter() =>
@@ -284,7 +284,11 @@ public static unsafe class Bridge
             case "releaseHandler": Callbacks.Release(int.Parse(r[1].Text)); w.Add('V', ""); break;
             case "queued": w.Add('S', Callbacks.QueuedCount.ToString()); break;
             case "cmdAdd": CommandEnvironment(r[1].Text, r[2]); w.Add('V', ""); break;
-            case "cmdRemove": w.Add('S', CurrentInterpreter().RemoveCommandEnvironment(r[1].Text) ? "1" : "0"); break;
+            case "cmdRemove":
+                try { CurrentInterpreter().RemoveCommandEnvironment(r[1].Text); }
+                catch (InvalidOperationException) { throw new RexxSyntaxException(93900, $".net~removeCommandEnvironment: there is no command environment {r[1].Text} to remove"); }
+                w.Add('V', "");
+                break;
             case "extend": Extend.Make(r[1].Text, r[2].Items, r[3].Items, w); break;
             case "extAlloc": Extend.Alloc(r[1], r[2], w); break;
             case "extInit": Extend.Init(r[1], r[2].Items, w); break;

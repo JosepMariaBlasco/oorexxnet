@@ -482,7 +482,8 @@ A handler can also serve an `ADDRESS` environment:
 each `address calc '...'` to the method as a `Rexx.Net.RexxCommand`
 (`cmd~Command`, `cmd~WriteLine(...)` for `WITH OUTPUT`), and what it returns
 is `RC`; `.net~removeCommandEnvironment("CALC")` removes it (a command then
-raises FAILURE, `RC` 30, as for an environment that does not exist). A .NET
+raises FAILURE, `RC` 30, as for an environment that does not exist; a name
+not there, or a `.nil` handler, is SYNTAX 93.900). A .NET
 delegate taking a `RexxCommand` works too, and an application hosting Rexx
 does the same with `rexx.AddCommandEnvironment` (section 9).
 

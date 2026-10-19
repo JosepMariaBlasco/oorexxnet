@@ -236,7 +236,8 @@ exception in <computeroutput>condition("O")~additional[2]</computeroutput>.</par
 <listitem><para>Its output and errors go where <literal>ADDRESS ... WITH</literal>
 says, or, without it, to the console.</para></listitem>
 <listitem><para>A removed environment answers FAILURE, <literal>RC</literal>
-30, as one that does not exist. &nil; as a handler is an error.</para></listitem>
+30, as one that does not exist. A handler that is &nil; (or no handler at
+all), and removing a name that has none, are SYNTAX 93.900.</para></listitem>
 </itemizedlist>
 <para>These rules are the whole family's: the ooRexx/Python, ooRexx/Lua and
 ooRexx/JavaScript bridges follow them too, with their host's names.</para>
@@ -253,7 +254,7 @@ address calc "frobnicate"
 syntax:
   c = condition("O")
   say c~code .net~typeOf(c~additional[2])
-say .net~removeCommandEnvironment("calc")
+.net~removeCommandEnvironment("calc")
 signal on failure
 trace off                                         -- (TRACE NORMAL shows failures)
 address calc "square 7"
@@ -275,7 +276,6 @@ failure: say "FAILURE, rc" rc
 <screen>rc: 49
 7 x 1 = 7 / 7 x 2 = 14 / 7 x 3 = 21
 98.900 System.FormatException
-1
 FAILURE, rc 30</screen>
 </example>
 </section>

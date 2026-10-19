@@ -198,14 +198,20 @@ address len "abcd"; call ok ".NET delegate of another type", rc, 4
 .net~addCommandEnvironment("ECHO", dl~Echo)
 o = .array~new; address echo "hi" with output using (o)
 call ok ".NET Action handler", rc o[1], "0 echo hi"
-call ok "removeCommandEnvironment", .net~removeCommandEnvironment("calc") .net~removeCommandEnvironment("CALC"), "1 0"
+result = "kept"
+.net~removeCommandEnvironment("calc")
+call ok "removeCommandEnvironment: no result", var("RESULT"), 0
+call ok "... none there: SYNTAX 93.900", code('.net~removeCommandEnvironment("CALC")'), "93.900"
+call err "... its message", '.net~removeCommandEnvironment("CALC")', "no command environment CALC to remove"
 signal on failure name removed
 address calc "2+3"
 call ok "removed: FAILURE", "none", "FAILURE"
 removed: signal off failure
 call ok "removed: FAILURE RC 30, as unknown", condition("C") rc condition("D"), "FAILURE 30 2+3"
 call err "a .nil handler: SYNTAX", '.net~addCommandEnvironment("X", .nil)', "removeCommandEnvironment"
+call ok "... 93.900", code('.net~addCommandEnvironment("X", .nil)'), "93.900"
 call err "not a handler", '.net~addCommandEnvironment("X", "text")', "must be a .NetHandler or a .NET delegate"
+call ok "... 93.900", code('.net~addCommandEnvironment("X", "text")'), "93.900"
 .net~addCommandEnvironment("CALC", .net~handler(ch, "COMMAND"))
 address calc "2+3"; call ok "added again", rc, 5
 

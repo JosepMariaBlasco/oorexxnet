@@ -112,7 +112,8 @@ static partial class Program
         rexx.AddCommandEnvironment("PLAIN", cmd => "replaced");
         Ok("replaced handler",           rexx.Run("address plain 'x'; return rc"), "replaced");
         Ok("an unknown environment (RXSUBCOM_NOTREG)", rexx.Run("address nosuch 'x'; return rc"), "30");
-        Ok("RemoveCommandEnvironment",   rexx.RemoveCommandEnvironment("plain") + " " + rexx.RemoveCommandEnvironment("PLAIN"), "True False");
+        rexx.RemoveCommandEnvironment("plain");
+        Throws<InvalidOperationException>("RemoveCommandEnvironment: none there", () => rexx.RemoveCommandEnvironment("PLAIN"), "no command environment PLAIN");
         Ok("... then FAILURE, RC 30, as unknown", rexx.Run("signal on failure; address plain 'x'; return 'no'\n" +
                                                    "failure: return condition('C') rc condition('D') (condition('O')~additional == .nil)"), "FAILURE 30 x 1");
         rexx.AddCommandEnvironment("PLAIN", cmd => "back");

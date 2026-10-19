@@ -331,7 +331,9 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   (the write methods still answer `false`: not redirected). Before, nothing
   was written.
 - **Removing**: `RemoveCommandEnvironment(name)` (host) and
-  `.net~removeCommandEnvironment(name)` (Rexx), whether it was there. ooRexx
+  `.net~removeCommandEnvironment(name)` (Rexx); a name with no handler is
+  an `InvalidOperationException` (host) or SYNTAX 93.900 (Rexx), and
+  removing returns nothing (an amendment of the same day). ooRexx
   has no API to remove an environment, so the bridge forgets the handler and
   the native entry, which stays registered, answers FAILURE `RC` 30 with no
   `additional`, as ooRexx does for an unknown environment (measured:
@@ -342,8 +344,10 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
 - **From Rexx**: `.net~addCommandEnvironment(name, handler)`: a
   `.NetHandler` (made into a `Func<RexxCommand, object?>`) or a .NET
   delegate taking a `RexxCommand` (`Func`, `Action`, or another delegate
-  type with that one parameter, called by `DynamicInvoke`); `.nil` is SYNTAX
-  98.900, naming `removeCommandEnvironment`; the instance is the one whose
+  type with that one parameter, called by `DynamicInvoke`); `.nil`, or
+  anything else, is SYNTAX 93.900 (an incorrect argument: 98.900 is for
+  errors from .NET), the `.nil` one naming `removeCommandEnvironment`; the
+  instance is the one whose
   Rexx code asks (`RexxInterpreter.Current`, guest or host).
 - **A `.NetHandler` called while Rexx code waits on the thread for the host**
   (a command handler, a function, an exit: `RexxInterpreter.Current` is
