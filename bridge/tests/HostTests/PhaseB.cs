@@ -25,6 +25,26 @@ static partial class Program
         rexx.Dispose();
         CommandsWhileRexxRuns();
         HandlerAsFunction();
+        SignalPastTheHost();
+    }
+
+    // Rexx -> the host (a command handler, a function) -> Rexx code that
+    // RAISEs USER, with no Rexx activation of the bridge in between, and
+    // SIGNAL ON USER in the caller. On ooRexx r13275 the condition is lost
+    // where the API runs Rexx code (oorexx-bridges, oorexx-bugs/2026-10-19-api-
+    // calls-drop-non-syntax-conditions.md): the caller's trap never fires, so
+    // no C++ unwinding crosses .NET's frames. Should ooRexx deliver it one
+    // day, a SIGNAL would unwind through them: this test then fails (or the
+    // process ends) and the path needs a guard.
+    static void SignalPastTheHost()
+    {
+        using var rexx = RexxInterpreter.Create();
+        rexx.AddCommandEnvironment("RAISING", cmd => cmd.Interpreter.Run("raise user x description 'd' return 7"));
+        rexx.AddFunction("RAISING", call => call.Interpreter.Run("raise user x description 'd' return 7"));
+        Ok("SIGNAL ON past the host: a command (ooRexx drops it)",
+           rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return 'trapped'"), "not trapped, rc 7");
+        Ok("... a function (ooRexx drops it)",
+           rexx.Run("signal on user x; v = raising(); return 'not trapped:' v\nx: return 'trapped'"), "not trapped: 7");
     }
 
     // A .NetHandler made in Rexx, given to the application, which adds it as
