@@ -293,8 +293,8 @@ Each returns <emphasis role="italic">value</emphasis> marked as a
 argument, <computeroutput>.net~string</computeroutput> describes &net;). The
 value is converted when it goes to .NET, which chooses the overload that
 takes that type (<xref linkend="valuesForced"/>).
-<methodname>bool</methodname> returns <computeroutput>.Boolean~true</computeroutput>
-or <computeroutput>.Boolean~false</computeroutput> instead (from
+<methodname>bool</methodname> returns <computeroutput>.LogicalWrapper~true</computeroutput>
+or <computeroutput>.LogicalWrapper~false</computeroutput> instead (from
 <literal>1</literal>, <literal>0</literal>, <literal>true</literal> or
 <literal>false</literal>), which goes as a <literal>bool</literal>
 (<xref linkend="valuesBooleans"/>).</para>

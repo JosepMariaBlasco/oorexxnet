@@ -44,6 +44,7 @@ static partial class Program
     static int Main(string[] args)
     {
         if (args.Length > 0 && args[0] == "prefixes-child") return PrefixesChild();
+        if (args.Length > 0 && args[0] == "classpath-child") return ClassPathChild();
         using var rexx = RexxInterpreter.Create();
         Ok("version", rexx.Version.StartsWith("5."), true);
         Ok("language level", rexx.LanguageLevel.Length > 0, true);
@@ -74,16 +75,18 @@ static partial class Program
         Ok("Run<double>: as a double, not a decimal", $"{rexx.Run<double>("return '5E-324'") == double.Epsilon} {rexx.Run<double>("return 1E-30") == 1e-30}", "True True");
         Ok("Run<double>: nan, +infinity, -infinity", $"{double.IsNaN(rexx.Run<double>("return 'nan'"))} {double.IsPositiveInfinity(rexx.Run<double>("return '+infinity'"))} {float.IsNegativeInfinity(rexx.Run<float>("return '-infinity'"))}", "True True True");
         Ok("BigInteger, exactly", rexx.Run<System.Numerics.BigInteger>("numeric digits 40; return 2 ** 100").ToString(), "1267650600228229401496703205376");
-        // bools: .Boolean~true / ~false in Rexx (boolean.cls, built in), bools again in .NET
-        Ok("a bool is a .Boolean",   rexx.Run("use arg t, f; return t~class~id t f (t = 1) (\\f)", true, false), "Boolean 1 0 1 1");
-        Ok("a .Boolean back: a bool", rexx.Run<object>("return arg(1)", true) is bool b1 && b1, true);
-        Ok("a .Boolean false",       rexx.Run<object>("return arg(1)", false) is bool b2 && !b2, true);
-        Ok("Run<bool> of a .Boolean", rexx.Run<bool>("return arg(1)", true), true);
-        Ok(".Boolean with no ::requires", rexx.Run("return .Boolean~of(2 > 1)~class~id .environment~boolean~id"), "Boolean Boolean");   // (version 2: .environment)
+        // bools: .LogicalWrapper~true / ~false in Rexx (ooRexx's logicalwrapper.cls), bools again in .NET
+        Ok("a bool is a .LogicalWrapper", rexx.Run("use arg t, f; return t~class~id t f (t = 1) (\\f)", true, false), "LogicalWrapper 1 0 1 1");
+        Ok("a .LogicalWrapper back: a bool", rexx.Run<object>("return arg(1)", true) is bool b1 && b1, true);
+        Ok("a .LogicalWrapper false", rexx.Run<object>("return arg(1)", false) is bool b2 && !b2, true);
+        Ok("Run<bool> of a .LogicalWrapper", rexx.Run<bool>("return arg(1)", true), true);
+        Ok("the class's own instances", rexx.Run("use arg b; return b~isA(.LogicalWrapper) (b~identityHash = .LogicalWrapper~true~identityHash)\n::requires 'logicalwrapper.cls'", true), "1 1");
+        Ok("JSON's true back: a bool", rexx.Run<object>("return .json~true\n::requires 'json.cls'") is bool j1 && j1, true);
+        Ok("YAML's false back: a bool", rexx.Run<object>("return .yaml~false\n::requires 'yaml.cls'") is bool y1 && !y1, true);
         Ok(".true stays a string",   rexx.Run<object>("return .true")?.GetType().Name, "RexxString");
         using (var r2 = RexxInterpreter.Create())        // another instance: the same class, the same instances
         {
-            Ok("a second instance's .Boolean", r2.Run("use arg b; return b~isA(.Boolean) b~class~id\n::requires 'boolean.cls'", true), "1 Boolean");
+            Ok("a second instance's .LogicalWrapper", r2.Run("use arg b; return b~isA(.LogicalWrapper) b~class~id (b~identityHash = .LogicalWrapper~true~identityHash)\n::requires 'logicalwrapper.cls'", true), "1 LogicalWrapper 1");
             Ok("a second instance, back", r2.Run<object>("return arg(1)", false) is bool b3 && !b3, true);
         }
         Ok(".nil -> null",           rexx.Run("return .nil") == null, true);
@@ -294,10 +297,24 @@ static partial class Program
         return fails == 0 ? 0 : 1;
     }
 
+    // Run with ooRexx's bin folder off the PATH (run.sh, run.ps1; librexx
+    // through REXX_HOME): ooRexx's own .cls files are still found, through the
+    // ExternalCallPath Rexx.Net adds (logicalwrapper.cls, json.cls; net.cls,
+    // built in, requires logicalwrapper.cls).
+    static int ClassPathChild()
+    {
+        using var rexx = RexxInterpreter.Create();
+        Ok("off the PATH: a bool", rexx.Run("use arg b; return b~class~id", true), "LogicalWrapper");
+        Ok("off the PATH: json.cls", rexx.Run<object>("return .json~false\n::requires 'json.cls'") is bool j && !j, true);
+        Ok("off the PATH: net.cls", rexx.Run("use arg o; return o~class~id", new System.Text.StringBuilder("x")), "NETOBJECT");
+        Console.WriteLine(fails == 0 ? $"ooRexx's .cls files off the PATH: all {count} tests passed" : $"ooRexx's .cls files off the PATH: {fails} of {count} failed");
+        return fails == 0 ? 0 : 1;
+    }
+
     static void LeakChecks()
     {
         using var r = RexxInterpreter.Create();
-        Ok("a later instance's .Boolean", r.Run("use arg b; return b~isA(.Boolean) b\n::requires 'boolean.cls'", true), "1 1");
+        Ok("a later instance's .LogicalWrapper", r.Run("use arg b; return b~isA(.LogicalWrapper) b (b~identityHash = .LogicalWrapper~true~identityHash)\n::requires 'logicalwrapper.cls'", true), "1 1 1");
         var same = r.LoadPackage("same.cls", "::class Same public\n::method same; use arg x; return x\n" +
                                               "::method fail; raise syntax 98.900 array('x')\n").FindClass("Same")!.New()!;
         var arr = r.NewArray("a", "b");

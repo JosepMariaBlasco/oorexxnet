@@ -179,14 +179,14 @@ public sealed unsafe partial class RexxInterpreter
     }
 
     /// The .NET object of a .NetObject (a NetType: its System.Type), the
-    /// bool of a .Boolean; null for any other Rexx object.
+    /// bool of a .LogicalWrapper; null for any other Rexx object.
     internal object? NetOf(Ctx c, nint o)
     {
-        EnsureBoolean(c);
-        if (Bridge.BooleanClass != 0 && c.IsInstanceOf(o, Bridge.BooleanClass))
+        EnsureLogical(c);
+        if (Bridge.LogicalClass != 0 && c.IsInstanceOf(o, Bridge.LogicalClass))
         {
-            if (o == booleanTrue) return true;
-            if (o == booleanFalse) return false;
+            if (o == logicalTrue) return true;
+            if (o == logicalFalse) return false;
             nint empty = c.NewArray(0), v = c.Send(o, "VALUE", empty);  // (a subclass's own instances)
             c.ReleaseLocal(empty);
             if (v == 0 || c.CheckCondition()) { c.ClearCondition(); return null; }
@@ -241,7 +241,7 @@ public sealed unsafe partial class RexxInterpreter
                     "REXXNET_DIR, or next to Rexx.Net.dll)" + (why != null ? ": " + why.Message : ""), why);
             nint k1 = c.FindPackageClass(pkg, "NETOBJECT"), k2 = c.FindPackageClass(pkg, "NETTYPE"),
                  k3 = c.FindPackageClass(pkg, "NETARRAY"), k4 = c.FindPackageClass(pkg, "NETENUM"),
-                 k5 = c.FindPackageClass(pkg, "BOOLEAN");                  // (required by net.cls)
+                 k5 = c.FindPackageClass(pkg, "LOGICALWRAPPER");           // (required by net.cls)
             if (k1 == 0 || k2 == 0 || k3 == 0 || k4 == 0) throw new InvalidOperationException("net.cls has no NetObject class");
             Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4), k5 != 0 ? c.Global(k5) : 0);
             c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4); c.ReleaseLocal(pkg);
@@ -252,7 +252,7 @@ public sealed unsafe partial class RexxInterpreter
     // ------------------------------------------------------ .net from the start
 
     static bool netSetUp;
-    static readonly Dictionary<string, nint> builtIn = new();   // boolean.cls, net.cls and CLR.CLS: global references
+    static readonly Dictionary<string, nint> builtIn = new();   // net.cls and CLR.CLS: global references
 
     /// One of the packages built into this assembly, loaded once for the
     /// process under its name (LoadPackageFromData), so that ::requires finds
@@ -283,46 +283,49 @@ public sealed unsafe partial class RexxInterpreter
         }
     }
 
-    static nint booleanTrue, booleanFalse;
-    static bool booleanSought;
+    static nint logicalTrue, logicalFalse;
+    static bool logicalSought;
 
-    /// .Boolean (boolean.cls) and its two instances, for .NET's bools: the one
-    /// net.cls required (rexxnet or SetUpNet said which), else the built-in
-    /// boolean.cls, loaded now. Sought once per process.
-    void EnsureBoolean(Ctx c)
+    /// .LogicalWrapper (ooRexx's logicalwrapper.cls) and its two instances,
+    /// for .NET's bools: the one net.cls required (rexxnet or SetUpNet said
+    /// which), else logicalwrapper.cls loaded now (ooRexx's search path).
+    /// Sought once per process.
+    void EnsureLogical(Ctx c)
     {
-        if (Volatile.Read(ref booleanSought)) return;
+        if (Volatile.Read(ref logicalSought)) return;
         lock (netGate)
         {
-            if (booleanSought) return;
-            nint k = Bridge.BooleanClass, local = 0;
+            if (logicalSought) return;
+            nint k = Bridge.LogicalClass, local = 0;
             if (k == 0)
             {
-                nint p = BuiltIn(c, "boolean.cls");
-                if (p != 0) k = local = c.FindPackageClass(p, "BOOLEAN");
-                if (k != 0) Bridge.BooleanClass = c.Global(k);
+                nint p = c.LoadPackage("logicalwrapper.cls");
+                if (c.CheckCondition()) c.ClearCondition();
+                else if (p != 0) k = local = c.FindPackageClass(p, "LOGICALWRAPPER");
+                if (p != 0) c.ReleaseLocal(p);
+                if (k != 0) Bridge.LogicalClass = c.Global(k);
             }
             if (k != 0)
             {
                 nint none = c.NewArray(0);
                 nint t = c.Send(k, "TRUE", none), f = c.Send(k, "FALSE", none);
                 c.ReleaseLocal(none);
-                if (t != 0 && f != 0 && !c.CheckCondition()) { booleanTrue = c.Global(t); booleanFalse = c.Global(f); }
+                if (t != 0 && f != 0 && !c.CheckCondition()) { logicalTrue = c.Global(t); logicalFalse = c.Global(f); }
                 else c.ClearCondition();
                 if (t != 0) c.ReleaseLocal(t);
                 if (f != 0) c.ReleaseLocal(f);
             }
             if (local != 0) c.ReleaseLocal(local);
-            Volatile.Write(ref booleanSought, true);
+            Volatile.Write(ref logicalSought, true);
         }
     }
 
-    /// A bool as a Rexx object: .Boolean~true or .Boolean~false (.true and
-    /// .false if boolean.cls cannot be had).
+    /// A bool as a Rexx object: .LogicalWrapper~true or ~false (.true and
+    /// .false if logicalwrapper.cls cannot be had).
     internal nint BoolToRexx(Ctx c, bool b)
     {
-        EnsureBoolean(c);
-        nint o = b ? booleanTrue : booleanFalse;
+        EnsureLogical(c);
+        nint o = b ? logicalTrue : logicalFalse;
         return o != 0 ? o : b ? c.True : c.False;
     }
 
@@ -358,13 +361,13 @@ public sealed unsafe partial class RexxInterpreter
                 (nint)(delegate* unmanaged<nint, nint, nint, nint, nint, void>)&Bridge.Classes);
             if (!Callbacks.Started) return;          // rexxnet had started a runtime of its own first
             c.RegisterLibrary("rexxnet", ((delegate* unmanaged<nint>)getPackage)());
-            // boolean.cls first: net.cls requires it (found by its name, loaded)
-            nint boolean = BuiltIn(c, "boolean.cls"), net = BuiltIn(c, "net.cls");
+            // net.cls requires logicalwrapper.cls: ooRexx's, found in its search path
+            nint net = BuiltIn(c, "net.cls");
             BuiltIn(c, "CLR.CLS");
             if (net == 0) return;
             nint k1 = c.FindPackageClass(net, "NETOBJECT"), k2 = c.FindPackageClass(net, "NETTYPE"),
                  k3 = c.FindPackageClass(net, "NETARRAY"), k4 = c.FindPackageClass(net, "NETENUM"),
-                 k5 = boolean != 0 ? c.FindPackageClass(boolean, "BOOLEAN") : 0;
+                 k5 = c.FindPackageClass(net, "LOGICALWRAPPER");
             if (k1 != 0 && k2 != 0 && k3 != 0 && k4 != 0)
                 Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4), k5 != 0 ? c.Global(k5) : 0);
             c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4);

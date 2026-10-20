@@ -22,14 +22,14 @@
 //   27     a Rexx string that is a whole number to BigInteger (exactly, any
 //          number of digits, an exponent too: "1E40")
 //   30     a Rexx string to bool, char, char[], an enum
-//   0 / 1  a .Boolean (B) to bool / to object, ValueType or an interface bool
+//   0 / 1  a .LogicalWrapper (B) to bool / to object, ValueType or an interface bool
 //          implements (a boxed bool); to anything else, as its string "1"/"0"
 //   31     a Rexx string to DateTime, DateTimeOffset, TimeSpan, Guid
 //   +1 per item when a Rexx Array becomes an array; +2 for a List<T> or an
 //   interface; a params array expanded: +1
 // .NET -> Rexx: strings, numbers (culture-invariant; BigInteger, Int128,
 // UInt128 and Half too), chars and
-// enums (their names) as Rexx strings, bools as .Boolean~true / ~false (B),
+// enums (their names) as Rexx strings, bools as .LogicalWrapper~true / ~false (B),
 // null as .nil, void as nothing; a
 // RexxObject as the Rexx object itself (X), a RexxString as its string;
 // everything else by reference (a handle).
@@ -674,7 +674,7 @@ public static class Conv
         {
             case null: w.Add('N', ""); return;
             case string s: w.Add('S', s); return;
-            case bool b: w.Add('B', b ? "1" : "0"); return;   // .Boolean~true / ~false
+            case bool b: w.Add('B', b ? "1" : "0"); return;   // .LogicalWrapper~true / ~false
             case char c: w.Add('S', c.ToString()); return;
             case double d: w.Add('S', FloatText(d.ToString("R", Inv))); return;
             case float f: w.Add('S', FloatText(f.ToString("R", Inv))); return;

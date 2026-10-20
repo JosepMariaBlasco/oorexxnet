@@ -105,20 +105,25 @@ call err "... 1001: an error", "d = .array~new; t = d; do 1001; n = .array~new; 
 call ok "forced int16",         p~Kind(.net~int16(5)), "System.Int16"
 call ok "forced decimal",       p~Kind(.net~decimal("1.5")), "System.Decimal"
 call ok "forced bool",          p~Kind(.net~bool(1)), "System.Boolean"
--- .Boolean (boolean.cls, topic "Booleans" of oorexx-bridges): a bool in .NET,
--- also to an object parameter; .NET's bools come back as .Boolean~true / ~false
-call ok ".net~bool is a .Boolean", .net~bool(1)~isA(.Boolean) .net~bool(" False ") .net~bool(.true)~class~id, "1 0 Boolean"
-call ok ".Boolean to object",   p~Kind(.Boolean~true), "System.Boolean"
+-- .LogicalWrapper (ooRexx's logicalwrapper.cls): a bool in .NET, also to an
+-- object parameter; .NET's bools come back as .LogicalWrapper~true / ~false
+call ok ".net~bool is a .LogicalWrapper", .net~bool(1)~isA(.LogicalWrapper) .net~bool(" False ") .net~bool(.true)~class~id, "1 0 LogicalWrapper"
+call ok ".LogicalWrapper to object",   p~Kind(.LogicalWrapper~true), "System.Boolean"
 call ok ".true to object: a string", p~Kind(.true), "System.String"
-call ok ".Boolean picks bool",  .net~System~Convert~ToString(.Boolean~false) .net~System~Convert~ToString(0), "False 0"
-call ok ".Boolean over string", .net~System~String~Concat("a", .Boolean~true), "aTrue"
-call ok ".Boolean to an int",   .net~System~Math~Abs(.Boolean~true), 1
+call ok ".LogicalWrapper picks bool",  .net~System~Convert~ToString(.LogicalWrapper~false) .net~System~Convert~ToString(0), "False 0"
+call ok ".LogicalWrapper over string", .net~System~String~Concat("a", .LogicalWrapper~true), "aTrue"
+call ok ".LogicalWrapper to an int",   .net~System~Math~Abs(.LogicalWrapper~true), 1
 r = .net~System~String~IsNullOrEmpty("")
-call ok "bool result: a .Boolean", r~isA(.Boolean) r (r = .true) (\r) r~class~id, "1 1 1 0 Boolean"
-l = .net~type("System.Collections.Generic.List<object>")~new; l~Add(.Boolean~false); l~Add(.true)
-call ok "bool through .NET and back", l[0]~isA(.Boolean) l[0] l[1]~isA(.Boolean), "1 0 0"
-a = .net~System~Array~CreateInstance(.net~System~Boolean, 2); a[1] = .Boolean~true
-call ok "bool[] items", a[1]~class~id a[1] a[2], "Boolean 1 0"
+call ok "bool result: a .LogicalWrapper", r~isA(.LogicalWrapper) r (r = .true) (\r) r~class~id, "1 1 1 0 LogicalWrapper"
+l = .net~type("System.Collections.Generic.List<object>")~new; l~Add(.LogicalWrapper~false); l~Add(.true)
+call ok "bool through .NET and back", l[0]~isA(.LogicalWrapper) l[0] l[1]~isA(.LogicalWrapper), "1 0 0"
+-- its subclasses: JSON's and YAML's booleans cross as bools too
+j = .json~new~fromJSON('{"a": true, "b": false}')
+call ok "JSON's booleans to .NET", p~Kind(j["a"]) .net~System~Convert~ToString(j["b"]), "System.Boolean False"
+y = .Yaml~new~parseString("a: true")
+call ok "YAML's boolean to .NET", p~Kind(y["a"]), "System.Boolean"
+a = .net~System~Array~CreateInstance(.net~System~Boolean, 2); a[1] = .LogicalWrapper~true
+call ok "bool[] items", a[1]~class~id a[1] a[2], "LogicalWrapper 1 0"
 call ok "bool[] makeString",    a~makeString("L", " "), "1 0"
 call ok ".net~string(x)",       p~Kind(.net~string(5)), "System.String"
 call ok ".net~as type",         p~Kind(.net~as(7, .net~System~Byte)), "System.Byte"
@@ -293,6 +298,8 @@ else say "phase 1:" .fails "of" .count "tests FAILED"
 exit .fails > 0
 
 ::requires "net.cls"
+::requires "json.cls"
+::requires "yaml.cls"
 
 ::routine ab                         -- the same Array in two calls: two .NET copies
   use arg a

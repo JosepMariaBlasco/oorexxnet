@@ -56,7 +56,7 @@ nothing about the value they want, so the bridge sends what
 <classname>OLEObject</classname> sends:</para>
 <itemizedlist>
 <listitem><para>&true; and &false; themselves, and a
-<classname>Boolean</classname> (<xref linkend="valuesBooleans"/>): booleans
+<classname>LogicalWrapper</classname> (<xref linkend="valuesBooleans"/>): booleans
 (<literal>VT_BOOL</literal>).</para></listitem>
 <listitem><para>A Rexx number: an <literal>int</literal> if it is whole and
 fits in 32 bits, else a <literal>double</literal>. So <literal>"007"</literal>

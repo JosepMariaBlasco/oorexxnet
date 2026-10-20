@@ -22,6 +22,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -33,7 +35,8 @@ public sealed class RexxOptions
 {
     /// The initial ADDRESS environment.
     public string? InitialAddress { get; set; }
-    /// Where external routines and ::requires files are searched for.
+    /// Where external routines and ::requires files are searched for (before
+    /// ooRexx's own folder of .cls files, which is always added last).
     public string? ExternalCallPath { get; set; }
     /// The extensions tried on external calls (".rex,.cls").
     public string? ExternalCallExtensions { get; set; }
@@ -121,7 +124,11 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
                 opts.Add(new RexxOptionData { name = n, value = v, type = Native.REXX_VALUE_CSTRING });
             }
             if (options?.InitialAddress != null) Add("InitialAddress", options.InitialAddress);
-            if (options?.ExternalCallPath != null) Add("ExternalCallPath", options.ExternalCallPath);
+            // the caller's path, then ooRexx's own folder of .cls files (Native.ClassDirectory)
+            string? callPath = options?.ExternalCallPath, classes = Native.ClassDirectory;
+            if (classes != null && !(callPath ?? "").Split(Path.PathSeparator).Contains(classes))
+                callPath = string.IsNullOrEmpty(callPath) ? classes : callPath + Path.PathSeparator + classes;
+            if (callPath != null) Add("ExternalCallPath", callPath);
             if (options?.ExternalCallExtensions != null) Add("ExternalCallPathExt", options.ExternalCallExtensions);
             if (options != null) foreach (var l in options.LoadLibraries) Add("LoadRequiredLibrary", l);
             // The exits behind AddFunction and AddValueSelector: always, since
@@ -369,7 +376,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
                 return r.Live;
             case string s: return c.Str(s);
             case char ch: return c.Str(ch.ToString());
-            case bool b: return BoolToRexx(c, b);               // .Boolean~true / ~false
+            case bool b: return BoolToRexx(c, b);               // .LogicalWrapper~true / ~false
             case double d: return c.Str(Conv.FloatText(d.ToString("R", Inv)));      // (topics/float-text.md)
             case float f: return c.Str(Conv.FloatText(f.ToString("R", Inv)));
             case decimal m: return c.Str(m.ToString(Inv));

@@ -100,8 +100,8 @@ install:
   say "  ooRexx" .RexxInfo~version "r".RexxInfo~revision "("rexxExe")," .RexxInfo~architecture "bits"
   parse value .RexxInfo~version with major "."
   if major < 5 then call fail "ooRexx 5 or later is needed"
-  if .RexxInfo~revision < 13275 then                     -- (ooRexx bugs #2111, #2112, #2114: see bridge/dist/README.md)
-    call fail "ooRexx 5.3.0 r13275 or later is needed (this one is r".RexxInfo~revision")"
+  if .RexxInfo~revision < 13278 then                     -- (.LogicalWrapper; ooRexx bugs #2111, #2112, #2114: see bridge/dist/README.md)
+    call fail "ooRexx 5.3.0 r13278 or later is needed (this one is r".RexxInfo~revision")"
   if .RexxInfo~architecture \= 64 then call fail "a 64-bit ooRexx is needed"
   if windows, \.File~new(join(bin, "rexx.dll"))~exists then
     call fail "rexx.dll is not next to rexx.exe in" bin": this layout of ooRexx is not supported"
@@ -130,7 +130,7 @@ install:
     if fromDir \== "" then call fail "no" native "in" from": a build folder for this system is needed"
     call fail "no binaries for this system ("rid") in this package: build the bridge from its sources"
   end
-  managed = .array~of("Rexx.Net.dll", "Rexx.Net.deps.json", "net.cls", "boolean.cls")
+  managed = .array~of("Rexx.Net.dll", "Rexx.Net.deps.json", "net.cls")
   do f over managed
     if \.File~new(join(from, f))~exists then
       call fail "no" f "next to install.rex: run it from the unzipped rexxnet folder (or give --from)"
@@ -158,7 +158,6 @@ install:
     if .File~new(join(from, f))~exists then files~append(join(from, f))
   end
   do source over files
-    if windows, .File~new(source)~name~caselessEquals("boolean.cls") then iterate   -- (beside rexx: installBoolean)
     target = join(home, .File~new(source)~name)
     if SysFileCopy(source, target) \= 0 then call denied target
     done~put(target, "file")
@@ -170,7 +169,6 @@ install:
     call link join(home, "net.cls"), join(bin, "net.cls")
     say "  linked" native "into" lib "and net.cls into" bin
   end
-  call installBoolean
 
   -- CLR.CLS: beside rexx unless another one would be found first (BSF4ooRexx's)
   other = otherClr()
@@ -258,7 +256,6 @@ uninstall:
     do path over done~allAt(kind)
       if same(path, self) then iterate   -- last: it may be the one running
       if \.File~new(path)~exists & SysIsFileLink(path) \= 1 then iterate
-      if same(path, join(bin, "boolean.cls")), keepBoolean(path) then iterate
       if SysFileDelete(path) \= 0 then do
         say "  could not remove" path
         failed = .true
@@ -392,58 +389,6 @@ findFirst: procedure expose windows
   return ""
 
 -- a symbolic link at "name" to "target", replacing whatever is there
--- boolean.cls beside rexx (net.cls, found there, requires it beside itself):
--- the class the ooRexx bridges share (oorexx-bridges, topic Booleans), so
--- another bridge may have put one there. Kept, unless ours has a higher
--- "Version:" line (none: version 1).
-installBoolean: procedure expose done windows bin home from
-  name = join(bin, "boolean.cls")
-  ours = join(from, "boolean.cls")
-  theirs = (.File~new(name)~exists | SysIsFileLink(name) = 1) & \done~hasItem(name, "link") & \done~hasItem(name, "file")
-  if theirs then if booleanVersion(ours) <= booleanVersion(name) then do
-    say "  kept the boolean.cls already in" bin "(another ooRexx bridge's)"
-    return
-  end
-  if windows then do
-    if SysFileCopy(ours, name) \= 0 then call denied name
-    done~put(name, "file")
-    say "  installed boolean.cls in" bin
-  end
-  else do
-    call link join(home, "boolean.cls"), name
-    say "  linked boolean.cls into" bin
-  end
-  return
-
--- Uninstalling our boolean.cls beside rexx: left there while another bridge
--- is installed (its .cls beside rexx), as a plain copy if it is our link.
-keepBoolean: procedure expose bin home windows
-  use arg path
-  others = .false
-  do f over "python.cls", "lua.cls", "js.cls"
-    if .File~new(join(bin, f))~exists | SysIsFileLink(join(bin, f)) = 1 then others = .true
-  end
-  if \others then return .false
-  if \windows, SysIsFileLink(path) = 1 then do
-    call SysFileDelete path
-    if SysFileCopy(join(home, "boolean.cls"), path) \= 0 then say "  could not copy boolean.cls to" path
-  end
-  say "  left" path "(another ooRexx bridge uses it)"
-  return .true
-
--- The "Version:" line of a boolean.cls (1 if it has none)
-booleanVersion: procedure
-  use arg file
-  s = .Stream~new(file)
-  if s~open("read") \= "READY:" then return 1
-  version = 1
-  do while s~lines > 0
-    parse value s~linein with "Version:" v .
-    if datatype(v, "W") then do; version = v; leave; end
-  end
-  s~close
-  return version
-
 link: procedure expose done windows
   use arg target, name
   if .File~new(name)~exists | SysIsFileLink(name) = 1 then call SysFileDelete name

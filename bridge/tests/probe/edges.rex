@@ -21,8 +21,9 @@ do while list \= ""
 end
 call row ".true", .true
 call row ".false", .false
-call row ".Boolean~true", .Boolean~true
-call row ".Boolean~false", .Boolean~false
+call row ".LogicalWrapper~true", .LogicalWrapper~true
+call row ".LogicalWrapper~false", .LogicalWrapper~false
+call row ".json~true", .json~true
 call row ".nil", .nil
 say
 say "--- other Rexx values, to an object parameter (Convert.GetTypeCode / the .NET type)"
@@ -67,7 +68,7 @@ call back "decimal 1/3", .net~System~Decimal~Divide(1, 3)
 call back "long.MaxValue, ulong.MaxValue", .net~System~Int64~MaxValue .net~System~UInt64~MaxValue
 call back "BigInteger 2**70", .net~System~Numerics~BigInteger~Pow(2, 70)
 call back "bool true, false", .net~System~Boolean~TrueString~length (1 = 1) .net~System~Char~IsDigit("7") .net~System~Char~IsDigit("x")
-call back "bool: its class, isA(.Boolean)", .net~System~Char~IsDigit("7")~class~id .net~System~Char~IsDigit("x")~isA(.Boolean)
+call back "bool: its class, isA(.LogicalWrapper)", .net~System~Char~IsDigit("7")~class~id .net~System~Char~IsDigit("x")~isA(.LogicalWrapper)
 call back "a bool through List<object>", boolBack()
 call back "char 'A'", .net~System~Char~ToUpper("a")
 call back "null", .net~System~Environment~GetEnvironmentVariable("NO_SUCH_VARIABLE_X")
@@ -182,9 +183,9 @@ deepFails:
 dateBack: procedure
   d = .net~System~DateTime~new(2026, 10, 16)
   return d~class~id d~ToString("s")
-boolBack: procedure                    -- a .Boolean into a List<object>, and back
+boolBack: procedure                    -- a .LogicalWrapper into a List<object>, and back
   l = .net~type("System.Collections.Generic.List<object>")~new
-  l~Add(.Boolean~false); l~Add(.false)
+  l~Add(.LogicalWrapper~false); l~Add(.false)
   return l[0]~class~id l[1]~class~id
 lst: procedure
   l = .net~type("System.Collections.Generic.List<string>")~new
@@ -213,3 +214,4 @@ noDouble:
   say left("'"s"'", 40) "no conversion:" condition("O")~message~left(60)
   return
 ::requires "net.cls"
+::requires "json.cls"

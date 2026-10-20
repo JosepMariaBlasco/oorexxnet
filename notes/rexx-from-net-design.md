@@ -186,7 +186,7 @@ Later, possibly through Rexx's own `sendWith` if it carries named arguments
 |---|---|
 | `string`, `char` | a String |
 | `int`, `long`, `double`, `decimal`, every numeric type (`BigInteger`, `Int128`, `UInt128`, `Half`) | a String with the number, culture-invariant (`double`: shortest digits, as ooRexx writes `x + 0` under `numeric digits 17`, round-trip; `nan`, `+infinity`, `-infinity`, ooRexx's spelling) |
-| `bool` | `.Boolean~true` / `.Boolean~false` (`boolean.cls`, built in; since 17/10/2026, before `.true` / `.false`); one that comes back is a `bool` |
+| `bool` | `.LogicalWrapper~true` / `~false` (ooRexx's `logicalwrapper.cls`, since 20/10/2026; from 17/10/2026 the shared `.Boolean`, built in; before, `.true` / `.false`); one that comes back is a `bool` |
 | `null` | `.nil` |
 | a `RexxObject` | the Rexx object itself |
 | `RexxValue.Omitted` | an omitted argument (`arg(2, 'O')` is true) |

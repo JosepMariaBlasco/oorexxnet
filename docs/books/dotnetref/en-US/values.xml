@@ -26,7 +26,7 @@ each argument is converted to its parameter's type:</para>
 <thead><row><entry>Rexx</entry><entry>.NET</entry></row></thead>
 <tbody>
 <row><entry>a string</entry><entry>the parameter's type: a <literal>string</literal> as it is (<literal>"007"</literal> stays <literal>"007"</literal>); an integer type the number fits exactly, with no rounding and no truncation (<literal>"007"</literal> is 7 for an <literal>int</literal>, <literal>3.7</literal> fits no integer type); a <literal>double</literal>, <literal>float</literal> or <literal>decimal</literal> any number in its range, rounded to its precision, but not one too large for it nor one that is not zero and would be read as zero (<literal>1E-999</literal>: the error says <computeroutput>1E-999 is out of range for a Double</computeroutput>), and, for a <literal>double</literal> or <literal>float</literal>, <literal>nan</literal>, <literal>+infinity</literal> and <literal>-infinity</literal> by name; a <literal>bool</literal> from <literal>1</literal> or <literal>0</literal> (or <literal>true</literal>, <literal>false</literal>); a <literal>char</literal> from one character; an enum from a name or a number; <literal>DateTime</literal>, <literal>DateTimeOffset</literal>, <literal>TimeSpan</literal> and <literal>Guid</literal> by their culture-invariant parsing; for an <literal>object</literal> parameter (or a generic type parameter not otherwise known), a <literal>string</literal></entry></row>
-<row><entry>a <classname>Boolean</classname> (<computeroutput>.Boolean~true</computeroutput>, <computeroutput>.Boolean~false</computeroutput>)</entry><entry>a <literal>bool</literal>, also to an <literal>object</literal> parameter (or an interface <literal>bool</literal> implements); to any other parameter, as its string, <literal>1</literal> or <literal>0</literal> (<xref linkend="valuesBooleans"/>)</entry></row>
+<row><entry>a <classname>LogicalWrapper</classname> (<computeroutput>.LogicalWrapper~true</computeroutput>, <computeroutput>~false</computeroutput>; the booleans of <filename>json.cls</filename> and <filename>yaml.cls</filename>)</entry><entry>a <literal>bool</literal>, also to an <literal>object</literal> parameter (or an interface <literal>bool</literal> implements); to any other parameter, as its string, <literal>1</literal> or <literal>0</literal> (<xref linkend="valuesBooleans"/>)</entry></row>
 <row><entry>&nil;</entry><entry><literal>null</literal>, for a reference type or a nullable value type</entry></row>
 <row><entry>a <classname>NetObject</classname></entry><entry>its .NET object; a <classname>NetType</classname> gives its <literal>System.Type</literal> where one is wanted</entry></row>
 <row><entry>a forced value (<classname>NetTyped</classname>)</entry><entry>that type (<xref linkend="valuesForced"/>)</entry></row>
@@ -98,7 +98,7 @@ delegate type for a <classname>NetHandler</classname>). Each answers a
 <xref linkend="clsNetTyped" xrefstyle="select:title"/>, which marks the value:
 the conversion happens at the call, and fails there if the value does not
 fit the type. <computeroutput>.net~bool(x)</computeroutput> answers a
-<classname>Boolean</classname> instead (<xref linkend="valuesBooleans"/>).</para>
+<classname>LogicalWrapper</classname> instead (<xref linkend="valuesBooleans"/>).</para>
 
 <example id="ex.values-forced">
 <title>Forcing a type</title>
@@ -115,33 +115,38 @@ ffff ffffffff</screen>
 </section>
 
 <section id="valuesBooleans"><title>Booleans</title>
-<indexterm><primary>Boolean class</primary></indexterm>
+<indexterm><primary>LogicalWrapper class</primary></indexterm>
 <indexterm><primary>bool</primary></indexterm>
 <para>&true; and &false; are the strings <literal>1</literal> and
 <literal>0</literal>: nothing tells &false; from the number 0. So the bridge
-uses the class <classname>Boolean</classname> of
-<filename>boolean.cls</filename>, which <filename>net.cls</filename> loads:
-the class that the ooRexx bridges share, proposed for the ooRexx core (RFE
-#880). It has two instances, <computeroutput>.Boolean~true</computeroutput>
-and <computeroutput>.Boolean~false</computeroutput>, which behave as
+uses ooRexx's class <classname>LogicalWrapper</classname>
+(<filename>logicalwrapper.cls</filename>, since r13278; <filename>net.cls</filename>
+requires it), which every ooRexx bridge uses for its host's booleans. It has
+two instances, <computeroutput>.LogicalWrapper~true</computeroutput>
+and <computeroutput>.LogicalWrapper~false</computeroutput>, which behave as
 <literal>1</literal> and <literal>0</literal> wherever Rexx uses a value
 (<literal>IF</literal>, operators, comparisons, string methods,
-<literal>SAY</literal>, indexes); <computeroutput>isA(.Boolean)</computeroutput>
-tells them apart, and <computeroutput>.Boolean~of(a &gt; b)</computeroutput>
-gives the one for a logical value.</para>
+<literal>SAY</literal>, indexes); <computeroutput>isA(.LogicalWrapper)</computeroutput>
+tells them apart, and <computeroutput>.LogicalWrapper~of(a &gt; b)</computeroutput>
+gives the one for a logical value. Its subclasses, <classname>JSONBoolean</classname>
+(<filename>json.cls</filename>) and <classname>YamlBoolean</classname>
+(<filename>yaml.cls</filename>), are booleans too: what those packages read
+reaches .NET as <literal>bool</literal>s. A program that names the class
+needs <computeroutput>::requires "logicalwrapper.cls"</computeroutput> (or
+<filename>net.cls</filename>, which requires it).</para>
 <itemizedlist>
 <listitem><para>A .NET <literal>bool</literal> comes to Rexx as one of them, so it goes
 back to .NET as a <literal>bool</literal>, also to an
 <literal>object</literal> parameter or into a <literal>List&lt;object&gt;</literal>.</para></listitem>
-<listitem><para>Any object that <computeroutput>isA(.Boolean)</computeroutput> goes as a
+<listitem><para>Any object that <computeroutput>isA(.LogicalWrapper)</computeroutput> goes as a
 <literal>bool</literal>; where overloads compete, the one that takes a
-<literal>bool</literal> wins (<computeroutput>Convert.ToString(.Boolean~false)</computeroutput>
+<literal>bool</literal> wins (<computeroutput>Convert.ToString(.LogicalWrapper~false)</computeroutput>
 is <literal>False</literal>). To a parameter of another type it goes as its
 string.</para></listitem>
 <listitem><para><computeroutput>.net~bool(x)</computeroutput> gives the instance for
 <literal>1</literal>, <literal>0</literal>, <literal>true</literal> or
 <literal>false</literal> (caseless).</para></listitem>
-<listitem><para>A COM method gets a <classname>Boolean</classname> as
+<listitem><para>A COM method gets a <classname>LogicalWrapper</classname> as
 <literal>VT_BOOL</literal>, as &true; and &false; themselves.</para></listitem>
 </itemizedlist>
 <example id="ex.values-booleans">
@@ -149,15 +154,18 @@ string.</para></listitem>
 <programlisting language="rexx">empty = .net~System~String~IsNullOrEmpty("")
 say empty empty~class~id (empty = .true) (\empty)
 c = .net~System~Convert
-say c~ToString(.Boolean~false) c~ToString(.false) c~ToString(.net~bool("true"))
+say c~ToString(.LogicalWrapper~false) c~ToString(.false) c~ToString(.net~bool("true"))
 list = .net~type("System.Collections.Generic.List&lt;object&gt;")~new
 list~Add(empty); list~Add(1)
-say list[0]~isA(.Boolean) list[1]~isA(.Boolean)
+say list[0]~isA(.LogicalWrapper) list[1]~isA(.LogicalWrapper)
+say c~ToString(.json~new~fromJSON("[false]")[1])
 
-::requires "net.cls"</programlisting>
-<screen>1 Boolean 1 0
+::requires "net.cls"
+::requires "json.cls"</programlisting>
+<screen>1 LogicalWrapper 1 0
 False 0 True
-1 0</screen>
+1 0
+False</screen>
 </example>
 </section>
 
@@ -213,7 +221,7 @@ System.Int32 System.Decimal
 <tbody>
 <row><entry><literal>string</literal>, <literal>char</literal></entry><entry>a string</entry></row>
 <row><entry>every numeric type, <literal>BigInteger</literal>, <literal>Int128</literal>, <literal>UInt128</literal> and <literal>Half</literal> included</entry><entry>a string with the number, culture-invariant: whole numbers with all their digits (a <literal>BigInteger</literal> of any size), a <literal>double</literal> or <literal>float</literal> with its shortest digits that read back as the same value, written as Rexx writes <computeroutput>x + 0</computeroutput> under <computeroutput>NUMERIC DIGITS 17</computeroutput>: plain digits (<literal>0.0000001</literal>, <literal>10000000000000000</literal>) unless the integer part needs more than 17 places or the decimals more than 34 (<literal>1E+17</literal>, <literal>1E-35</literal>), no <literal>.0</literal> on a whole value (<literal>1</literal>), <literal>-0</literal> kept, and NaN and the infinities as ooRexx writes them, <literal>nan</literal>, <literal>+infinity</literal> and <literal>-infinity</literal> (which go back to a <literal>double</literal> as they are; .NET's own spellings, <literal>NaN</literal> and <literal>Infinity</literal>, do too); a <literal>decimal</literal> with its digits</entry></row>
-<row><entry><literal>bool</literal></entry><entry><computeroutput>.Boolean~true</computeroutput> or <computeroutput>.Boolean~false</computeroutput>, which are <literal>1</literal> and <literal>0</literal> to Rexx (<xref linkend="valuesBooleans"/>)</entry></row>
+<row><entry><literal>bool</literal></entry><entry><computeroutput>.LogicalWrapper~true</computeroutput> or <computeroutput>.LogicalWrapper~false</computeroutput>, which are <literal>1</literal> and <literal>0</literal> to Rexx (<xref linkend="valuesBooleans"/>)</entry></row>
 <row><entry><literal>null</literal></entry><entry>&nil;</entry></row>
 <row><entry>an enum value</entry><entry>a <classname>NetEnum</classname>, whose string value is its name (<xref linkend="clsNetEnum"/>)</entry></row>
 <row><entry>an array</entry><entry>a <classname>NetArray</classname>, which behaves as a Rexx Array, from 1 (<xref linkend="collectionsArrays"/>)</entry></row>

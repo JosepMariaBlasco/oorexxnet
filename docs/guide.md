@@ -156,13 +156,14 @@ say w~IsRunning
 `"007"` for a `string` and `7` for an `int`; a number out of range for a
 `double`, `float` or `decimal` (too large, or not zero but read as zero:
 `1E-999`) fits none, and the error says so; `1` / `0` for a `bool`; a name
-for an enum. A `.Boolean` (`.Boolean~true`, `.Boolean~false`: `boolean.cls`,
-the class the ooRexx bridges share, loaded with `net.cls`) goes as a `bool`,
-also where .NET takes an `object`; `.true` and `.false` are strings. When overloads compete, the one that fits best wins (as C#
+for an enum. A `.LogicalWrapper` (`.LogicalWrapper~true`, `~false`: ooRexx's
+`logicalwrapper.cls`, which `net.cls` requires) goes as a `bool`, also where
+.NET takes an `object`, and so do its subclasses, the booleans of `json.cls`
+and `yaml.cls`; `.true` and `.false` are strings. When overloads compete, the one that fits best wins (as C#
 chooses); when the choice must be yours, force a type: `.net~int16(x)` ...
 `.net~decimal(x)`, `.net~char(x)`, `.net~string(x)`, `.net~null`, or any
-type with `.net~as(x, type)`; `.net~bool(x)` gives `.Boolean~true` or
-`.Boolean~false` (`x`: `1`, `0`, `true`, `false`).
+type with `.net~as(x, type)`; `.net~bool(x)` gives `.LogicalWrapper~true` or
+`~false` (`x`: `1`, `0`, `true`, `false`).
 
 ```rexx
 p = .net~System~Text~StringBuilder~new
@@ -170,12 +171,16 @@ p~Append("007"); p~Append(" ")
 p~Append(.net~int32("007"))
 say p~ToString
 say .net~System~Convert~ToString(.net~as(255, "byte"), 2)
+j = .json~new~fromJSON('{"ok": true}')
+say .net~System~Convert~ToString(j["ok"]) .net~System~Convert~ToString(.true)
 ::requires "net.cls"
+::requires "json.cls"
 ```
 
 ```text
 007 7
 11111111
+True 1
 ```
 
 `.net~box(type, x)` goes further: it makes a .NET object holding `x` as that
@@ -201,7 +206,7 @@ System.Int16 5
 all their digits; a `double` with its shortest digits, as Rexx writes `x + 0`
 under `numeric digits 17`: `0.0000001`, `1E+17`, `1` for `1.0`, `-0` kept;
 NaN and the infinities as ooRexx writes them: `nan`, `+infinity`, `-infinity`) and `char`s come back as Rexx strings, `bool`s as
-`.Boolean~true` and `.Boolean~false` (they are `1` and `0` to Rexx, and go back
+`.LogicalWrapper~true` and `~false` (they are `1` and `0` to Rexx, and go back
 to .NET as `bool`s), `null` as `.nil`; enums as `.NetEnum`s and arrays as
 `.NetArray`s (sections 4 and 5); everything else as a `.NetObject`, **by
 reference**: nothing is copied, the same .NET object gives a proxy that is

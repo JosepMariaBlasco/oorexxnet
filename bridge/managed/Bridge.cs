@@ -105,17 +105,17 @@ public static unsafe class Bridge
     }
 
     /// net.cls's NetObject and NetType classes (global references), and the
-    /// .Boolean it requires (boolean.cls), from rexxnet or from a host that
-    /// loaded net.cls: a .NetObject that reaches .NET becomes its .NET object
-    /// again, a .Boolean a bool.
+    /// .LogicalWrapper it requires (ooRexx's logicalwrapper.cls), from rexxnet
+    /// or from a host that loaded net.cls: a .NetObject that reaches .NET
+    /// becomes its .NET object again, a .LogicalWrapper a bool.
     [UnmanagedCallersOnly]
-    public static void Classes(nint netObject, nint netType, nint netArray, nint netEnum, nint boolean) =>
-        SetClasses(netObject, netType, netArray, netEnum, boolean);
+    public static void Classes(nint netObject, nint netType, nint netArray, nint netEnum, nint logical) =>
+        SetClasses(netObject, netType, netArray, netEnum, logical);
 
-    internal static nint NetObjectClass, NetTypeClass, NetArrayClass, NetEnumClass, BooleanClass;
-    internal static void SetClasses(nint netObject, nint netType, nint netArray, nint netEnum, nint boolean)
+    internal static nint NetObjectClass, NetTypeClass, NetArrayClass, NetEnumClass, LogicalClass;
+    internal static void SetClasses(nint netObject, nint netType, nint netArray, nint netEnum, nint logical)
     {
-        if (BooleanClass == 0) BooleanClass = boolean;
+        if (LogicalClass == 0) LogicalClass = logical;
         if (NetObjectClass == 0) { NetTypeClass = netType; NetArrayClass = netArray; NetEnumClass = netEnum; NetObjectClass = netObject; }
     }
 

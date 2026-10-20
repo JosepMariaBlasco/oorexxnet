@@ -10,8 +10,10 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13275 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13274 and r13275 fix
+- **ooRexx 5.3.0 r13278 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13278 is the first with
+  `.LogicalWrapper` (`logicalwrapper.cls`), the class of the booleans that
+  cross between Rexx and .NET. r13274 and r13275 fix
   crashes with command environments and threads (ooRexx bugs #2111, #2112:
   adding an environment from .NET, or `ADDRESS` to one not yet known, while
   other threads run Rexx); r13270, a crash in `SELECT CASE` (#2114) that the

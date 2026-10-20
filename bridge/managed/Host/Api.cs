@@ -132,6 +132,57 @@ internal static unsafe class Native
     [DllImport("kernel32", EntryPoint = "GetCurrentThreadId")]
     static extern uint WindowsThreadId();
 
+    /// ooRexx's own folder of .cls files (logicalwrapper.cls, json.cls...),
+    /// that of the librexx loaded: beside it (Windows: bin\rexx.dll) or its
+    /// ../bin (lib/librexx.so, lib/librexx.dylib); null if not found. A host
+    /// is not ooRexx's rexx, so ooRexx would look for them only on the PATH:
+    /// RexxInterpreter.Create adds this folder to the instance's
+    /// ExternalCallPath (net.cls requires logicalwrapper.cls).
+    public static string? ClassDirectory => classDirectory.Value;
+    static readonly Lazy<string?> classDirectory = new(FindClassDirectory);
+
+    static string? FindClassDirectory()
+    {
+        try
+        {
+            if (!NativeLibrary.TryLoad("rexx", typeof(Native).Assembly, null, out var h)) return null;
+            string? lib = LoadedFile(h);
+            string? dir = lib is null ? null : Path.GetDirectoryName(Path.GetFullPath(lib));
+            if (dir is null) return null;
+            foreach (var d in new[] { dir, Path.Combine(dir, "..", "bin") })
+                if (File.Exists(Path.Combine(d, "logicalwrapper.cls"))) return Path.GetFullPath(d);
+        }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException or IOException or UnauthorizedAccessException) { }
+        return null;
+    }
+
+    // The file a loaded native library came from: GetModuleFileNameW
+    // (Windows), dladdr on one of its exports (Linux, macOS).
+    static string? LoadedFile(IntPtr handle)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var buf = new char[32768];
+            uint n = GetModuleFileNameW(handle, buf, (uint)buf.Length);
+            return n > 0 ? new string(buf, 0, (int)n) : null;
+        }
+        if (!NativeLibrary.TryGetExport(handle, "RexxCreateInterpreter", out var sym)) return null;
+        DlInfo info;
+        int ok;
+        try { ok = DlAddr(sym, out info); }
+        catch (EntryPointNotFoundException) { ok = DlAddrDl(sym, out info); }      // (glibc before 2.34: libdl)
+        return ok != 0 && info.fname != 0 ? Marshal.PtrToStringUTF8(info.fname) : null;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct DlInfo { public nint fname, fbase, sname, saddr; }
+    [DllImport("libc", EntryPoint = "dladdr")]
+    static extern int DlAddr(nint address, out DlInfo info);
+    [DllImport("libdl.so.2", EntryPoint = "dladdr")]
+    static extern int DlAddrDl(nint address, out DlInfo info);
+    [DllImport("kernel32", CharSet = CharSet.Unicode, EntryPoint = "GetModuleFileNameW")]
+    static extern uint GetModuleFileNameW(IntPtr module, char[] name, uint size);
+
     /// This OS thread, as ooRexx identifies threads.
     public static nuint CurrentThread() => OperatingSystem.IsWindows() ? WindowsThreadId() : PthreadSelf();
 

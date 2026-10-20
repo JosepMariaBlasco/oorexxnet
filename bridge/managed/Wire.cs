@@ -2,7 +2,7 @@
 // bytes of the UTF-8 payload (JDOR's format, as .JSObject). Request records:
 //   S string   N nil (.nil)   O handle id   A list (payload: records)
 //   L .true or .false themselves: "1" or "0", read as an S marked Logical
-//   B a .Boolean (boolean.cls): "1" or "0", read as an S marked Logical and
+//   B a .LogicalWrapper (ooRexx's): "1" or "0", read as an S marked Logical and
 //     Boolean (a bool to a bool or object parameter, else its string)
 //   I first in an A's or M's items: the Array's number in this value (0, 1...)
 //   Q an Array met before in this value: its number (an Array that contains
@@ -21,7 +21,7 @@
 //     reference handed over to the managed side
 // Response records: the same, plus
 //   V void (no result)   P namespace (payload: its full name)
-//   B a bool: "1" or "0" (.Boolean~true / .Boolean~false in Rexx)
+//   B a bool: "1" or "0" (.LogicalWrapper~true / ~false in Rexx)
 //   R a result with ref / out values: payload the result record, then one
 //     record per R argument of the request, in order (their new values)
 //   O "id\tkind\tdisplay" (kind o = object, t = type)
@@ -57,7 +57,7 @@ public sealed class Rec
     public int Number = -1;             // an A's number in its value (I), for the Qs that refer to it
     public Rec? Target;                 // a Q's: the A it refers to
     public object? Copy;                // an A's: its .NET copy, in the conversion being made
-    public bool Boolean;                // S from a .Boolean (B): a bool where .NET can take one
+    public bool Boolean;                // S from a .LogicalWrapper (B): a bool where .NET can take one
     public bool Logical;                // S from .true or .false themselves (L)                 // A from a multidimensional Rexx Array (M): its dimensions; Items in Rexx's order
     public Rec? Inner;                  // T, R: the value
                                         // (A: Text, the Rexx Array's pointer if it came from Rexx, else "")

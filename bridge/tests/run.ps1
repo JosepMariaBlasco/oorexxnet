@@ -41,7 +41,7 @@ try {
     $env:PATH = "$Out;$env:PATH"
     Push-Location $Out
     try {
-        foreach ($t in 'boolean-test', 'probe', 'phase1', 'phase2', 'phase3', 'bothways', 'clr', 'eventthread', 'extend', 'lifetime', 'com') {
+        foreach ($t in 'probe', 'phase1', 'phase2', 'phase3', 'bothways', 'clr', 'eventthread', 'extend', 'lifetime', 'com') {
             & rexx.exe (Join-Path $here "$t.rex") $testlib
             if ($LASTEXITCODE) { $rc = 1 }
         }
@@ -55,6 +55,14 @@ try {
     $env:REXXNET_DIR = $Out
     & $dotnet (Join-Path $work 'host\HostTests.dll')
     if ($LASTEXITCODE) { $rc = 1 }
+    # ooRexx's own .cls files with its folder off the PATH (rexx.dll through REXX_HOME)
+    $rexxBin = Split-Path (Get-Command rexx.exe).Source
+    $savedPath, $savedHome = $env:PATH, $env:REXX_HOME
+    $env:REXX_HOME = $rexxBin
+    $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_.TrimEnd('\') -ne $rexxBin.TrimEnd('\')) }) -join ';'
+    & $dotnet (Join-Path $work 'host\HostTests.dll') classpath-child
+    if ($LASTEXITCODE) { $rc = 1 }
+    $env:PATH, $env:REXX_HOME = $savedPath, $savedHome
 } finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 }

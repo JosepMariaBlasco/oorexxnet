@@ -147,8 +147,9 @@ are not visible to reflection: their members go through `IDispatch`
   `-infinity` (ooRexx's own spelling; before 18/10/2026 `NaN` / `Infinity`); `BigInteger`, `Int128`,
   `UInt128` and `Half` too, since 16/10/2026 (see "Big integers as Rexx
   numbers");
-- `bool` → `.Boolean~true` / `.Boolean~false` (since 17/10/2026, before
-  `1` / `0`: see "Booleans: .Boolean"); `null` → `.nil`;
+- `bool` → `.LogicalWrapper~true` / `~false` (since 20/10/2026; from
+  17/10/2026 the shared `.Boolean`, before that `1` / `0`: see "Booleans:
+  .LogicalWrapper"); `null` → `.nil`;
 - **enums → a `.NetEnum`** (since 09/10/2026; before, their name): an
   object whose string value is its name (`"Yes"`, flags `"Bold, Italic"`);
   see "Enums as objects: built";
@@ -1633,6 +1634,9 @@ the unboxing of `.net~unbox`. Tests in `phase2.rex` (164).
 
 ## Booleans: .Boolean (17/10/2026)
 
+*Superseded on 20/10/2026: the class is now ooRexx's own `.LogicalWrapper`
+(next section). What follows is how it was.*
+
 The ooRexx bridges share one class for booleans, `.Boolean` of
 `boolean.cls` (`JosepMariaBlasco/oorexx-bridges`, topic "Booleans", decided
 17/10/2026; the class proposed for the ooRexx core in RFE #880). Its two
@@ -1671,6 +1675,55 @@ loaded first, so that `net.cls`'s `::requires` finds it by name.
   `install.rex` compares with the one already beside `rexx`.
 
 Tests: `phase1.rex` (154), `HostTests` (290), `boolean-test.rex` (22).
+
+## Booleans: .LogicalWrapper (20/10/2026)
+
+RFE #880 is in ooRexx: the class is `.LogicalWrapper`, public, in
+`logicalwrapper.cls` (r13276, in the builds since r13278, in ooRexx's `bin`
+folder next to `json.cls`), with `JSONBoolean` and `YamlBoolean` as its
+subclasses. The ooRexx bridges move to it (`oorexx-bridges`, topic
+"Booleans", *In ooRexx: `.LogicalWrapper`*): the same class as the shared
+`.Boolean` under another name, without the `.environment` entry. So:
+
+- `net.cls` says `::requires "logicalwrapper.cls"`; `rexxnet` finds
+  `LOGICALWRAPPER` from net.cls's context, the host `FindPackageClass(net,
+  "LOGICALWRAPPER")`; everything else (the `B` record, the costs, COM's
+  `VT_BOOL`, `NetOf`, `.net~bool`) is as it was, with the class renamed.
+- **JSON's and YAML's booleans** cross as `bool`s with no code for them:
+  they are instances of subclasses (`.json~true`, what `fromJSON` and
+  `Yaml~parseString` read). One that comes back from .NET is the
+  `.LogicalWrapper` instance, not the subclass's: a `bool` does not remember
+  where it came from.
+- Gone: the copy `bridge/rexx/boolean.cls`, its tests, `SHARED.md`, the
+  copy built into `Rexx.Net.dll`, and `install.rex`'s rule for a
+  `boolean.cls` beside `rexx` (another bridge's or ours). No `.Boolean`
+  alias (the bridges are in beta). Code that a .NET host runs and that names
+  the class needs `::requires "logicalwrapper.cls"` (version 2's
+  `.environment` entry is gone); the values themselves need nothing.
+- **ooRexx's folder of `.cls` files, for a host.** The built-in `net.cls`
+  is loaded from data, so its `::requires "logicalwrapper.cls"` is searched
+  for as ooRexx searches: the program's folder (none), the current one,
+  `REXX_PATH`, the `PATH`. ooRexx's `rexx` finds its own `.cls` files only
+  because its folder is on the `PATH` (measured: `rexx` run by its full path
+  with a `PATH` without it fails, 43.901, for `json.cls` too). A .NET
+  application need not have it there, and with the built-in `boolean.cls`
+  it never needed to: measured with `HostTests` and `PATH=/usr/bin:/bin`,
+  `RexxInterpreter.Create` failed ("the built-in net.cls could not be
+  loaded: Could not find file "logicalwrapper.cls""). So `Rexx.Net` finds
+  the folder of the `librexx` it loaded (`dladdr` on an export; Windows,
+  `GetModuleFileNameW`), takes it (Windows: `rexx.dll` is in `bin`) or its
+  `../bin` (Linux and macOS: `lib/librexx.*`, the layout of the packages and
+  the portable builds) when `logicalwrapper.cls` is there, and adds it at
+  the end of every instance's `ExternalCallPath` (an instance option, which
+  ooRexx uses for `::requires` too: measured). `run.sh` and `run.ps1` check
+  it: `HostTests classpath-child` with ooRexx's folder off the `PATH`
+  (`librexx` through `REXX_HOME`).
+- **Several instances, measured** (r13278, Linux, `HostTests`): a second
+  instance, and one created after another ended, see the same class and the
+  same two instances (`identityHash`), as with `.Boolean`.
+
+Tests: `phase1.rex` (166: JSON's and YAML's booleans to .NET), `HostTests`
+(312, and the 3 of `classpath-child`), the probe (a row for `.json~true`).
 
 ## Arrays: their size and their structure (17/10/2026)
 

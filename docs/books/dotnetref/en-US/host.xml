@@ -175,7 +175,13 @@ own instance options, and the bridge's.</para>
 environment of the application, <xref linkend="hostCommands"/>).</para></listitem></varlistentry>
 <varlistentry><term><methodname>ExternalCallPath</methodname>, <methodname>ExternalCallExtensions</methodname></term>
 <listitem><para>Where external routines and <literal>::requires</literal>
-files are looked for, and the extensions tried (<literal>".rex,.cls"</literal>).</para></listitem></varlistentry>
+files are looked for, and the extensions tried (<literal>".rex,.cls"</literal>).
+ooRexx's own folder of <literal>.cls</literal> files (where
+<filename>logicalwrapper.cls</filename> and <filename>json.cls</filename>
+are: that of <filename>rexx.dll</filename>, or the <filename>bin</filename>
+beside the <filename>lib</filename> of <filename>librexx</filename>) is always
+added at the end: ooRexx's <command>rexx</command> finds them through the
+PATH, which a .NET application need not have.</para></listitem></varlistentry>
 <varlistentry><term><methodname>LoadLibraries</methodname></term>
 <listitem><para>Native libraries loaded when the instance is created.</para></listitem></varlistentry>
 <varlistentry><term><methodname>Output</methodname>, <methodname>Error</methodname>, <methodname>Input</methodname></term>
@@ -371,10 +377,9 @@ returns.</para>
 <para><emphasis role="bold">.NET values given to Rexx</emphasis> (arguments,
 <computeroutput>Local[...] =</computeroutput>, the results of command handlers
 and functions) follow <xref linkend="valuesFromNet"/>: strings and numbers as
-Rexx strings, <literal>bool</literal> as <computeroutput>.Boolean~true</computeroutput>
-or <computeroutput>.Boolean~false</computeroutput> (<filename>boolean.cls</filename>,
-built into <filename>Rexx.Net.dll</filename> as <filename>net.cls</filename> is;
-one that comes back is a <literal>bool</literal> again: <computeroutput>Run&lt;object&gt;</computeroutput>,
+Rexx strings, <literal>bool</literal> as <computeroutput>.LogicalWrapper~true</computeroutput>
+or <computeroutput>.LogicalWrapper~false</computeroutput> (ooRexx's
+<filename>logicalwrapper.cls</filename>; one that comes back is a <literal>bool</literal> again: <computeroutput>Run&lt;object&gt;</computeroutput>,
 the arguments of functions), <literal>null</literal> as &nil;, a
 <classname>RexxObject</classname> as its Rexx object,
 <methodname>RexxValue.Omitted</methodname> as an omitted argument, and any
