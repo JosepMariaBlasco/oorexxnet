@@ -1717,7 +1717,23 @@ subclasses. The ooRexx bridges move to it (`oorexx-bridges`, topic
   the end of every instance's `ExternalCallPath` (an instance option, which
   ooRexx uses for `::requires` too: measured). `run.sh` and `run.ps1` check
   it: `HostTests classpath-child` with ooRexx's folder off the `PATH`
-  (`librexx` through `REXX_HOME`).
+  (`librexx` through `REXX_HOME`). The folder comes from the handle the
+  `DllImport` resolver loaded (`LoadRexx`, shared): `NativeLibrary.TryLoad
+  ("rexx", assembly, ...)` does not go through the resolver, and found
+  nothing on the CI, where `librexx` is reached only through `REXX_HOME`.
+- **Windows: `rexx.dll`'s folder on the `PATH`.** With it off the `PATH`
+  (and `rexx.dll` loaded through `REXX_HOME`), `RexxCreateInterpreter` ended
+  the process with 0x80000003 and no message (CI, `classpath-child` at
+  "create"). In ooRexx's sources (r13278): restoring the image,
+  `PackageManager` reloads the image's native libraries by name
+  (`LibraryPackage::reload`: `LoadLibrary`, which searches the program's
+  folder, the system's and the `PATH`), not from `rexx.dll`'s folder as
+  `RexxMemory` does for `rexx.img` (`SysProcess::getLibraryLocation`); a
+  library not found is `Interpreter::logicError("Failure loading required
+  base library")`, a `printf` and `__debugbreak()`, so the message is never
+  flushed. Rexx.Net appends the folder it loaded `rexx.dll` from to the
+  process's `PATH` when it is not there (`Native.OnPath`). Linux and macOS
+  find those libraries through `librexx`'s rpath.
 - **Several instances, measured** (r13278, Linux, `HostTests`): a second
   instance, and one created after another ended, see the same class and the
   same two instances (`identityHash`), as with `.Boolean`.
