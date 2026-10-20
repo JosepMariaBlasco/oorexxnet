@@ -303,6 +303,21 @@ static partial class Program
     // built in, requires logicalwrapper.cls).
     static int ClassPathChild()
     {
+        Console.WriteLine($"classpath-child: REXX_HOME={Environment.GetEnvironmentVariable("REXX_HOME")}");
+        Console.Out.Flush();
+        try   // (internal: Rexx.Net's Native.ClassDirectory, by reflection)
+        {
+            var dir = typeof(RexxInterpreter).Assembly.GetType("Rexx.Net.Native")?.GetProperty("ClassDirectory")?.GetValue(null);
+            Console.WriteLine($"classpath-child: ooRexx's .cls folder: {dir ?? "(none)"}");
+        }
+        catch (Exception e) { Console.WriteLine($"classpath-child: {e.GetBaseException()}"); }
+        Console.Out.Flush();
+        try { return ClassPathChecks(); }
+        catch (Exception e) { Console.WriteLine($"classpath-child: {e}"); return 1; }
+    }
+
+    static int ClassPathChecks()
+    {
         using var rexx = RexxInterpreter.Create();
         Ok("off the PATH: a bool", rexx.Run("use arg b; return b~class~id", true), "LogicalWrapper");
         Ok("off the PATH: json.cls", rexx.Run<object>("return .json~false\n::requires 'json.cls'") is bool j && !j, true);

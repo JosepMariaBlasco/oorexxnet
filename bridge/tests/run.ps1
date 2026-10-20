@@ -60,8 +60,8 @@ try {
     $savedPath, $savedHome = $env:PATH, $env:REXX_HOME
     $env:REXX_HOME = $rexxBin
     $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_.TrimEnd('\') -ne $rexxBin.TrimEnd('\')) }) -join ';'
-    & $dotnet (Join-Path $work 'host\HostTests.dll') classpath-child
-    if ($LASTEXITCODE) { $rc = 1 }
+    & $dotnet (Join-Path $work 'host\HostTests.dll') classpath-child 2>&1 | Write-Output
+    if ($LASTEXITCODE) { Write-Output "classpath-child: exit code $LASTEXITCODE"; $rc = 1 }
     $env:PATH, $env:REXX_HOME = $savedPath, $savedHome
 } finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
