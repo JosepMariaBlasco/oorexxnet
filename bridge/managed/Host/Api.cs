@@ -70,11 +70,33 @@ internal static unsafe class Native
         var home = Environment.GetEnvironmentVariable("REXX_HOME");
         if (!string.IsNullOrEmpty(home))
             foreach (var d in new[] { home, Path.Combine(home, "lib"), Path.Combine(home, "bin") })
-                if (TryLoadRexx(d, file, out var h)) return h;
+                if (TryLoadRexx(d, file, out var h)) return OnPath(d, h);
         if (NativeLibrary.TryLoad(file, asm, path, out var h2)) return h2;
         foreach (var d in Candidates())
-            if (TryLoadRexx(d, file, out var h3)) return h3;
+            if (TryLoadRexx(d, file, out var h3)) return OnPath(d, h3);
         return IntPtr.Zero;
+    }
+
+    // Windows: rexx.dll's folder at the end of the process's PATH, if it is
+    // not there. When ooRexx restores its image it loads the native libraries
+    // the image holds by name (LoadLibrary: the program's folder, the system's,
+    // the PATH), not from rexx.dll's folder as it does rexx.img; one not found
+    // is "Failure loading required base library" and __debugbreak()
+    // (0x80000003, the message unflushed). Measured on the CI with ooRexx's
+    // folder off the PATH and rexx.dll through REXX_HOME. Linux and macOS find
+    // them through librexx's rpath.
+    static IntPtr OnPath(string dir, IntPtr handle)
+    {
+        if (!OperatingSystem.IsWindows()) return handle;
+        string full = Path.GetFullPath(dir).TrimEnd('\\');
+        string pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var p in pathVar.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            try { if (string.Equals(Path.GetFullPath(p).TrimEnd('\\'), full, StringComparison.OrdinalIgnoreCase)) return handle; }
+            catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException) { }
+        }
+        Environment.SetEnvironmentVariable("PATH", pathVar.Length == 0 ? full : pathVar.TrimEnd(';') + ";" + full);
+        return handle;
     }
 
     static IEnumerable<string> Candidates()
