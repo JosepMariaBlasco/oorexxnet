@@ -318,10 +318,16 @@ static partial class Program
 
     static int ClassPathChecks()
     {
+        static void Step(string s) { Console.WriteLine($"classpath-child: {s}"); Console.Out.Flush(); }
+        Step("create");
         using var rexx = RexxInterpreter.Create();
+        Step("a bool");
         Ok("off the PATH: a bool", rexx.Run("use arg b; return b~class~id", true), "LogicalWrapper");
+        Step("json.cls");
         Ok("off the PATH: json.cls", rexx.Run<object>("return .json~false\n::requires 'json.cls'") is bool j && !j, true);
+        Step("net.cls");
         Ok("off the PATH: net.cls", rexx.Run("use arg o; return o~class~id", new System.Text.StringBuilder("x")), "NETOBJECT");
+        Step("done");
         Console.WriteLine(fails == 0 ? $"ooRexx's .cls files off the PATH: all {count} tests passed" : $"ooRexx's .cls files off the PATH: {fails} of {count} failed");
         return fails == 0 ? 0 : 1;
     }
