@@ -49,6 +49,23 @@ internal static unsafe class Native
         if (name == "libc" && OperatingSystem.IsMacOS())
             return NativeLibrary.TryLoad("/usr/lib/libSystem.B.dylib", out var sys) ? sys : IntPtr.Zero;
         if (name != "rexx") return IntPtr.Zero;
+        return LoadRexx(asm, path);
+    }
+
+    // librexx, found once (the resolver and ClassDirectory share it)
+    static IntPtr rexxHandle;
+    static readonly object rexxGate = new();
+    static IntPtr LoadRexx(Assembly asm, DllImportSearchPath? path)
+    {
+        lock (rexxGate)
+        {
+            if (rexxHandle == IntPtr.Zero) rexxHandle = FindRexx(asm, path);
+            return rexxHandle;
+        }
+    }
+
+    static IntPtr FindRexx(Assembly asm, DllImportSearchPath? path)
+    {
         string file = OperatingSystem.IsWindows() ? "rexx.dll" : OperatingSystem.IsMacOS() ? "librexx.dylib" : "librexx.so";
         var home = Environment.GetEnvironmentVariable("REXX_HOME");
         if (!string.IsNullOrEmpty(home))
@@ -145,7 +162,8 @@ internal static unsafe class Native
     {
         try
         {
-            if (!NativeLibrary.TryLoad("rexx", typeof(Native).Assembly, null, out var h)) return null;
+            var h = LoadRexx(typeof(Native).Assembly, null);       // (as the DllImports find it)
+            if (h == IntPtr.Zero) return null;
             string? lib = LoadedFile(h);
             string? dir = lib is null ? null : Path.GetDirectoryName(Path.GetFullPath(lib));
             if (dir is null) return null;
