@@ -216,6 +216,18 @@ call ok "... 93.900", code('.net~addCommandEnvironment("X", "text")'), "93.900"
 address calc "2+3"; call ok "added again", rc, 5
 call ok "an empty name: SYNTAX 93.900", code('.net~addCommandEnvironment("", .net~handler(ch, "COMMAND"))'), "93.900"
 call ok "... removing", code('.net~removeCommandEnvironment("")'), "93.900"
+-- ::OPTIONS ERROR SYNTAX in the code that sends the command (ooRexx #2119,
+-- fixed in r13282, turned a handler's non-ERROR condition into SYNTAX 98.970).
+-- A guard: a USER from a .NetHandler does not reach the sender (non-SYNTAX
+-- conditions are dropped at ooRexx's API, an open ooRexx bug), so it is
+-- "rc 7" with the option as without it (r13278 and r13282 alike); when it
+-- does arrive, it must not arrive as 98.970.
+src = .array~of('use arg c', 'signal on syntax', 'address calc c', 'return "rc" rc', -
+                'syntax: return "syntax" condition("O")~code', '::options error syntax')
+errorSyntax = .routine~new("errorSyntax", src)
+call ok "::options error syntax: a USER is not 98.970 (#2119)", errorSyntax~call("user") \== "syntax 98.970", 1
+call ok "... a .NET error is still 98.900", errorSyntax~call("throw"), "syntax 98.900"
+call ok "... an RC as without it", errorSyntax~call("2+3"), "rc 5"
 
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
@@ -312,6 +324,7 @@ exit .fails > 0
     when "throw" then return .net~System~Convert~ToInt32("abc")
     when "divide" then return 1 / 0
     when "lines" then do; cmd~WriteLine("one"); cmd~WriteLine("two"); return 0; end
+    when "user" then raise user oops description "from the handler" return 7
     otherwise return -1
   end
 

@@ -26,6 +26,7 @@ static partial class Program
         CommandsWhileRexxRuns();
         HandlerAsFunction();
         SignalPastTheHost();
+        OptionsErrorSyntax();
     }
 
     // Rexx -> the host (a command handler, a function) -> Rexx code that
@@ -45,6 +46,23 @@ static partial class Program
            rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return 'trapped'"), "not trapped, rc 7");
         Ok("... a function (ooRexx drops it)",
            rexx.Run("signal on user x; v = raising(); return 'not trapped:' v\nx: return 'trapped'"), "not trapped: 7");
+    }
+
+    // ::OPTIONS ERROR SYNTAX in the code that sends the command (ooRexx #2119,
+    // fixed in r13282: it turned a handler's non-ERROR condition into SYNTAX
+    // 98.970). The bridge raises ERROR and FAILURE on the sender itself
+    // (RaiseCondition), not through the path #2119 was in: measured the same
+    // on r13278 and r13282. A guard: they stay themselves under the option.
+    static void OptionsErrorSyntax()
+    {
+        using var rexx = RexxInterpreter.Create();
+        rexx.AddCommandEnvironment("F", cmd => throw new RexxCommandException(9, "could not", failure: true));
+        rexx.AddCommandEnvironment("E", cmd => throw new RexxCommandException(4, "it failed"));
+        const string traps = "signal on failure; signal on error; signal on syntax\naddress {0} 'x'\nreturn 'none'\n" +
+            "failure: return 'FAILURE' rc\nerror: return 'ERROR' rc\nsyntax: return 'SYNTAX' condition('O')~code\n" +
+            "::options error syntax\n";
+        Ok("::options error syntax: FAILURE stays FAILURE (#2119)", rexx.Run(string.Format(traps, "F")), "FAILURE 9");
+        Ok("... ERROR stays ERROR (raised by the bridge)", rexx.Run(string.Format(traps, "E")), "ERROR 4");
     }
 
     // A .NetHandler made in Rexx, given to the application, which adds it as

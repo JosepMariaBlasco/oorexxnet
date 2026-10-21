@@ -339,9 +339,16 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   worked around: a Rexx trampoline with `CALL ON ANY` around the message
   does bring them back (tried: USER and HALT, as itself), at about +3 µs a
   callback, and was dropped by the family's decision to wait for the fix.
-  Also: with `::OPTIONS ERROR SYNTAX` ooRexx turns any condition but ERROR
-  that a command handler raises into SYNTAX 98.970 (#2119, measured through
-  the bridge).
+  `::OPTIONS ERROR SYNTAX` (ooRexx #2119, fixed in r13282: it turned a
+  handler's non-ERROR condition into SYNTAX 98.970) does not touch the
+  bridge's paths: ERROR and FAILURE are raised on the sender with
+  `RaiseCondition` and stay themselves under the option, and a USER from a
+  `.NetHandler` does not arrive at all (above); measured the same on r13278
+  and r13282 (`HostTests` `OptionsErrorSyntax`, `phase3.rex`). An earlier
+  note here said it was measured through the bridge as 98.970; not
+  reproduced on r13278 with the same program, it was most likely measured
+  with the `CALL ON ANY` trampoline then being tried, which made the USER
+  arrive (not recorded).
 - **The handler's value is `RC` whatever its sign**, as before.
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing
