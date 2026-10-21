@@ -413,6 +413,26 @@ typedef std::vector<RexxObjectPtr> Refs;
 // gets the same structure (oorexx-bridges, topic "cyclic-arrays"). Nested
 // more than maxArrayDepth deep: an error (the copy recurses, here and there).
 struct Memo { std::unordered_map<RexxObjectPtr, size_t> seen; int depth = 0; };
+
+// A member of the String family (a String, a number, a subclass of String).
+// IsInstanceOf, IsRoutine and IsMethod are non-blocking API calls, but asked of
+// a number with no string value yet (the result of arithmetic) they make that
+// string first, without the kernel lock: with other threads running Rexx,
+// ooRexx's heap is corrupted (ooRexx bug #2122). So the String family is told
+// apart first, by IsString (it compares the class only) and IsOfType (it takes
+// the lock), and never asked IsInstanceOf.
+template <class Ctx> static bool stringFamily(Ctx *c, RexxObjectPtr o)
+{
+    return c->IsString(o) || c->IsOfType(o, "STRING");
+}
+
+// IsInstanceOf for the bridge's own classes, none of which is a String: false
+// for the String family, without asking (#2122).
+template <class Ctx> static bool instanceOf(Ctx *c, RexxObjectPtr o, RexxClassObject k)
+{
+    if (o == NULLOBJECT || k == NULLOBJECT || stringFamily(c, o)) return false;
+    return c->IsInstanceOf(o, k) != 0;
+}
 const int maxArrayDepth = 1000;
 static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs *refs = nullptr, bool adopt = false,
                    Memo *memo = nullptr)
@@ -420,6 +440,18 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     Memo own;
     if (!memo) memo = &own;
     if (o == NULLOBJECT || o == c->Nil()) { record(out, 'N', ""); return true; }
+    // the String family first, and never asked IsInstanceOf (#2122: see stringFamily)
+    if (stringFamily(c, o))
+    {
+        // .true and .false themselves (not the strings "1" and "0"): L, read as
+        // an S "1" / "0" that remembers it was a logical (COM: VT_BOOL, as
+        // .OLEObject sends them)
+        if (o == c->True() || o == c->False()) { record(out, 'L', o == c->True() ? "1" : "0"); return true; }
+        RexxStringObject s = c->ObjectToString(o);
+        record(out, 'S', std::string(c->StringData(s), c->StringLength(s)));
+        if ((RexxObjectPtr)s != o) c->ReleaseLocalReference(s);       // (a new string: a number's, say)
+        return true;
+    }
     if (c->IsInstanceOf(o, cls.netObject))
     {
         record(out, 'O', c->ObjectToStringValue(c->SendMessage0(o, "NETID")));
@@ -503,23 +535,12 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
         record(out, 'M', head + '\t' + items);
         return true;
     }
-    // .true and .false themselves (not the strings "1" and "0"): L, read as
-    // an S "1" / "0" that remembers it was a logical (COM: VT_BOOL, as
-    // .OLEObject sends them)
-    if (o == c->True() || o == c->False()) { record(out, 'L', o == c->True() ? "1" : "0"); return true; }
     // a .LogicalWrapper (ooRexx's; JSON's and YAML's booleans, its subclasses): B,
     // "1" or "0", a bool in .NET (to a bool or an object parameter)
     if (cls.logical && c->IsInstanceOf(o, cls.logical))
     {
         RexxObjectPtr v = c->SendMessage0(o, "VALUE");
         record(out, 'B', v != NULLOBJECT && strcmp(c->ObjectToStringValue(v), "1") == 0 ? "1" : "0");
-        return true;
-    }
-    if (c->IsInstanceOf(o, cls.string))
-    {
-        RexxStringObject s = c->ObjectToString(o);
-        record(out, 'S', std::string(c->StringData(s), c->StringLength(s)));
-        if ((RexxObjectPtr)s != o) c->ReleaseLocalReference(s);       // (a new string: a number's, say)
         return true;
     }
     // Any other Rexx object: by reference (a RexxObject in .NET). Its pointer
@@ -766,7 +787,7 @@ RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
             return NULLOBJECT;
         }
         RexxObjectPtr v = context->ArrayAt(args, 1);
-        if (v && context->IsInstanceOf(v, cls.netEvent))
+        if (v && instanceOf(context, v, cls.netEvent))
         {
             // o~Click += h is o~Click = (o~Click + h): the + did the work
             std::string evName = context->ObjectToStringValue(context->SendMessage0(v, "NAME"));
@@ -957,7 +978,7 @@ static std::string conditionRecord(RexxThreadContext *tc)
     if (k.additional && tc->IsArray(k.additional) && tc->ArraySize(k.additional) >= 2)
     {
         RexxObjectPtr x = tc->ArrayAt(k.additional, 2);
-        if (x && tc->IsInstanceOf(x, cls.netObject)) exc = tc->ObjectToStringValue(tc->SendMessage0(x, "NETID"));
+        if (x && instanceOf(tc, x, cls.netObject)) exc = tc->ObjectToStringValue(tc->SendMessage0(x, "NETID"));
     }
     RexxObjectPtr description = tc->DirectoryAt(info, "DESCRIPTION");
     RexxObjectPtr result = tc->DirectoryAt(info, "RESULT");          // RAISE ... RETURN/EXIT result

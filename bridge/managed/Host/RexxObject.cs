@@ -148,7 +148,7 @@ public class RexxObject : DynamicObject, IEnumerable<object?>, IDisposable
         var r = Interpreter;
         using var u = r.Context();
         nint t = Target(u.C);
-        bool b = u.C.IsInstanceOf(t, cls.Live);
+        bool b = u.C.InstanceOf(t, cls.Live);         // (#2122: not IsInstanceOf)
         Done(u.C, t);
         return b;
     }

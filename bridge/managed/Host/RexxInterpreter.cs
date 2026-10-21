@@ -329,8 +329,9 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
         if (o == 0 || o == c.Nil) return null;
         // A String: IsString knows only the class String itself; numbers made
         // by arithmetic are instances of an internal subclass (RexxInteger,
-        // RexxNumberString), and so is anything subclassing .String.
-        if (c.IsString(o) || c.IsInstanceOf(o, stringClass))
+        // RexxNumberString), and so is anything subclassing .String. Not
+        // IsInstanceOf: for such a number it corrupts the heap (#2122).
+        if (c.StringFamily(o))
         {
             var s = new RexxString(c.ToStr(o), this);          // (StringData wants a real String: ObjectToString first)
             if (!borrowed) c.ReleaseLocal(o);

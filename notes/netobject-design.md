@@ -1858,3 +1858,35 @@ process is the program's choice, not a library's. So:
 Measured on the way: .NET's `decimal` to `double` (`Convert.ToDouble(decimal)`)
 is not correctly rounded (1/3 as a decimal gives `0.33333333333333337`; its
 text read by `Double.Parse` gives `0.3333333333333333`, the nearest double).
+
+## IsInstanceOf and numbers (ooRexx #2122, 21/10/2026)
+
+`IsInstanceOf`, `IsRoutine` and `IsMethod` are non-blocking API calls, but a
+number with no string value yet (any result of Rexx arithmetic) answers them
+by making that string first, without the kernel lock: with other threads
+running Rexx, ooRexx's heap is corrupted (#2122, found by the Python bridge;
+`oorexx-bridges`, `oorexx-bugs/2026-10-20-isinstanceof-allocates-unlocked.md`).
+The bridge asked `IsInstanceOf` of every value going to .NET (`rexxnet`'s
+`encode`: `.NetObject`, `.NetRef`, `.NetHandler`, `.NetTyped`,
+`.LogicalWrapper`, `.String`, in that order) and of every value coming to a
+.NET host (`Wrap`: `.String`; `NetOf`).
+
+Now the String family is told apart first and never asked `IsInstanceOf`:
+`IsString` (it compares the class only) or `IsOfType(o, "STRING")` (a
+blocking call). `encode` does it once, before the other tests (none of the
+bridge's classes is a String); `instanceOf` (native) answers `false` for
+the String family; `Ctx.StringFamily` and `Ctx.InstanceOf` (managed) do the
+same, `InstanceOf` asking a String-family object with the message
+`ISINSTANCEOF` (under the lock), so `RexxObject.Is` still answers right.
+`IsRoutine` in `Wrap` is reached only for objects outside the String family.
+
+Measured (r13278, Linux, 2 cores): ooRexx's own reproducer (a native routine
+that only asks `IsInstanceOf`) hangs 3 runs in 3 here; through the bridge,
+without the change, it did not show in 13 runs (threads passing fresh numbers
+to `Math.Abs`, and 500 at a time to `List<object>.AddRange`, against threads
+that allocate): the exposure is read in the code, not seen. Cost: warm,
+one thread, `Math.Abs` of a fresh number unchanged (4.5 to 5.5 µs either
+way); `AddRange` of 100 numbers 72-75 µs before, 92 after (the blocking
+`IsOfType`, ~0.2 µs a number). When #2122 is fixed in the minimum
+revision, the order can stay (it is correct either way).
+

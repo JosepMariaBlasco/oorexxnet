@@ -183,7 +183,7 @@ public sealed unsafe partial class RexxInterpreter
     internal object? NetOf(Ctx c, nint o)
     {
         EnsureLogical(c);
-        if (Bridge.LogicalClass != 0 && c.IsInstanceOf(o, Bridge.LogicalClass))
+        if (Bridge.LogicalClass != 0 && c.InstanceOf(o, Bridge.LogicalClass))   // (#2122: not IsInstanceOf)
         {
             if (o == logicalTrue) return true;
             if (o == logicalFalse) return false;
@@ -194,7 +194,7 @@ public sealed unsafe partial class RexxInterpreter
             c.ReleaseLocal(v);
             return b;
         }
-        if (Bridge.NetObjectClass == 0 || !c.IsInstanceOf(o, Bridge.NetObjectClass)) return null;
+        if (Bridge.NetObjectClass == 0 || !c.InstanceOf(o, Bridge.NetObjectClass)) return null;
         nint none = c.NewArray(0);
         nint id = c.Send(o, "NETID", none);
         c.ReleaseLocal(none);

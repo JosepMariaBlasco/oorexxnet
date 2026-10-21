@@ -28,7 +28,8 @@ if ! command -v rexx >/dev/null 2>&1; then
   fi
   echo "== ooRexx r$REV (.deb, SourceForge)"
   curl -fsSL --retry 3 -o "$TMP/oorexx.deb" "$SF/oorexx-5.3.0-$REV.ubuntu2404.x86_64.deb"
-  dpkg -i "$TMP/oorexx.deb" >/dev/null && ldconfig
+  dpkg -i "$TMP/oorexx.deb" >/dev/null   # (alone: in "a && b" a failure would not stop set -e)
+  ldconfig
 fi
 rexx -v 2>&1 | head -1
 have=$(rexx -v 2>&1 | sed -n 's/.* r\([0-9]*\).*/\1/p' | head -1)

@@ -443,6 +443,28 @@ internal readonly unsafe struct Ctx
     public bool IsString(nint o) => ((delegate* unmanaged<nint, nint, nuint>)F(ThreadInterface.IsString))(P, o) != 0;
     public bool IsRoutine(nint o) => ((delegate* unmanaged<nint, nint, nuint>)F(ThreadInterface.IsRoutine))(P, o) != 0;
     public bool IsInstanceOf(nint o, nint cls) => ((delegate* unmanaged<nint, nint, nint, nuint>)F(ThreadInterface.IsInstanceOf))(P, o, cls) != 0;
+    /// A member of the String family (a String, a number, a subclass of
+    /// String). IsInstanceOf, IsRoutine and IsMethod are non-blocking API
+    /// calls, but asked of a number with no string value yet (the result of
+    /// arithmetic) they make that string without the kernel lock: with other
+    /// threads running Rexx, ooRexx's heap is corrupted (ooRexx bug #2122).
+    /// IsString compares the class only; IsOfType takes the lock.
+    public bool StringFamily(nint o) => IsString(o) || IsOfType(o, "STRING");
+    /// IsInstanceOf, safe for the String family (#2122): its members are asked
+    /// with the message ISINSTANCEOF, which runs under the lock.
+    public bool InstanceOf(nint o, nint cls)
+    {
+        if (o == 0 || cls == 0) return false;
+        if (!StringFamily(o)) return IsInstanceOf(o, cls);
+        nint args = NewArray(1);
+        ArrayPut(args, cls, 1);
+        nint r = Send(o, "ISINSTANCEOF", args);
+        ReleaseLocal(args);
+        if (CheckCondition()) { ClearCondition(); return false; }
+        bool b = r == True;
+        if (r != 0) ReleaseLocal(r);
+        return b;
+    }
     public bool IsOfType(nint o, string cls)
     {
         var n = Native.Z(cls);
