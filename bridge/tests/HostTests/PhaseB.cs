@@ -27,6 +27,7 @@ static partial class Program
         HandlerAsFunction();
         SignalPastTheHost();
         OptionsErrorSyntax();
+        HaltBackAsHalt();
     }
 
     // Rexx -> the host (a command handler, a function) -> Rexx code that
@@ -46,6 +47,30 @@ static partial class Program
            rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return 'trapped'"), "not trapped, rc 7");
         Ok("... a function (ooRexx drops it)",
            rexx.Run("signal on user x; v = raising(); return 'not trapped:' v\nx: return 'trapped'"), "not trapped: 7");
+    }
+
+    // A HALT in Rexx code that a .NET handler (or function) runs, not trapped
+    // there, reaches .NET as SYNTAX 4.1; the Rexx code that sent the command
+    // (called the function) gets a HALT again, by halting its thread
+    // (oorexx-bridges, command handlers, rule 1): SIGNAL ON HALT traps it,
+    // CALL ON HALT runs after the next clause, untrapped it is SYNTAX 4.1.
+    static void HaltBackAsHalt()
+    {
+        using var rexx = RexxInterpreter.Create();
+        rexx.AddCommandEnvironment("HALTING", cmd => cmd.Interpreter.Run("raise halt"));
+        rexx.AddFunction("HALTING", call => call.Interpreter.Run("raise halt"));
+        Ok("a HALT through a .NET command handler: SIGNAL ON HALT",
+           rexx.Run("signal on halt; address halting 'go'; return 'not trapped'\nhalt: return condition('C')"), "HALT");
+        Ok("... CALL ON HALT, after the next clause",
+           rexx.Run("h = 0; call on halt name seen; address halting 'go'; nop; nop; return rc h\nseen: h = 1; return"), "0 1");
+        Ok("... untrapped: SYNTAX 4.1",
+           rexx.Run("signal on syntax; address halting 'go'; return 'nothing'\nsyntax: return condition('O')~code"), "4.1");
+        Ok("a HALT through a .NET function: SIGNAL ON HALT",
+           rexx.Run("signal on halt; v = halting(); return 'not trapped'\nhalt: return condition('C')"), "HALT");
+        Ok("... CALL ON HALT, after the next clause",
+           rexx.Run("h = 0; call on halt name seen; v = halting(); nop; nop; return h\nseen: h = 1; return"), "1");
+        Ok("... untrapped: SYNTAX 4.1",
+           rexx.Run("signal on syntax; v = halting(); return 'nothing'\nsyntax: return condition('O')~code"), "4.1");
     }
 
     // ::OPTIONS ERROR SYNTAX in the code that sends the command (ooRexx #2119,

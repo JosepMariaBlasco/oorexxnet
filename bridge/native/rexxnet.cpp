@@ -625,7 +625,7 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         case 'X':                                   // a Rexx object coming back (held for us by the managed side)
             return (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
         case 'K':                                   // a condition already raised by the managed side
-            return NULLOBJECT;
+            return payload == "halt" ? c->Nil() : NULLOBJECT;   // (a HALT: the thread halted, the call answers .nil)
         case 'p':                                   // an instance of a Rexx class extending a .NET class: its Rexx object
         {
             RexxObjectPtr o = peerCrossing(c, atoi(payload.c_str()));
@@ -638,9 +638,10 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         }
         case 'C':                                   // a Rexx condition from a callback, raised again
         {
-            if (!raiseHeld(c, atoi(field(payload, 0).c_str())))
+            int raised = raiseHeld(c, atoi(field(payload, 0).c_str()));
+            if (!raised)
                 c->RaiseException1(Rexx_Error_Execution_user_defined, c->String(payload.substr(payload.find('\t') + 1).c_str()));
-            return NULLOBJECT;
+            return raised == 2 ? c->Nil() : NULLOBJECT;            // (a HALT: the thread halted, the call answers .nil)
         }
         case 'U':                                   // no such member: 97.1, the receiver, the name, the exception
         {
@@ -705,7 +706,8 @@ static thread_local RexxThreadContext *requesting = nullptr;
 
 // A Rexx condition that a callback's Rexx code raised, kept by its id (the
 // callback's answer E), raised again on c: by a response C, or by the managed
-// side directly (a command handler, which no request answers). 0 if no such id.
+// side directly (a command handler, which no request answers). 0 if no such id,
+// 2 if it was a HALT (raised by halting the thread: see below), else 1.
 static int raiseHeld(RexxThreadContext *c, int id)
 {
     Condition k{0, "", 0, NULLOBJECT, NULLOBJECT, NULLOBJECT};
@@ -715,12 +717,21 @@ static int raiseHeld(RexxThreadContext *c, int id)
             if (it->id == id) { k = *it; conditions.erase(it); break; }
     }
     if (k.id == 0) return 0;
-    if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
+    // SYNTAX 4.1 ("Program interrupted with HALT condition") is what ooRexx
+    // makes of a HALT the callback's Rexx code did not trap: the Rexx caller
+    // gets a HALT again (oorexx-bridges, command handlers, rule 1). Not
+    // RaiseCondition: an untrapped HALT raised so is ignored and the halt
+    // lost. HaltThread is a Ctrl-C on this thread: SIGNAL ON HALT traps it at
+    // the end of the clause, CALL ON HALT after it (the call answers .nil
+    // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
+    bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
+    if (halt) c->HaltThread();
+    else if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
     else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, k.result);
     if (k.additional) c->ReleaseGlobalReference(k.additional);
     if (k.description) c->ReleaseGlobalReference(k.description);
     if (k.result) c->ReleaseGlobalReference(k.result);
-    return 1;
+    return halt ? 2 : 1;
 }
 
 // Sends a request to the managed side and decodes the response. A response

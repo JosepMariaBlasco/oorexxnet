@@ -349,6 +349,21 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   reproduced on r13278 with the same program, it was most likely measured
   with the `CALL ON ANY` trampoline then being tried, which made the USER
   arrive (not recorded).
+- **A HALT is given back as a HALT** (the family's rule 1, 21/10/2026). A
+  HALT that the handler's (or a callback's, or a function's) Rexx code does
+  not trap leaves it as SYNTAX 4.1 (ooRexx's doing: description,
+  `additional` and result gone). The bridge raised that SYNTAX 4.1 again, so
+  `SIGNAL ON HALT` in the sender never fired (measured: a `.NetHandler`
+  command handler and a `List.Sort` comparator, both `raise halt`). Now
+  SYNTAX 4.1 is raised again by halting the thread (`HaltThread`; rexxnet's
+  `raiseHeld`, the host's `RaiseAgain`), not with `RaiseCondition`, which
+  ooRexx ignores for an untrapped HALT: `SIGNAL ON HALT` traps it at the end
+  of the clause, `CALL ON HALT` after the next clause (the native call, the
+  command or the function answers `.nil` / RC 0 meanwhile, so the clause can
+  resume: a function exit that answered nothing was 44.1), and untrapped it
+  is SYNTAX 4.1, as in plain Rexx. Tests: `phase3.rex` (a command handler
+  and a callback, the three cases), `HostTests` `HaltBackAsHalt` (a .NET
+  command handler and a .NET function running `raise halt`).
 - **The handler's value is `RC` whatever its sign**, as before.
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing

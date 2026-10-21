@@ -82,8 +82,14 @@ public static unsafe class Callbacks
     /// Raises again, on the thread context tc, the Rexx condition that a
     /// handler's Rexx code raised (e, its RexxException, holds its id):
     /// where no request answers rexxnet (a command handler). Whether it was.
-    internal static bool RaiseHeld(nint tc, RexxException e) =>
-        e.ConditionId > 0 && nativeRaiseHeld != null && nativeRaiseHeld(tc, e.ConditionId) != 0;
+    internal static bool RaiseHeld(nint tc, RexxException e)
+    {
+        RexxInterpreter.LastWasHalt = false;
+        if (e.ConditionId <= 0 || nativeRaiseHeld == null) return false;
+        int raised = nativeRaiseHeld(tc, e.ConditionId);     // 2: a HALT, the thread halted
+        RexxInterpreter.LastWasHalt = raised == 2;
+        return raised != 0;
+    }
 
     // ------------------------------------------------------------- handlers
 

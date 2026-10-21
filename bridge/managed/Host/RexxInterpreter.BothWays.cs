@@ -106,8 +106,13 @@ public sealed unsafe partial class RexxInterpreter
     /// Rexx code that called .NET on this thread: recorded on its context and
     /// raised when the native call returns (never an unwinding API: see
     /// "Phase B: built", item 4). False when no Rexx code waits here.
+    /// Whether the last RaiseAgain on this thread halted it (a HALT): the
+    /// native call then answers .nil, so that CALL ON HALT resumes the clause.
+    [ThreadStatic] internal static bool LastWasHalt;
+
     internal static bool RaiseAgain(RexxException e)
     {
+        LastWasHalt = false;
         var f = frames;
         if (f is not { Count: > 0 }) return false;
         var top = f[^1];
@@ -122,6 +127,18 @@ public sealed unsafe partial class RexxInterpreter
                 result = Live(c, e.Condition["RESULT"]);           // RAISE ... RETURN/EXIT result
             }
             catch (Exception) { }
+        }
+        if (e.Code == "4.1")
+        {
+            // a HALT the Rexx code did not trap (ooRexx makes it SYNTAX 4.1):
+            // a HALT again, by halting the thread, not RaiseCondition (an
+            // untrapped HALT raised so is ignored): see rexxnet's raiseHeld
+            if (additional != 0) c.ReleaseLocal(additional);
+            if (description != 0) c.ReleaseLocal(description);
+            if (result != 0) c.ReleaseLocal(result);
+            c.HaltThread();
+            LastWasHalt = true;
+            return true;
         }
         if (e.Code.Length > 0)
         {

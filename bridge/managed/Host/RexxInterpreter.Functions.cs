@@ -250,7 +250,7 @@ internal static unsafe class Exits
             object? r = handler(call);
             p->retc = ReferenceEquals(r, RexxInterpreter.NoResult) ? 0 : rexx.ToRexx(c, r);
         }
-        catch (Exception e) { Fail(c, e); }
+        catch (Exception e) { if (Fail(c, e)) p->retc = c.Nil; }   // (a HALT: the call answers .nil, so CALL ON HALT can resume)
         finally
         {
             call.End();
@@ -282,19 +282,21 @@ internal static unsafe class Exits
         return Handled;
     }
 
-    // The error, recorded on the context and raised when the exit returns
-    static void Fail(Ctx c, Exception e)
+    // The error, recorded on the context and raised when the exit returns.
+    // True when it was a HALT (the thread halted: the exit answers a value).
+    static bool Fail(Ctx c, Exception e)
     {
         // a Rexx condition of Rexx code the function called (or of a
         // .NetHandler's method, which rexxnet holds): raised again as itself
         if ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException re)
         {
             if (!Callbacks.RaiseHeld(c.P, re)) RexxInterpreter.RaiseAgain(re);
-            return;
+            return RexxInterpreter.LastWasHalt;
         }
         var (code, subs) = e is FunctionError fe ? (fe.Code, fe.Substitutions) : (40900L, new[] { e.Message });
         nint a = c.NewArray(subs.Length);
         for (int i = 0; i < subs.Length; i++) c.ArrayPut(a, c.Str(subs[i]), i + 1);
         c.RaiseException(code, a);
+        return false;
     }
 }

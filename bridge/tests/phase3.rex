@@ -229,9 +229,34 @@ call ok "::options error syntax: a USER is not 98.970 (#2119)", errorSyntax~call
 call ok "... a .NET error is still 98.900", errorSyntax~call("throw"), "syntax 98.900"
 call ok "... an RC as without it", errorSyntax~call("2+3"), "rc 5"
 
+-- A HALT that the handler's (or a callback's) Rexx code does not trap reaches
+-- the bridge as SYNTAX 4.1; the sender gets a HALT again, by halting the
+-- thread (oorexx-bridges, command handlers, rule 1): SIGNAL ON HALT traps it,
+-- CALL ON HALT runs after the next clause, untrapped it is SYNTAX 4.1.
+halting = .net~type("System.Collections.Generic.List<int>")~new; halting~Add(2); halting~Add(1)
+haltCmp = .net~handler(.CommandTester~new, "HALTCOMPARE")
+call ok "a HALT from a command handler: SIGNAL ON HALT", haltSignalCmd(), "HALT"
+call ok "... CALL ON HALT, after the next clause", haltCallCmd(), "0 1"
+call ok "... untrapped: SYNTAX 4.1", haltUntrappedCmd(), "SYNTAX 4.1"
+call ok "a HALT from a callback: SIGNAL ON HALT", haltSignalCb(halting, haltCmp), "HALT"
+call ok "... CALL ON HALT, after the next clause", haltCallCb(halting, haltCmp), "1"
+call ok "... untrapped: SYNTAX 4.1", haltUntrappedCb(halting, haltCmp), "SYNTAX 4.1"
+
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
 exit .fails > 0
+
+haltSignalCmd: signal on halt name haltSignalCmdTrap; address calc "halt"; return "not trapped"
+  haltSignalCmdTrap: return condition("C")
+haltCallCmd: halted = 0; call on halt name haltSeen; address calc "halt"; nop; nop; return rc halted
+haltUntrappedCmd: signal on syntax name haltUntrappedCmdTrap; address calc "halt"; return "nothing"
+  haltUntrappedCmdTrap: return "SYNTAX" condition("O")~code
+haltSignalCb: use arg l, cmp; signal on halt name haltSignalCbTrap; l~Sort(cmp); return "not trapped"
+  haltSignalCbTrap: return condition("C")
+haltCallCb: use arg l, cmp; halted = 0; call on halt name haltSeen; l~Sort(cmp); nop; nop; return halted
+haltUntrappedCb: use arg l, cmp; signal on syntax name haltUntrappedCbTrap; l~Sort(cmp); return "nothing"
+  haltUntrappedCbTrap: return "SYNTAX" condition("O")~code
+haltSeen: halted = 1; return
 
 ::requires "net.cls"
 
@@ -325,8 +350,12 @@ exit .fails > 0
     when "divide" then return 1 / 0
     when "lines" then do; cmd~WriteLine("one"); cmd~WriteLine("two"); return 0; end
     when "user" then raise user oops description "from the handler" return 7
+    when "halt" then raise halt
     otherwise return -1
   end
+
+::method haltCompare               -- a Comparison<int> whose Rexx code is halted
+  raise halt
 
 ::class Collector                 -- stands for .error: collects its lines
 ::attribute text

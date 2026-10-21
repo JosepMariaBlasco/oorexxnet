@@ -144,7 +144,7 @@ public static unsafe class Bridge
             if (RexxException.Raised(e) is RexxException called && RexxInterpreter.RaiseAgain(called))
             {                                                     // Rexx code called by .NET failed: the same error
                 w = new Writer();
-                w.Add('K', "");
+                w.Add('K', RexxInterpreter.LastWasHalt ? "halt" : "");   // (a HALT: the call answers .nil)
                 return w.ToArray();
             }
             while ((e is TargetInvocationException || e is TypeInitializationException) && e.InnerException != null)
