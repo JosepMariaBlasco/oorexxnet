@@ -2,7 +2,9 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13278 (RFE #880, .LogicalWrapper, the
+# revision: the bridge needs at least r13286 (#2122, a heap corruption when
+# native code asks IsInstanceOf of a number while threads run Rexx; RFE #880,
+# .LogicalWrapper in r13278, the
 # class of the booleans that cross; ooRexx bugs #2111 and #2112,
 # command environments and threads, fixed in r13274 and r13275; #2114, a crash
 # in SELECT CASE, in r13270; #2106, slow calls on Linux, in r13267), and a

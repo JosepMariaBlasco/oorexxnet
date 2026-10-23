@@ -10,8 +10,10 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13278 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13278 is the first with
+- **ooRexx 5.3.0 r13286 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13286 fixes a heap
+  corruption when native code asks about numbers while other threads run
+  Rexx (ooRexx bug #2122). r13278 is the first with
   `.LogicalWrapper` (`logicalwrapper.cls`), the class of the booleans that
   cross between Rexx and .NET. r13274 and r13275 fix
   crashes with command environments and threads (ooRexx bugs #2111, #2112:

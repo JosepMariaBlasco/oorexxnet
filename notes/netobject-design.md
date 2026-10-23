@@ -1890,3 +1890,8 @@ way); `AddRange` of 100 numbers 72-75 µs before, 92 after (the blocking
 `IsOfType`, ~0.2 µs a number). When #2122 is fixed in the minimum
 revision, the order can stay (it is correct either way).
 
+**Removed, 23/10/2026.** r13286 fixes #2122 (the three calls are blocking
+now) and the bridge's minimum moved to r13286, so the workaround went
+(`StringFamily` / `InstanceOf` / `stringFamily` / `instanceOf` gone,
+`encode`, `Wrap`, `NetOf` and `RexxObject.Is` back to `IsInstanceOf`).
+
