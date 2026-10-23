@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13282"
+  OOREXX_REV: "13284"
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
