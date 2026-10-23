@@ -28,6 +28,7 @@ static partial class Program
         SignalPastTheHost();
         OptionsErrorSyntax();
         HaltBackAsHalt();
+        ReliableCancellationOff();
     }
 
     // Rexx -> the host (a command handler, a function) -> Rexx code that
@@ -54,6 +55,23 @@ static partial class Program
     // (called the function) gets a HALT again, by halting its thread
     // (oorexx-bridges, command handlers, rule 1): SIGNAL ON HALT traps it,
     // CALL ON HALT runs after the next clause, untrapped it is SYNTAX 4.1.
+    // RexxOptions.ReliableCancellation (on by default: the RXINI exit). Off,
+    // the instance has no RXINI exit; programs, routines and cancellation of
+    // running code work as before.
+    static void ReliableCancellationOff()
+    {
+        using var rexx = RexxInterpreter.Create(new RexxOptions { ReliableCancellation = false });
+        Ok("ReliableCancellation off: a routine call", rexx.Run("call r; return result\n::routine r; return 'ran'"), "ran");
+        using var cts = new System.Threading.CancellationTokenSource();
+        var t = new System.Threading.Thread(() => { System.Threading.Thread.Sleep(300); cts.Cancel(); });
+        t.Start();
+        string got;
+        try { rexx.Run("do forever; nop; end", cts.Token); got = "not cancelled"; }
+        catch (OperationCanceledException) { got = "cancelled"; }
+        t.Join();
+        Ok("... a running Run still cancelled", got, "cancelled");
+    }
+
     static void HaltBackAsHalt()
     {
         using var rexx = RexxInterpreter.Create();

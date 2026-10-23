@@ -163,6 +163,7 @@ own instance options, and the bridge's.</para>
     public string? ExternalCallPath { get; set; }
     public string? ExternalCallExtensions { get; set; }
     public IList&lt;string&gt; LoadLibraries { get; }
+    public bool ReliableCancellation { get; set; } = true;
     public TextWriter? Output { get; set; }
     public TextWriter? Error { get; set; }
     public TextReader? Input { get; set; }
@@ -196,6 +197,14 @@ file (<xref linkend="bothwaysPackage"/>). <literal>false</literal>: only when a
 <varlistentry><term><methodname>StreamPrefixes</methodname></term>
 <listitem><para>BSF4ooRexx's prefixes on the standard streams that the
 application has not taken (<xref linkend="hostStreams"/>).</para></listitem></varlistentry>
+<varlistentry><term><methodname>ReliableCancellation</methodname></term>
+<listitem><para>A token cancelled while a <methodname>Run</methodname>,
+<methodname>Call</methodname> or <methodname>RunFile</methodname> is
+starting halts the code at its first clause, instead of being missed
+(<xref linkend="hostCancel"/>). It uses ooRexx's RXINI exit, which every
+program or routine call in the instance then goes through: about 0.3 µs
+more a call. <literal>false</literal> leaves it out, for code that calls
+routines in tight loops and is never cancelled.</para></listitem></varlistentry>
 </variablelist>
 </section>
 

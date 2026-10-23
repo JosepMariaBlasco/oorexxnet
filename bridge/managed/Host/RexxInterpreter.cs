@@ -40,6 +40,13 @@ public sealed class RexxOptions
     public string? ExternalCallPath { get; set; }
     /// The extensions tried on external calls (".rex,.cls").
     public string? ExternalCallExtensions { get; set; }
+    /// Cancellation that is never lost (default true): a token cancelled
+    /// while a Run, Call or RunFile is starting halts its first clause. It
+    /// uses ooRexx's RXINI exit, which every program or routine call in the
+    /// instance then goes through (about 0.3 µs more a call); false leaves
+    /// it out, and a token cancelled in the moment before the first clause
+    /// may be missed (cancellation is otherwise the same).
+    public bool ReliableCancellation { get; set; } = true;
     /// Native libraries loaded at start (their package's routines and methods).
     public IList<string> LoadLibraries { get; } = new List<string>();
     /// Where the Rexx code's output, error output (trace included) and input
@@ -135,12 +142,16 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             // they can only be set now (RexxContextExit { handler; int code }: 16 bytes)
             // RXINI too: a cancellation that comes before the code's first
             // clause halts it there (HaltWatch, RexxInterpreter.Cancellable)
+            // (unless RexxOptions.ReliableCancellation is false)
             nint exits = Marshal.AllocCoTaskMem(4 * 16);
             strings.Add(exits);
             new Span<byte>((void*)exits, 4 * 16).Clear();
             ((nint*)exits)[0] = Exits.Address; ((int*)exits)[2] = Exits.RXOFNC;
             ((nint*)exits)[2] = Exits.Address; ((int*)exits)[6] = Exits.RXVALUE;
-            ((nint*)exits)[4] = Exits.Address; ((int*)exits)[10] = Exits.RXINI;
+            if (options?.ReliableCancellation ?? true)
+            {
+                ((nint*)exits)[4] = Exits.Address; ((int*)exits)[10] = Exits.RXINI;
+            }
             nint de = Marshal.StringToCoTaskMemUTF8("DirectExits");
             strings.Add(de);
             opts.Add(new RexxOptionData { name = de, value = exits, type = Native.REXX_VALUE_POINTER });

@@ -735,7 +735,10 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    nothing. Measured: 0 of 3000 lost (the same race). `Send` (a method) has
    no RXINI: its window stays. Cost: every program-level call in a .NET
    host's instance goes through the exit; a `::routine` call 0.37 → 0.69 µs
-   (best of 5, 200,000 calls).
+   (best of 5, 200,000 calls). So it is an option, on by default:
+   `RexxOptions.ReliableCancellation = false` leaves RXINI out (exits can
+   only be set when the instance is created), for code that calls routines
+   in tight loops and is never cancelled.
 7. **`Trace` stays as it was, with its limits written down**: ooRexx's
    `SetTrace` (`traceAllActivities`) only reaches Rexx code running at that
    moment (set before a `Run`, it does nothing: measured), and in an

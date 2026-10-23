@@ -291,7 +291,9 @@ throws <literal>OperationCanceledException</literal>, whose
 before it starts (the same exception, with no inner one); one cancelled
 while a program or a routine is starting (<methodname>Run</methodname>,
 <methodname>Call</methodname>, <methodname>RunFile</methodname>) halts it at
-its first clause; one cancelled while the code is inside a command handler
+its first clause (unless the instance was created with
+<methodname>ReliableCancellation</methodname> <literal>false</literal>,
+<xref linkend="clsRexxOptions"/>: then it may be missed); one cancelled while the code is inside a command handler
 takes effect at the next clause. A method (<methodname>Send</methodname>)
 is halted only once its code runs: a token cancelled in the moment before
 that is missed.</para>
