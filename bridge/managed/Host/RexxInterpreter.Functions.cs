@@ -195,7 +195,7 @@ internal sealed class FunctionError : Exception
 
 internal static unsafe class Exits
 {
-    internal const int RXENDLST = 0, RXOFNC = 15, RXVALUE = 14;
+    internal const int RXENDLST = 0, RXOFNC = 15, RXVALUE = 14, RXINI = 9;
     const int Handled = 0, NotHandled = 1;
 
     internal static nint Address => (nint)(delegate* unmanaged<nint, int, int, nint, int>)&Entry;
@@ -226,10 +226,20 @@ internal static unsafe class Exits
             {
                 RXOFNC => Function(new ExitCtx(exitContext), (FunctionParm*)parm),
                 RXVALUE => Value(new ExitCtx(exitContext), (ValueParm*)parm),
+                RXINI => Init(new ExitCtx(exitContext)),
                 _ => NotHandled,
             };
         }
         catch (Exception) { return NotHandled; }      // nothing may unwind into the interpreter
+    }
+
+    // RXINI: a program-level call (a program, a routine) is about to run its
+    // first clause: a cancellation that came before it halts it now
+    // (HaltWatch). Nothing else: never handled.
+    static int Init(ExitCtx x)
+    {
+        HaltWatch.Current?.Started(x.Thread);
+        return NotHandled;
     }
 
     static int Function(ExitCtx x, FunctionParm* p)

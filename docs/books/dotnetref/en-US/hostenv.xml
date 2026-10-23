@@ -287,10 +287,14 @@ and <methodname>RexxObject.Send</methodname> take a
 call runs is halted (a HALT condition, which it may trap), and the call
 throws <literal>OperationCanceledException</literal>, whose
 <literal>InnerException</literal> is the <classname>RexxException</classname>
-4.1. Only that thread is halted. A halt reaches Rexx code that is running:
-a token cancelled before the code starts stops nothing, and one cancelled
-while the code is inside a command handler takes effect at the next
-clause.</para>
+4.1. Only that thread is halted. A token already cancelled stops the call
+before it starts (the same exception, with no inner one); one cancelled
+while a program or a routine is starting (<methodname>Run</methodname>,
+<methodname>Call</methodname>, <methodname>RunFile</methodname>) halts it at
+its first clause; one cancelled while the code is inside a command handler
+takes effect at the next clause. A method (<methodname>Send</methodname>)
+is halted only once its code runs: a token cancelled in the moment before
+that is missed.</para>
 <para><methodname>Halt</methodname> halts every Rexx thread of the instance.
 <methodname>Trace</methodname> sets Rexx's trace for the whole instance; it
 reaches only Rexx code running at that moment, so to trace one run, use the

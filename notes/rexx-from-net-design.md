@@ -719,6 +719,23 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    compiles before watching the token (the window is microseconds); for
    `RunFile` the window is the file's compilation (`CallProgram` compiles
    inside), written down. `Halt()` (every thread) has the same limit.
+   **Closed for programs and routines (23/10/2026).** The window was not
+   only theory: the Reference's `ex.host-cancel` (a 200 ms token on `do
+   forever`) hung the macOS CI once, and a host racing a cancellation
+   against the start of `Run("do forever; nop; end")` lost 43 of 3000 (each
+   rescued by `Halt` after 3 s). `SetHalt`'s answer cannot tell (with no Rexx
+   frame `Activity::halt` says it did), and halting again blindly would give
+   code that traps HALT two HALTs. So every instance a .NET host creates
+   now has the RXINI exit too, which ooRexx calls for a program-level call
+   (a program, a routine) right before its first clause: `Cancellable`
+   keeps a `HaltWatch` on the thread, the token's callback marks it and
+   halts as before, and RXINI halts with `HaltThread` if the mark came first.
+   No double HALT: ooRexx refuses a halt while one is pending
+   (`RexxActivation::halt`), and one sent before the frame exists did
+   nothing. Measured: 0 of 3000 lost (the same race). `Send` (a method) has
+   no RXINI: its window stays. Cost: every program-level call in a .NET
+   host's instance goes through the exit; a `::routine` call 0.37 → 0.69 µs
+   (best of 5, 200,000 calls).
 7. **`Trace` stays as it was, with its limits written down**: ooRexx's
    `SetTrace` (`traceAllActivities`) only reaches Rexx code running at that
    moment (set before a `Run`, it does nothing: measured), and in an

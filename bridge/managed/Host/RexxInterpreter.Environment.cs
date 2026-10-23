@@ -335,27 +335,67 @@ public sealed partial class RexxInterpreter
 
     /// Runs call on this thread; if cancel is cancelled meanwhile, the Rexx
     /// code running on this thread is halted. The registration only halts
-    /// while the call runs (the gate), never Rexx code that comes after it.
-    /// A halt reaches the thread's running Rexx code (its top Rexx frame):
-    /// one sent before the call's first clause runs is lost (ooRexx's
-    /// Activity::halt with no Rexx frame does nothing). That window is the
-    /// call's start: microseconds for Run and Call (compiled before), the
-    /// file's compilation for RunFile.
+    /// while the call runs, never Rexx code that comes after it. A halt
+    /// reaches the thread's running Rexx code (its top Rexx frame); one sent
+    /// before the call's first clause would be lost (ooRexx's Activity::halt
+    /// with no Rexx frame does nothing, and says it did), so for a program or
+    /// a routine (Run, Call, RunFile) the cancellation is also kept, and the
+    /// RXINI exit, called right before the first clause, halts it there
+    /// (HaltWatch). A method (Send) has no RXINI: a cancellation in that
+    /// window is still lost.
     internal object? Cancellable(CancellationToken cancel, Func<object?> call)
     {
         if (!cancel.CanBeCanceled) return call();
         cancel.ThrowIfCancellationRequested();
-        nuint thread = Native.CurrentThread();
-        var gate = new object();
-        bool running = true, halted = false;
-        using (cancel.Register(() => { lock (gate) if (running) { halted = true; Native.SetHalt(thread); } }))
+        var watch = new HaltWatch(Native.CurrentThread());
+        var outer = HaltWatch.Current;
+        HaltWatch.Current = watch;
+        using (cancel.Register(watch.Cancel))
         {
             try { return call(); }
-            catch (RexxException e) when (Volatile.Read(ref halted) && e.Code == "4.1")
+            catch (RexxException e) when (watch.Halted && e.Code == "4.1")
             {
                 throw new OperationCanceledException("the Rexx code was halted: the operation was cancelled", e, cancel);
             }
-            finally { lock (gate) running = false; }
+            finally { watch.End(); HaltWatch.Current = outer; }
         }
     }
+}
+
+/// A cancellable call's halt (RexxInterpreter.Cancellable). Cancel comes
+/// from any thread; Started from RXINI, on the call's thread, before its
+/// first clause. A halt sent while a halt is still pending is refused by
+/// ooRexx (RexxActivation::halt), so the two never make two HALTs.
+internal sealed class HaltWatch
+{
+    [ThreadStatic] internal static HaltWatch? Current;     // the innermost cancellable call on this thread
+    readonly nuint thread;
+    bool running = true, started, requested;
+    volatile bool halted;
+
+    internal HaltWatch(nuint thread) { this.thread = thread; }
+    internal bool Halted => halted;
+
+    internal void Cancel()
+    {
+        lock (this)
+        {
+            if (!running) return;
+            requested = true;
+            halted = true;
+            Native.SetHalt(thread);         // lost if the first clause has not started: Started halts then
+        }
+    }
+
+    internal void Started(Ctx c)
+    {
+        lock (this)
+        {
+            if (started) return;            // (later routines of the same call)
+            started = true;
+            if (requested && running) c.HaltThread();
+        }
+    }
+
+    internal void End() { lock (this) running = false; }
 }
