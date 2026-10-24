@@ -951,12 +951,42 @@ static unsigned char *answer(const std::string &r, int *outLen)
     return p;
 }
 
+// A condition object decoded into k. DecodeConditionInfo is asked only for
+// SYNTAX: up to ooRexx r13286 it crashes on any other condition (it reads a
+// CODE they do not have; ooRexx #2123's first step fixes it). For the others,
+// k is filled as #2123's fix fills it: rc the RC when a whole number (ERROR,
+// FAILURE), else 0; code 0; description and additional only when a String and
+// an Array, else NULLOBJECT (the condition object keeps them as RAISE gave
+// them). The same on every revision, with or without the fix.
+static void decodeCondition(RexxThreadContext *tc, RexxDirectoryObject info, RexxCondition &k)
+{
+    RexxObjectPtr name = tc->DirectoryAt(info, "CONDITION");
+    if (name && tc->IsString(name) && strcmp(tc->ObjectToStringValue(name), "SYNTAX") == 0)
+    {
+        tc->DecodeConditionInfo(info, &k);
+        return;
+    }
+    memset(&k, 0, sizeof k);
+    k.conditionName = name && tc->IsString(name) ? (RexxStringObject)name : NULLOBJECT;
+    wholenumber_t n;
+    RexxObjectPtr x = tc->DirectoryAt(info, "RC");
+    if (x && tc->ObjectToWholeNumber(x, &n)) k.rc = n;
+    x = tc->DirectoryAt(info, "POSITION");
+    if (x && tc->ObjectToWholeNumber(x, &n)) k.position = n;
+    x = tc->DirectoryAt(info, "PROGRAM");
+    if (x && tc->IsString(x)) k.program = (RexxStringObject)x;
+    x = tc->DirectoryAt(info, "DESCRIPTION");
+    if (x && tc->IsString(x)) k.description = (RexxStringObject)x;
+    x = tc->DirectoryAt(info, "ADDITIONAL");
+    if (x && tc->IsArray(x)) k.additional = (RexxArrayObject)x;
+}
+
 // The pending condition as a record E (and kept, to be raised again).
 static std::string conditionRecord(RexxThreadContext *tc)
 {
     RexxDirectoryObject info = tc->GetConditionInfo();
     RexxCondition k;
-    tc->DecodeConditionInfo(info, &k);
+    decodeCondition(tc, info, k);
     std::string name = k.conditionName ? tc->CString(k.conditionName) : "SYNTAX";
     std::string message = k.message ? tc->CString(k.message) : k.errortext ? tc->CString(k.errortext) : name;
     std::string code;
@@ -970,9 +1000,13 @@ static std::string conditionRecord(RexxThreadContext *tc)
         RexxObjectPtr x = tc->ArrayAt(k.additional, 2);
         if (x && tc->IsInstanceOf(x, cls.netObject)) exc = tc->ObjectToStringValue(tc->SendMessage0(x, "NETID"));
     }
+    // kept as the condition object has them (rule 1: raised again as they
+    // were), not as decoded: an ADDITIONAL that is not an Array is legal
+    // for a condition other than SYNTAX, and decodes as NULLOBJECT
+    RexxObjectPtr additional = tc->DirectoryAt(info, "ADDITIONAL");
     RexxObjectPtr description = tc->DirectoryAt(info, "DESCRIPTION");
     RexxObjectPtr result = tc->DirectoryAt(info, "RESULT");          // RAISE ... RETURN/EXIT result
-    Condition kept{0, name, k.code, k.additional ? tc->RequestGlobalReference(k.additional) : NULLOBJECT,
+    Condition kept{0, name, k.code, additional && additional != tc->Nil() ? tc->RequestGlobalReference(additional) : NULLOBJECT,
                    description && description != tc->Nil() ? tc->RequestGlobalReference(description) : NULLOBJECT,
                    result && result != tc->Nil() ? tc->RequestGlobalReference(result) : NULLOBJECT};
     std::vector<Condition> dropped;
@@ -1021,7 +1055,7 @@ static std::string reportCondition(RexxThreadContext *tc)
 {
     RexxDirectoryObject info = tc->GetConditionInfo();
     RexxCondition k;
-    tc->DecodeConditionInfo(info, &k);
+    decodeCondition(tc, info, k);
     std::string name = k.conditionName ? tc->CString(k.conditionName) : "SYNTAX";
     std::vector<std::string> lines;
     RexxObjectPtr tb = tc->DirectoryAt(info, "TRACEBACK");
