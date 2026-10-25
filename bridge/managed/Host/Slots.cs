@@ -10,6 +10,7 @@ internal static class InstanceInterface
     public const int Halt = 5;
     public const int SetTrace = 6;
     public const int AddCommandEnvironment = 7;
+    public const int StackCommandEnvironment = 8;
 }
 internal static class ThreadInterface
 {

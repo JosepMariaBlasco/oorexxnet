@@ -14,6 +14,7 @@ int main() {
   printf("RexxInstanceInterface.Halt %zu\n", offsetof(RexxInstanceInterface, Halt));
   printf("RexxInstanceInterface.SetTrace %zu\n", offsetof(RexxInstanceInterface, SetTrace));
   printf("RexxInstanceInterface.AddCommandEnvironment %zu\n", offsetof(RexxInstanceInterface, AddCommandEnvironment));
+  printf("RexxInstanceInterface.StackCommandEnvironment %zu\n", offsetof(RexxInstanceInterface, StackCommandEnvironment));
   printf("RexxThreadInterface %zu\n", sizeof(RexxThreadInterface));
   printf("RexxThreadInterface.interfaceVersion %zu\n", offsetof(RexxThreadInterface, interfaceVersion));
   printf("RexxThreadInterface.DetachThread %zu\n", offsetof(RexxThreadInterface, DetachThread));
