@@ -35,7 +35,8 @@ Start menu.
 
 ```bash
 svn co https://svn.code.sf.net/p/oorexx/code-0/docs/trunk docSVN   # next to the clone
-# the Rexx Parser, from https://rexx.epbcn.com/rexx-parser/, unzipped as rexx-parser
+# the Rexx Parser, its latest release, unzipped as rexx-parser:
+#   https://rexx.epbcn.com/rexx-parser/Rexx-Parser-latest.zip
 sudo apt install xsltproc docbook-xml docbook-xsl fop fonts-liberation
 oorexxnet/scripts/build-books.sh        # -> books/<book>.pdf, books/<book>-html/ (and .zip)
 rexx oorexxnet/docs/check-books.rex     # the examples (the bridge built first)

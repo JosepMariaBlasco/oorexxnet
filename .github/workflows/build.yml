@@ -193,16 +193,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/docSVN/tools"
           svn export -q "$U/tools/bldoc_orx" "$RUNNER_TEMP/docSVN/tools/bldoc_orx"
           svn export -q "$U/oorexx" "$RUNNER_TEMP/docSVN/oorexx"
-          P=https://rexx.epbcn.com/rexx-parser/
-          zip=$(curl -sSfL --retry 3 "$P" | grep -o 'Rexx-Parser-[^"/]*\.zip' | sort -u | tail -1)
-          echo "Rexx Parser: $zip"
-          if [ -n "$zip" ] && curl -sSfL --retry 3 -o "$RUNNER_TEMP/parser.zip" "$P$zip"; then
-            mkdir -p "$RUNNER_TEMP/rexx-parser" && unzip -q "$RUNNER_TEMP/parser.zip" -d "$RUNNER_TEMP/rexx-parser"
-          else
-            # the page lists a zip that is not there (yet): the repository's head instead
-            echo "Rexx Parser: no zip, from GitHub"
-            git clone -q --depth 1 https://github.com/JosepMariaBlasco/rexx-parser "$RUNNER_TEMP/rexx-parser"
-          fi
+          # the Rexx Parser's latest release
+          curl -sSfL --retry 3 -o "$RUNNER_TEMP/parser.zip" https://rexx.epbcn.com/rexx-parser/Rexx-Parser-latest.zip
+          mkdir -p "$RUNNER_TEMP/rexx-parser" && unzip -q "$RUNNER_TEMP/parser.zip" -d "$RUNNER_TEMP/rexx-parser"
           test -f "$RUNNER_TEMP/rexx-parser/bin/Rexx.Parser.cls"
       - name: Build the books
         run: |

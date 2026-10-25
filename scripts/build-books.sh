@@ -19,8 +19,8 @@
 #               or only what the PDFs and HTML need (2 MB; the CI does this):
 #                 svn export .../docs/trunk/tools/bldoc_orx docSVN/tools/bldoc_orx
 #                 svn export .../docs/trunk/oorexx docSVN/oorexx
-#   REXX_PARSER the Rexx Parser (default $WORK/rexx-parser), from
-#               https://rexx.epbcn.com/rexx-parser/
+#   REXX_PARSER the Rexx Parser (default $WORK/rexx-parser), its latest release:
+#               https://rexx.epbcn.com/rexx-parser/Rexx-Parser-latest.zip, unzipped
 #   rexx, xsltproc, the DocBook 4.5 DTD and the DocBook XSL stylesheets
 #   (Debian/Ubuntu: docbook-xml docbook-xsl), Apache FOP (fop) and Java;
 #   fonts-liberation for the fonts the stylesheets ask for.
