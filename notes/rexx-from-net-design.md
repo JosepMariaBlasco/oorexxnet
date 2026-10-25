@@ -368,8 +368,9 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing
   was written.
-- **Removing**: `RemoveCommandEnvironment(name)` (host) and
-  `.net~removeCommandEnvironment(name)` (Rexx); a name with no handler is
+- **Removing**: `RemoveCommandEnvironment(name)` (host) and, from Rexx,
+  `.CommandHandler~deregister(name)` (`.net~removeCommandEnvironment` until
+  the family retired it, 25/10/2026); a name with no handler is
   an `InvalidOperationException` (host) or SYNTAX 93.900 (Rexx). With
   nothing left for the name, a command answers FAILURE `RC` 30 with no
   `additional`, as ooRexx does for an unknown environment (measured:
@@ -410,8 +411,7 @@ Rexx handler replaces the whole stack (`handlers` 1 item after it).
 `.CommandHandler~deregister` (any handler, as there), and both answer as
 ooRexx's do (`AddCommandEnvironment` returns the covered handler as a
 `RexxObject`, or null; `RemoveCommandEnvironment` the one removed; from
-Rexx, the objects themselves). `.net~addCommandEnvironment` given a
-`.CommandHandler` (a handler written in Rexx) registers it as it is. Its
+Rexx, the objects themselves). Its
 `command` forwards to one native entry per instance (`Commands.Entry`, as
 before), registered with the native API under an internal name
 (`REXXNET.COMMANDS`) and deregistered at once: ooRexx's
@@ -440,13 +440,26 @@ directly: about 2 µs.
 host's style, as the family decided for `cmdhandler` v2), not `command(command,
 caller)`; .NET has no class to inherit `.CommandHandler`, so the bridge's
 Rexx class stands in for it. The error messages name the bridge's methods.
-- **From Rexx**: `.net~addCommandEnvironment(name, handler)`: a
+
+**The Rexx side retired, 25/10/2026** (the family's decision on rule 6:
+*«¿Para qué alias?»*): `.net~addCommandEnvironment` /
+`.net~removeCommandEnvironment` are gone; Rexx code uses ooRexx's
+`.CommandHandler~register` / `~deregister`, a .NET handler wrapped in net.cls's
+`.NetCommandHandler` (`.NetCommandHandler~new(handler)`; it inherits
+`.CommandHandler` and forwards to the same native entry, as
+`RexxNetCommandHandler` does: `cmdHandler`, `cmdEntry`, `cmdMarker` in
+`Bridge.cs`). The host's API (`AddCommandEnvironment`,
+`RemoveCommandEnvironment`) stays, as the host's own. A
+`.NetCommandHandler`'s delegate is kept in the instance's table until the
+instance ends.
+- **From Rexx** (until 25/10/2026 `.net~addCommandEnvironment(name,
+  handler)`; now ooRexx's own, below): `.CommandHandler~register(name,
+  .NetCommandHandler~new(handler))`, the handler a
   `.NetHandler` (made into a `Func<RexxCommand, object?>`) or a .NET
   delegate taking a `RexxCommand` (`Func`, `Action`, or another delegate
   type with that one parameter, called by `DynamicInvoke`); `.nil`, or
-  anything else, and an empty name, are SYNTAX 93.900 (an incorrect argument: 98.900 is for
-  errors from .NET), the `.nil` one naming `removeCommandEnvironment`; the
-  instance is the one whose
+  anything else, is SYNTAX 93.900 (an incorrect argument: 98.900 is for
+  errors from .NET); the instance is the one whose
   Rexx code asks (`RexxInterpreter.Current`, guest or host).
 - **A `.NetHandler` called while Rexx code waits on the thread for the host**
   (a command handler, a function, a `VALUE` selector: `RexxInterpreter.Current` is

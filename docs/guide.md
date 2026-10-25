@@ -482,25 +482,25 @@ the delegate returns at once; a Rexx thread takes them with
 `.net~stopEventLoop`. `"latest"` keeps only the newest waiting call of a
 handler.
 
-A handler can also serve an `ADDRESS` environment:
-`.net~addCommandEnvironment("CALC", .net~handler(obj, "COMMAND"))` sends
-each `address calc '...'` to the method as a `Rexx.Net.RexxCommand`
-(`cmd~Command`, `cmd~WriteLine(...)` for `WITH OUTPUT`), and what it returns
-is `RC`. A .NET delegate taking a `RexxCommand` works too, and an application
-hosting Rexx does the same with `rexx.AddCommandEnvironment` (section 9).
-The environments are ooRexx's own (`.CommandHandler`, ooRexx r13288): the
-handler is registered as a `.CommandHandler`, and the two methods are
-`.CommandHandler~register` and `~deregister`. A second handler for a name
-covers the one in use, which `addCommandEnvironment` answers (`.nil` if none;
-its `command` method forwards to it); `.net~removeCommandEnvironment("CALC")`
-removes the handler in use, uncovers the one below, and answers the one
-removed (with none left, a command raises FAILURE, `RC` 30, as for an
-environment that does not exist; a name not there, or a `.nil` handler, is
-SYNTAX 93.900). `.CommandHandler~handlers("CALC")` lists them. A handler
-written in Rexx needs no .NET: `.CommandHandler~register(name, handler)`.
+A handler can also serve an `ADDRESS` environment. Command environments are
+ooRexx's own (`.CommandHandler`, ooRexx r13288): `.CommandHandler~register(name,
+handler)` registers one, `.CommandHandler~deregister(name)` removes it. A
+handler written in Rexx needs no .NET; a .NET one goes in a
+`.NetCommandHandler`: `.CommandHandler~register("CALC",
+.NetCommandHandler~new(.net~handler(obj, "COMMAND")))` sends each `address calc
+'...'` to the method as a `Rexx.Net.RexxCommand` (`cmd~Command`,
+`cmd~WriteLine(...)` for `WITH OUTPUT`), and what it returns is `RC`. A .NET
+delegate taking a `RexxCommand` works too, and an application hosting Rexx
+does the same with `rexx.AddCommandEnvironment` (section 9). As for any
+handler, a second one for a name covers the one in use, which `register`
+answers (`.nil` if none; its `command` method forwards to it);
+`deregister` removes the handler in use, uncovers the one below, and answers
+the one removed (with none left, a command raises FAILURE, `RC` 30, as for an
+environment that does not exist). `.CommandHandler~handlers("CALC")` lists
+them.
 
 ```rexx
-.net~addCommandEnvironment("CALC", .net~handler(.Calc~new, "COMMAND"))
+.CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new, "COMMAND")))
 address calc "square 12"
 say rc
 ::requires "net.cls"
@@ -517,11 +517,11 @@ say rc
 ```
 
 ```rexx
-.net~addCommandEnvironment("CALC", .net~handler(.Calc~new("plain"), "COMMAND"))
-covered = .net~addCommandEnvironment("CALC", .net~handler(.Calc~new("loud"), "COMMAND"))
+.CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new("plain"), "COMMAND")))
+covered = .CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new("loud"), "COMMAND")))
 address calc "square 3"; say rc
 say .CommandHandler~handlers("CALC")~items "handlers; covered:" covered~class~id
-.net~removeCommandEnvironment("CALC")       -- the loud one: the plain one again
+.CommandHandler~deregister("CALC")          -- the loud one: the plain one again
 address calc "square 3"; say rc
 ::requires "net.cls"
 ::class Calc
@@ -538,7 +538,7 @@ address calc "square 3"; say rc
 
 ```text
 NINE!
-2 handlers; covered: RexxNetCommandHandler
+2 handlers; covered: NETCOMMANDHANDLER
 9
 ```
 

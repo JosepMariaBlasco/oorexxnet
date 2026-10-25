@@ -70,9 +70,10 @@ native one), uncovers the one below, and returns the one removed (a name
 with no handler is an <classname>InvalidOperationException</classname>);
 with none left, <literal>ADDRESS name</literal> raises FAILURE with
 <literal>RC</literal> 30, as for an environment that does not exist.
-Rexx code adds and removes them too, with
-<xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/> and
-<xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>
+Rexx code adds and removes them too, with ooRexx's own
+<computeroutput>.CommandHandler~register</computeroutput> and
+<computeroutput>~deregister</computeroutput>, a .NET handler wrapped in a
+<xref linkend="clsNetCommandHandler" xrefstyle="select:title"/>
 (<xref linkend="eventsCommands"/>). These are the rules of the whole family
 of bridges (ooRexx/Python, ooRexx/Lua, ooRexx/JavaScript).</para>
 <programlisting language="csharp">public abstract class RexxCallContext

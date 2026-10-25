@@ -5,8 +5,6 @@
 
 net_name ::= name
 
-net_addcommandenvironment ::= 'addCommandEnvironment(' name ',' handler ')'
-
 net_addhandler ::= 'addHandler(' object ',' event ',' handler ')'
 
 net_as ::= 'as(' value ',' type ')'
@@ -62,8 +60,6 @@ net_queuedcalls ::= 'queuedCalls'
 net_ref ::= 'ref' ( '(' value ')' )?
 
 net_releaseobject ::= 'releaseObject(' object ')'
-
-net_removecommandenvironment ::= 'removeCommandEnvironment(' name ')'
 
 net_removehandler ::= 'removeHandler(' object ',' event ',' handler ')'
 
@@ -152,6 +148,10 @@ netenum_hashcode ::= 'hashCode'
 netnamespace_member ::= name
 
 netnamespace_string ::= ( 'string' | 'makeString' )
+
+netcommandhandler_new ::= 'new(' handler ')'
+
+netcommandhandler_command ::= 'command(' command ',' caller ')'
 
 netref_new ::= 'new' ( '(' value ')' )?
 

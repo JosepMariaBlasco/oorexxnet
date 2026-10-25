@@ -15,7 +15,8 @@ Rexx, its subclasses <classname>NetType</classname>,
 <classname>NetArray</classname> and <classname>NetEnum</classname>, and the
 helper classes <classname>NetNamespace</classname>,
 <classname>NetRef</classname>, <classname>NetTyped</classname>,
-<classname>NetHandler</classname>, <classname>NetEvent</classname> and
+<classname>NetHandler</classname>, <classname>NetCommandHandler</classname>,
+<classname>NetEvent</classname> and
 <classname>NetCall</classname>. The event thread's classes are described in
 <xref linkend="eventthread"/>.</para>
 <para>Every method of these classes is <literal>UNGUARDED</literal>: a
@@ -46,7 +47,6 @@ the bridge's helpers, as methods. The helpers live on &net; rather than on
  <row><entry>
   <simplelist columns="3">
    <member><xref linkend="mthNetName" xrefstyle="select:title"/></member>
-   <member><xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetAddHandler" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetAs" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetBox" xrefstyle="select:title"/></member>
@@ -75,7 +75,6 @@ the bridge's helpers, as methods. The helpers live on &net; rather than on
    <member><xref linkend="mthNetQueuedCalls" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetRef" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetReleaseObject" xrefstyle="select:title"/></member>
-   <member><xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetRemoveHandler" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetSet" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetStopEventLoop" xrefstyle="select:title"/></member>
@@ -119,29 +118,6 @@ assembly, or a type in no namespace. The answer is a
 <classname>NetNamespace</classname> or a <classname>NetType</classname>,
 remembered once found (<xref linkend="msgNamespaces"/>). A name that is
 neither is an error. A namespace takes no arguments.</para>
-</section>
-
-<section id="mthNetAddCommandEnvironment"><title>addCommandEnvironment</title>
-<indexterm><primary>addCommandEnvironment method</primary>
-<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
-<mediaobject><imageobject>
-<imagedata fileref="images/net_addcommandenvironment.svg" scale="55" />
-</imageobject></mediaobject>
-<para>Makes <emphasis role="italic">handler</emphasis> the
-<literal>ADDRESS</literal> environment <emphasis role="italic">name</emphasis>
-(caseless) of the interpreter instance that runs the Rexx code: each
-command goes to it as a <classname>Rexx.Net.RexxCommand</classname>, and what
-it returns is <literal>RC</literal> (<xref linkend="eventsCommands"/>).
-<emphasis role="italic">handler</emphasis> is a <classname>NetHandler</classname>
-(its method gets the <classname>RexxCommand</classname>), or a .NET delegate
-that takes one; a <classname>CommandHandler</classname> (a handler written in
-Rexx) is registered as it is; &nil;, or anything else, is SYNTAX 93.900 (to remove an
-environment: <xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>).
-As ooRexx's <computeroutput>.CommandHandler~register</computeroutput> (the
-handler is registered so, as a <classname>CommandHandler</classname>): the
-handler covers the one in use for that name, and the answer is the handler
-covered (&nil; if none), whose <methodname>command</methodname> method
-forwards to it.</para>
 </section>
 
 <section id="mthNetAddHandler"><title>addHandler</title>
@@ -572,23 +548,6 @@ parameter of a .NET method, or an argument by reference of a COM method
 now (<literal>Marshal.FinalReleaseComObject</literal>), so that its server (an
 Excel process) can end at once, rather than at .NET's next garbage
 collection. The proxy remains, and cannot be used any more.</para>
-</section>
-
-<section id="mthNetRemoveCommandEnvironment"><title>removeCommandEnvironment</title>
-<indexterm><primary>removeCommandEnvironment method</primary>
-<secondary>of NetGlobal Class (the .net Object)</secondary></indexterm>
-<mediaobject><imageobject>
-<imagedata fileref="images/net_removecommandenvironment.svg" scale="55" />
-</imageobject></mediaobject>
-<para>Removes the handler in use for the <literal>ADDRESS</literal>
-environment <emphasis role="italic">name</emphasis>, as ooRexx's
-<computeroutput>.CommandHandler~deregister</computeroutput>: any handler (one
-that <xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/> or
-the application, <xref linkend="hostCommands"/>, added, one written in Rexx,
-a native one), uncovering the one it covered; the answer is the handler
-removed. A name with no handler is SYNTAX 93.900. With no handler left, a
-command for it raises FAILURE with <literal>RC</literal> 30, as for an
-environment that does not exist.</para>
 </section>
 
 <section id="mthNetRemoveHandler"><title>removeHandler</title>
@@ -1557,6 +1516,74 @@ stops a handler at once, wherever .NET keeps it.</para>
 <imagedata fileref="images/nethandler_released.svg" scale="55" />
 </imageobject></mediaobject>
 <para>Returns &true; once <methodname>release</methodname> has been sent.</para>
+</section>
+
+</section>
+
+<!-- ===================================================================== -->
+<section id="clsNetCommandHandler"><title>NetCommandHandler Class</title>
+<indexterm><primary>NetCommandHandler class</primary></indexterm>
+<indexterm><primary>class</primary>
+<secondary>NetCommandHandler class</secondary></indexterm>
+<para>A command handler of ooRexx's served by .NET: it inherits
+<classname>CommandHandler</classname> (ooRexx r13288; the Open Object Rexx
+Reference describes it), so that
+<computeroutput>.CommandHandler~register(name, .NetCommandHandler~new(handler))</computeroutput>
+makes a .NET handler the <literal>ADDRESS</literal> environment
+<emphasis role="italic">name</emphasis> of the interpreter instance, with
+everything ooRexx says about registered handlers: they stack,
+<computeroutput>.CommandHandler~deregister</computeroutput> uncovers, and
+<computeroutput>~handler</computeroutput>, <computeroutput>~handlers</computeroutput>
+and <computeroutput>~environments</computeroutput> show them. The rules a
+.NET handler follows are in <xref linkend="eventsCommands"/>.</para>
+
+<table id="tabNetCommandHandler" frame="all" pgwide="1">
+<title>NetCommandHandler Class</title>
+<tgroup cols="1">
+<tbody>
+ <row><entry align="center"><emphasis role="bold">Object</emphasis></entry></row>
+ <row><entry>Methods inherited from the Object class</entry></row>
+ <row><entry align="center"><emphasis role="bold">CommandHandler (mixin)</emphasis></entry></row>
+ <row><entry>Methods inherited from ooRexx's CommandHandler class</entry></row>
+ <row><entry align="center"><emphasis role="bold">NetCommandHandler</emphasis></entry></row>
+ <row><entry>
+  <simplelist columns="3">
+   <member><xref linkend="mthNetCommandHandlerNew" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCommandHandlerCommand" xrefstyle="select:title"/></member>
+  </simplelist>
+ </entry></row>
+</tbody>
+</tgroup>
+</table>
+
+<section id="mthNetCommandHandlerNew"><title>new (Class Method)</title>
+<indexterm><primary>new method</primary>
+<secondary>of NetCommandHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcommandhandler_new.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns a new <classname>NetCommandHandler</classname> for
+<emphasis role="italic">handler</emphasis>: a .NET delegate that takes a
+<classname>Rexx.Net.RexxCommand</classname> (a
+<literal>Func&lt;RexxCommand, object?&gt;</literal>, an
+<literal>Action&lt;RexxCommand&gt;</literal>, or another delegate type with
+that one parameter), or a <classname>NetHandler</classname>, whose method
+gets the <classname>RexxCommand</classname>. &nil;, or anything else, is
+SYNTAX 93.900.</para>
+</section>
+
+<section id="mthNetCommandHandlerCommand"><title>command</title>
+<indexterm><primary>command method</primary>
+<secondary>of NetCommandHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcommandhandler_command.svg" scale="55" />
+</imageobject></mediaobject>
+<para>What ooRexx sends for each command
+(<emphasis role="italic">caller</emphasis> is the
+<classname>CommandContext</classname>): the handler gets the command as a
+<classname>RexxCommand</classname>, and what it returns is
+<literal>RC</literal>. A handler written in Rexx registered over this one
+can forward to it with <computeroutput>covered~command(command, caller)</computeroutput>.</para>
 </section>
 
 </section>

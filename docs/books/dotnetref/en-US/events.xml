@@ -214,23 +214,24 @@ syntax:
 <section id="eventsCommands"><title>Command Environments (ADDRESS)</title>
 <indexterm><primary>ADDRESS</primary><secondary>environments written in .NET</secondary></indexterm>
 <indexterm><primary>RexxCommand class</primary></indexterm>
-<para><computeroutput>.net~addCommandEnvironment(name, handler)</computeroutput>
-makes a handler the <literal>ADDRESS</literal> environment
-<emphasis role="italic">name</emphasis> of the running interpreter instance;
-<computeroutput>.net~removeCommandEnvironment(name)</computeroutput> removes
-it. The handler is a <classname>NetHandler</classname>, whose method gets each
-command as a <classname>Rexx.Net.RexxCommand</classname>, or a .NET delegate
-that takes one (a <literal>Func&lt;RexxCommand, object?&gt;</literal>, an
+<para>Command environments are ooRexx's own (<classname>CommandHandler</classname>,
+ooRexx r13288; the Open Object Rexx Reference describes the class):
+<computeroutput>.CommandHandler~register(name, handler)</computeroutput> makes
+a handler the <literal>ADDRESS</literal> environment
+<emphasis role="italic">name</emphasis> of the running interpreter instance,
+and <computeroutput>.CommandHandler~deregister(name)</computeroutput> removes
+it. A handler written in Rexx needs no .NET. A .NET handler goes in a
+<xref linkend="clsNetCommandHandler" xrefstyle="select:title"/>:
+<computeroutput>.CommandHandler~register(name, .NetCommandHandler~new(handler))</computeroutput>,
+<emphasis role="italic">handler</emphasis> a .NET delegate that takes a
+<classname>Rexx.Net.RexxCommand</classname> (a
+<literal>Func&lt;RexxCommand, object?&gt;</literal>, an
 <literal>Action&lt;RexxCommand&gt;</literal>, or another delegate type with
-that one parameter): the same environments that a .NET application adds with
-<methodname>AddCommandEnvironment</methodname>, with the same rules
-(<xref linkend="hostCommands"/>, where <classname>RexxCommand</classname>'s
-members are). They are ooRexx's own command environments
-(<classname>CommandHandler</classname>, ooRexx r13288; the Open Object Rexx
-Reference describes the class): the handler is registered as a
-<classname>CommandHandler</classname>, so that everything ooRexx says about
-those holds for it, and a handler written in Rexx needs no .NET
-(<computeroutput>.CommandHandler~register(name, handler)</computeroutput>):</para>
+that one parameter), or a <classname>NetHandler</classname>, whose method gets
+the <classname>RexxCommand</classname>. These are the same environments that
+a .NET application adds with <methodname>AddCommandEnvironment</methodname>,
+with the same rules (<xref linkend="hostCommands"/>, where
+<classname>RexxCommand</classname>'s members are):</para>
 <itemizedlist>
 <listitem><para>What the handler returns is <literal>RC</literal> (nothing: 0),
 whatever its sign; ERROR and FAILURE come only from a
@@ -249,25 +250,26 @@ reported). ERROR and FAILURE stay themselves
 under <literal>::OPTIONS ERROR SYNTAX</literal> too.</para></listitem>
 <listitem><para>Its output and errors go where <literal>ADDRESS ... WITH</literal>
 says, or, without it, to the console.</para></listitem>
-<listitem><para>Handlers stack, as with
-<computeroutput>.CommandHandler~register</computeroutput> and
-<computeroutput>~deregister</computeroutput>: adding one for a name covers
-the handler in use, which <methodname>addCommandEnvironment</methodname>
+<listitem><para>Handlers stack, as any registered with
+<computeroutput>.CommandHandler~register</computeroutput>: one registered for a
+name covers the handler in use, which <methodname>register</methodname>
 answers (&nil; if none; its <methodname>command</methodname> method forwards
-to it); removing uncovers it, and answers the handler removed.
-<computeroutput>.CommandHandler~handler(name)</computeroutput>,
+to it); <methodname>deregister</methodname> uncovers it, and answers the
+handler removed. <computeroutput>.CommandHandler~handler(name)</computeroutput>,
 <computeroutput>~handlers(name)</computeroutput> and
 <computeroutput>~environments</computeroutput> show them.</para></listitem>
 <listitem><para>A name with no handler left answers FAILURE, <literal>RC</literal>
-30, as one that does not exist. A handler that is &nil; (or no handler at
-all), and removing a name that has none, are SYNTAX 93.900.</para></listitem>
+30, as one that does not exist. A <classname>NetCommandHandler</classname> of
+&nil; (or of anything that is no handler) is SYNTAX 93.900, as ooRexx's
+errors for <methodname>register</methodname> and
+<methodname>deregister</methodname> are.</para></listitem>
 </itemizedlist>
 <para>These rules are the whole family's: the ooRexx/Python, ooRexx/Lua and
 ooRexx/JavaScript bridges follow them too, with their host's names.</para>
 
 <example id="ex.events-commands">
-<title>A command environment written in Rexx, through .NET</title>
-<programlisting language="rexx">.net~addCommandEnvironment("CALC", .net~handler(.Calc~new, "COMMAND"))
+<title>A command environment served through .NET</title>
+<programlisting language="rexx">.CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new, "COMMAND")))
 address calc "square 7"; say "rc:" rc
 out = .array~new
 address calc "table 7" with output using (out)
@@ -277,7 +279,7 @@ address calc "frobnicate"
 syntax:
   c = condition("O")
   say c~code .net~typeOf(c~additional[2])
-.net~removeCommandEnvironment("calc")
+.CommandHandler~deregister("calc")
 signal on failure
 trace off                                         -- (TRACE NORMAL shows failures)
 address calc "square 7"
@@ -304,13 +306,13 @@ FAILURE, rc 30</screen>
 
 <example id="ex.events-commands-stack">
 <title>Handlers stacked, as ooRexx's CommandHandler</title>
-<programlisting language="rexx">.net~addCommandEnvironment("SHOUT", .net~handler(.Plain~new, "COMMAND"))
+<programlisting language="rexx">.CommandHandler~register("SHOUT", .NetCommandHandler~new(.net~handler(.Plain~new, "COMMAND")))
 -- a handler written in Rexx over it, logging and forwarding to the one covered
 covered = .CommandHandler~handler("SHOUT")
 .CommandHandler~register("SHOUT", .Logger~new(covered))
 address shout "hello"; say "rc:" rc
 say .CommandHandler~handlers("SHOUT")~items "handlers"
-removed = .net~removeCommandEnvironment("SHOUT")   -- the logger: the plain one again
+removed = .CommandHandler~deregister("SHOUT")       -- the logger: the plain one again
 say "removed:" removed~class~id
 address shout "again"; say "rc:" rc
 

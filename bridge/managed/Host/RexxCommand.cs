@@ -222,7 +222,7 @@ internal static unsafe class Commands
             // description, additional)
             nint rc = Safe(rexx, c, e.Rc);
             nint a = c.NewArray(5);
-            c.ArrayPut(a, rexx.CommandRaiseMarker!.Live, 1);
+            c.ArrayPut(a, rexx.CommandRaiseMarker.Live, 1);
             c.ArrayPut(a, c.Str(e.Failure ? "FAILURE" : "ERROR"), 2);
             c.ArrayPut(a, rc, 3);
             c.ArrayPut(a, command, 4);

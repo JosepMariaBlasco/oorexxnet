@@ -115,7 +115,8 @@ public sealed partial class RexxInterpreter
     (RexxObject Entry, RexxRoutine Register, RexxRoutine Deregister)? commandMachinery;
 
     /// The RexxNetCommandHandler class's marker (see CommandsSource).
-    internal RexxObject? CommandRaiseMarker { get; private set; }
+    internal RexxObject CommandRaiseMarker { get { CommandMachinery(); return commandRaiseMarker!; } }
+    RexxObject? commandRaiseMarker;
 
     (RexxObject Entry, RexxRoutine Register, RexxRoutine Deregister) CommandMachinery()
     {
@@ -125,7 +126,7 @@ public sealed partial class RexxInterpreter
             inst.AddCommandEnvironment(CommandEntry, Commands.Address, Commands.Redirecting);
             var routines = LoadPackage("Rexx.Net commands", CommandsSource).Routines;
             using var hidden = (RexxObject)((RexxRoutine)routines["HIDE"]!).Call(CommandEntry)!;
-            CommandRaiseMarker = (RexxObject)hidden[2]!;
+            commandRaiseMarker = (RexxObject)hidden[2]!;
             m = ((RexxObject)hidden[1]!, (RexxRoutine)routines["REGISTER"]!, (RexxRoutine)routines["DEREGISTER"]!);
             commandMachinery = m;
             return m;
@@ -148,11 +149,21 @@ public sealed partial class RexxInterpreter
         ArgumentNullException.ThrowIfNull(handler);
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
         var m = CommandMachinery();
-        int id;
-        lock (commands) { id = ++lastCommand; commands[id] = handler; }
+        int id = NewCommandHandler(handler);
         try { return (RexxObject?)m.Register.Call(name, m.Entry, id); }
         catch { lock (commands) commands.Remove(id); throw; }
     }
+
+    // A handler in the instance's table (also for net.cls's .NetCommandHandler,
+    // which forwards to the same native entry): its id.
+    internal int NewCommandHandler(Func<RexxCommand, object?> handler)
+    {
+        CommandMachinery();
+        lock (commands) { int id = ++lastCommand; commands[id] = handler; return id; }
+    }
+
+    /// The native entry's .NativeCommandHandler object (see CommandsSource).
+    internal RexxObject CommandEntryObject => CommandMachinery().Entry;
 
     /// A handler with no result (RC 0).
     public RexxObject? AddCommandEnvironment(string name, Action<RexxCommand> handler)
