@@ -404,7 +404,7 @@ that deregistered it broke the host's I/O (every `SAY` FAILURE 30). Also
 measured: the native API's `AddCommandEnvironment` over a name served by a
 Rexx handler replaces the whole stack (`handlers` 1 item after it).
 
-**The design.** Every handler of the application is now a Rexx object, a
+**The first design** (`db4ab6b`; replaced the same day, see "The core's context" below). Every handler of the application was a Rexx object, a
 `.CommandHandler` (`RexxNetCommandHandler`, `CommandsSource` in
 `RexxInterpreter.Environment.cs`) registered with
 `.CommandHandler~register`: it stacks, `RemoveCommandEnvironment` is
@@ -452,6 +452,43 @@ Rexx class stands in for it. The error messages name the bridge's methods.
 `RemoveCommandEnvironment`) stays, as the host's own. A
 `.NetCommandHandler`'s delegate is kept in the instance's table until the
 instance ends.
+
+**The core's context (25/10/2026; the family's rule 6, point 3, option
+(A), the user's choice).** A .NET handler gets ooRexx's own
+`.CommandContext`, not an imitation: `(string command, RexxCommandContext
+caller) => rc`. `RexxCommandContext` (`Host/RexxCommandContext.cs`) wraps the
+real object, each member one message to it, with the core's names in .NET's
+casing (`Environment`, `Pending`, `IsValid`, `IsRedirected(kind)`, `Input` /
+`Output` / `Error`, the indexer, `GetVar` / `SetVar` / `HasVar` /
+`DropVar`, `Variables`, `Raise`, `RaiseError`, `RaiseFailure`), so that its
+behaviour is the core's by construction: a variable with no value gives its
+name; the streams exist only with that `WITH` (else SYNTAX 98.900; rule 2's
+console is the handler's own `Console.Out`); one condition per command.
+`RexxCommand` and `RexxCommandException` are gone.
+
+The transport changed with it. There is no native entry any more: net.cls's
+`.NetCommandHandler~command(command, caller)` calls .NET with a request
+(`cmdRun`: the id, the command, the caller as a Rexx object), as any .NET
+call from Rexx, and the host's `AddCommandEnvironment` registers a
+`.NetCommandHandler` too (its package `::requires "net.cls"`, which is built
+in; the delegate goes to Rexx as a `.NetObject`). So errors are those of any
+.NET call: an exception is SYNTAX 98.900 with the guest layout, a Rexx
+condition of Rexx code the handler called comes back as itself. A HALT
+given back as a HALT (rule 1, host code) arrives in `.NetCommandHandler`'s
+`command` method, which traps it (`signal on halt`) and gives it to the
+sender with `caller~raise("HALT", 0)`: measured, the three cases (`SIGNAL
+ON HALT`, `CALL ON HALT`, untrapped SYNTAX 4.1) as before, in a guest and in
+a host instance. The context's proxy, and the streams and variables it gave,
+are released when the handler returns (`RexxCommandContext.End`): a new
+`.CommandContext` each command, left to the finalizer, piled up global
+references (measured: a host instance's commands went from ~10 to ~180 µs,
+and a Rexx handler's in the same instance from 2 to ~170 µs, within a few
+hundred thousand commands). Afterwards the context is an
+`ObjectDisposedException`. Cost (warm, Linux, a host instance): a command
+to a .NET handler ~10 µs; one variable read in it ~4 µs more; a handler
+written in Rexx ~2 µs. A `.NetHandler` given to `.NetCommandHandler~new` is
+refused: a handler written in Rexx is a `.CommandHandler`, with no .NET in
+between.
 - **From Rexx** (until 25/10/2026 `.net~addCommandEnvironment(name,
   handler)`; now ooRexx's own, below): `.CommandHandler~register(name,
   .NetCommandHandler~new(handler))`, the handler a

@@ -80,9 +80,10 @@ Rexx code waits for .NET (a timer's, the thread pool's) is reported on
 <literal>.error</literal>, as Rexx reports an untrapped error, and the program
 goes on (<xref linkend="eventsErrors"/>).</para></listitem>
 <listitem><para>A .NET exception in a command handler
-(<literal>ADDRESS</literal>) is SYNTAX 98.900, as a .NET error anywhere; a
-<classname>RexxCommandException</classname> raises ERROR or FAILURE with the
-<literal>RC</literal> it carries, and an environment removed answers FAILURE
+(<literal>ADDRESS</literal>) is SYNTAX 98.900, as a .NET error anywhere; the
+context's <methodname>RaiseError</methodname> and
+<methodname>RaiseFailure</methodname> raise ERROR or FAILURE with the
+<literal>RC</literal> they are given, and an environment removed answers FAILURE
 with <literal>RC</literal> 30, as one that does not exist
 (<xref linkend="hostCommands"/>).</para></listitem>
 <listitem><para>A .NET exception in a function of the application raises

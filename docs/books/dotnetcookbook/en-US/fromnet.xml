@@ -136,14 +136,14 @@ using Rexx.Net;
 
 var doc = new List&lt;string&gt;();
 using var rexx = RexxInterpreter.Create(new RexxOptions { InitialAddress = "EDITOR" });
-rexx.AddCommandEnvironment("EDITOR", cmd =&gt;
+rexx.AddCommandEnvironment("EDITOR", (command, caller) =&gt;
 {
-    var words = cmd.Command.Split(' ', 2);
+    var words = command.Split(' ', 2);
     switch (words[0].ToUpperInvariant())
     {
         case "INSERT": doc.Add(words.Length &gt; 1 ? words[1] : ""); return 0;
-        case "LINES": cmd["LINES"] = doc.Count; return 0;
-        default: throw new RexxCommandException(1, "unknown command " + words[0]);
+        case "LINES": caller["LINES"] = doc.Count; return 0;
+        default: return caller.RaiseError(1);
     }
 });
 rexx.Run(
@@ -157,13 +157,14 @@ REXXout&gt;rc: 1
 first line / second line</screen>
 </example>
 <para><emphasis role="bold">How it works.</emphasis> A command environment is a C# function that gets each command
-(<classname>RexxCommand</classname>), with the caller's variables
-(<computeroutput>cmd["LINES"] = ...</computeroutput> sets one), and returns
+and ooRexx's <classname>CommandContext</classname> of the code that sent it
+(a <classname>RexxCommandContext</classname>: the caller's variables,
+<computeroutput>caller["LINES"] = ...</computeroutput> sets one), and returns
 <literal>RC</literal>. With <literal>InitialAddress</literal>, a plain string
 clause is a command to the application, as in an editor's macros.
-<classname>RexxCommandException</classname> raises Rexx's ERROR condition,
-with its <literal>RC</literal>; not trapped, the script goes on with
-<literal>RC</literal> set.</para>
+<computeroutput>caller.RaiseError(rc)</computeroutput> raises Rexx's ERROR
+condition, with that <literal>RC</literal>; not trapped, the script goes on
+with <literal>RC</literal> set.</para>
 <para><emphasis role="bold">See also</emphasis> <citetitle>Reference</citetitle>, <emphasis>The Application's Environment</emphasis>, <emphasis>ADDRESS Environments</emphasis>.</para>
 </section>
 

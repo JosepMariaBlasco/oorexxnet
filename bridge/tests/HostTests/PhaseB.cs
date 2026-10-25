@@ -13,7 +13,6 @@ public sealed class Holder { public Func<RexxFunctionCall, object?>? F; public v
 
 static partial class Program
 {
-    static string Execute(string command) => "ran " + command;     // a handler taking a plain string
 
     static void PhaseB()
     {
@@ -42,7 +41,7 @@ static partial class Program
     static void SignalPastTheHost()
     {
         using var rexx = RexxInterpreter.Create();
-        rexx.AddCommandEnvironment("RAISING", cmd => cmd.Interpreter.Run("raise user x description 'd' return 7"));
+        rexx.AddCommandEnvironment("RAISING", (c, ctx) => ctx.Interpreter.Run("raise user x description 'd' return 7"));
         rexx.AddFunction("RAISING", call => call.Interpreter.Run("raise user x description 'd' return 7"));
         Ok("SIGNAL ON past the host: a command (ooRexx drops it)",
            rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return 'trapped'"), "not trapped, rc 7");
@@ -75,7 +74,7 @@ static partial class Program
     static void HaltBackAsHalt()
     {
         using var rexx = RexxInterpreter.Create();
-        rexx.AddCommandEnvironment("HALTING", cmd => cmd.Interpreter.Run("raise halt"));
+        rexx.AddCommandEnvironment("HALTING", (c, ctx) => ctx.Interpreter.Run("raise halt"));
         rexx.AddFunction("HALTING", call => call.Interpreter.Run("raise halt"));
         Ok("a HALT through a .NET command handler: SIGNAL ON HALT",
            rexx.Run("signal on halt; address halting 'go'; return 'not trapped'\nhalt: return condition('C')"), "HALT");
@@ -99,8 +98,8 @@ static partial class Program
     static void OptionsErrorSyntax()
     {
         using var rexx = RexxInterpreter.Create();
-        rexx.AddCommandEnvironment("F", cmd => throw new RexxCommandException(9, "could not", failure: true));
-        rexx.AddCommandEnvironment("E", cmd => throw new RexxCommandException(4, "it failed"));
+        rexx.AddCommandEnvironment("F", (c, ctx) => ctx.RaiseFailure(9));
+        rexx.AddCommandEnvironment("E", (c, ctx) => ctx.RaiseError(4));
         const string traps = "signal on failure; signal on error; signal on syntax\naddress {0} 'x'\nreturn 'none'\n" +
             "failure: return 'FAILURE' rc\nerror: return 'ERROR' rc\nsyntax: return 'SYNTAX' condition('O')~code\n" +
             "::options error syntax\n";
@@ -148,12 +147,12 @@ static partial class Program
         {
             using var rexx = RexxInterpreter.Create(new RexxOptions { Error = new StringWriter() });
             var work = Enumerable.Range(0, threads).Select(_ => Task.Run(() => long.Parse(rexx.Run(prog, n, envs)!.ToString()!))).ToArray();
-            for (int e = 1; e <= envs; e++) rexx.AddCommandEnvironment("E" + e, cmd => 7);
-            // a new name each time (adding a name again only replaces the handler
-            // here, ooRexx's table does not change), until the threads end
+            for (int e = 1; e <= envs; e++) rexx.AddCommandEnvironment("E" + e, (c, ctx) => 7);
+            // a new name each time (adding a name again only stacks a handler
+            // over it), until the threads end
             var sw = System.Diagnostics.Stopwatch.StartNew();
             for (int k = 0; !work.All(t => t.IsCompleted) && sw.ElapsedMilliseconds < 60000; k++)
-                rexx.AddCommandEnvironment($"X{round}_{k}", cmd => 7);
+                rexx.AddCommandEnvironment($"X{round}_{k}", (c, ctx) => 7);
             done = Task.WaitAll(work, 60000);
             if (done) hits += work.Sum(t => t.Result);
         }
@@ -162,31 +161,32 @@ static partial class Program
 
     static void Commands(RexxInterpreter rexx, StringWriter err)
     {
-        string? lastAddress = null, lastCommand = null;
-        rexx.AddCommandEnvironment("APP", cmd =>
+        // a handler gets the command and ooRexx's own .CommandContext (RexxCommandContext)
+        string? lastEnvironment = null, lastCommand = null;
+        rexx.AddCommandEnvironment("APP", (c, ctx) =>
         {
-            lastAddress = cmd.Address; lastCommand = cmd.Command;
-            string c = cmd.Command;
+            lastEnvironment = ctx.Environment; lastCommand = c;
             if (c == "null") return null;
-            if (c.StartsWith("error ")) throw new RexxCommandException(int.Parse(c[6..]));
-            if (c.StartsWith("failure ")) throw new RexxCommandException(int.Parse(c[8..]), "it could not run", failure: true);
+            if (c.StartsWith("error ")) return ctx.RaiseError(int.Parse(c[6..]));
+            if (c.StartsWith("failure ")) return ctx.Raise("FAILURE", int.Parse(c[8..]), "it could not run", "the additional");
             if (c == "throw") throw new InvalidOperationException("the application is not ready");
-            if (c == "nested") return cmd.Interpreter.Run("use arg a; return a * 7", 6);
-            if (c == "nested error") return cmd.Interpreter.Run("return 1 + 'a'");
+            if (c == "nested") return ctx.Interpreter.Run("use arg a; return a * 7", 6);
+            if (c == "nested error") return ctx.Interpreter.Run("return 1 + 'a'");
             if (c == "object") return rexx.NewArray("a", "b");
             return c.Length;
         });
         Ok("command: RC",                rexx.Run("address app 'open the door'; return rc"), "13");
-        Ok("... address, command",       $"{lastAddress}|{lastCommand}", "APP|open the door");
+        Ok("... environment, command",   $"{lastEnvironment}|{lastCommand}", "APP|open the door");
         Ok("ADDRESS app, then a command", rexx.Run("address app; 'hello'; return rc"), "5");
-        Ok("ADDRESS 'app' (case)",       rexx.Run("address 'app' 'x'; return rc") + " " + lastAddress, "1 app");
+        Ok("ADDRESS 'app' (case)",       rexx.Run("address 'app' 'x'; return rc"), "1");
         Ok("null result: RC 0",          rexx.Run("address app 'null'; return rc"), "0");
         Ok("an object as RC",            rexx.Run("address app 'object'; return rc~class~id rc~items"), "Array 2");
-        Ok("ERROR, trapped",             rexx.Run("signal on error; address app 'error 5'; return 'no'\n" +
-                                                   "error: return condition('C') rc condition('D')"), "ERROR 5 error 5");
+        Ok("RaiseError: ERROR, trapped", rexx.Run("signal on error; address app 'error 5'; return 'no'\n" +
+                                                   "error: return condition('C') rc"), "ERROR 5");
         Ok("ERROR, untrapped: RC",       rexx.Run("address app 'error 7'; return rc"), "7");
-        Ok("FAILURE, trapped",           rexx.Run("signal on failure; address app 'failure 9'; return 'no'\n" +
-                                                   "failure: return condition('C') rc condition('A')"), "FAILURE 9 it could not run");
+        Ok("Raise FAILURE, trapped",     rexx.Run("signal on failure; address app 'failure 9'; return 'no'\n" +
+                                                   "failure: return condition('C') rc condition('D') '|' condition('A')"),
+                                         "FAILURE 9 it could not run | the additional");
         Ok("FAILURE untrapped -> ERROR", rexx.Run("signal on error; address app 'failure 9'; return 'no'\n" +
                                                    "error: return condition('C') rc"), "ERROR 9");
         Ok(".NET exception: SYNTAX 98.900", rexx.Run("signal on syntax; address app 'throw'; return 'no'\n" +
@@ -204,14 +204,13 @@ static partial class Program
         try { rexx.Run("address app 'nested error'"); Ok("... untrapped", "none", "thrown"); }
         catch (RexxException e) { Ok("... untrapped", e.Code, "41.1"); }
 
-        // a plain-string handler, an Action, replacing one, two instances
-        rexx.AddCommandEnvironment("PLAIN", cmd => Execute(cmd));
-        Ok("handler taking a string",    rexx.Run("address plain 'x'; return rc"), "ran x");
+        // an Action; as ooRexx's .CommandHandler~register / ~deregister: stacked, uncovered
+        rexx.AddCommandEnvironment("PLAIN", (c, ctx) => "ran " + c);
+        Ok("a handler",                  rexx.Run("address plain 'x'; return rc"), "ran x");
         int seen = 0;
-        rexx.AddCommandEnvironment("LOG", (RexxCommand cmd) => { seen++; });
+        rexx.AddCommandEnvironment("LOG", (string c, RexxCommandContext ctx) => { seen++; });
         Ok("Action: RC 0",               rexx.Run("address log 'a'; address log 'b'; return rc") + " " + seen, "0 2");
-        // as ooRexx's .CommandHandler~register / ~deregister: stacked, uncovered
-        var coveredPlain = rexx.AddCommandEnvironment("PLAIN", cmd => "stacked");
+        var coveredPlain = rexx.AddCommandEnvironment("PLAIN", (c, ctx) => "stacked");
         Ok("a second handler covers the first", rexx.Run("address plain 'x'; return rc"), "stacked");
         Ok("... the first, the answer", coveredPlain?.Send("ISA", rexx.FindClass("CommandHandler")), "1");
         Ok("... .CommandHandler~handlers", rexx.Run("return .CommandHandler~handlers('PLAIN')~items"), "2");
@@ -224,54 +223,61 @@ static partial class Program
         Throws<InvalidOperationException>("RemoveCommandEnvironment: none there", () => rexx.RemoveCommandEnvironment("PLAIN"), "no command environment PLAIN");
         Ok("... then FAILURE, RC 30, as unknown", rexx.Run("signal on failure; address plain 'x'; return 'no'\n" +
                                                    "failure: return condition('C') rc condition('D') (condition('O')~additional == .nil)"), "FAILURE 30 x 1");
-        rexx.AddCommandEnvironment("PLAIN", cmd => "back");
+        rexx.AddCommandEnvironment("PLAIN", (c, ctx) => "back");
         Ok("... added again",            rexx.Run("address plain 'x'; return rc"), "back");
         rexx.Run(".CommandHandler~deregister('PLAIN')");
-        rexx.AddCommandEnvironment("PLAIN", cmd => "back");
+        rexx.AddCommandEnvironment("PLAIN", (c, ctx) => "back");
         Ok("... added again after .CommandHandler~deregister", rexx.Run("address plain 'x'; return rc"), "back");
         var keptOutput = rexx.Output;
         rexx.Output = new StringWriter();                 // the I/O forwarders installed
         Ok("the bridge's own entries are not among the environments",
            rexx.Run("return .CommandHandler~environments~allIndexes~makeString('l', ' ')~pos('REXXNET')"), "0");
         rexx.Output = keptOutput;
-        Throws<ArgumentNullException>("a null handler", () => rexx.AddCommandEnvironment("NULL", (Func<RexxCommand, object?>)null!));
+        Throws<ArgumentNullException>("a null handler", () => rexx.AddCommandEnvironment("NULL", (Func<string, RexxCommandContext, object?>)null!));
         using (var other = RexxInterpreter.Create())
         {
-            other.AddCommandEnvironment("APP", cmd => "other");
+            other.AddCommandEnvironment("APP", (c, ctx) => "other");
             Ok("two instances, one name", other.Run("address app 'x'; return rc") + " " + rexx.Run("address app 'x'; return rc"), "other 1");
             other.Dispose();
         }
 
-        // variables of the Rexx code
-        RexxCommand? kept = null;
-        rexx.AddCommandEnvironment("VARS", cmd =>
+        // the variables of the code that sent the command, as ooRexx's context has them
+        RexxCommandContext? kept = null;
+        rexx.AddCommandEnvironment("VARS", (c, ctx) =>
         {
-            kept = cmd;
-            switch (cmd.Command)
+            kept = ctx;
+            switch (c)
             {
-                case "get": return $"{cmd["x"]} {cmd["S.1"]} {cmd["s.2"]} {cmd["nope"] == null} {cmd.HasVariable("x")} {cmd.HasVariable("nope")}";
-                case "set": cmd["y"] = 5; cmd["T.1"] = "one"; cmd["N"] = null; cmd.Drop("z"); return null;
-                case "all": return string.Join(",", cmd.Variables.Keys.Where(k => k.Length == 1).OrderBy(k => k));
-                case "object": return cmd["A"] is RexxObject a && a.Send<int>("items") == 3;
+                case "get": return $"{ctx["x"]} {ctx["S.1"]} {ctx.GetVar("s.2")} {ctx["nope"]} {ctx.HasVar("x")} {ctx.HasVar("nope")}";
+                case "set": ctx["y"] = 5; ctx.SetVar("T.1", "one"); ctx["N"] = null; ctx.DropVar("z"); return null;
+                case "all": return ctx.Variables.Send("HASINDEX", "A")?.ToString() + ctx.Variables.Send("HASINDEX", "NOPE");
+                case "object": return ctx["A"] is RexxObject a && a.Send<int>("items") == 3;
+                case "valid": return ctx.IsValid;
             }
             return null;
         });
-        Ok("variables: get",             rexx.Run("x = 'ex'; s.1 = 'one'; s.2 = 'two'; address vars 'get'; return rc"), "ex one two True True False");
+        Ok("variables: get (no value: its name)", rexx.Run("x = 'ex'; s.1 = 'one'; s.2 = 'two'; drop nope; address vars 'get'; return rc"),
+                                         "ex one two NOPE True False");
         Ok("variables: set, drop",       rexx.Run("z = 1; address vars 'set'; return y t.1 (n == .nil) symbol('Z')"), "5 one 1 LIT");
-        Ok("variables: all",             rexx.Run("a = 1; b = 2; address vars 'all'; return rc"), "A,B");
+        Ok("variables: all",             rexx.Run("a = 1; b = 2; address vars 'all'; return rc"), "10");
         Ok("variables: an object",       rexx.Run("a = .array~of(1, 2, 3); address vars 'object'; return rc"), "1");
-        Throws<InvalidOperationException>("RexxCommand after its handler", () => _ = kept!["x"], "only while its handler runs");
+        Ok("IsValid while it runs",      rexx.Run("address vars 'valid'; return rc"), "1");
+        Throws<ObjectDisposedException>("the context after its command: released", () => _ = kept!["x"], "");
 
-        // ADDRESS ... WITH
-        rexx.AddCommandEnvironment("SORT", cmd =>
+        // ADDRESS ... WITH: the context's streams
+        rexx.AddCommandEnvironment("SORT", (c, ctx) =>
         {
-            if (!cmd.IsRedirected)
-                return (cmd.WriteLine("to the console") ? "redirected" : "not redirected") + (cmd.WriteErrorLine("an error") ? "!" : "");
+            if (!ctx.IsRedirected("Input"))
+            {
+                Console.Out.WriteLine("to the console");          // without WITH: the handler's own output
+                try { ctx.Output.Send("LINEOUT", "x"); return "an output"; }
+                catch (RexxException e) { return "no output: " + e.Code; }
+            }
             var lines = new List<string>();
-            for (string? l; (l = cmd.ReadLine()) != null;) lines.Add(l);
+            while (ctx.Input.Send("LINES")!.ToString() != "0") lines.Add(ctx.Input.Send("LINEIN")!.ToString()!);
             lines.Sort(StringComparer.Ordinal);
-            foreach (var l in lines) cmd.WriteLine(l);
-            cmd.WriteErrorLine($"{lines.Count} lines");
+            foreach (var l in lines) ctx.Output.Send("LINEOUT", l);
+            if (ctx.IsRedirected("Error")) ctx.Error.Send("LINEOUT", $"{lines.Count} lines");
             return lines.Count;
         });
         Ok("ADDRESS ... WITH",           rexx.Run("i.1 = 'pear'; i.2 = 'apple'; i.3 = 'fig'; i.0 = 3\n" +
@@ -279,24 +285,30 @@ static partial class Program
                                                    "return rc o.0 o.1 o.2 o.3 '/' e.1"), "3 3 apple fig pear / 3 lines");
         Ok("... into an Array",          rexx.Run("out = .array~new; address sort 'sort' with input using (.array~of('b', 'a')) output using (out)\n" +
                                                    "return out~makeString('l', ',')"), "a,b");
-        var (console, consoleErr) = (Console.Out, Console.Error);
-        var (cout, cerr) = (new StringWriter(), new StringWriter());
-        Console.SetOut(cout); Console.SetError(cerr);
+        var console = Console.Out;
+        var cout = new StringWriter();
+        Console.SetOut(cout);
         string notRedirected;
         try { notRedirected = rexx.Run("address sort 'x'; return rc")!.ToString()!; }
-        finally { Console.SetOut(console); Console.SetError(consoleErr); }
-        Ok("... not redirected: to the console", $"{notRedirected}|{cout.ToString().Trim()}|{cerr.ToString().Trim()}",
-                                         "not redirected|to the console|an error");
-        rexx.AddCommandEnvironment("CAT", cmd => { cmd.Write(cmd.ReadToEnd() + "\nend"); return null; });
-        Ok("ReadToEnd, Write (lines)",   rexx.Run("o = .array~new; address cat 'cat' with input using (.array~of('x', 'y')) output using (o)\n" +
+        finally { Console.SetOut(console); }
+        Ok("... not redirected: Output is SYNTAX 98.900, the console the handler's", $"{notRedirected}|{cout.ToString().Trim()}",
+                                         "no output: 98.900|to the console");
+        rexx.AddCommandEnvironment("CAT", (c, ctx) =>
+        {
+            var text = new List<string>();
+            while (ctx.Input.Send("LINES")!.ToString() != "0") text.Add(ctx.Input.Send("LINEIN")!.ToString()!);
+            ctx.Output.Send("CHAROUT", string.Join("\n", text) + "\nend");
+            return null;
+        });
+        Ok("CHAROUT (lines)",            rexx.Run("o = .array~new; address cat 'cat' with input using (.array~of('x', 'y')) output using (o)\n" +
                                                    "return o~makeString('l', ',')"), "x,y,end");
 
         // commands from other threads; a handler's own calls stay on its thread
         int handlerThread = 0, nestedThread = 0;
-        rexx.AddCommandEnvironment("WHERE", cmd =>
+        rexx.AddCommandEnvironment("WHERE", (c, ctx) =>
         {
             handlerThread = Environment.CurrentManagedThreadId;
-            cmd.Interpreter.Run("return 1");
+            ctx.Interpreter.Run("return 1");
             nestedThread = Environment.CurrentManagedThreadId;
             return Environment.CurrentManagedThreadId;
         });
@@ -304,12 +316,12 @@ static partial class Program
         string rc = Task.Run(() => { caller = Environment.CurrentManagedThreadId; return rexx.Run("address where 'x'; return rc")!.ToString(); }).Result;
         Ok("a command from another .NET thread", rc == caller.ToString() && handlerThread == caller && nestedThread == caller, true);
         var counts = new int[4];
-        rexx.AddCommandEnvironment("COUNT", cmd => { Interlocked.Increment(ref counts[int.Parse(cmd.Command)]); return null; });
+        rexx.AddCommandEnvironment("COUNT", (c, ctx) => { Interlocked.Increment(ref counts[int.Parse(c)]); return null; });
         Parallel.For(0, 4, i => rexx.Run("use arg i; do 100; address count i; end", i));
         Ok("4 threads, 100 commands each", string.Join(",", counts), "100,100,100,100");
 
         // the cost of a command
-        rexx.AddCommandEnvironment("NOP", cmd => null);
+        rexx.AddCommandEnvironment("NOP", (c, ctx) => null);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         rexx.Run("do 20000; address nop 'x'; end");
         double us = sw.Elapsed.TotalMilliseconds * 1000 / 20000;
@@ -456,7 +468,7 @@ static partial class Program
             Throws<OperationCanceledException>("RunFile", () => rexx.RunFile(file, cts.Token));
         File.Delete(file);
         // cancelled while the Rexx code is inside a command handler
-        rexx.AddCommandEnvironment("SLOW", cmd => { Thread.Sleep(300); return null; });
+        rexx.AddCommandEnvironment("SLOW", (c, ctx) => { Thread.Sleep(300); return null; });
         using (var cts = new CancellationTokenSource(100))
             Throws<OperationCanceledException>("cancelled during a command", () => rexx.Run("address slow 'x'; do forever; nop; end", cts.Token));
         // a compile error is a compile error

@@ -213,43 +213,48 @@ syntax:
 
 <section id="eventsCommands"><title>Command Environments (ADDRESS)</title>
 <indexterm><primary>ADDRESS</primary><secondary>environments written in .NET</secondary></indexterm>
-<indexterm><primary>RexxCommand class</primary></indexterm>
+<indexterm><primary>RexxCommandContext class</primary></indexterm>
 <para>Command environments are ooRexx's own (<classname>CommandHandler</classname>,
-ooRexx r13288; the Open Object Rexx Reference describes the class):
+ooRexx r13288; the Open Object Rexx Reference describes it):
 <computeroutput>.CommandHandler~register(name, handler)</computeroutput> makes
 a handler the <literal>ADDRESS</literal> environment
 <emphasis role="italic">name</emphasis> of the running interpreter instance,
-and <computeroutput>.CommandHandler~deregister(name)</computeroutput> removes
-it. A handler written in Rexx needs no .NET. A .NET handler goes in a
+<computeroutput>.CommandHandler~deregister(name)</computeroutput> removes it,
+and ooRexx sends each command to it as
+<computeroutput>command(command, caller)</computeroutput>,
+<emphasis role="italic">caller</emphasis> a <classname>CommandContext</classname>.
+A handler written in Rexx needs no .NET. A .NET handler goes in a
 <xref linkend="clsNetCommandHandler" xrefstyle="select:title"/>:
 <computeroutput>.CommandHandler~register(name, .NetCommandHandler~new(handler))</computeroutput>,
-<emphasis role="italic">handler</emphasis> a .NET delegate that takes a
-<classname>Rexx.Net.RexxCommand</classname> (a
-<literal>Func&lt;RexxCommand, object?&gt;</literal>, an
-<literal>Action&lt;RexxCommand&gt;</literal>, or another delegate type with
-that one parameter), or a <classname>NetHandler</classname>, whose method gets
-the <classname>RexxCommand</classname>. These are the same environments that
-a .NET application adds with <methodname>AddCommandEnvironment</methodname>,
+<emphasis role="italic">handler</emphasis> a .NET delegate that takes the
+command and a <classname>Rexx.Net.RexxCommandContext</classname>, that
+<classname>CommandContext</classname> with its names in .NET's casing (a
+<literal>Func&lt;string, RexxCommandContext, object?&gt;</literal>, an
+<literal>Action&lt;string, RexxCommandContext&gt;</literal>, or another
+delegate type with those two parameters). These are the same environments
+that a .NET application adds with <methodname>AddCommandEnvironment</methodname>,
 with the same rules (<xref linkend="hostCommands"/>, where
-<classname>RexxCommand</classname>'s members are):</para>
+<classname>RexxCommandContext</classname>'s members are):</para>
 <itemizedlist>
 <listitem><para>What the handler returns is <literal>RC</literal> (nothing: 0),
-whatever its sign; ERROR and FAILURE come only from a
-<classname>RexxCommandException</classname>.</para></listitem>
+whatever its sign; ERROR, FAILURE and the other conditions come from the
+context's <methodname>RaiseError</methodname>,
+<methodname>RaiseFailure</methodname> and <methodname>Raise</methodname>, as
+for a handler written in Rexx.</para></listitem>
 <listitem><para>An error of the handler is raised in the code that sent the
-command: a Rexx error as itself, a .NET exception as SYNTAX 98.900, the
-exception in <computeroutput>condition("O")~additional[2]</computeroutput>.
-A HALT that the handler's Rexx code does not trap (ooRexx makes it SYNTAX
-4.1 on the way out) is a HALT again in that code: <literal>SIGNAL ON
-HALT</literal> traps it, <literal>CALL ON HALT</literal> runs after the
-next clause, and untrapped it is SYNTAX 4.1, as a Ctrl-C would be. Any
-other condition that a <classname>NetHandler</classname>'s method lets out
-(<literal>RAISE USER</literal>) does not reach that code yet: ooRexx 5.3.0
-drops such conditions where its native API calls Rexx code (an ooRexx bug,
-reported). ERROR and FAILURE stay themselves
-under <literal>::OPTIONS ERROR SYNTAX</literal> too.</para></listitem>
-<listitem><para>Its output and errors go where <literal>ADDRESS ... WITH</literal>
-says, or, without it, to the console.</para></listitem>
+command: a Rexx error of Rexx code it called as itself, a .NET exception as
+SYNTAX 98.900, the exception in
+<computeroutput>condition("O")~additional[2]</computeroutput>. A HALT that
+Rexx code the handler called does not trap (ooRexx makes it SYNTAX 4.1 on
+the way out) is a HALT again in the code that sent the command:
+<literal>SIGNAL ON HALT</literal> traps it, <literal>CALL ON HALT</literal>
+runs, and untrapped it is SYNTAX 4.1, as a Ctrl-C would be. Any other
+condition that such Rexx code lets out (<literal>RAISE USER</literal>) does
+not reach that code yet: ooRexx 5.3.0 drops such conditions where its native
+API calls Rexx code (an ooRexx bug, reported).</para></listitem>
+<listitem><para>Its output and errors go to the context's streams, which
+exist with <literal>ADDRESS ... WITH</literal>; without it, the handler
+writes to the console itself.</para></listitem>
 <listitem><para>Handlers stack, as any registered with
 <computeroutput>.CommandHandler~register</computeroutput>: one registered for a
 name covers the handler in use, which <methodname>register</methodname>
@@ -260,44 +265,50 @@ handler removed. <computeroutput>.CommandHandler~handler(name)</computeroutput>,
 <computeroutput>~environments</computeroutput> show them.</para></listitem>
 <listitem><para>A name with no handler left answers FAILURE, <literal>RC</literal>
 30, as one that does not exist. A <classname>NetCommandHandler</classname> of
-&nil; (or of anything that is no handler) is SYNTAX 93.900, as ooRexx's
-errors for <methodname>register</methodname> and
+&nil; (or of anything that is no such delegate) is SYNTAX 93.900, as
+ooRexx's errors for <methodname>register</methodname> and
 <methodname>deregister</methodname> are.</para></listitem>
 </itemizedlist>
 <para>These rules are the whole family's: the ooRexx/Python, ooRexx/Lua and
 ooRexx/JavaScript bridges follow them too, with their host's names.</para>
 
 <example id="ex.events-commands">
-<title>A command environment served through .NET</title>
-<programlisting language="rexx">.CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new, "COMMAND")))
-address calc "square 7"; say "rc:" rc
-out = .array~new
-address calc "table 7" with output using (out)
-say out~makeString("l", " / ")
-signal on syntax
-address calc "frobnicate"
-syntax:
-  c = condition("O")
-  say c~code .net~typeOf(c~additional[2])
-.CommandHandler~deregister("calc")
-signal on failure
-trace off                                         -- (TRACE NORMAL shows failures)
-address calc "square 7"
-failure: say "FAILURE, rc" rc
+<title>A command environment served by .NET</title>
+<programlisting language="csharp">using System;
+using Rexx.Net;
 
-::requires "net.cls"
-::class Calc
-::method command
-  use arg cmd                                     -- a Rexx.Net.RexxCommand
-  parse value cmd~Command with verb n
-  select
-    when verb = "square" then return n * n
-    when verb = "table" then do
-      do i = 1 to 3; cmd~WriteLine(n "x" i "=" n * i); end
-      return 0
-    end
-    otherwise return .net~System~Int32~Parse(verb)   -- not a number: a .NET error
-  end</programlisting>
+Func&lt;string, RexxCommandContext, object?&gt; calc = (command, caller) =&gt;
+{
+    var words = command.Split(' ');
+    int n = int.Parse(words[^1]);                      // not a number: a .NET error
+    if (words[0] == "square") return n * n;
+    if (words[0] == "table")
+    {
+        for (int i = 1; i &lt;= 3; i++) caller.Output.Send("LINEOUT", $"{n} x {i} = {n * i}");
+        return 0;
+    }
+    return caller.RaiseError(-1);
+};
+using var rexx = RexxInterpreter.Create(new RexxOptions { StreamPrefixes = false });
+rexx.Run("""
+    use arg calc
+    .CommandHandler~register("CALC", .NetCommandHandler~new(calc))
+    address calc "square 7"; say "rc:" rc
+    out = .array~new
+    address calc "table 7" with output using (out)
+    say out~makeString("l", " / ")
+    signal on syntax
+    address calc "square x"
+    syntax:
+      c = condition("O")
+      say c~code .net~typeOf(c~additional[2])
+    .CommandHandler~deregister("calc")
+    signal on failure
+    trace off                                         -- (TRACE NORMAL shows failures)
+    address calc "square 7"
+    failure: say "FAILURE, rc" rc
+    ::requires "net.cls"
+    """, calc);</programlisting>
 <screen>rc: 49
 7 x 1 = 7 / 7 x 2 = 14 / 7 x 3 = 21
 98.900 System.FormatException
@@ -306,30 +317,33 @@ FAILURE, rc 30</screen>
 
 <example id="ex.events-commands-stack">
 <title>Handlers stacked, as ooRexx's CommandHandler</title>
-<programlisting language="rexx">.CommandHandler~register("SHOUT", .NetCommandHandler~new(.net~handler(.Plain~new, "COMMAND")))
--- a handler written in Rexx over it, logging and forwarding to the one covered
-covered = .CommandHandler~handler("SHOUT")
-.CommandHandler~register("SHOUT", .Logger~new(covered))
-address shout "hello"; say "rc:" rc
-say .CommandHandler~handlers("SHOUT")~items "handlers"
-removed = .CommandHandler~deregister("SHOUT")       -- the logger: the plain one again
-say "removed:" removed~class~id
-address shout "again"; say "rc:" rc
+<programlisting language="csharp">using System;
+using Rexx.Net;
 
-::requires "net.cls"
-::class Plain
-::method command
-  use arg cmd                                     -- a Rexx.Net.RexxCommand
-  return cmd~Command~upper
-::class Logger inherit CommandHandler
-::method init
-  expose inner
-  use strict arg inner
-::method command
-  expose inner
-  use arg command, caller
-  say "log:" command
-  return inner~command(command, caller)</programlisting>
+Func&lt;string, RexxCommandContext, object?&gt; shout = (command, caller) =&gt; command.ToUpperInvariant();
+using var rexx = RexxInterpreter.Create(new RexxOptions { StreamPrefixes = false });
+rexx.Run("""
+    use arg shout
+    .CommandHandler~register("SHOUT", .NetCommandHandler~new(shout))
+    -- a handler written in Rexx over it, logging and forwarding to the one covered
+    covered = .CommandHandler~handler("SHOUT")
+    .CommandHandler~register("SHOUT", .Logger~new(covered))
+    address shout "hello"; say "rc:" rc
+    say .CommandHandler~handlers("SHOUT")~items "handlers"
+    removed = .CommandHandler~deregister("SHOUT")     -- the logger: the .NET one again
+    say "removed:" removed~class~id
+    address shout "again"; say "rc:" rc
+    ::requires "net.cls"
+    ::class Logger inherit CommandHandler
+    ::method init
+      expose inner
+      use strict arg inner
+    ::method command
+      expose inner
+      use arg command, caller
+      say "log:" command
+      return inner~command(command, caller)
+    """, shout);</programlisting>
 <screen>log: hello
 rc: HELLO
 2 handlers

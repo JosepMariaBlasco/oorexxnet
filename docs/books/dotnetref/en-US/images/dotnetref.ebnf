@@ -153,6 +153,10 @@ netcommandhandler_new ::= 'new(' handler ')'
 
 netcommandhandler_command ::= 'command(' command ',' caller ')'
 
+netcommandhandler_release ::= 'release'
+
+netcommandhandler_released ::= 'released'
+
 netref_new ::= 'new' ( '(' value ')' )?
 
 netref_value ::= 'value'

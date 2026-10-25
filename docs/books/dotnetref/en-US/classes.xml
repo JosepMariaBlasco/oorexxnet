@@ -1550,6 +1550,8 @@ and <computeroutput>~environments</computeroutput> show them. The rules a
   <simplelist columns="3">
    <member><xref linkend="mthNetCommandHandlerNew" xrefstyle="select:title"/></member>
    <member><xref linkend="mthNetCommandHandlerCommand" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCommandHandlerRelease" xrefstyle="select:title"/></member>
+   <member><xref linkend="mthNetCommandHandlerReleased" xrefstyle="select:title"/></member>
   </simplelist>
  </entry></row>
 </tbody>
@@ -1563,13 +1565,14 @@ and <computeroutput>~environments</computeroutput> show them. The rules a
 <imagedata fileref="images/netcommandhandler_new.svg" scale="55" />
 </imageobject></mediaobject>
 <para>Returns a new <classname>NetCommandHandler</classname> for
-<emphasis role="italic">handler</emphasis>: a .NET delegate that takes a
-<classname>Rexx.Net.RexxCommand</classname> (a
-<literal>Func&lt;RexxCommand, object?&gt;</literal>, an
-<literal>Action&lt;RexxCommand&gt;</literal>, or another delegate type with
-that one parameter), or a <classname>NetHandler</classname>, whose method
-gets the <classname>RexxCommand</classname>. &nil;, or anything else, is
-SYNTAX 93.900.</para>
+<emphasis role="italic">handler</emphasis>: a .NET delegate that takes the
+command and a <classname>Rexx.Net.RexxCommandContext</classname> (a
+<literal>Func&lt;string, RexxCommandContext, object?&gt;</literal>, an
+<literal>Action&lt;string, RexxCommandContext&gt;</literal>, or another
+delegate type with those two parameters). &nil;, or anything else, is SYNTAX
+93.900; a <classname>NetHandler</classname> too, since a handler written in
+Rexx is a class that inherits <classname>CommandHandler</classname>, with no
+.NET in between.</para>
 </section>
 
 <section id="mthNetCommandHandlerCommand"><title>command</title>
@@ -1580,10 +1583,34 @@ SYNTAX 93.900.</para>
 </imageobject></mediaobject>
 <para>What ooRexx sends for each command
 (<emphasis role="italic">caller</emphasis> is the
-<classname>CommandContext</classname>): the handler gets the command as a
-<classname>RexxCommand</classname>, and what it returns is
-<literal>RC</literal>. A handler written in Rexx registered over this one
-can forward to it with <computeroutput>covered~command(command, caller)</computeroutput>.</para>
+<classname>CommandContext</classname>): the handler gets the command and
+<emphasis role="italic">caller</emphasis> as a
+<classname>RexxCommandContext</classname>, and what it returns is
+<literal>RC</literal> (<xref linkend="eventsCommands"/>). A handler written in
+Rexx registered over this one can forward to it with
+<computeroutput>covered~command(command, caller)</computeroutput>.</para>
+</section>
+
+<section id="mthNetCommandHandlerRelease"><title>release</title>
+<indexterm><primary>release method</primary>
+<secondary>of NetCommandHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcommandhandler_release.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Lets the delegate go: a command sent to the handler afterwards raises
+FAILURE with <literal>RC</literal> 30, as an environment that does not exist.
+Until then the bridge holds the delegate for the interpreter instance
+(<computeroutput>rexx.RemoveCommandEnvironment</computeroutput> releases the
+handlers it removes).</para>
+</section>
+
+<section id="mthNetCommandHandlerReleased"><title>released</title>
+<indexterm><primary>released method</primary>
+<secondary>of NetCommandHandler Class</secondary></indexterm>
+<mediaobject><imageobject>
+<imagedata fileref="images/netcommandhandler_released.svg" scale="55" />
+</imageobject></mediaobject>
+<para>Returns &true; once <methodname>release</methodname> has been sent.</para>
 </section>
 
 </section>

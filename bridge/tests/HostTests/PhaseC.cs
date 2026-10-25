@@ -122,7 +122,7 @@ static partial class Program
         d.SB = sb;                                                     // ~SB=(sb): a .NetObject
         Ok("C: dynamic member result",      ReferenceEquals((object)d.SB, sb), true);
         object? seen = null;
-        rexx.AddCommandEnvironment("NETVAR", cmd => { seen = cmd["SB"]; return null; });
+        rexx.AddCommandEnvironment("NETVAR", (c, ctx) => { seen = ctx["SB"]; return null; });
         rexx.Run("use arg sb; address netvar 'look'", sb);
         Ok("C: a command's variable",       ReferenceEquals(seen, sb), true);
         var items = (RexxObject)rexx.Run("use arg o; return .array~of(o, 'x')", sb)!;

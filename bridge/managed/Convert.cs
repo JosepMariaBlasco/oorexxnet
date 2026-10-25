@@ -268,6 +268,8 @@ public static class Conv
     // A Rexx object (phase C): its RexxObject proxy, for a parameter that
     // takes one. X: a pointer valid during the request; G: a global reference
     // handed over (a callback's result), adopted once.
+    internal static RexxObject AdoptRexx(Rec r) => Adopt(r);
+
     static RexxObject Adopt(Rec r)
     {
         if (r.Adopted == null)

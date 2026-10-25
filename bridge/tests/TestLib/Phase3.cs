@@ -67,11 +67,37 @@ public class Button
 
 public static class Delegates
 {
-    // command handlers written in .NET, for .net~addCommandEnvironment
-    public static Func<Rexx.Net.RexxCommand, object?> Upper => cmd => cmd.Command.ToUpperInvariant();
-    public static Action<Rexx.Net.RexxCommand> Echo => cmd => cmd.WriteLine("echo " + cmd.Command);
-    public delegate int CommandLength(Rexx.Net.RexxCommand cmd);
-    public static CommandLength Length => cmd => cmd.Command.Length;
+    // command handlers written in .NET, for .NetCommandHandler~new
+    public static Func<string, Rexx.Net.RexxCommandContext, object?> Upper => (cmd, ctx) => cmd.ToUpperInvariant();
+    public static Action<string, Rexx.Net.RexxCommandContext> Echo => (cmd, ctx) => ctx.Output.Send("LINEOUT", "echo " + cmd);
+    public delegate int CommandLength(string cmd, Rexx.Net.RexxCommandContext ctx);
+    public static CommandLength Length => (cmd, ctx) => cmd.Length;
+    public static Func<string, Rexx.Net.RexxCommandContext, object?> Calc => (cmd, ctx) => cmd switch
+    {
+        "2+3" => 5,
+        "nothing" => null,
+        "minus" => -3,
+        "throw" => Convert.ToInt32("abc"),                                    // a .NET error
+        "divide" => ctx.Interpreter.Run("return 1 / 0"),                      // a Rexx error of code it calls
+        "lines" => Lines(ctx),
+        "user" => ctx.Interpreter.Run("raise user oops description 'from the handler' return 7"),
+        "halt" => ctx.Interpreter.Run("raise halt"),
+        "error" => ctx.RaiseError(5),
+        "failure" => ctx.Raise("FAILURE", -3, "it could not run", "the additional"),
+        "vars" => ctx["V"] + " " + ctx.HasVar("V") + " " + ctx.HasVar("NOPE") + " " + ctx["NOPE"] + " " + ctx.Environment,
+        "set" => Set(ctx),
+        _ => -1,
+    };
+    static object Lines(Rexx.Net.RexxCommandContext ctx)
+    {
+        ctx.Output.Send("LINEOUT", "one"); ctx.Output.Send("LINEOUT", "two");
+        return 0;
+    }
+    static object Set(Rexx.Net.RexxCommandContext ctx)
+    {
+        ctx["V"] = "set by .NET"; ctx.SetVar("W.1", 42); ctx.DropVar("GONE");
+        return ctx.IsRedirected("Output") ? 1 : 0;
+    }
     public static int Apply(Func<int, int, int> f, int a, int b) => f(a, b);
     public static string Text(Func<string> f) => f();
     public static bool Check(Predicate<string> p, string s) => p(s);

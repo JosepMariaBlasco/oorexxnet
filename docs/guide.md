@@ -482,64 +482,63 @@ the delegate returns at once; a Rexx thread takes them with
 `.net~stopEventLoop`. `"latest"` keeps only the newest waiting call of a
 handler.
 
-A handler can also serve an `ADDRESS` environment. Command environments are
-ooRexx's own (`.CommandHandler`, ooRexx r13288): `.CommandHandler~register(name,
-handler)` registers one, `.CommandHandler~deregister(name)` removes it. A
-handler written in Rexx needs no .NET; a .NET one goes in a
-`.NetCommandHandler`: `.CommandHandler~register("CALC",
-.NetCommandHandler~new(.net~handler(obj, "COMMAND")))` sends each `address calc
-'...'` to the method as a `Rexx.Net.RexxCommand` (`cmd~Command`,
-`cmd~WriteLine(...)` for `WITH OUTPUT`), and what it returns is `RC`. A .NET
-delegate taking a `RexxCommand` works too, and an application hosting Rexx
-does the same with `rexx.AddCommandEnvironment` (section 9). As for any
-handler, a second one for a name covers the one in use, which `register`
-answers (`.nil` if none; its `command` method forwards to it);
-`deregister` removes the handler in use, uncovers the one below, and answers
-the one removed (with none left, a command raises FAILURE, `RC` 30, as for an
-environment that does not exist). `.CommandHandler~handlers("CALC")` lists
-them.
+`ADDRESS` environments are ooRexx's own (`.CommandHandler`, ooRexx r13288):
+`.CommandHandler~register(name, handler)` registers one,
+`.CommandHandler~deregister(name)` removes it, and ooRexx sends each command
+to the handler as `command(command, caller)`, `caller` a `.CommandContext`
+(the variables of the code that sent it, its `WITH` redirection, the
+condition to raise). A handler written in Rexx needs no .NET:
 
 ```rexx
-.CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new, "COMMAND")))
+.CommandHandler~register("CALC", .Calc~new)
 address calc "square 12"
 say rc
-::requires "net.cls"
-::class Calc
+::class Calc inherit CommandHandler
 ::method command
-  use arg cmd
-  parse value cmd~Command with verb n
+  use arg command, caller
+  parse var command verb n
   if verb = "square" then return n * n
-  return -1
+  return caller~raiseError(-1)
 ```
 
 ```text
 144
 ```
 
-```rexx
-.CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new("plain"), "COMMAND")))
-covered = .CommandHandler~register("CALC", .NetCommandHandler~new(.net~handler(.Calc~new("loud"), "COMMAND")))
-address calc "square 3"; say rc
-say .CommandHandler~handlers("CALC")~items "handlers; covered:" covered~class~id
-.CommandHandler~deregister("CALC")          -- the loud one: the plain one again
-address calc "square 3"; say rc
-::requires "net.cls"
-::class Calc
-::method init
-  expose style
-  use arg style
-::method command
-  expose style
-  use arg cmd
-  parse value cmd~Command with verb n
-  if style = "loud" then return "NINE!"
-  return n * n
+A .NET handler, a delegate taking the command and a
+`Rexx.Net.RexxCommandContext` (that `.CommandContext`, its names in .NET's
+casing: `caller["X"]`, `GetVar`, `Output`, `RaiseError`...), goes in a
+`.NetCommandHandler`: `.CommandHandler~register(name,
+.NetCommandHandler~new(delegate))`. What it returns is `RC`; a .NET exception
+is SYNTAX 98.900. An application hosting Rexx does the same with
+`rexx.AddCommandEnvironment` (section 9). As for any handler, a second one
+for a name covers the one in use, which `register` answers (its `command`
+method forwards to it), and `deregister` uncovers it.
+
+```csharp
+using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+Func<string, RexxCommandContext, object?> calc = (command, caller) =>
+{
+    var words = command.Split(' ');
+    if (words[0] == "square") return int.Parse(words[1]) * int.Parse(words[1]);
+    if (words[0] == "setx") { caller["X"] = 42; return 0; }
+    return caller.RaiseError(-1);
+};
+Console.WriteLine(rexx.Run<string>("""
+    use arg calc
+    .CommandHandler~register("CALC", .NetCommandHandler~new(calc))
+    address calc "square 12"; r = rc
+    address calc "setx"
+    return r x .CommandHandler~handler("CALC")~class~id
+    ::requires "net.cls"
+    """, calc));
 ```
 
 ```text
-NINE!
-2 handlers; covered: NETCOMMANDHANDLER
-9
+144 42 NETCOMMANDHANDLER
 ```
 
 ### The event thread: `.NetEventThread`
@@ -790,7 +789,7 @@ account.Send("DEPOSIT", 5);
 dynamic acct = account;
 Console.WriteLine((int)acct.balance);
 
-rexx.AddCommandEnvironment("APP", cmd => cmd.Command.ToUpperInvariant());
+rexx.AddCommandEnvironment("APP", (command, caller) => command.ToUpperInvariant());
 Console.WriteLine(rexx.Run<string>("address app 'hello'; return rc"));
 
 var output = new StringWriter();
@@ -860,9 +859,9 @@ quiet
 
 **Functions and values of the application.** `rexx.AddFunction(name,
 handler)` gives the Rexx code a function (`name(args)`, `CALL name args`),
-called on the Rexx thread as a command handler is. The handler gets a
+called on the Rexx thread. The handler gets a
 `RexxFunctionCall` (`Name`, `Arguments`, `Arg<T>(i)`, `IsSubroutine`, the
-caller's variables as `RexxCommand` has them), or is any delegate or method,
+caller's variables: its indexer, `HasVariable`, `Drop`, `Variables`), or is any delegate or method,
 whose parameters get the arguments converted by Rexx's rules (a default
 value may be left out, a `params` array takes the rest). A .NET exception is
 Rexx's error 40.900, with its message; wrong argument counts are 40.3 / 40.4.

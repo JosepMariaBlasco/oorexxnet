@@ -180,8 +180,7 @@ call ok "released: -= finds it", b~ClickSubscribers, 0
 -- command environments from Rexx: ooRexx's own (.CommandHandler, r13288), with
 -- a .NetCommandHandler for a .NET handler; the family's rules
 -- (oorexx-bridges, topics/command-handlers.md)
-ch = .CommandTester~new
-call reg "CALC", .net~handler(ch, "COMMAND")
+call reg "CALC", dl~Calc
 address calc "2+3"; call ok "command: RC", rc, 5
 address calc "nothing"; call ok "no result: RC 0", rc, 0
 signal on error name rcSign; signal on failure name rcSign
@@ -191,7 +190,24 @@ call ok "a .NET error: SYNTAX 98.900", code('address calc "throw"'), "98.900"
 call ok "... the exception, additional[2]", code('address calc "throw"', 2), "System.FormatException"
 call ok "a Rexx error: itself", code('address calc "divide"'), "42.3"
 o = .array~new; address calc "lines" with output using (o)
-call ok "WITH OUTPUT", o~makeString("l", ","), "one,two"
+call ok "WITH OUTPUT (caller~output)", o~makeString("l", ","), "one,two"
+call ok "WITHOUT it: caller~output is SYNTAX 98.900, as ooRexx's", code('address calc "lines"'), "98.900"
+signal on error name calcError
+address calc "error"
+call ok "caller~raiseError: ERROR", "none", "ERROR"
+calcError: signal off error
+call ok "... its rc", condition("C") rc, "ERROR 5"
+signal on failure name calcFailure
+trace off
+address calc "failure"
+call ok "caller~raise FAILURE: FAILURE", "none", "FAILURE"
+calcFailure: signal off failure
+call ok "... rc, description, additional", condition("C") rc condition("D") condition("A"), "FAILURE -3 it could not run the additional"
+trace normal
+v = "issuer's"; drop nope; drop gone; gone = "x"
+address calc "vars"; call ok "the variables: [], hasVar, a name with no value, environment", rc, "issuer's True False NOPE CALC"
+o = .array~new; address calc "set" with output using (o)
+call ok "... []=, setVar, dropVar", v w.1 symbol("GONE") rc, "set by .NET 42 LIT 1"
 call reg "UP", dl~Upper
 address up "abc"; call ok ".NET Func handler", rc, "ABC"
 call reg "LEN", dl~Length
@@ -228,13 +244,14 @@ removed: signal off failure
 call ok "deregistered: FAILURE RC 30, as unknown", condition("C") rc condition("D"), "FAILURE 30 2+3"
 call err "a .nil handler: SYNTAX", '.NetCommandHandler~new(.nil)', "the handler is .nil"
 call ok "... 93.900", code('.NetCommandHandler~new(.nil)'), "93.900"
-call err "not a handler", '.NetCommandHandler~new("text")', "must be a .NET delegate taking a Rexx.Net.RexxCommand"
+call err "not a handler", '.NetCommandHandler~new("text")', "must be a .NET delegate taking the command and a"
+call err "a .NetHandler: written in Rexx, it needs no .NET", '.NetCommandHandler~new(.net~handler(.Doubler~new(.nil), "COMMAND"))', "inherits .CommandHandler"
 call ok "... 93.900", code('.NetCommandHandler~new("text")'), "93.900"
-call reg "CALC", .net~handler(ch, "COMMAND")
+call reg "CALC", dl~Calc
 address calc "2+3"; call ok "registered again", rc, 5
 -- ::OPTIONS ERROR SYNTAX in the code that sends the command (ooRexx #2119,
 -- fixed in r13282, turned a handler's non-ERROR condition into SYNTAX 98.970).
--- A guard: a USER from a .NetHandler does not reach the sender (non-SYNTAX
+-- A guard: a USER from Rexx code the .NET handler calls does not reach the sender (non-SYNTAX
 -- conditions are dropped at ooRexx's API, an open ooRexx bug), so it is
 -- "rc 7" with the option as without it (r13278 and r13282 alike); when it
 -- does arrive, it must not arrive as 98.970.
@@ -250,7 +267,7 @@ call ok "... an RC as without it", errorSyntax~call("2+3"), "rc 5"
 -- thread (oorexx-bridges, command handlers, rule 1): SIGNAL ON HALT traps it,
 -- CALL ON HALT runs after the next clause, untrapped it is SYNTAX 4.1.
 halting = .net~type("System.Collections.Generic.List<int>")~new; halting~Add(2); halting~Add(1)
-haltCmp = .net~handler(.CommandTester~new, "HALTCOMPARE")
+haltCmp = .net~handler(.HaltTester~new, "HALTCOMPARE")
 call ok "a HALT from a command handler: SIGNAL ON HALT", haltSignalCmd(), "HALT"
 call ok "... CALL ON HALT, after the next clause", haltCallCmd(), "0 1"
 call ok "... untrapped: SYNTAX 4.1", haltUntrappedCmd(), "SYNTAX 4.1"
@@ -368,21 +385,7 @@ haltSeen: halted = 1; return
   use arg command, caller
   r = inner~command(command, caller)
   return r r
-::class CommandTester             -- a command handler in Rexx
-::method command
-  use arg cmd                                      -- a Rexx.Net.RexxCommand
-  select case cmd~Command
-    when "2+3" then return 5
-    when "nothing" then return
-    when "minus" then return -3
-    when "throw" then return .net~System~Convert~ToInt32("abc")
-    when "divide" then return 1 / 0
-    when "lines" then do; cmd~WriteLine("one"); cmd~WriteLine("two"); return 0; end
-    when "user" then raise user oops description "from the handler" return 7
-    when "halt" then raise halt
-    otherwise return -1
-  end
-
+::class HaltTester                -- a callback whose Rexx code is halted
 ::method haltCompare               -- a Comparison<int> whose Rexx code is halted
   raise halt
 

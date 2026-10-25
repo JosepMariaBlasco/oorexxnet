@@ -141,14 +141,14 @@
  *
  * Command environments are ooRexx's own (.CommandHandler, ooRexx r13288):
  * .CommandHandler~register(name, .NetCommandHandler~new(handler)) makes a
- * .NET delegate taking a Rexx.Net.RexxCommand (or a .NetHandler, whose
- * method gets the RexxCommand: cmd~Command, cmd~WriteLine...) the ADDRESS
+ * .NET delegate taking the command and a Rexx.Net.RexxCommandContext
+ * (ooRexx's .CommandContext, its names in .NET's casing) the ADDRESS
  * environment name of this interpreter instance; it stacks, and
  * .CommandHandler~deregister(name) uncovers what it covered, as for any
  * handler. What the handler returns is RC, whatever its sign; a .NET error
- * in it is SYNTAX 98.900, a Rexx error itself; output without WITH goes to
- * the console (the family's rules: oorexx-bridges,
- * topics/command-handlers.md).
+ * in it is SYNTAX 98.900, a Rexx error itself (the family's rules:
+ * oorexx-bridges, topics/command-handlers.md). A handler written in Rexx
+ * needs no .NET: a class that inherits .CommandHandler.
  *
  * Option "queued": the call is queued and the delegate returns at once (its
  * type's default); a Rexx thread takes the calls: .net~nextEvent([seconds])
@@ -773,31 +773,37 @@ syntax: raise propagate
   return "a NetHandler ("target"~"message", "options")"
 
 -- A command handler of ooRexx's (a .CommandHandler) served by .NET:
--- .NetCommandHandler~new(handler), handler a .NET delegate taking a
--- Rexx.Net.RexxCommand, or a .NetHandler. Its COMMAND forwards to the
--- bridge's native entry of the instance (Rexx.Net's command environments).
+-- .NetCommandHandler~new(handler), handler a .NET delegate taking the
+-- command and a Rexx.Net.RexxCommandContext (ooRexx's .CommandContext).
 ::class NetCommandHandler public inherit CommandHandler
 ::method init
-  expose entry id marker
+  expose id
   signal on syntax
   use strict arg handler
   if handler == .nil then raise syntax 93.900 array(".NetCommandHandler~new: the handler is .nil")
   id = NetRequest("cmdHandler", handler)
-  entry = NetRequest("cmdEntry")
-  marker = NetRequest("cmdMarker")
   return
 syntax: raise propagate
--- What the entry answers: RC (.nil, its "no result": 0), or, for ERROR and
--- FAILURE, (marker, condition, rc, description, additional), raised with
--- caller~raise, which keeps additional
-::method command unguarded
-  expose entry id marker
+::method command unguarded           -- the handler's result is RC
+  expose id
   use arg command, caller
-  r = entry~command(id || '00'x || caller~environment || '00'x || command, caller)
+  if id == .nil then return caller~raise("FAILURE", 30)    -- released: as an unknown environment
+  signal on halt name halted
+  r = NetRequest("cmdRun", id, command, caller)
   if r == .nil then return 0
-  if r~isA(.Array), r~size == 5, r[1] == marker then
-    return caller~raise(r[2], r[3], r[4], r[5])
   return r
+-- A HALT that Rexx code the handler called did not trap: the bridge gives
+-- it back as a HALT (rule 1, host code), which arrives here, in this
+-- method; the code that sent the command gets it, as ooRexx raises a
+-- handler's condition there
+halted: return caller~raise("HALT", 0)
+::method release unguarded           -- the delegate released; then FAILURE, RC 30
+  expose id
+  if id \== .nil then call NetRequest "cmdRelease", id
+  id = .nil
+::method released unguarded
+  expose id
+  return id == .nil
 
 /** A pair's sentinel: only its Rexx object holds it, and it holds the Rexx
     object, so that its UNINIT runs when Rexx no longer holds the Rexx

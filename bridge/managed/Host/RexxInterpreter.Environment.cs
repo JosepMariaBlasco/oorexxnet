@@ -44,132 +44,79 @@ public sealed partial class RexxInterpreter
     // -------------------------------------------------- command environments
 
     // ooRexx's own command environments (.CommandHandler, RFE #882, r13288):
-    // every handler of the application is a Rexx object, a .CommandHandler
-    // (RexxNetCommandHandler, CommandsSource below), registered with
-    // .CommandHandler~register, so that it stacks over the handler in use and
-    // .CommandHandler~deregister uncovers it, as for a handler written in
-    // Rexx; .CommandHandler~environments, ~handler and ~handlers show it. Its
-    // COMMAND forwards to one native entry of the instance (Commands.Entry),
-    // registered under an internal name that is deregistered at once (it
-    // never appears among the environments, nor can Rexx code remove it):
-    // the RexxNetCommandHandler holds that entry's .NativeCommandHandler, and
-    // the command it forwards carries its id and the ADDRESS name. Forwarded
-    // so, the native entry gets the issuer's variables and its WITH
-    // redirection, and the conditions it raises reach the issuer, as before.
-
-    const string CommandEntry = "REXXNET.COMMANDS";
+    // a handler of the application is a .NetCommandHandler (net.cls; a
+    // .CommandHandler) registered with .CommandHandler~register, as Rexx code
+    // registers one: it stacks over the handler in use and
+    // .CommandHandler~deregister uncovers it; ~environments, ~handler and
+    // ~handlers show it. ooRexx sends it command(command, caller); it calls
+    // .NET (a request, as any .NET call from Rexx), and the handler gets the
+    // command and caller as a RexxCommandContext. The table below holds the
+    // delegates, by id (Bridge's cmdHandler / cmdRun / cmdRelease).
 
     const string CommandsSource = """
         -- Rexx.Net: the application's command environments, through ooRexx's
-        -- own (.CommandHandler).
-        ::routine hide public                -- the native entry's object (its name gone), the marker
-          use strict arg name
-          return .array~of(.CommandHandler~deregister(name), .RexxNetCommandHandler~raiseMarker)
+        -- own (.CommandHandler), with net.cls's .NetCommandHandler.
+        ::requires "net.cls"
         ::routine register public            -- the handler covered, or .nil
-          use strict arg name, entry, id
-          return .CommandHandler~register(name, .RexxNetCommandHandler~new(entry, id))
-        ::routine deregister public          -- (the handler removed, its id if ours and no longer in use)
+          use strict arg name, handler       -- handler: the .NET delegate
+          return .CommandHandler~register(name, .NetCommandHandler~new(handler))
+        ::routine deregister public          -- the handler removed
           use strict arg name
           removed = .CommandHandler~deregister(name)
-          id = .nil
-          if removed~isA(.RexxNetCommandHandler) then do
-            id = removed~id
+          if removed~isA(.NetCommandHandler) then do
+            inUse = .false
             envs = .CommandHandler~environments
             do n over envs~allIndexes
               do h over .CommandHandler~handlers(n)
-                if h == removed then id = .nil            -- registered under another name too
+                if h == removed then inUse = .true    -- registered under another name too
               end
             end
+            if \inUse then removed~release            -- its delegate released
           end
-          return .array~of(removed, id)
-
-        -- a handler of the application (RexxInterpreter.AddCommandEnvironment,
-        -- .net~addCommandEnvironment)
-        ::class 'RexxNetCommandHandler' public inherit CommandHandler
-        ::attribute raiseMarker class get
-        ::method init class
-          expose raiseMarker
-          raiseMarker = .object~new
-        ::attribute id get
-        ::method init
-          expose entry id
-          use strict arg entry, id
-        -- What the native entry answers, forwarded: RC (.nil, its "no result":
-        -- 0, as ADDRESS makes it), or, for ERROR and FAILURE, (marker,
-        -- condition, rc, description, additional), raised with caller~raise:
-        -- raised by the native entry itself, they would arrive without their
-        -- additional
-        ::method command unguarded
-          expose entry id
-          use arg command, caller
-          r = entry~command(id || '00'x || caller~environment || '00'x || command, caller)
-          if r == .nil then return 0
-          if r~isA(.Array), r~size == 5, r[1] == .RexxNetCommandHandler~raiseMarker then
-            return caller~raise(r[2], r[3], r[4], r[5])
-          return r
+          return removed
         """;
 
-    readonly Dictionary<int, Func<RexxCommand, object?>> commands = new();
+    readonly Dictionary<int, Func<string, RexxCommandContext, object?>> commands = new();
     int lastCommand;
     readonly object commandsLock = new();
-    (RexxObject Entry, RexxRoutine Register, RexxRoutine Deregister)? commandMachinery;
+    (RexxRoutine Register, RexxRoutine Deregister)? commandRoutines;
 
-    /// The RexxNetCommandHandler class's marker (see CommandsSource).
-    internal RexxObject CommandRaiseMarker { get { CommandMachinery(); return commandRaiseMarker!; } }
-    RexxObject? commandRaiseMarker;
-
-    (RexxObject Entry, RexxRoutine Register, RexxRoutine Deregister) CommandMachinery()
+    (RexxRoutine Register, RexxRoutine Deregister) CommandRoutines()
     {
         lock (commandsLock)
         {
-            if (commandMachinery is { } m) return m;
-            inst.AddCommandEnvironment(CommandEntry, Commands.Address, Commands.Redirecting);
+            if (commandRoutines is { } m) return m;
             var routines = LoadPackage("Rexx.Net commands", CommandsSource).Routines;
-            using var hidden = (RexxObject)((RexxRoutine)routines["HIDE"]!).Call(CommandEntry)!;
-            commandRaiseMarker = (RexxObject)hidden[2]!;
-            m = ((RexxObject)hidden[1]!, (RexxRoutine)routines["REGISTER"]!, (RexxRoutine)routines["DEREGISTER"]!);
-            commandMachinery = m;
+            m = ((RexxRoutine)routines["REGISTER"]!, (RexxRoutine)routines["DEREGISTER"]!);
+            commandRoutines = m;
             return m;
         }
     }
 
     /// An ADDRESS environment of the application: ADDRESS name 'command' (or
-    /// ADDRESS name, then 'command') calls handler on the Rexx thread. Its
-    /// result is RC (null: 0), whatever its sign. Throw RexxCommandException
-    /// to raise ERROR or FAILURE; any other exception raises SYNTAX 98.900
-    /// (the exception is condition("O")~additional[2]). Names are not
-    /// case-sensitive. As ooRexx's .CommandHandler~register (the handler is
-    /// registered so, as a .CommandHandler): the handler covers the one in
-    /// use for that name, which RemoveCommandEnvironment uncovers; the
-    /// covered handler's object is returned (null if none): its COMMAND
-    /// method forwards to it.
-    public RexxObject? AddCommandEnvironment(string name, Func<RexxCommand, object?> handler)
+    /// ADDRESS name, then 'command') calls handler(command, context) on the
+    /// Rexx thread, the context ooRexx's own .CommandContext
+    /// (RexxCommandContext). Its result is RC (null: 0), whatever its sign;
+    /// context.RaiseError(rc), RaiseFailure(rc) or Raise(...) raise a
+    /// condition; any exception raises SYNTAX 98.900 (the exception is
+    /// condition("O")~additional[2]). Names are not case-sensitive. As
+    /// ooRexx's .CommandHandler~register (the handler is registered so, as a
+    /// .NetCommandHandler): it covers the handler in use for that name,
+    /// which RemoveCommandEnvironment uncovers; the covered handler's object
+    /// is returned (null if none): its COMMAND method forwards to it.
+    public RexxObject? AddCommandEnvironment(string name, Func<string, RexxCommandContext, object?> handler)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(handler);
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
-        var m = CommandMachinery();
-        int id = NewCommandHandler(handler);
-        try { return (RexxObject?)m.Register.Call(name, m.Entry, id); }
-        catch { lock (commands) commands.Remove(id); throw; }
+        return CommandRoutines().Register.Call(name, handler);
     }
-
-    // A handler in the instance's table (also for net.cls's .NetCommandHandler,
-    // which forwards to the same native entry): its id.
-    internal int NewCommandHandler(Func<RexxCommand, object?> handler)
-    {
-        CommandMachinery();
-        lock (commands) { int id = ++lastCommand; commands[id] = handler; return id; }
-    }
-
-    /// The native entry's .NativeCommandHandler object (see CommandsSource).
-    internal RexxObject CommandEntryObject => CommandMachinery().Entry;
 
     /// A handler with no result (RC 0).
-    public RexxObject? AddCommandEnvironment(string name, Action<RexxCommand> handler)
+    public RexxObject? AddCommandEnvironment(string name, Action<string, RexxCommandContext> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        return AddCommandEnvironment(name, c => { handler(c); return null; });
+        return AddCommandEnvironment(name, (c, x) => { handler(c, x); return null; });
     }
 
     /// Removes the handler in use for ADDRESS name, as ooRexx's
@@ -182,24 +129,27 @@ public sealed partial class RexxInterpreter
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
-        var m = CommandMachinery();
-        RexxObject answer;
-        try { answer = (RexxObject)m.Deregister.Call(name)!; }
+        try { return CommandRoutines().Deregister.Call(name)!; }
         catch (RexxException e) when (e.Code == "93.900")
         {
             throw new InvalidOperationException($"there is no command environment {name} to remove", e);
         }
-        using (answer)
-        {
-            if (answer[2] is RexxString s && int.TryParse(s.Value, out int id))
-                lock (commands) commands.Remove(id);              // the delegate released
-            return (RexxObject)answer[1]!;
-        }
     }
 
-    internal Func<RexxCommand, object?>? CommandHandler(int id)
+    // The table (net.cls's .NetCommandHandler, through Bridge).
+    internal int NewCommandHandler(Func<string, RexxCommandContext, object?> handler)
+    {
+        lock (commands) { int id = ++lastCommand; commands[id] = handler; return id; }
+    }
+
+    internal Func<string, RexxCommandContext, object?>? CommandHandler(int id)
     {
         lock (commands) return commands.TryGetValue(id, out var h) ? h : null;
+    }
+
+    internal void ReleaseCommandHandler(int id)
+    {
+        lock (commands) commands.Remove(id);
     }
 
     // ----------------------------------------------------------------- I/O

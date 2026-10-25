@@ -339,7 +339,7 @@ static partial class Program
         var same = r.LoadPackage("same.cls", "::class Same public\n::method same; use arg x; return x\n" +
                                               "::method fail; raise syntax 98.900 array('x')\n").FindClass("Same")!.New()!;
         var arr = r.NewArray("a", "b");
-        r.AddCommandEnvironment("NOP", cmd => cmd.Command.Length);
+        r.AddCommandEnvironment("NOP", (c, ctx) => c.Length);
         r.Output = new StringWriter();
         var command = r.Compile("command", "address nop 'x'; say rc; return rc");
         double Rate(Action act, int n)

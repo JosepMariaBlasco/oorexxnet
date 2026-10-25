@@ -74,7 +74,7 @@ public static class BothWays
     {
         string? got = null;
         var r = RexxInterpreter.Current!;
-        r.AddCommandEnvironment("BOTHWAYS", cmd => { got = cmd.Command; return 7; });
+        r.AddCommandEnvironment("BOTHWAYS", (c, ctx) => { got = c; return 7; });
         return r.Run<string>("address bothways 'hello'; return rc") + " " + got;
     }
 }

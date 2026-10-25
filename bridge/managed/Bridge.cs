@@ -166,29 +166,48 @@ public static unsafe class Bridge
     // .NetCommandHandler~new(handler) (net.cls): a command handler of ooRexx's
     // (a .CommandHandler) served by .NET, in the instance of the Rexx code
     // asking (RexxInterpreter's command environments). The handler: a .NET
-    // delegate taking a RexxCommand (a Func<RexxCommand, object?>, an
-    // Action<RexxCommand>, or any delegate type with that one parameter), or
-    // a .NetHandler (its Rexx method gets the Rexx.Net.RexxCommand; what it
-    // returns is RC). Answers its id in the instance's table.
+    // delegate taking the command and a RexxCommandContext (a
+    // Func<string, RexxCommandContext, object?>, an
+    // Action<string, RexxCommandContext>, or any delegate type with those two
+    // parameters). Answers its id in the instance's table.
     static int CommandHandler(Rec h)
     {
         var rexx = CurrentInterpreter();
-        if (h.Tag == 'H')
-        {
-            var hd = Callbacks.HandlerOf(h);
-            return rexx.NewCommandHandler((Func<RexxCommand, object?>)Callbacks.DelegateFor(hd, typeof(Func<RexxCommand, object?>)));
-        }
         if (h.Tag == 'O' && Handles.Get(h.Id) is Delegate d)
         {
-            if (d is Func<RexxCommand, object?> fd) return rexx.NewCommandHandler(fd);
-            if (d is Action<RexxCommand> ad) return rexx.NewCommandHandler(cmd => { ad(cmd); return null; });
-            if (d.GetType().GetMethod("Invoke")!.GetParameters() is { Length: 1 } ip && ip[0].ParameterType.IsAssignableFrom(typeof(RexxCommand)))
+            if (d is Func<string, RexxCommandContext, object?> fd) return rexx.NewCommandHandler(fd);
+            if (d is Action<string, RexxCommandContext> ad) return rexx.NewCommandHandler((c, x) => { ad(c, x); return null; });
+            var invoke = d.GetType().GetMethod("Invoke")!;
+            if (invoke.GetParameters() is { Length: 2 } ip && ip[0].ParameterType.IsAssignableFrom(typeof(string)) &&
+                ip[1].ParameterType.IsAssignableFrom(typeof(RexxCommandContext)))
             {
-                bool returns = d.GetType().GetMethod("Invoke")!.ReturnType != typeof(void);
-                return rexx.NewCommandHandler(cmd => { object? v = d.DynamicInvoke(cmd); return returns ? v : null; });
+                bool returns = invoke.ReturnType != typeof(void);
+                return rexx.NewCommandHandler((c, x) => { object? v = d.DynamicInvoke(c, x); return returns ? v : null; });
             }
         }
-        throw new RexxSyntaxException(93900, ".NetCommandHandler~new: the handler must be a .NET delegate taking a Rexx.Net.RexxCommand, or a .NetHandler; found " + Conv.Describe(h));
+        string hint = h.Tag == 'H' ? " (a handler written in Rexx needs no .NET: a class that inherits .CommandHandler)" : "";
+        throw new RexxSyntaxException(93900, ".NetCommandHandler~new: the handler must be a .NET delegate taking the command and a " +
+                                             "Rexx.Net.RexxCommandContext; found " + Conv.Describe(h) + hint);
+    }
+
+    // .NetCommandHandler~command(command, caller): the handler called with the
+    // command and the .CommandContext; its result is RC (null: 0). Its
+    // exceptions go back as any .NET call's: SYNTAX 98.900, or the Rexx
+    // condition of Rexx code it called, as itself.
+    static object? RunCommand(int id, string command, Rec caller)
+    {
+        var rexx = CurrentInterpreter();
+        var handler = rexx.CommandHandler(id) ?? throw new InvalidOperationException("the command handler was released");
+        var context = new RexxCommandContext(rexx, Conv.AdoptRexx(caller));
+        object? result = null;
+        try { return result = handler(command, context) ?? "0"; }
+        catch (TargetInvocationException e) when (e.InnerException != null)
+        {
+            // (a delegate of another type, called by DynamicInvoke): its own exception
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e.InnerException).Throw();
+            throw;
+        }
+        finally { context.End(result); }
     }
 
     static RexxInterpreter CurrentInterpreter() =>
@@ -283,8 +302,8 @@ public static unsafe class Bridge
             case "releaseHandler": Callbacks.Release(int.Parse(r[1].Text)); w.Add('V', ""); break;
             case "queued": w.Add('S', Callbacks.QueuedCount.ToString()); break;
             case "cmdHandler": w.Add('S', CommandHandler(r[1]).ToString()); break;
-            case "cmdEntry": Conv.ToRexx(w, CurrentInterpreter().CommandEntryObject); break;
-            case "cmdMarker": Conv.ToRexx(w, CurrentInterpreter().CommandRaiseMarker); break;
+            case "cmdRun": Conv.ToRexx(w, RunCommand(int.Parse(r[1].Text), r[2].Text, r[3])); break;
+            case "cmdRelease": CurrentInterpreter().ReleaseCommandHandler(int.Parse(r[1].Text)); w.Add('V', ""); break;
             case "extend": Extend.Make(r[1].Text, r[2].Items, r[3].Items, w); break;
             case "extAlloc": Extend.Alloc(r[1], r[2], w); break;
             case "extInit": Extend.Init(r[1], r[2].Items, w); break;

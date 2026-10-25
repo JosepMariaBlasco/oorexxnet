@@ -12,8 +12,8 @@ it: the <literal>ADDRESS</literal> environments its commands go to, where its
 <literal>SAY</literal> writes and its <literal>PULL</literal> reads, which
 functions and <literal>VALUE</literal> selectors it has, and when it must
 stop. These are members of <classname>RexxInterpreter</classname>:</para>
-<programlisting language="csharp">public RexxObject? AddCommandEnvironment(string name, Func&lt;RexxCommand, object?&gt; handler);
-public RexxObject? AddCommandEnvironment(string name, Action&lt;RexxCommand&gt; handler);
+<programlisting language="csharp">public RexxObject? AddCommandEnvironment(string name, Func&lt;string, RexxCommandContext, object?&gt; handler);
+public RexxObject? AddCommandEnvironment(string name, Action&lt;string, RexxCommandContext&gt; handler);
 public RexxObject RemoveCommandEnvironment(string name);
 public TextWriter? Output { get; set; }
 public TextWriter? Error { get; set; }
@@ -32,86 +32,85 @@ public bool Trace { set; }</programlisting>
 <!-- ===================================================================== -->
 <section id="hostCommands"><title>ADDRESS Environments</title>
 <indexterm><primary>ADDRESS</primary><secondary>environments of the application</secondary></indexterm>
-<indexterm><primary>RexxCommand class</primary></indexterm>
-<indexterm><primary>RexxCommandException class</primary></indexterm>
-<para><computeroutput>rexx.AddCommandEnvironment(name, handler)</computeroutput>
-makes <emphasis role="italic">handler</emphasis> the environment
-<emphasis role="italic">name</emphasis>: <computeroutput>ADDRESS name 'command'</computeroutput>
-(or <computeroutput>ADDRESS name</computeroutput>, then
-<computeroutput>'command'</computeroutput>) calls it on the Rexx thread with a
-<classname>RexxCommand</classname>. Its result is <literal>RC</literal>
-(<literal>null</literal>: 0), whatever its sign: a negative
-<literal>RC</literal> raises nothing. A
-<classname>RexxCommandException</classname> raises ERROR, or FAILURE, with
-its <literal>RC</literal> and its message as
-<computeroutput>condition("A")</computeroutput>; a Rexx error of Rexx code
-that the handler called is raised again as itself; any other exception is
-SYNTAX 98.900, as a .NET error anywhere: ".NET error: Type: message", the
-exception in <computeroutput>condition("O")~additional[2]</computeroutput>,
-its stack trace in <computeroutput>[3]</computeroutput>. Names are caseless;
-a <literal>null</literal> handler is
-an <classname>ArgumentNullException</classname>. Each instance has its own
-environments, and every one takes <literal>ADDRESS ... WITH</literal>
-redirection: written without it, output and errors go to the console
-(<literal>Console.Out</literal>, <literal>Console.Error</literal>), as a
-program's would, and the write methods answer <literal>false</literal>.</para>
-<para>They are ooRexx's own command environments
-(<classname>CommandHandler</classname>, ooRexx r13288): the handler is
-registered as a <classname>CommandHandler</classname>, with
-<computeroutput>.CommandHandler~register</computeroutput>, so that a second
-handler for a name covers the one in use; that one, as a
-<classname>RexxObject</classname>, is what
-<methodname>AddCommandEnvironment</methodname> returns (<literal>null</literal>
-if none; its <methodname>command</methodname> method forwards to it).
+<indexterm><primary>RexxCommandContext class</primary></indexterm>
+<para>Command environments are ooRexx's own (<classname>CommandHandler</classname>,
+ooRexx r13288; the Open Object Rexx Reference describes it, and its
+<classname>CommandContext</classname>).
+<computeroutput>rexx.AddCommandEnvironment(name, handler)</computeroutput>
+registers <emphasis role="italic">handler</emphasis> as the environment
+<emphasis role="italic">name</emphasis>, with
+<computeroutput>.CommandHandler~register</computeroutput>, wrapped in a
+<xref linkend="clsNetCommandHandler" xrefstyle="select:title"/>:
+<computeroutput>ADDRESS name 'command'</computeroutput> (or
+<computeroutput>ADDRESS name</computeroutput>, then
+<computeroutput>'command'</computeroutput>) calls
+<computeroutput>handler(command, caller)</computeroutput> on the Rexx thread,
+<emphasis role="italic">caller</emphasis> the command's
+<classname>CommandContext</classname> as a
+<classname>RexxCommandContext</classname>. Its result is
+<literal>RC</literal> (<literal>null</literal>: 0), whatever its sign: a
+negative <literal>RC</literal> raises nothing; <methodname>RaiseError</methodname>,
+<methodname>RaiseFailure</methodname> and <methodname>Raise</methodname>
+raise a condition, as the context's do. A Rexx error of Rexx code that the
+handler called is raised again as itself (a HALT as a HALT); any other
+exception is SYNTAX 98.900, as a .NET error anywhere: ".NET error: Type:
+message", the exception in
+<computeroutput>condition("O")~additional[2]</computeroutput>, its stack
+trace in <computeroutput>[3]</computeroutput>. Names are caseless; a
+<literal>null</literal> handler is an
+<classname>ArgumentNullException</classname>. Each instance has its own
+environments.</para>
+<para>As for any handler registered with
+<computeroutput>.CommandHandler~register</computeroutput>, a second one for
+a name covers the one in use; that one, as a <classname>RexxObject</classname>,
+is what <methodname>AddCommandEnvironment</methodname> returns
+(<literal>null</literal> if none; its <methodname>command</methodname>
+method forwards to it).
 <computeroutput>rexx.RemoveCommandEnvironment(name)</computeroutput> is
 <computeroutput>.CommandHandler~deregister</computeroutput>: it removes the
 handler in use for the name (any: the application's, one written in Rexx, a
 native one), uncovers the one below, and returns the one removed (a name
 with no handler is an <classname>InvalidOperationException</classname>);
 with none left, <literal>ADDRESS name</literal> raises FAILURE with
-<literal>RC</literal> 30, as for an environment that does not exist.
-Rexx code adds and removes them too, with ooRexx's own
-<computeroutput>.CommandHandler~register</computeroutput> and
-<computeroutput>~deregister</computeroutput>, a .NET handler wrapped in a
-<xref linkend="clsNetCommandHandler" xrefstyle="select:title"/>
+<literal>RC</literal> 30, as for an environment that does not exist. Rexx
+code registers and removes them too, with the same two methods
 (<xref linkend="eventsCommands"/>). These are the rules of the whole family
 of bridges (ooRexx/Python, ooRexx/Lua, ooRexx/JavaScript).</para>
-<programlisting language="csharp">public abstract class RexxCallContext
+<programlisting language="csharp">public sealed class RexxCommandContext            // ooRexx's .CommandContext
 {
-    public RexxInterpreter Interpreter { get; }
+    public RexxInterpreter Interpreter { get; }        // to call Rexx code
+    public RexxObject Context { get; }                 // the .CommandContext itself
+    public string Environment { get; }
+    public RexxObject? Pending { get; }
+    public bool IsValid { get; }
+    public bool IsRedirected(string kind);             // "Input", "Output", "Error", "Same"
+    public RexxObject Input { get; }                   // a .CommandInput (WITH INPUT)
+    public RexxObject Output { get; }                  // a .CommandOutput (WITH OUTPUT)
+    public RexxObject Error { get; }                   // a .CommandOutput (WITH ERROR)
     public object? this[string name] { get; set; }     // the caller's variable ("X", "STEM.1")
-    public bool HasVariable(string name);
-    public void Drop(string name);
-    public IReadOnlyDictionary&lt;string, object?&gt; Variables { get; }   // a copy
-}
-public sealed class RexxCommand : RexxCallContext
-{
-    public string Address { get; }                     // as the Rexx code wrote it
-    public string Command { get; }
-    public static implicit operator string(RexxCommand c);
-    public bool IsRedirected { get; }                  // ADDRESS ... WITH
-    public bool IsInputRedirected { get; }
-    public bool IsOutputRedirected { get; }
-    public bool IsErrorRedirected { get; }
-    public string? ReadLine();                         // null at the end
-    public string? ReadToEnd();
-    public bool WriteLine(string line);                // false: not redirected (to the console)
-    public bool Write(string text);
-    public bool WriteErrorLine(string line);
-    public bool WriteError(string text);
-}
-public sealed class RexxCommandException : Exception
-{
-    public RexxCommandException(object? rc, string? message = null, bool failure = false);
-    public object? Rc { get; }
-    public bool Failure { get; }
+    public object? GetVar(string name);
+    public void SetVar(string name, object? value);
+    public bool HasVar(string name);
+    public void DropVar(string name);
+    public RexxObject Variables { get; }
+    public object? Raise(string condition, object? rc [, object? description [, object? additional]]);
+    public object? RaiseError(object? rc);
+    public object? RaiseFailure(object? rc);
 }</programlisting>
-<para>A <classname>RexxCommand</classname> (and a <classname>RexxFunctionCall</classname>,
-below) is valid only while its handler runs. Its indexer reads and sets the
-calling Rexx code's variables, their names as Rexx writes them, uppercased;
-setting <literal>null</literal> sets &nil; (<methodname>Drop</methodname>
-drops). The handler's own calls into Rexx (through
-<methodname>Interpreter</methodname>) run nested on the same thread.</para>
+<para>Each member is the <classname>CommandContext</classname>'s method of
+that name, with what ooRexx says of it: a variable with no value gives its
+name, as in Rexx; <methodname>Input</methodname>,
+<methodname>Output</methodname> and <methodname>Error</methodname> exist
+only with that <literal>ADDRESS ... WITH</literal> redirection (without it,
+SYNTAX 98.900; the console is <literal>Console.Out</literal>), and are
+written and read with the stream methods
+(<computeroutput>Output.Send("LINEOUT", line)</computeroutput>,
+<computeroutput>Input.Send("LINEIN")</computeroutput>); one condition per
+command. The context is valid while the command runs: the bridge releases it
+when the handler returns (then an <classname>ObjectDisposedException</classname>).
+The handler's own calls into Rexx (through
+<methodname>Interpreter</methodname>) run nested on the same thread. A
+command costs about 10 µs.</para>
 
 <example id="ex.host-commands">
 <title>An ADDRESS environment</title>
@@ -119,17 +118,18 @@ drops). The handler's own calls into Rexx (through
 using Rexx.Net;
 
 using var rexx = RexxInterpreter.Create();
-rexx.AddCommandEnvironment("APP", cmd =&gt;
+rexx.AddCommandEnvironment("APP", (command, caller) =&gt;
 {
-    switch (cmd.Command.Split(' ')[0].ToUpperInvariant())
+    switch (command.Split(' ')[0].ToUpperInvariant())
     {
-        case "UPPER": return cmd.Command.Substring(6).ToUpperInvariant();
-        case "SETX": cmd["X"] = 42; return 0;
+        case "UPPER": return command.Substring(6).ToUpperInvariant();
+        case "SETX": caller["X"] = 42; return 0;
         case "LINES":
             int count = 0;
-            for (string? l; (l = cmd.ReadLine()) != null; count++) cmd.WriteLine($"{count + 1}: {l}");
+            for (; caller.Input.Send("LINES")!.ToString() != "0"; count++)
+                caller.Output.Send("LINEOUT", $"{count + 1}: {caller.Input.Send("LINEIN")}");
             return count;
-        default: throw new RexxCommandException(10, "unknown command: " + cmd.Command);
+        default: return caller.Raise("ERROR", 10, command, "unknown command: " + command);
     }
 });
 Console.WriteLine(rexx.Run&lt;string&gt;("address app 'upper hello'; return rc"));
@@ -240,8 +240,20 @@ arguments for a typed delegate, 40.3 and 40.4; an argument that does not
 convert, 40.900 naming it. The program's own routines and Rexx's built-in
 functions win over the application's; external functions of the same name (a
 library's, a file) are hidden by it. Names are caseless; adding one again
-replaces it.</para>
-<programlisting language="csharp">public sealed class RexxFunctionCall : RexxCallContext
+replaces it. A <classname>RexxFunctionCall</classname> is valid only while
+its handler runs; its indexer reads and sets the calling Rexx code's
+variables, their names as Rexx writes them, uppercased (a variable with no
+value: <literal>null</literal>); setting <literal>null</literal> sets &nil;
+(<methodname>Drop</methodname> drops).</para>
+<programlisting language="csharp">public abstract class RexxCallContext
+{
+    public RexxInterpreter Interpreter { get; }
+    public object? this[string name] { get; set; }     // the caller's variable ("X", "STEM.1")
+    public bool HasVariable(string name);
+    public void Drop(string name);
+    public IReadOnlyDictionary&lt;string, object?&gt; Variables { get; }   // a copy
+}
+public sealed class RexxFunctionCall : RexxCallContext
 {
     public string Name { get; }                        // uppercased, unless called as a literal
     public IReadOnlyList&lt;object?&gt; Arguments { get; }   // RexxString, RexxObject, a .NET object, null, RexxValue.Omitted
