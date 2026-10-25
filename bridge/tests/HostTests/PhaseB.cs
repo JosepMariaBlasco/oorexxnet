@@ -297,7 +297,8 @@ static partial class Program
         {
             var text = new List<string>();
             while (ctx.Input.Send("LINES")!.ToString() != "0") text.Add(ctx.Input.Send("LINEIN")!.ToString()!);
-            ctx.Output.Send("CHAROUT", string.Join("\n", text) + "\nend");
+            // (the core's .CommandOutput splits at .endOfLine: CRLF on Windows)
+            ctx.Output.Send("CHAROUT", string.Join(Environment.NewLine, text) + Environment.NewLine + "end");
             return null;
         });
         Ok("CHAROUT (lines)",            rexx.Run("o = .array~new; address cat 'cat' with input using (.array~of('x', 'y')) output using (o)\n" +
@@ -326,7 +327,7 @@ static partial class Program
         rexx.Run("do 20000; address nop 'x'; end");
         double us = sw.Elapsed.TotalMilliseconds * 1000 / 20000;
         if (Environment.GetEnvironmentVariable("HOSTTESTS_RATES") != null) Console.WriteLine($"     a command: {us:F2} µs");
-        Ok("a command costs little",     us < 50, true);
+        Ok("a command costs little",     us < 200, true);     // (~10 µs on Linux; a request costs ~36 µs on the Windows runners)
     }
 
     static void Io(RexxInterpreter rexx, StringWriter err)
