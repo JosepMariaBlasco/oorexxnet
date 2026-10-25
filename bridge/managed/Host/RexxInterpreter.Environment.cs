@@ -9,8 +9,9 @@
 // of them do), and .traceOutput / .debugInput. Setting Output, Error or Input,
 // or StreamPrefixes, puts a forwarder (a small Rexx object, the RexxNetStream
 // class below) as each monitor's destination the first time; an active
-// forwarder sends what Rexx writes to an internal command environment, whose
-// handler writes it to the TextWriter (or reads the TextReader). Set back to
+// forwarder sends what Rexx writes to an internal application function
+// (REXXNET.IO, not an ADDRESS environment), which writes it to the TextWriter
+// (or reads the TextReader). Set back to
 // null, the forwarder passes everything to the stream it replaced, with
 // BSF4ooRexx's prefix when StreamPrefixes is on ("REXXout>" ...; a prompt
 // "REXXin?>" before a line is read). Only .stdout / .stderr / .stdin used
@@ -42,53 +43,157 @@ public sealed partial class RexxInterpreter
 
     // -------------------------------------------------- command environments
 
-    readonly Dictionary<string, Func<RexxCommand, object?>> commands = new(StringComparer.OrdinalIgnoreCase);
-    readonly HashSet<string> nativeCommands = new(StringComparer.OrdinalIgnoreCase);   // added to ooRexx (never removed there)
+    // ooRexx's own command environments (.CommandHandler, RFE #882, r13288):
+    // every handler of the application is a Rexx object, a .CommandHandler
+    // (RexxNetCommandHandler, CommandsSource below), registered with
+    // .CommandHandler~register, so that it stacks over the handler in use and
+    // .CommandHandler~deregister uncovers it, as for a handler written in
+    // Rexx; .CommandHandler~environments, ~handler and ~handlers show it. Its
+    // COMMAND forwards to one native entry of the instance (Commands.Entry),
+    // registered under an internal name that is deregistered at once (it
+    // never appears among the environments, nor can Rexx code remove it):
+    // the RexxNetCommandHandler holds that entry's .NativeCommandHandler, and
+    // the command it forwards carries its id and the ADDRESS name. Forwarded
+    // so, the native entry gets the issuer's variables and its WITH
+    // redirection, and the conditions it raises reach the issuer, as before.
+
+    const string CommandEntry = "REXXNET.COMMANDS";
+
+    const string CommandsSource = """
+        -- Rexx.Net: the application's command environments, through ooRexx's
+        -- own (.CommandHandler).
+        ::routine hide public                -- the native entry's object (its name gone), the marker
+          use strict arg name
+          return .array~of(.CommandHandler~deregister(name), .RexxNetCommandHandler~raiseMarker)
+        ::routine register public            -- the handler covered, or .nil
+          use strict arg name, entry, id
+          return .CommandHandler~register(name, .RexxNetCommandHandler~new(entry, id))
+        ::routine deregister public          -- (the handler removed, its id if ours and no longer in use)
+          use strict arg name
+          removed = .CommandHandler~deregister(name)
+          id = .nil
+          if removed~isA(.RexxNetCommandHandler) then do
+            id = removed~id
+            envs = .CommandHandler~environments
+            do n over envs~allIndexes
+              do h over .CommandHandler~handlers(n)
+                if h == removed then id = .nil            -- registered under another name too
+              end
+            end
+          end
+          return .array~of(removed, id)
+
+        -- a handler of the application (RexxInterpreter.AddCommandEnvironment,
+        -- .net~addCommandEnvironment)
+        ::class 'RexxNetCommandHandler' public inherit CommandHandler
+        ::attribute raiseMarker class get
+        ::method init class
+          expose raiseMarker
+          raiseMarker = .object~new
+        ::attribute id get
+        ::method init
+          expose entry id
+          use strict arg entry, id
+        -- What the native entry answers, forwarded: RC (.nil, its "no result":
+        -- 0, as ADDRESS makes it), or, for ERROR and FAILURE, (marker,
+        -- condition, rc, description, additional), raised with caller~raise:
+        -- raised by the native entry itself, they would arrive without their
+        -- additional
+        ::method command unguarded
+          expose entry id
+          use arg command, caller
+          r = entry~command(id || '00'x || caller~environment || '00'x || command, caller)
+          if r == .nil then return 0
+          if r~isA(.Array), r~size == 5, r[1] == .RexxNetCommandHandler~raiseMarker then
+            return caller~raise(r[2], r[3], r[4], r[5])
+          return r
+        """;
+
+    readonly Dictionary<int, Func<RexxCommand, object?>> commands = new();
+    int lastCommand;
+    readonly object commandsLock = new();
+    (RexxObject Entry, RexxRoutine Register, RexxRoutine Deregister)? commandMachinery;
+
+    /// The RexxNetCommandHandler class's marker (see CommandsSource).
+    internal RexxObject? CommandRaiseMarker { get; private set; }
+
+    (RexxObject Entry, RexxRoutine Register, RexxRoutine Deregister) CommandMachinery()
+    {
+        lock (commandsLock)
+        {
+            if (commandMachinery is { } m) return m;
+            inst.AddCommandEnvironment(CommandEntry, Commands.Address, Commands.Redirecting);
+            var routines = LoadPackage("Rexx.Net commands", CommandsSource).Routines;
+            using var hidden = (RexxObject)((RexxRoutine)routines["HIDE"]!).Call(CommandEntry)!;
+            CommandRaiseMarker = (RexxObject)hidden[2]!;
+            m = ((RexxObject)hidden[1]!, (RexxRoutine)routines["REGISTER"]!, (RexxRoutine)routines["DEREGISTER"]!);
+            commandMachinery = m;
+            return m;
+        }
+    }
 
     /// An ADDRESS environment of the application: ADDRESS name 'command' (or
     /// ADDRESS name, then 'command') calls handler on the Rexx thread. Its
     /// result is RC (null: 0), whatever its sign. Throw RexxCommandException
     /// to raise ERROR or FAILURE; any other exception raises SYNTAX 98.900
     /// (the exception is condition("O")~additional[2]). Names are not
-    /// case-sensitive; adding a name again replaces its handler.
-    public void AddCommandEnvironment(string name, Func<RexxCommand, object?> handler)
+    /// case-sensitive. As ooRexx's .CommandHandler~register (the handler is
+    /// registered so, as a .CommandHandler): the handler covers the one in
+    /// use for that name, which RemoveCommandEnvironment uncovers; the
+    /// covered handler's object is returned (null if none): its COMMAND
+    /// method forwards to it.
+    public RexxObject? AddCommandEnvironment(string name, Func<RexxCommand, object?> handler)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(handler);
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
-        bool first;
-        lock (commands) { commands[name] = handler; first = nativeCommands.Add(name); }
-        if (first) inst.AddCommandEnvironment(name, Commands.Address, Commands.Redirecting);
-    }
-
-    /// Removes an environment added by AddCommandEnvironment: ADDRESS name
-    /// then raises FAILURE with RC 30, as for an environment that does not
-    /// exist (ooRexx has no way to remove one: its entry stays, and answers
-    /// so). A name with no handler is an InvalidOperationException.
-    public void RemoveCommandEnvironment(string name)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(name);
-        if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
-        lock (commands)
-            if (!commands.Remove(name))
-                throw new InvalidOperationException($"there is no command environment {name} to remove");
+        var m = CommandMachinery();
+        int id;
+        lock (commands) { id = ++lastCommand; commands[id] = handler; }
+        try { return (RexxObject?)m.Register.Call(name, m.Entry, id); }
+        catch { lock (commands) commands.Remove(id); throw; }
     }
 
     /// A handler with no result (RC 0).
-    public void AddCommandEnvironment(string name, Action<RexxCommand> handler)
+    public RexxObject? AddCommandEnvironment(string name, Action<RexxCommand> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        AddCommandEnvironment(name, c => { handler(c); return null; });
+        return AddCommandEnvironment(name, c => { handler(c); return null; });
     }
 
-    internal Func<RexxCommand, object?>? CommandHandler(string name)
+    /// Removes the handler in use for ADDRESS name, as ooRexx's
+    /// .CommandHandler~deregister: any handler (the application's, one
+    /// written in Rexx, a native one), uncovering the one it covered; with
+    /// none left, ADDRESS name raises FAILURE with RC 30, as for an
+    /// environment that does not exist. Returns the object removed. A name
+    /// with no handler is an InvalidOperationException.
+    public RexxObject RemoveCommandEnvironment(string name)
     {
-        lock (commands) return commands.TryGetValue(name, out var h) ? h : null;
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
+        var m = CommandMachinery();
+        RexxObject answer;
+        try { answer = (RexxObject)m.Deregister.Call(name)!; }
+        catch (RexxException e) when (e.Code == "93.900")
+        {
+            throw new InvalidOperationException($"there is no command environment {name} to remove", e);
+        }
+        using (answer)
+        {
+            if (answer[2] is RexxString s && int.TryParse(s.Value, out int id))
+                lock (commands) commands.Remove(id);              // the delegate released
+            return (RexxObject)answer[1]!;
+        }
+    }
+
+    internal Func<RexxCommand, object?>? CommandHandler(int id)
+    {
+        lock (commands) return commands.TryGetValue(id, out var h) ? h : null;
     }
 
     // ----------------------------------------------------------------- I/O
 
-    const string IoEnvironment = "REXXNET.IO";
+    const string IoFunction = "REXXNET.IO";
 
     const string IoSource = """
         -- Rexx.Net: the destinations of .output, .error, .traceOutput, .input
@@ -183,9 +288,9 @@ public sealed partial class RexxInterpreter
           expose busy
           use arg command
           busy = .true
-          address 'REXXNET.IO' command
+          r = 'REXXNET.IO'(command)
           busy = .false
-          return rc
+          return r
         ::method unknown
           expose orig
           use arg name, args
@@ -239,7 +344,10 @@ public sealed partial class RexxInterpreter
     RexxObject[] Streams()
     {
         if (streams != null) return streams;
-        AddCommandEnvironment(IoEnvironment, Io);
+        // an application function (RXOFNC), not an ADDRESS environment: Rexx
+        // code does not see it among .CommandHandler~environments, nor can it
+        // deregister it
+        lock (functions) functions[IoFunction] = f => Io((string)(RexxString)f.Arguments[0]!) ?? "";
         var install = (RexxRoutine)LoadPackage("Rexx.Net I/O", IoSource).Routines["INSTALL"]!;
         var all = install.Call()!;
         return streams = Enumerable.Range(1, 5).Select(i => (RexxObject)all[i]!).ToArray();
@@ -271,9 +379,8 @@ public sealed partial class RexxInterpreter
     // The forwarders' commands: O / E (output, error) + L (a line), C
     // (characters), F (flush); I (input) + L (a line), C (a character), N
     // (whether there is more).
-    object? Io(RexxCommand command)
+    object? Io(string s)
     {
-        string s = command.Command;
         if (s.Length < 2) return null;
         string text = s.Substring(2);
         switch (s[0])

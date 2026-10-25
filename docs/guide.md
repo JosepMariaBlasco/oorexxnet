@@ -486,11 +486,18 @@ A handler can also serve an `ADDRESS` environment:
 `.net~addCommandEnvironment("CALC", .net~handler(obj, "COMMAND"))` sends
 each `address calc '...'` to the method as a `Rexx.Net.RexxCommand`
 (`cmd~Command`, `cmd~WriteLine(...)` for `WITH OUTPUT`), and what it returns
-is `RC`; `.net~removeCommandEnvironment("CALC")` removes it (a command then
-raises FAILURE, `RC` 30, as for an environment that does not exist; a name
-not there, or a `.nil` handler, is SYNTAX 93.900). A .NET
-delegate taking a `RexxCommand` works too, and an application hosting Rexx
-does the same with `rexx.AddCommandEnvironment` (section 9).
+is `RC`. A .NET delegate taking a `RexxCommand` works too, and an application
+hosting Rexx does the same with `rexx.AddCommandEnvironment` (section 9).
+The environments are ooRexx's own (`.CommandHandler`, ooRexx r13288): the
+handler is registered as a `.CommandHandler`, and the two methods are
+`.CommandHandler~register` and `~deregister`. A second handler for a name
+covers the one in use, which `addCommandEnvironment` answers (`.nil` if none;
+its `command` method forwards to it); `.net~removeCommandEnvironment("CALC")`
+removes the handler in use, uncovers the one below, and answers the one
+removed (with none left, a command raises FAILURE, `RC` 30, as for an
+environment that does not exist; a name not there, or a `.nil` handler, is
+SYNTAX 93.900). `.CommandHandler~handlers("CALC")` lists them. A handler
+written in Rexx needs no .NET: `.CommandHandler~register(name, handler)`.
 
 ```rexx
 .net~addCommandEnvironment("CALC", .net~handler(.Calc~new, "COMMAND"))
@@ -507,6 +514,32 @@ say rc
 
 ```text
 144
+```
+
+```rexx
+.net~addCommandEnvironment("CALC", .net~handler(.Calc~new("plain"), "COMMAND"))
+covered = .net~addCommandEnvironment("CALC", .net~handler(.Calc~new("loud"), "COMMAND"))
+address calc "square 3"; say rc
+say .CommandHandler~handlers("CALC")~items "handlers; covered:" covered~class~id
+.net~removeCommandEnvironment("CALC")       -- the loud one: the plain one again
+address calc "square 3"; say rc
+::requires "net.cls"
+::class Calc
+::method init
+  expose style
+  use arg style
+::method command
+  expose style
+  use arg cmd
+  parse value cmd~Command with verb n
+  if style = "loud" then return "NINE!"
+  return n * n
+```
+
+```text
+NINE!
+2 handlers; covered: RexxNetCommandHandler
+9
 ```
 
 ### The event thread: `.NetEventThread`

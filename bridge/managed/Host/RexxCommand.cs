@@ -4,9 +4,12 @@
 // result is RC.
 //
 // One fixed native entry (Entry, [UnmanagedCallersOnly]) for every
-// environment of every instance, registered as a redirecting environment
-// (ADDRESS ... WITH works): it finds the instance by its pointer and the
-// handler by the address name. No delegate is ever handed to native code.
+// environment of every instance, registered once per instance as a
+// redirecting environment (ADDRESS ... WITH works) under an internal name
+// and reached only through the .CommandHandler objects that forward to it
+// (RexxInterpreter.Environment.cs, command environments): it finds the
+// instance by its pointer and the handler by the id in the command. No
+// delegate is ever handed to native code.
 //
 // While a handler runs, the exit context's thread context is the thread's
 // current one for its instance (a frame on RexxInterpreter's stack): calls
@@ -17,8 +20,8 @@
 // RexxException that comes out of Rexx code the handler called is raised again
 // as that SYNTAX error; any other .NET exception raises SYNTAX 98.900, as any
 // .NET error reaching Rexx (additional: the message, the exception, its stack
-// trace). A name removed (RemoveCommandEnvironment) answers FAILURE with RC
-// 30, as ooRexx does for an environment that does not exist. Output and error
+// trace). A handler released (removed from every name) answers FAILURE with
+// RC 30, as ooRexx does for an environment that does not exist. Output and error
 // written without WITH go to the console (Console.Out, Console.Error).
 using System;
 using System.Collections.Generic;
@@ -185,11 +188,21 @@ internal static unsafe class Commands
         var x = new ExitCtx(exitContext);
         var c = x.Thread;
         RexxInterpreter? rexx = RexxInterpreter.Find(c.Instance);
+        // forwarded by a RexxNetCommandHandler (RexxInterpreter.Environment.cs,
+        // command environments): "id\0ADDRESS name\0command"
         string addr = c.ToStr(address), text = c.ToStr(command);
-        Func<RexxCommand, object?>? handler = rexx?.CommandHandler(addr);
+        Func<RexxCommand, object?>? handler = null;
+        var parts = text.Split('\0', 3);
+        if (parts.Length == 3 && int.TryParse(parts[0], out int id))
+        {
+            addr = parts[1];
+            text = parts[2];
+            handler = rexx?.CommandHandler(id);
+        }
+        command = c.Str(text);                            // the description of ERROR and FAILURE
         if (rexx == null || handler == null)
         {
-            // removed (or never ours): as ooRexx answers an environment that does not exist
+            // released (or never ours): as ooRexx answers an environment that does not exist
             nint notRegistered = c.Str("30");
             Raise(x, "FAILURE", command, null, notRegistered);
             return notRegistered;
@@ -204,9 +217,17 @@ internal static unsafe class Commands
         }
         catch (RexxCommandException e)
         {
+            // raised by the RexxNetCommandHandler that forwarded the command
+            // (caller~raise, which keeps additional): (marker, condition, rc,
+            // description, additional)
             nint rc = Safe(rexx, c, e.Rc);
-            Raise(x, e.Failure ? "FAILURE" : "ERROR", command, e.HasMessage ? e.Message : null, rc);
-            return rc;
+            nint a = c.NewArray(5);
+            c.ArrayPut(a, rexx.CommandRaiseMarker!.Live, 1);
+            c.ArrayPut(a, c.Str(e.Failure ? "FAILURE" : "ERROR"), 2);
+            c.ArrayPut(a, rc, 3);
+            c.ArrayPut(a, command, 4);
+            if (e.HasMessage) c.ArrayPut(a, c.Str(e.Message), 5);
+            return a;
         }
         catch (Exception e) when ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException called)
         {

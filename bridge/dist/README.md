@@ -10,8 +10,10 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13286 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13286 fixes a heap
+- **ooRexx 5.3.0 r13289 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13288 is the first with
+  command environments written in Rexx (`.CommandHandler`, RFE #882), which
+  the bridge's command environments are made with. r13286 fixes a heap
   corruption when native code asks about numbers while other threads run
   Rexx (ooRexx bug #2122). r13278 is the first with
   `.LogicalWrapper` (`logicalwrapper.cls`), the class of the booleans that

@@ -198,9 +198,33 @@ address len "abcd"; call ok ".NET delegate of another type", rc, 4
 .net~addCommandEnvironment("ECHO", dl~Echo)
 o = .array~new; address echo "hi" with output using (o)
 call ok ".NET Action handler", rc o[1], "0 echo hi"
+-- as ooRexx's .CommandHandler (r13288): registered as a .CommandHandler,
+-- stacked, uncovered; the handler covered / removed is the answer
+call ok "the first: covers nothing", .net~addCommandEnvironment("STACK", dl~Upper) == .nil, 1
+covered = .net~addCommandEnvironment("STACK", dl~Length)
+call ok "a second: covers the first, its answer", covered~isA(.CommandHandler), 1
+address stack "abcd"; call ok "... the second serves", rc, 4
+call ok "... .CommandHandler~handlers", .CommandHandler~handlers("STACK")~items, 2
+call ok "... the handler in use, a .CommandHandler", .CommandHandler~handler("STACK")~isA(.CommandHandler), 1
+removed = .net~removeCommandEnvironment("STACK")
+call ok "removing: the one removed, its answer", removed~isA(.CommandHandler) (removed \== covered), "1 1"
+address stack "abcd"; call ok "... the first again", rc, "ABCD"
+call ok "a Rexx handler over ours, forwarding to it", .CommandHandler~register("STACK", .Doubler~new(covered)) == covered, 1
+address stack "ab"; call ok "... it forwards", rc, "AB AB"
+call ok ".net~addCommandEnvironment of a .CommandHandler: itself", .net~addCommandEnvironment("STACK", .Doubler~new(.nil))~isA(.Doubler), 1
+call ok "... removed as itself", .net~removeCommandEnvironment("STACK")~isA(.Doubler), 1
+.CommandHandler~deregister("STACK"); .CommandHandler~deregister("STACK")
+call ok "... gone", .CommandHandler~handler("STACK") == .nil, 1
+.net~addCommandEnvironment("STACK", dl~Length)
+.CommandHandler~deregister("STACK")
+.net~addCommandEnvironment("STACK", dl~Upper)
+address stack "x"; call ok "added again after .CommandHandler~deregister", rc, "X"
+call ok "the bridge's own entry is not among the environments", -
+        .CommandHandler~environments~allIndexes~makeString("l", " ")~pos("REXXNET") == 0, 1
+.net~removeCommandEnvironment("STACK")
 result = "kept"
-.net~removeCommandEnvironment("calc")
-call ok "removeCommandEnvironment: no result", var("RESULT"), 0
+removed = .net~removeCommandEnvironment("calc")
+call ok "removeCommandEnvironment: the handler removed", removed~isA(.CommandHandler), 1
 call ok "... none there: SYNTAX 93.900", code('.net~removeCommandEnvironment("CALC")'), "93.900"
 call err "... its message", '.net~removeCommandEnvironment("CALC")', "no command environment CALC to remove"
 signal on failure name removed
@@ -210,7 +234,7 @@ removed: signal off failure
 call ok "removed: FAILURE RC 30, as unknown", condition("C") rc condition("D"), "FAILURE 30 2+3"
 call err "a .nil handler: SYNTAX", '.net~addCommandEnvironment("X", .nil)', "removeCommandEnvironment"
 call ok "... 93.900", code('.net~addCommandEnvironment("X", .nil)'), "93.900"
-call err "not a handler", '.net~addCommandEnvironment("X", "text")', "must be a .NetHandler or a .NET delegate"
+call err "not a handler", '.net~addCommandEnvironment("X", "text")', "must be a .CommandHandler, a .NetHandler or a .NET delegate"
 call ok "... 93.900", code('.net~addCommandEnvironment("X", "text")'), "93.900"
 .net~addCommandEnvironment("CALC", .net~handler(ch, "COMMAND"))
 address calc "2+3"; call ok "added again", rc, 5
@@ -339,6 +363,15 @@ haltSeen: halted = 1; return
   loopValues = (loopValues e~Value)~strip
   if e~Value = 3 then .net~stopEventLoop
 
+::class Doubler inherit CommandHandler -- a handler written in Rexx, over another
+::method init
+  expose inner
+  use strict arg inner
+::method command
+  expose inner
+  use arg command, caller
+  r = inner~command(command, caller)
+  return r r
 ::class CommandTester             -- a command handler in Rexx
 ::method command
   use arg cmd                                      -- a Rexx.Net.RexxCommand

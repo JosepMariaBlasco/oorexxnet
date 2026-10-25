@@ -2,7 +2,9 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13286 (#2122, a heap corruption when
+# revision: the bridge needs at least r13289 (RFE #882 in r13288, command
+# environments written in Rexx, .CommandHandler, which the bridge's command
+# environments are made with; #2122 in r13286, a heap corruption when
 # native code asks IsInstanceOf of a number while threads run Rexx; RFE #880,
 # .LogicalWrapper in r13278, the
 # class of the booleans that cross; ooRexx bugs #2111 and #2112,
@@ -194,8 +196,13 @@ jobs:
           P=https://rexx.epbcn.com/rexx-parser/
           zip=$(curl -sSfL --retry 3 "$P" | grep -o 'Rexx-Parser-[^"/]*\.zip' | sort -u | tail -1)
           echo "Rexx Parser: $zip"
-          curl -sSfL --retry 3 -o "$RUNNER_TEMP/parser.zip" "$P$zip"
-          mkdir -p "$RUNNER_TEMP/rexx-parser" && unzip -q "$RUNNER_TEMP/parser.zip" -d "$RUNNER_TEMP/rexx-parser"
+          if [ -n "$zip" ] && curl -sSfL --retry 3 -o "$RUNNER_TEMP/parser.zip" "$P$zip"; then
+            mkdir -p "$RUNNER_TEMP/rexx-parser" && unzip -q "$RUNNER_TEMP/parser.zip" -d "$RUNNER_TEMP/rexx-parser"
+          else
+            # the page lists a zip that is not there (yet): the repository's head instead
+            echo "Rexx Parser: no zip, from GitHub"
+            git clone -q --depth 1 https://github.com/JosepMariaBlasco/rexx-parser "$RUNNER_TEMP/rexx-parser"
+          fi
           test -f "$RUNNER_TEMP/rexx-parser/bin/Rexx.Parser.cls"
       - name: Build the books
         run: |

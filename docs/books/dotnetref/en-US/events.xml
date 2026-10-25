@@ -225,7 +225,12 @@ that takes one (a <literal>Func&lt;RexxCommand, object?&gt;</literal>, an
 that one parameter): the same environments that a .NET application adds with
 <methodname>AddCommandEnvironment</methodname>, with the same rules
 (<xref linkend="hostCommands"/>, where <classname>RexxCommand</classname>'s
-members are):</para>
+members are). They are ooRexx's own command environments
+(<classname>CommandHandler</classname>, ooRexx r13288; the Open Object Rexx
+Reference describes the class): the handler is registered as a
+<classname>CommandHandler</classname>, so that everything ooRexx says about
+those holds for it, and a handler written in Rexx needs no .NET
+(<computeroutput>.CommandHandler~register(name, handler)</computeroutput>):</para>
 <itemizedlist>
 <listitem><para>What the handler returns is <literal>RC</literal> (nothing: 0),
 whatever its sign; ERROR and FAILURE come only from a
@@ -244,7 +249,16 @@ reported). ERROR and FAILURE stay themselves
 under <literal>::OPTIONS ERROR SYNTAX</literal> too.</para></listitem>
 <listitem><para>Its output and errors go where <literal>ADDRESS ... WITH</literal>
 says, or, without it, to the console.</para></listitem>
-<listitem><para>A removed environment answers FAILURE, <literal>RC</literal>
+<listitem><para>Handlers stack, as with
+<computeroutput>.CommandHandler~register</computeroutput> and
+<computeroutput>~deregister</computeroutput>: adding one for a name covers
+the handler in use, which <methodname>addCommandEnvironment</methodname>
+answers (&nil; if none; its <methodname>command</methodname> method forwards
+to it); removing uncovers it, and answers the handler removed.
+<computeroutput>.CommandHandler~handler(name)</computeroutput>,
+<computeroutput>~handlers(name)</computeroutput> and
+<computeroutput>~environments</computeroutput> show them.</para></listitem>
+<listitem><para>A name with no handler left answers FAILURE, <literal>RC</literal>
 30, as one that does not exist. A handler that is &nil; (or no handler at
 all), and removing a name that has none, are SYNTAX 93.900.</para></listitem>
 </itemizedlist>
@@ -286,6 +300,39 @@ failure: say "FAILURE, rc" rc
 7 x 1 = 7 / 7 x 2 = 14 / 7 x 3 = 21
 98.900 System.FormatException
 FAILURE, rc 30</screen>
+</example>
+
+<example id="ex.events-commands-stack">
+<title>Handlers stacked, as ooRexx's CommandHandler</title>
+<programlisting language="rexx">.net~addCommandEnvironment("SHOUT", .net~handler(.Plain~new, "COMMAND"))
+-- a handler written in Rexx over it, logging and forwarding to the one covered
+covered = .CommandHandler~handler("SHOUT")
+.CommandHandler~register("SHOUT", .Logger~new(covered))
+address shout "hello"; say "rc:" rc
+say .CommandHandler~handlers("SHOUT")~items "handlers"
+removed = .net~removeCommandEnvironment("SHOUT")   -- the logger: the plain one again
+say "removed:" removed~class~id
+address shout "again"; say "rc:" rc
+
+::requires "net.cls"
+::class Plain
+::method command
+  use arg cmd                                     -- a Rexx.Net.RexxCommand
+  return cmd~Command~upper
+::class Logger inherit CommandHandler
+::method init
+  expose inner
+  use strict arg inner
+::method command
+  expose inner
+  use arg command, caller
+  say "log:" command
+  return inner~command(command, caller)</programlisting>
+<screen>log: hello
+rc: HELLO
+2 handlers
+removed: LOGGER
+rc: AGAIN</screen>
 </example>
 </section>
 

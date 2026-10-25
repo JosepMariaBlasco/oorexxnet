@@ -210,16 +210,30 @@ static partial class Program
         int seen = 0;
         rexx.AddCommandEnvironment("LOG", (RexxCommand cmd) => { seen++; });
         Ok("Action: RC 0",               rexx.Run("address log 'a'; address log 'b'; return rc") + " " + seen, "0 2");
-        rexx.AddCommandEnvironment("PLAIN", cmd => "replaced");
-        Ok("replaced handler",           rexx.Run("address plain 'x'; return rc"), "replaced");
+        // as ooRexx's .CommandHandler~register / ~deregister: stacked, uncovered
+        var coveredPlain = rexx.AddCommandEnvironment("PLAIN", cmd => "stacked");
+        Ok("a second handler covers the first", rexx.Run("address plain 'x'; return rc"), "stacked");
+        Ok("... the first, the answer", coveredPlain?.Send("ISA", rexx.FindClass("CommandHandler")), "1");
+        Ok("... .CommandHandler~handlers", rexx.Run("return .CommandHandler~handlers('PLAIN')~items"), "2");
         Ok("an unknown environment (RXSUBCOM_NOTREG)", rexx.Run("address nosuch 'x'; return rc"), "30");
-        rexx.RemoveCommandEnvironment("plain");
+        var removedPlain = rexx.RemoveCommandEnvironment("plain");
+        Ok("removing: the handler removed", removedPlain.Send("ISA", rexx.FindClass("CommandHandler")), "1");
+        Ok("... uncovers the first", rexx.Run("address plain 'x'; return rc"), "ran x");
+        rexx.RemoveCommandEnvironment("PLAIN");
         using (var gone = RexxInterpreter.Create()) { gone.Dispose(); Throws<ObjectDisposedException>("RemoveCommandEnvironment, disposed", () => gone.RemoveCommandEnvironment("X")); }
         Throws<InvalidOperationException>("RemoveCommandEnvironment: none there", () => rexx.RemoveCommandEnvironment("PLAIN"), "no command environment PLAIN");
         Ok("... then FAILURE, RC 30, as unknown", rexx.Run("signal on failure; address plain 'x'; return 'no'\n" +
                                                    "failure: return condition('C') rc condition('D') (condition('O')~additional == .nil)"), "FAILURE 30 x 1");
         rexx.AddCommandEnvironment("PLAIN", cmd => "back");
         Ok("... added again",            rexx.Run("address plain 'x'; return rc"), "back");
+        rexx.Run(".CommandHandler~deregister('PLAIN')");
+        rexx.AddCommandEnvironment("PLAIN", cmd => "back");
+        Ok("... added again after .CommandHandler~deregister", rexx.Run("address plain 'x'; return rc"), "back");
+        var keptOutput = rexx.Output;
+        rexx.Output = new StringWriter();                 // the I/O forwarders installed
+        Ok("the bridge's own entries are not among the environments",
+           rexx.Run("return .CommandHandler~environments~allIndexes~makeString('l', ' ')~pos('REXXNET')"), "0");
+        rexx.Output = keptOutput;
         Throws<ArgumentNullException>("a null handler", () => rexx.AddCommandEnvironment("NULL", (Func<RexxCommand, object?>)null!));
         using (var other = RexxInterpreter.Create())
         {

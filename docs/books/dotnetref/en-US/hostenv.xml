@@ -12,9 +12,9 @@ it: the <literal>ADDRESS</literal> environments its commands go to, where its
 <literal>SAY</literal> writes and its <literal>PULL</literal> reads, which
 functions and <literal>VALUE</literal> selectors it has, and when it must
 stop. These are members of <classname>RexxInterpreter</classname>:</para>
-<programlisting language="csharp">public void AddCommandEnvironment(string name, Func&lt;RexxCommand, object?&gt; handler);
-public void AddCommandEnvironment(string name, Action&lt;RexxCommand&gt; handler);
-public void RemoveCommandEnvironment(string name);
+<programlisting language="csharp">public RexxObject? AddCommandEnvironment(string name, Func&lt;RexxCommand, object?&gt; handler);
+public RexxObject? AddCommandEnvironment(string name, Action&lt;RexxCommand&gt; handler);
+public RexxObject RemoveCommandEnvironment(string name);
 public TextWriter? Output { get; set; }
 public TextWriter? Error { get; set; }
 public TextReader? Input { get; set; }
@@ -49,18 +49,28 @@ that the handler called is raised again as itself; any other exception is
 SYNTAX 98.900, as a .NET error anywhere: ".NET error: Type: message", the
 exception in <computeroutput>condition("O")~additional[2]</computeroutput>,
 its stack trace in <computeroutput>[3]</computeroutput>. Names are caseless;
-adding one again replaces its handler; a <literal>null</literal> handler is
+a <literal>null</literal> handler is
 an <classname>ArgumentNullException</classname>. Each instance has its own
 environments, and every one takes <literal>ADDRESS ... WITH</literal>
 redirection: written without it, output and errors go to the console
 (<literal>Console.Out</literal>, <literal>Console.Error</literal>), as a
 program's would, and the write methods answer <literal>false</literal>.</para>
-<para><computeroutput>rexx.RemoveCommandEnvironment(name)</computeroutput>
-removes one (a name with no handler is an
-<classname>InvalidOperationException</classname>): <literal>ADDRESS name</literal>
-then raises FAILURE with <literal>RC</literal> 30, as for an environment that
-does not exist (ooRexx has no way to remove an environment: its entry stays,
-and answers so). Rexx code adds and removes them too, with
+<para>They are ooRexx's own command environments
+(<classname>CommandHandler</classname>, ooRexx r13288): the handler is
+registered as a <classname>CommandHandler</classname>, with
+<computeroutput>.CommandHandler~register</computeroutput>, so that a second
+handler for a name covers the one in use; that one, as a
+<classname>RexxObject</classname>, is what
+<methodname>AddCommandEnvironment</methodname> returns (<literal>null</literal>
+if none; its <methodname>command</methodname> method forwards to it).
+<computeroutput>rexx.RemoveCommandEnvironment(name)</computeroutput> is
+<computeroutput>.CommandHandler~deregister</computeroutput>: it removes the
+handler in use for the name (any: the application's, one written in Rexx, a
+native one), uncovers the one below, and returns the one removed (a name
+with no handler is an <classname>InvalidOperationException</classname>);
+with none left, <literal>ADDRESS name</literal> raises FAILURE with
+<literal>RC</literal> 30, as for an environment that does not exist.
+Rexx code adds and removes them too, with
 <xref linkend="mthNetAddCommandEnvironment" xrefstyle="select:title"/> and
 <xref linkend="mthNetRemoveCommandEnvironment" xrefstyle="select:title"/>
 (<xref linkend="eventsCommands"/>). These are the rules of the whole family

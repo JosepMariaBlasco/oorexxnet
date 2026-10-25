@@ -142,13 +142,18 @@
  * Command environments: .net~addCommandEnvironment(name, handler) makes a
  * .NetHandler (its method gets a Rexx.Net.RexxCommand: cmd~Command,
  * cmd~WriteLine...) or a .NET delegate taking a RexxCommand the ADDRESS
- * environment name of this interpreter instance; .net~removeCommand-
- * Environment(name) removes it (one not there: SYNTAX 93.900, as a .nil
- * or any other non-handler given to addCommandEnvironment). What the handler
- * returns is RC, whatever its sign; a .NET error in it is SYNTAX 98.900, a
- * Rexx error itself; output without WITH goes to the console; a removed name
- * answers FAILURE RC 30, as an unknown environment (the family's rules:
- * oorexx-bridges, topics/command-handlers.md).
+ * environment name of this interpreter instance, as ooRexx's
+ * .CommandHandler~register does (the handler is registered so, as a
+ * .CommandHandler): it covers the handler in use, which it answers (.nil if
+ * none); .net~removeCommandEnvironment(name) is .CommandHandler~deregister,
+ * uncovering it and answering the handler removed (one not there: SYNTAX
+ * 93.900, as a .nil or any other non-handler given to addCommandEnvironment).
+ * What the handler returns is RC, whatever its sign; a .NET error in it is
+ * SYNTAX 98.900, a Rexx error itself; output without WITH goes to the
+ * console; a name with nothing left answers FAILURE RC 30, as an unknown
+ * environment (the family's rules: oorexx-bridges,
+ * topics/command-handlers.md). A handler written in Rexx (a .CommandHandler)
+ * is registered as it is, with .CommandHandler~register.
  *
  * Option "queued": the call is queued and the delegate returns at once (its
  * type's default); a Rexx thread takes the calls: .net~nextEvent([seconds])
@@ -666,18 +671,20 @@ syntax: raise propagate
   use strict arg target, message, options = ""
   return .NetHandler~new(target, message, options)
 syntax: raise propagate
-::method addCommandEnvironment unguarded   -- .net~addCommandEnvironment(name, handler): ADDRESS name, served by .NET
+::method addCommandEnvironment unguarded   -- .net~addCommandEnvironment(name, handler): as .CommandHandler~register; the handler covered, or .nil
   signal on syntax
   use strict arg name, handler
   if handler == .nil then raise syntax 93.900 array(".net~addCommandEnvironment: the handler is .nil; to remove an environment, .net~removeCommandEnvironment(name)")
-  call NetRequest "cmdAdd", name, handler
-  return
+  if handler~isA(.CommandHandler) then do      -- written in Rexx: ooRexx's own
+    if name~request("String") == "" then raise syntax 93.900 array(".net~addCommandEnvironment: the name is empty")
+    return .CommandHandler~register(name, handler)
+  end
+  return NetRequest("cmdAdd", name, handler)
 syntax: raise propagate
-::method removeCommandEnvironment unguarded -- .net~removeCommandEnvironment(name); none there: SYNTAX 93.900
+::method removeCommandEnvironment unguarded -- .net~removeCommandEnvironment(name): as .CommandHandler~deregister; the handler removed; none there: SYNTAX 93.900
   signal on syntax
   use strict arg name
-  call NetRequest "cmdRemove", name
-  return
+  return NetRequest("cmdRemove", name)
 syntax: raise propagate
 ::method nextEvent unguarded         -- the next queued call (a .NetCall), or .nil after seconds
   signal on syntax

@@ -370,15 +370,76 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   was written.
 - **Removing**: `RemoveCommandEnvironment(name)` (host) and
   `.net~removeCommandEnvironment(name)` (Rexx); a name with no handler is
-  an `InvalidOperationException` (host) or SYNTAX 93.900 (Rexx), and
-  removing returns nothing (an amendment of the same day). ooRexx
-  has no API to remove an environment, so the bridge forgets the handler and
-  the native entry, which stays registered, answers FAILURE `RC` 30 with no
+  an `InvalidOperationException` (host) or SYNTAX 93.900 (Rexx). With
+  nothing left for the name, a command answers FAILURE `RC` 30 with no
   `additional`, as ooRexx does for an unknown environment (measured:
   `address nosuchenv 'do it'`: `RC` 30, `condition('D')` the command,
   `additional` .nil). Before, a name without a handler answered FAILURE `RC`
-  -1. Adding it again does not call ooRexx again (`nativeCommands`): only
-  a name's first addition does, ever.
+  -1. (Until the move to ooRexx's `.CommandHandler`, below, ooRexx had no
+  API to remove an environment: the bridge forgot the handler, the native
+  entry stayed registered, and removing returned nothing.)
+
+## Command environments through ooRexx's `.CommandHandler` (r13289)
+
+ooRexx r13288 put command environments written in Rexx in the interpreter
+(RFE #882: `.CommandHandler`, `.NativeCommandHandler`, `.CommandContext`;
+`register(name, handler)` stacks and answers the handler it covers,
+`deregister(name)` uncovers it and answers the one removed; `handler`,
+`handlers`, `environments`). The family's rule 6 (`oorexx-bridges`,
+`topics/command-handlers.md`, 25/10/2026): a bridge's command environments
+should be the same API as ooRexx's, as far as possible. The bridge's minimum
+moved to r13289.
+
+**Measured first, on r13289, with the old design** (the native API's
+`AddCommandEnvironment`, one registration per name): ooRexx saw ours as
+`.NativeCommandHandler`s, kind `REDIRECTING`; a Rexx handler registered over
+one stacked, and `deregister` uncovered ours; but (1) after
+`.CommandHandler~deregister` of one of ours, adding it again did nothing
+(the bridge registered a name with ooRexx only once): FAILURE `RC` 30;
+(2) a name removed by the bridge stayed among `.CommandHandler~environments`,
+answering `RC` 30; (3) neither method answered anything; (4) the host's
+internal `REXXNET.IO` environment was among the environments, and Rexx code
+that deregistered it broke the host's I/O (every `SAY` FAILURE 30). Also
+measured: the native API's `AddCommandEnvironment` over a name served by a
+Rexx handler replaces the whole stack (`handlers` 1 item after it).
+
+**The design.** Every handler of the application is now a Rexx object, a
+`.CommandHandler` (`RexxNetCommandHandler`, `CommandsSource` in
+`RexxInterpreter.Environment.cs`) registered with
+`.CommandHandler~register`: it stacks, `RemoveCommandEnvironment` is
+`.CommandHandler~deregister` (any handler, as there), and both answer as
+ooRexx's do (`AddCommandEnvironment` returns the covered handler as a
+`RexxObject`, or null; `RemoveCommandEnvironment` the one removed; from
+Rexx, the objects themselves). `.net~addCommandEnvironment` given a
+`.CommandHandler` (a handler written in Rexx) registers it as it is. Its
+`command` forwards to one native entry per instance (`Commands.Entry`, as
+before), registered with the native API under an internal name
+(`REXXNET.COMMANDS`) and deregistered at once: ooRexx's
+`.NativeCommandHandler` object for it stays usable (measured), so the entry
+is never among the environments, nor can Rexx code remove it. The command
+forwarded is `id\0ADDRESS name\0command`; `RexxCommand.Address` and
+`Command` are the real ones. Forwarded so (`.NativeCommandHandler~command`),
+the native entry gets the issuer's variables and its `WITH` redirection, and
+its SYNTAX errors and HALT reach the issuer as before (measured). Two things
+did not come through the forwarding, and the Rexx class takes care of them:
+a native entry's "no result" (a null RC, RC 0 for `ADDRESS`) comes back as
+`.nil` (made 0), and an ERROR or FAILURE that the native entry raises loses
+its `additional` (the `RexxCommandException`'s message): the entry answers
+`(marker, condition, rc, description, additional)` instead, and the class
+raises it with `caller~raise`, which keeps it. A handler's delegate is
+released when `RemoveCommandEnvironment` removes it and it is registered
+under no other name; one removed with `.CommandHandler~deregister` directly
+is kept until the instance ends (it answers `RC` 30 if reached again).
+
+**Cost**: a command through a `.NetHandler` (Rexx -> .NET -> Rexx) about
+13 µs instead of 8 (warm, best rounds, Linux): the Rexx method and the
+forwarding. A handler written in Rexx registered with `.CommandHandler`
+directly: about 2 µs.
+
+**What cannot be the same**: the .NET handler gets a `RexxCommand` (the
+host's style, as the family decided for `cmdhandler` v2), not `command(command,
+caller)`; .NET has no class to inherit `.CommandHandler`, so the bridge's
+Rexx class stands in for it. The error messages name the bridge's methods.
 - **From Rexx**: `.net~addCommandEnvironment(name, handler)`: a
   `.NetHandler` (made into a `Func<RexxCommand, object?>`) or a .NET
   delegate taking a `RexxCommand` (`Func`, `Action`, or another delegate
@@ -612,8 +673,10 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    and must be set at creation. So the first time `Output`, `Error` or
    `Input` is set, a small Rexx object (`RexxNetStream`, source in
    `RexxInterpreter.Environment.cs`) becomes the destination of all three
-   monitors; it sends what it gets to an internal command environment
-   (`REXXNET.IO`), whose handler writes the `TextWriter` (or reads the
+   monitors; it sends what it gets to an internal application function
+   (`REXXNET.IO`; an internal command environment until r13289, when Rexx
+   code could see it among `.CommandHandler~environments` and deregister
+   it), which writes the `TextWriter` (or reads the
    `TextReader`); while a property is null, its forwarder passes everything
    to the stream it replaced (`forward to`), and messages it does not know
    go there too. Properties settable at any time (and `RexxOptions`
@@ -663,7 +726,8 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    `InvalidOperationException`). Every environment is registered as a
    redirecting one (`ADDRESS ... WITH` works on all). Names are not
    case-sensitive (ooRexx uppercases them); adding a name again replaces its
-   handler; there is no removal (the API has none). Each instance has its
+   handler; there is no removal (the API has none) (all three until r13289:
+   see "Command environments through ooRexx's `.CommandHandler`"). Each instance has its
    own environments (verified: two instances, one name). An unknown
    environment is Rexx's own FAILURE, `RC` 30.
 3. **Conditions** (as ooRexx's `RexxActivation::command` reads them): a

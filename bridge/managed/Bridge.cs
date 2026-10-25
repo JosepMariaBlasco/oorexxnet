@@ -164,32 +164,32 @@ public static unsafe class Bridge
     }
 
     // .net~addCommandEnvironment(name, handler): ADDRESS name served by .NET in
-    // the instance of the Rexx code asking. The handler: a .NetHandler (its
+    // the instance of the Rexx code asking, as .CommandHandler~register does
+    // (RexxInterpreter.AddCommandEnvironment): it stacks, and the handler it
+    // covers is the answer (.nil if none). The handler: a .NetHandler (its
     // Rexx method gets the Rexx.Net.RexxCommand; what it returns is RC), or a
     // .NET delegate taking a RexxCommand (a Func<RexxCommand, object?>, an
     // Action<RexxCommand>, or any delegate type with that one parameter).
-    static void CommandEnvironment(string name, Rec h)
+    static RexxObject? CommandEnvironment(string name, Rec h)
     {
         var rexx = CurrentInterpreter();
         if (h.Tag == 'H')
         {
             var hd = Callbacks.HandlerOf(h);
             var f = (Func<RexxCommand, object?>)Callbacks.DelegateFor(hd, typeof(Func<RexxCommand, object?>));
-            rexx.AddCommandEnvironment(name, f);
-            return;
+            return rexx.AddCommandEnvironment(name, f);
         }
         if (h.Tag == 'O' && Handles.Get(h.Id) is Delegate d)
         {
-            if (d is Func<RexxCommand, object?> fd) { rexx.AddCommandEnvironment(name, fd); return; }
-            if (d is Action<RexxCommand> ad) { rexx.AddCommandEnvironment(name, ad); return; }
+            if (d is Func<RexxCommand, object?> fd) return rexx.AddCommandEnvironment(name, fd);
+            if (d is Action<RexxCommand> ad) return rexx.AddCommandEnvironment(name, ad);
             if (d.GetType().GetMethod("Invoke")!.GetParameters() is { Length: 1 } ip && ip[0].ParameterType.IsAssignableFrom(typeof(RexxCommand)))
             {
                 bool returns = d.GetType().GetMethod("Invoke")!.ReturnType != typeof(void);
-                rexx.AddCommandEnvironment(name, cmd => { object? v = d.DynamicInvoke(cmd); return returns ? v : null; });
-                return;
+                return rexx.AddCommandEnvironment(name, cmd => { object? v = d.DynamicInvoke(cmd); return returns ? v : null; });
             }
         }
-        throw new RexxSyntaxException(93900, ".net~addCommandEnvironment: the handler must be a .NetHandler or a .NET delegate taking a Rexx.Net.RexxCommand, found " + Conv.Describe(h));
+        throw new RexxSyntaxException(93900, ".net~addCommandEnvironment: the handler must be a .CommandHandler, a .NetHandler or a .NET delegate taking a Rexx.Net.RexxCommand, found " + Conv.Describe(h));
     }
 
     static RexxInterpreter CurrentInterpreter() =>
@@ -285,13 +285,14 @@ public static unsafe class Bridge
             case "queued": w.Add('S', Callbacks.QueuedCount.ToString()); break;
             case "cmdAdd":
                 if (r[1].Text.Length == 0) throw new RexxSyntaxException(93900, ".net~addCommandEnvironment: the name is empty");
-                CommandEnvironment(r[1].Text, r[2]); w.Add('V', "");
+                Conv.ToRexx(w, CommandEnvironment(r[1].Text, r[2]));
                 break;
             case "cmdRemove":
                 if (r[1].Text.Length == 0) throw new RexxSyntaxException(93900, ".net~removeCommandEnvironment: the name is empty");
-                try { CurrentInterpreter().RemoveCommandEnvironment(r[1].Text); }
+                RexxObject removed;
+                try { removed = CurrentInterpreter().RemoveCommandEnvironment(r[1].Text); }
                 catch (InvalidOperationException) { throw new RexxSyntaxException(93900, $".net~removeCommandEnvironment: there is no command environment {r[1].Text} to remove"); }
-                w.Add('V', "");
+                Conv.ToRexx(w, removed);
                 break;
             case "extend": Extend.Make(r[1].Text, r[2].Items, r[3].Items, w); break;
             case "extAlloc": Extend.Alloc(r[1], r[2], w); break;
