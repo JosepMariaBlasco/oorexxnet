@@ -141,7 +141,8 @@ of the pairs, the values converted as arguments are: the explicit copies of
 <varlistentry><term><methodname>Enter</methodname></term>
 <listitem><para>Keeps this thread attached to the instance until the
 <classname>RexxScope</classname> it returns is disposed: <computeroutput>using (rexx.Enter()) { ... }</computeroutput>
-for a batch of calls from a thread other than the creating one. Attaching
+for a batch of calls from a thread other than the creating one, or from .NET
+code that Rexx called (each call there attaches nested). Attaching
 costs about 20 µs, a message about 1 µs (<xref linkend="hostThreads"/>).</para></listitem></varlistentry>
 <varlistentry><term><methodname>RequireNet</methodname></term>
 <listitem><para>Loads <filename>net.cls</filename>, so that Rexx code can use
@@ -487,7 +488,9 @@ catch (RexxException e) { Console.WriteLine($"{e.Code} {e.ErrorText}"); }</progr
 <para><emphasis role="bold">Any .NET thread may call Rexx.</emphasis> A thread
 that runs no Rexx code is attached to the instance for the call and detached
 after it; a thread that is already inside Rexx (.NET code that Rexx called, a
-handler, a command handler) makes the call nested, on its own context. One
+handler, a command handler) makes the call nested, on that thread: attached
+again, nested, so that a condition the Rexx code lets out stops there, as in
+any call (a HALT comes back as a HALT, <xref linkend="bothwaysErrors"/>). One
 Rexx thread runs at a time in an instance (the interpreter's lock): .NET
 threads that call Rexx take turns, and Rexx's own concurrency
 (<literal>REPLY</literal>, <methodname>start</methodname>) interleaves with

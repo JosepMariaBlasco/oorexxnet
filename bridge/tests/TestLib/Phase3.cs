@@ -67,6 +67,9 @@ public class Button
 
 public static class Delegates
 {
+    // o~name, sent from .NET (RexxObject.Send) while Rexx code waits for .NET
+    public static object? SendTo(Rexx.Net.RexxObject o, string name) => o.Send(name);
+
     // command handlers written in .NET, for .NetCommandHandler~new
     public static Func<string, Rexx.Net.RexxCommandContext, object?> Upper => (cmd, ctx) => cmd.ToUpperInvariant();
     public static Action<string, Rexx.Net.RexxCommandContext> Echo => (cmd, ctx) => ctx.Output.Send("LINEOUT", "echo " + cmd);
@@ -82,6 +85,8 @@ public static class Delegates
         "lines" => Lines(ctx),
         "user" => ctx.Interpreter.Run("raise user oops description 'from the handler' return 7"),
         "halt" => ctx.Interpreter.Run("raise halt"),
+        "send halt" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("HALT"),      // a message to a Rexx method
+        "send notready" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("NOTREADY"),
         "error" => ctx.RaiseError(5),
         "failure" => ctx.Raise("FAILURE", -3, "it could not run", "the additional"),
         "vars" => ctx["V"] + " " + ctx.HasVar("V") + " " + ctx.HasVar("NOPE") + " " + ctx["NOPE"] + " " + ctx.Environment,

@@ -234,7 +234,9 @@ Rexx objects sends Rexx `==` (open point 6).
   inside Rexx (guest mode: .NET code called from Rexx; a callback; a command
   handler), the call uses that thread's context. That nesting was verified in
   `smoke/callbacks/`, and the current context is kept on a thread-static
-  stack.
+  stack. *(Since 25/10/2026 a context that Rexx hands to .NET, a request's,
+  a handler's, is not used to run Rexx code: the call attaches nested; see
+  "A Rexx condition past .NET's frames".)*
 - **The cost of attaching** (measured): a message on an attached thread
   ~1 µs, attach + message + detach ~22 µs. So `using (rexx.Enter()) { ... }`
   keeps the thread attached for a batch of calls. Threads are not left
@@ -506,6 +508,52 @@ between.
   too since the coordinator's review). Before, only Rexx -> .NET
   calls counted (`Bridge.Depth`), so the error was reported on `.error` and
   the delegate returned its default.
+
+## A Rexx condition past .NET's frames (25/10/2026)
+
+**Found** while checking the family's lessons on command handlers (a Rexx
+activation between the issuer and the host's code stops a condition the
+host's Rexx code raises). Measured on r13289: .NET code that Rexx called (a
+.NET method, a command handler, an application function) sends a message
+to a Rexx method (`RexxObject.Send`) that raises a condition other than
+SYNTAX (`raise halt`, `raise notready ...`, ERROR, FAILURE, USER). ooRexx
+looks for the trap past the native frames, in the nearest Rexx activation
+below them (the code waiting for .NET, or `.NetCommandHandler`'s `command`).
+With a `SIGNAL ON` for it there, the SIGNAL unwinds with a C++ exception
+through the CLR's frames: **the process ends** (`terminate called after
+throwing an instance of 'RexxActivation*'`). `.NetCommandHandler`'s own
+`SIGNAL ON HALT` made that so for any `raise halt` sent from a .NET command
+handler. `CALL ON` ran its handler (no unwinding); `Run` and `RexxRoutine.Call`
+did not show it (the routine's own activation stops the condition), nor did
+`.NetHandler` callbacks (rexxnet's callback attaches the thread nested).
+The same rule as phase B's lesson 4: no unwinding through managed frames.
+
+**Decided:** the context Rexx hands to .NET (a request, a command handler, a
+function or exit: a *borrowed* frame) is not used to run Rexx code. A call
+from .NET while Rexx code waits on the thread attaches nested
+(`AttachThread` on a thread already inside Rexx), as a callback does;
+`Enter()` there attaches once for a batch. ooRexx then stops at the
+attachment: a HALT comes back as SYNTAX 4.1 and is given back as a HALT
+(rule 1: `SIGNAL ON HALT` traps it, untrapped SYNTAX 4.1), the other
+conditions are dropped at the API, as for every other call (the open
+ooRexx finding above). Cost: ~1 µs more a call (a `Send` inside a request
+~2.2 → ~3.2 µs, best of 5 × 100 000, Linux). Tests: `phase3.rex` (a .NET
+method and a .NET command handler sending to such methods, with `SIGNAL ON`
+for each), `HostTests` `SignalPastTheHost` (a command and a function);
+both ended the process before.
+
+**USER through `.NetCommandHandler` (the lesson's check).** Its `command`
+is written in Rexx, so a condition that `rexxnet` raises again there
+(`raiseHeld`, after the request) would stop in it, not in the issuer. Today
+nothing but SYNTAX (and HALT, given back by `caller~raise("HALT", 0)`) can
+come out of .NET: a USER reached `command` only by the path above, now
+closed. When ooRexx delivers such conditions through its API (the
+dependency row), the handler's other conditions must be handed to the
+issuer too (`caller~raise`, or a native `command` as the Lua bridge's).
+
+**Disposing an instance** releases its command handlers' delegates (the
+table), also while the application keeps the `RexxInterpreter` object
+(`HostTests` `HandlersGoOnDispose`; a lesson of the Python bridge).
 
 ## Packaging (decision 8)
 
@@ -812,6 +860,8 @@ catch (OperationCanceledException) { /* halted: InnerException is the RexxExcept
    `cmd.Interpreter.Run(...)` in a handler runs nested on the same thread,
    with no attach (verified on another .NET thread; 4 threads × 100
    commands). Cost: ~1.5–2.5 µs a command inside a Rexx loop.
+   *(Changed 25/10/2026: nested on the same thread still, but through a
+   nested attachment; see "A Rexx condition past .NET's frames".)*
 6. **Cancellation: `Run`, `Run<T>`, `RunFile`, `RexxRoutine.Call` /
    `Call<T>` take a `CancellationToken`.** **Δ** Not `HaltThread`: its
    `ApiContext` takes the kernel lock as the halted thread and validates the
@@ -913,7 +963,9 @@ case still open; item 6 changed later):
 1. **The thread context goes with every request** (`Bridge.Request(tc,
    ...)`): the managed side pushes it as a frame for the request's length (the
    stack built in phase A, used by command handlers in phase B), so .NET code
-   called from Rexx calls Rexx back nested on that thread, with no attach.
+   called from Rexx calls Rexx back nested on that thread, with no attach
+   *(since 25/10/2026 with a nested attachment: "A Rexx condition past
+   .NET's frames")*.
    `RexxInterpreter.Current`: the instance of the innermost frame, null when
    no Rexx code waits on this thread. **Guest mode**: when ooRexx is the host,
    a `RexxInterpreter` is made for its instance on the first request

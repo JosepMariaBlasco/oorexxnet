@@ -2,11 +2,22 @@
 // instance, threads, lifetime and values.
 //
 // Threads. Any .NET thread may call Rexx. A call uses the context this
-// thread already has for the instance (one handed over by Rexx: a request of
-// rexxnet, a command handler; one of Enter(); the creating thread's own: the
-// frames on a thread-static stack, innermost first); otherwise it attaches
-// the thread (AttachThread), runs, and detaches. One Rexx thread runs at a
-// time (the interpreter's lock).
+// thread already has for the instance (one of Enter(); the creating thread's
+// own: the frames on a thread-static stack, innermost first); otherwise it
+// attaches the thread (AttachThread), runs, and detaches. One Rexx thread
+// runs at a time (the interpreter's lock).
+//
+// A context handed over by Rexx (a request of rexxnet, a command handler, a
+// function or exit: "borrowed") is not used to run Rexx code: a call made
+// while Rexx code waits for .NET attaches nested (AttachThread on a thread
+// already inside Rexx), as a callback does. Run in the borrowed context, a
+// condition other than SYNTAX that a method lets out (RAISE) was looked for
+// past .NET's frames, in the Rexx code waiting below them, and a SIGNAL ON
+// for it there unwound through the CLR (a C++ exception: the process ended).
+// Nested, ooRexx stops at the attachment, as for any API call: a HALT comes
+// back as SYNTAX 4.1 (given back as a HALT, rule 1), the others are dropped
+// (oorexx-bridges, oorexx-bugs/2026-10-19-api-calls-drop-non-syntax-
+// conditions.md). Cost ~1 µs a call; Enter() attaches once for a batch.
 //
 // Guest mode (phase C): when ooRexx is the host (rexx prog.rex) and its code
 // calls .NET, the instance is not one of ours; a RexxInterpreter is made for
@@ -205,8 +216,8 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
 
     readonly struct Frame
     {
-        public readonly RexxInterpreter Rexx; public readonly nint Tc;
-        public Frame(RexxInterpreter r, nint tc) { Rexx = r; Tc = tc; }
+        public readonly RexxInterpreter Rexx; public readonly nint Tc; public readonly bool Borrowed;
+        public Frame(RexxInterpreter r, nint tc, bool borrowed = false) { Rexx = r; Tc = tc; Borrowed = borrowed; }
     }
     [ThreadStatic] static List<Frame>? frames;
 
@@ -223,10 +234,15 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
     {
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
         var f = frames;
+        bool nest = false;
         if (f != null)
             for (int i = f.Count - 1; i >= 0; i--)
-                if (f[i].Rexx == this) { var c0 = new Ctx(f[i].Tc); Flush(c0); return new Use(c0, null); }
-        if (System.Environment.CurrentManagedThreadId == homeThread) { var h = new Ctx(home); Flush(h); return new Use(h, null); }
+                if (f[i].Rexx == this)
+                {
+                    if (f[i].Borrowed) { nest = true; break; }
+                    var c0 = new Ctx(f[i].Tc); Flush(c0); return new Use(c0, null);
+                }
+        if (!nest && System.Environment.CurrentManagedThreadId == homeThread) { var h = new Ctx(home); Flush(h); return new Use(h, null); }
         var c = Attach();
         Flush(c);
         return new Use(c, this);
@@ -254,10 +270,10 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             }
     }
 
-    /// A thread context handed to .NET code by Rexx (a command handler; later
-    /// rexxnet's calls in guest mode): calls on this thread use it until
-    /// PopFrame.
-    internal void PushFrame(nint tc) => (frames ??= new List<Frame>()).Add(new Frame(this, tc));
+    /// A thread context handed to .NET code by Rexx (a request, a command
+    /// handler, a function or exit), until PopFrame: borrowed, calls on this
+    /// thread attach nested (see Threads, above).
+    internal void PushFrame(nint tc) => (frames ??= new List<Frame>()).Add(new Frame(this, tc, borrowed: true));
 
     internal void PopFrame(nint tc)
     {
@@ -268,13 +284,17 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
 
     /// Keeps this thread attached until the scope ends (for a batch of
     /// calls: attaching costs ~20 µs, a message ~1 µs). On the creating
-    /// thread, or a thread already inside Rexx, nothing to do.
+    /// thread, or one already attached, nothing to do; while Rexx code waits
+    /// for .NET on this thread, one nested attachment for the batch.
     public RexxScope Enter()
     {
         if (disposed) throw new ObjectDisposedException(nameof(RexxInterpreter));
-        if (System.Environment.CurrentManagedThreadId == homeThread) return new RexxScope(null);
         var f = frames;
-        if (f != null) foreach (var x in f) if (x.Rexx == this) return new RexxScope(null);
+        bool nest = false;
+        if (f != null)
+            for (int i = f.Count - 1; i >= 0; i--)
+                if (f[i].Rexx == this) { if (!f[i].Borrowed) return new RexxScope(null); nest = true; break; }
+        if (!nest && System.Environment.CurrentManagedThreadId == homeThread) return new RexxScope(null);
         Attach();
         return new RexxScope(this);
     }
@@ -328,6 +348,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
         Flush(new Ctx(home));
         disposed = true;
         lock (objects) objects.Clear();
+        ReleaseCommandHandlers();                // (the application may keep this object: not its handlers)
         inst.Terminate();
         instances.TryRemove(inst.P, out _);
     }

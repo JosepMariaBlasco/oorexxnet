@@ -84,6 +84,13 @@ object. A <classname>RexxException</classname> thrown by .NET code that Rexx
 called (because Rexx code that it ran failed), through any chain of inner
 exceptions, is raised in the calling Rexx code as the original condition, with
 its code and message: the Rexx programmer gets their own error and line.</para>
+<para>Rexx code that .NET runs while other Rexx code waits for it (a message
+sent, a routine called, from .NET code that Rexx called) runs nested, and a
+condition it lets out stops there, as in any call through the API: a HALT
+reaches .NET as a SYNTAX 4.1 and the waiting Rexx code gets a HALT again
+(<literal>SIGNAL ON HALT</literal> traps it); ooRexx drops the other
+conditions there (USER, NOTREADY, ERROR, FAILURE), so the waiting code's
+traps for them do not fire.</para>
 </section>
 
 <section id="bothwaysPackage"><title>The NuGet Package</title>

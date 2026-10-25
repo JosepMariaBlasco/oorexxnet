@@ -152,6 +152,11 @@ public sealed partial class RexxInterpreter
         lock (commands) commands.Remove(id);
     }
 
+    void ReleaseCommandHandlers()
+    {
+        lock (commands) commands.Clear();
+    }
+
     // ----------------------------------------------------------------- I/O
 
     const string IoFunction = "REXXNET.IO";

@@ -28,6 +28,30 @@ static partial class Program
         OptionsErrorSyntax();
         HaltBackAsHalt();
         ReliableCancellationOff();
+        HandlersGoOnDispose();
+    }
+
+    // Disposing an instance lets its command handlers go, even while the
+    // application keeps the RexxInterpreter object (oorexx-bridges, command
+    // handlers: a lesson of the Python bridge).
+    static void HandlersGoOnDispose()
+    {
+        var rexx = RexxInterpreter.Create();
+        var weak = AddHeldHandler(rexx);
+        Ok("a handler's delegate lives while its instance does", weak.IsAlive, true);
+        rexx.Dispose();
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        Ok("... and goes when it is disposed (the instance object kept)", weak.IsAlive, false);
+        GC.KeepAlive(rexx);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static WeakReference AddHeldHandler(RexxInterpreter rexx)
+    {
+        var state = new object();
+        Func<string, RexxCommandContext, object?> h = (c, ctx) => state.GetHashCode();
+        rexx.AddCommandEnvironment("HELD", h);
+        return new WeakReference(h);
     }
 
     // Rexx -> the host (a command handler, a function) -> Rexx code that
@@ -47,6 +71,22 @@ static partial class Program
            rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return 'trapped'"), "not trapped, rc 7");
         Ok("... a function (ooRexx drops it)",
            rexx.Run("signal on user x; v = raising(); return 'not trapped:' v\nx: return 'trapped'"), "not trapped: 7");
+        // A message the handler sends (RexxObject.Send) to a Rexx method that
+        // raises a condition: ooRexx looked for the trap past .NET's frames,
+        // and the caller's SIGNAL ended the process (a C++ exception through
+        // the CLR). Sent nested now, as from a thread of its own: a HALT
+        // comes back as a HALT (rule 1), a NOTREADY is dropped at the API.
+        rexx.AddCommandEnvironment("SENDING", (c, ctx) => ((RexxObject)ctx["O"]!).Send(c));
+        rexx.AddFunction("SENDING", call => ((RexxObject)call.Arguments[0]!).Send(call.Arg<string>(1)));
+        const string Raiser = "\n::class Raiser\n::method halt; raise halt\n::method notready; raise notready description 'd' return 9";
+        Ok("SIGNAL ON HALT past the host's Send: a command",
+           rexx.Run("o = .Raiser~new; signal on halt name x; address sending 'halt'; return 'not trapped'\nx: return condition('C')" + Raiser), "HALT");
+        Ok("... SIGNAL ON NOTREADY: a command, RC its result",
+           rexx.Run("o = .Raiser~new; signal on notready name x; address sending 'notready'; return 'not trapped, rc' rc\nx: return 'trapped'" + Raiser), "not trapped, rc 9");
+        Ok("... SIGNAL ON HALT: a function",
+           rexx.Run("signal on halt name x; v = sending(.Raiser~new, 'halt'); return 'not trapped'\nx: return condition('C')" + Raiser), "HALT");
+        Ok("... SIGNAL ON NOTREADY: a function",
+           rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return 'trapped'" + Raiser), "not trapped: 9");
     }
 
     // A HALT in Rexx code that a .NET handler (or function) runs, not trapped
