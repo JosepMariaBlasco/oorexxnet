@@ -542,6 +542,18 @@ method and a .NET command handler sending to such methods, with `SIGNAL ON`
 for each), `HostTests` `SignalPastTheHost` (a command and a function);
 both ended the process before.
 
+**NOSTRING (the same day, a finding of the WASM bridge).** ooRexx's
+`ObjectToString` / `ObjectToStringValue` go through `requestString()`, which
+raises NOSTRING when the caller traps it. The native side never makes an
+arbitrary object text (any object that is not a string goes to .NET by
+reference); `RexxObject.ToString()` does (`ObjectToString`), and .NET calls
+it whenever it wants text (`String.Concat(object)`, `Convert.ToString`,
+`StringBuilder.Append`). Measured with the bridge before the change above:
+`.net~System~String~Concat(.object~new)` with `SIGNAL ON NOSTRING` in the
+caller ended the process (the SIGNAL through the CLR, as above). Now, nested,
+the text comes back (`an Object`) and no NOSTRING is raised: from Rexx code
+that waits for .NET there is nothing to trap it (`phase3.rex`, `HostTests`).
+
 **USER through `.NetCommandHandler` (the lesson's check).** Its `command`
 is written in Rexx, so a condition that `rexxnet` raises again there
 (`raiseHeld`, after the request) would stop in it, not in the issuer. Today

@@ -85,6 +85,12 @@ static partial class Program
            rexx.Run("o = .Raiser~new; signal on notready name x; address sending 'notready'; return 'not trapped, rc' rc\nx: return 'trapped'" + Raiser), "not trapped, rc 9");
         Ok("... SIGNAL ON HALT: a function",
            rexx.Run("signal on halt name x; v = sending(.Raiser~new, 'halt'); return 'not trapped'\nx: return condition('C')" + Raiser), "HALT");
+        // An object that is not a string, made text by the host (ToString:
+        // ooRexx's requestString, which raises NOSTRING when the caller traps
+        // it): its text, no NOSTRING (before, the SIGNAL ended the process).
+        rexx.AddFunction("TEXT", call => call.Arguments[0]!.ToString());
+        Ok("SIGNAL ON NOSTRING, the host makes .object~new text",
+           rexx.Run("signal on nostring name x; return text(.object~new)\nx: return 'NOSTRING'"), "an Object");
         Ok("... SIGNAL ON NOTREADY: a function",
            rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return 'trapped'" + Raiser), "not trapped: 9");
     }

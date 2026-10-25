@@ -291,6 +291,14 @@ call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT",
 call ok "... untrapped, the command: SYNTAX 4.1", sendCmdUntrapped(raiser), "SYNTAX 4.1"
 call ok "... NOTREADY, SIGNAL ON NOTREADY: not trapped, RC its result", sendCmd(raiser, "notready"), "rc 9"
 
+-- An object that is not a string, made text by .NET (RexxObject.ToString:
+-- ooRexx's requestString), with SIGNAL ON NOSTRING in the Rexx code that
+-- called .NET: requestString raises NOSTRING when the caller traps it, and
+-- in the context Rexx handed over that SIGNAL unwound through the CLR (the
+-- process ended). Nested now: its text, no NOSTRING.
+call ok "SIGNAL ON NOSTRING, .NET makes .object~new text", noString(.object~new), "an Object"
+call ok "... an object of a class with no STRING method of its own", noString(.Raiser~new), "a RAISER"
+
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
 exit .fails > 0
@@ -317,6 +325,11 @@ sendSignal: procedure expose dl
   r = dl~SendTo(o, cond)
   return "not trapped"
   sendSignalTrap: return condition("C")
+noString: procedure
+  use arg o
+  signal on nostring name noStringTrap
+  return .net~System~String~Concat(o)
+  noStringTrap: return "NOSTRING"
 sendCmd: use arg raiser, what
   signal on halt name sendCmdTrap; signal on notready name sendCmdTrap
   address calc "send" what
