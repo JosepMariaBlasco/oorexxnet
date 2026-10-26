@@ -466,6 +466,12 @@ internal readonly unsafe struct Ctx
         fixed (byte* pn = n) return ((delegate* unmanaged<nint, nint, byte*, nint>)F(ThreadInterface.DirectoryAt))(P, d, pn);
     }
 
+    public void DirectoryPut(nint d, nint value, string index)
+    {
+        var n = Native.Z(index);
+        fixed (byte* pn = n) ((delegate* unmanaged<nint, nint, nint, byte*, void>)F(ThreadInterface.DirectoryPut))(P, d, value, pn);
+    }
+
     public void HaltThread() => ((delegate* unmanaged<nint, void>)F(ThreadInterface.HaltThread))(P);
     public bool CheckCondition() => ((delegate* unmanaged<nint, nuint>)F(ThreadInterface.CheckCondition))(P) != 0;
     public nint ConditionInfo() => ((delegate* unmanaged<nint, nint>)F(ThreadInterface.GetConditionInfo))(P);

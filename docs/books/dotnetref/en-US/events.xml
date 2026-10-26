@@ -185,10 +185,8 @@ say "ticks:" loop~count
 If .NET lets it out of the call that Rexx made (directly, or wrapped, as
 <literal>List.Sort</literal> wraps its comparer's exceptions), the original
 condition is raised again in that Rexx code, with its code and message, not
-a 98.900 about it. Its description (<computeroutput>condition("D")</computeroutput>,
-from <literal>RAISE SYNTAX ... DESCRIPTION</literal>) does not arrive: ooRexx
-5.3.0 has no API that raises a SYNTAX condition with one (an ooRexx bug,
-unreported).</para>
+a 98.900 about it, its description and result
+(<literal>RAISE SYNTAX ... DESCRIPTION ... RETURN</literal>) included.</para>
 <para>A handler called on a thread where no Rexx code waits for .NET (a
 timer's, the thread pool's, a thread that .NET code started) has nobody to
 raise it to; an exception there would end the process. So the bridge reports
@@ -245,8 +243,7 @@ context's <methodname>RaiseError</methodname>,
 <methodname>RaiseFailure</methodname> and <methodname>Raise</methodname>, as
 for a handler written in Rexx.</para></listitem>
 <listitem><para>An error of the handler is raised in the code that sent the
-command: a Rexx error of Rexx code it called as itself (without its
-description, as in <xref linkend="eventsErrors"/>), a .NET exception as
+command: a Rexx error of Rexx code it called as itself, a .NET exception as
 SYNTAX 98.900, the exception in
 <computeroutput>condition("O")~additional[2]</computeroutput>. A HALT that
 Rexx code the handler called does not trap (ooRexx makes it SYNTAX 4.1 on

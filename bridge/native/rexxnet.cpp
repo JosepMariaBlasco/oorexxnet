@@ -704,11 +704,25 @@ static int raiseHeld(RexxThreadContext *c, int id)
     // the end of the clause, CALL ON HALT after it (the call answers .nil
     // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
     bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
-    // A SYNTAX loses its DESCRIPTION here: no API raises one with it, and
+    // A SYNTAX: no API raises one with its DESCRIPTION, and
     // RaiseCondition("SYNTAX", ...) would crash the process (ooRexx bug,
     // unreported: oorexx-bridges, oorexx-bugs/2026-10-26-raise-syntax-description.md).
+    // Workaround, to drop when ooRexx can raise a condition object as it is:
+    // GetConditionInfo() answers the native activation's pending condition
+    // object itself (r13297), the one raised in the caller when this native
+    // code returns, so its DESCRIPTION and RESULT are put back into it.
     if (halt) c->HaltThread();
-    else if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
+    else if (k.name == "SYNTAX")
+    {
+        c->RaiseException(k.code, (RexxArrayObject)k.additional);
+        RexxDirectoryObject raised = c->GetConditionInfo();
+        if (raised != NULLOBJECT)
+        {
+            if (k.description) c->DirectoryPut(raised, k.description, "DESCRIPTION");
+            if (k.result) c->DirectoryPut(raised, k.result, "RESULT");
+            c->ReleaseLocalReference(raised);
+        }
+    }
     else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, k.result);
     if (k.additional) c->ReleaseGlobalReference(k.additional);
     if (k.description) c->ReleaseGlobalReference(k.description);

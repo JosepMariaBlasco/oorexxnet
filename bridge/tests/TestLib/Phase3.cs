@@ -87,6 +87,8 @@ public static class Delegates
         "halt" => ctx.Interpreter.Run("raise halt"),
         "send halt" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("HALT"),      // a message to a Rexx method
         "send notready" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("NOTREADY"),
+        "send described" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("DESCRIBED"),
+        "run described" => ctx.Interpreter.Run("raise syntax 40.1 array('BOOM') description 'the description' return 'r'"),
         "error" => ctx.RaiseError(5),
         "failure" => ctx.Raise("FAILURE", -3, "it could not run", "the additional"),
         "vars" => ctx["V"] + " " + ctx.HasVar("V") + " " + ctx.HasVar("NOPE") + " " + ctx["NOPE"] + " " + ctx.Environment,

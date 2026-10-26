@@ -62,6 +62,15 @@ static partial class Program
         catch (RexxException e) { Ok("... untrapped: thrown", e.Code, "40.900"); }
         rexx.AddFunction("bad", f => f.Interpreter.Run("return 1 + 'a'"));
         Ok("Rexx error inside: itself",  rexx.Run("signal on syntax; return bad()" + Trap), "41.1 Nonnumeric value (\"a\") used in arithmetic operation.");
+        // its description and result too: no ooRexx API raises a SYNTAX with
+        // them (ooRexx bug, unreported), put back into the pending condition
+        // object by the bridge (a workaround)
+        const string Raise = "raise syntax 40.1 array('BOOM') description 'the description' return 'r'";
+        const string Described = "\nsyntax: c = condition('O'); return c~code '['condition('D')']' c~additional[1] c~result";
+        rexx.AddFunction("described", f => f.Interpreter.Run(Raise));
+        Ok("... with its description and result", rexx.Run("signal on syntax; return described()" + Described), "40.1 [the description] BOOM r");
+        rexx.AddCommandEnvironment("DESCRIBED", (c, ctx) => ctx.Interpreter.Run(Raise));
+        Ok("... a command environment's", rexx.Run("signal on syntax; address described 'go'; return 'no error'" + Described), "40.1 [the description] BOOM r");
 
         // what wins
         Ok("an internal routine wins",   rexx.Run("return twice(1)\ntwice: return 'mine'"), "mine");

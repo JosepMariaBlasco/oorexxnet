@@ -1094,14 +1094,23 @@ case still open; item 6 changed later):
    object): answer K, the condition raised on the request's context with the
    thread context's `RaiseException` / `RaiseCondition` (never an unwinding
    API: phase B's rule). Shared with command handlers (`RaiseAgain`).
-   A SYNTAX's **DESCRIPTION is lost** on the way (measured on r13297 through
-   `RexxObject.Send`, a `.NetHandler`, a command handler sending to Rexx and
-   one running Rexx code: code and ADDITIONAL arrive, `condition("D")` is
-   empty): ooRexx has no API that raises a SYNTAX with a description, and
-   `RaiseCondition("SYNTAX", ...)` crashes the process (its condition object
-   has no `CODE`), so SYNTAX always goes through `RaiseException`. An ooRexx
-   bug, unreported (the family's finding, in the coordination repository);
-   not worked around, as in the other bridges.
+   A SYNTAX's **DESCRIPTION and RESULT, put back by hand**: ooRexx has no API
+   that raises a SYNTAX with them (`RaiseException` takes a code and the
+   substitutions only), and `RaiseCondition("SYNTAX", ...)` crashes the
+   process (its condition object has no `CODE`), an ooRexx bug, unreported
+   (the family's finding, in the coordination repository). Measured on
+   r13297 through `RexxObject.Send`, a `.NetHandler`, a command handler
+   sending to Rexx and one running Rexx code: code and ADDITIONAL arrived,
+   `condition("D")` was empty. So SYNTAX goes through `RaiseException`, and
+   then `DESCRIPTION` and `RESULT` are put into `GetConditionInfo()`'s
+   object: on r13297 that is the native activation's pending condition
+   object itself, the one raised in the caller when the native code returns
+   (its re-raise rewrites the position, program and message, not those two).
+   Both re-raise points do it (rexxnet's `raiseHeld`, `RaiseAgain`); the
+   family's workaround (oorexxwasm's first), undocumented behaviour, to drop
+   when ooRexx can raise a condition object as it is. A future ooRexx that
+   answered a copy would lose them again, nothing worse: `phase3.rex` and
+   `HostTests` (six paths) would show it.
    **Through the whole chain of inner exceptions** (an `AggregateException`
    only when it holds one), as the callbacks' rule (`RexxCause`) does.
    Built first through reflection's wrappers only (an

@@ -298,6 +298,17 @@ call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT",
 call ok "... untrapped, the command: SYNTAX 4.1", sendCmdUntrapped(raiser), "SYNTAX 4.1"
 call ok "... NOTREADY, SIGNAL ON NOTREADY: not trapped, RC its result", sendCmd(raiser, "notready"), "rc 9"
 
+-- A SYNTAX raised with a description (and a result) by Rexx code that .NET
+-- called, raised again in the Rexx caller: ooRexx has no API that raises a
+-- SYNTAX with them (ooRexx bug, unreported); the bridge puts them back into
+-- the pending condition object (a workaround). If this fails with an empty
+-- description, a newer ooRexx copies that object: see raiseHeld in rexxnet.cpp.
+expect = "40.1 [the description] BOOM r"
+call ok "a SYNTAX's description and result: sent from .NET", described("x = dl~SendTo(raiser, 'DESCRIBED')"), expect
+call ok "... a .NetHandler's method", described("x = dl~Text(.net~handler(raiser, 'DESCRIBED'))"), expect
+call ok "... a .NET command handler sends", described("address calc 'send described'"), expect
+call ok "... a .NET command handler runs Rexx code", described("address calc 'run described'"), expect
+
 -- An object that is not a string, made text by .NET (RexxObject.ToString:
 -- ooRexx's requestString), with SIGNAL ON NOSTRING in the Rexx code that
 -- called .NET: requestString raises NOSTRING when the caller traps it, and
@@ -448,6 +459,7 @@ sendCmdUntrapped: use arg raiser
 ::method notready; raise notready description "not ready" return 9
 ::method error;    raise error 3 description "an error" return 3
 ::method failure;  raise failure 4 description "a failure" return 4
+::method described; raise syntax 40.1 array("BOOM") description "the description" return "r"
 
 ::class HaltTester                -- a callback whose Rexx code is halted
 ::method haltCompare               -- a Comparison<int> whose Rexx code is halted
@@ -476,6 +488,17 @@ sendCmdUntrapped: use arg raiser
   if got == want then return
   .local~fails += 1
   say "FAIL" name": got ["got"], want ["want"]"
+
+::routine described                -- the SYNTAX code raises: code [description] additional result
+  use arg code
+  raiser = .Raiser~new
+  dl = .dl
+  signal on syntax
+  interpret code
+  return "no error"
+syntax:
+  c = condition("O")
+  return c~code "["condition("D")"]" c~additional~toString(, " ") c~result
 
 ::routine code                    -- the code's error: its code, or (item 2) the type of additional[2]
   use arg code, item = 1

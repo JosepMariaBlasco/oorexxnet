@@ -154,10 +154,18 @@ public sealed unsafe partial class RexxInterpreter
             var parts = e.Code.Split('.');
             long code = long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0);
             if (additional == 0) additional = c.NewArray(0);
-            // the DESCRIPTION is lost: no API raises a SYNTAX with one, and
+            // no API raises a SYNTAX with its DESCRIPTION, and
             // RaiseCondition("SYNTAX", ...) would crash the process (ooRexx
-            // bug, unreported: see rexxnet.cpp's raiseHeld)
+            // bug, unreported): put back into the pending condition object,
+            // a workaround (see rexxnet.cpp's raiseHeld)
             c.RaiseException(code, additional);
+            nint raised = c.ConditionInfo();
+            if (raised != 0 && raised != c.Nil)
+            {
+                if (description != 0) c.DirectoryPut(raised, description, "DESCRIPTION");
+                if (result != 0 && result != c.Nil) c.DirectoryPut(raised, result, "RESULT");
+                c.ReleaseLocal(raised);
+            }
         }
         else c.RaiseCondition(e.ConditionName, description, additional, result);
         return true;
