@@ -10,8 +10,10 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13289 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13288 is the first with
+- **ooRexx 5.3.0 r13297 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13297 is the base of the
+  family of ooRexx bridges (r13294 fixes the forwarding of command
+  environments written in Rexx, RFE #882). r13288 is the first with
   command environments written in Rexx (`.CommandHandler`, RFE #882), which
   the bridge's command environments are made with. r13286 fixes a heap
   corruption when native code asks about numbers while other threads run

@@ -2,7 +2,8 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13289 (RFE #882 in r13288, command
+# revision: the bridge needs at least r13297 (the family's base: RFE #882's
+# forwarding fix in r13294, StackCommandEnvironment in r13297; RFE #882 in r13288, command
 # environments written in Rexx, .CommandHandler, which the bridge's command
 # environments are made with; #2122 in r13286, a heap corruption when
 # native code asks IsInstanceOf of a number while threads run Rexx; RFE #880,

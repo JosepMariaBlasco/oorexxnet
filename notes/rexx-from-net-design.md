@@ -509,6 +509,20 @@ between.
   calls counted (`Bridge.Depth`), so the error was reported on `.error` and
   the delegate returned its default.
 
+**`StackCommandEnvironment` (r13297): not used (decided 26/10/2026).** The
+native API's new call registers a native handler that covers the one in use
+under a name, as `.CommandHandler~register` does. The bridge registers no
+native command handler since the core's context (above): a .NET handler is
+a `.NetCommandHandler`, already stacked by `register` / `deregister`, from
+Rexx and from the host. A native handler would be faster (r13297, best of 6
+× 100 000, Linux: a command to a .NET handler 10.7 µs; to a `.CommandHandler`
+written in Rexx 2.0 µs; an application function, a native exit as a native
+handler would be, 0.58 µs), but it gets the exit context, not the core's
+`.CommandContext`, and `.CommandHandler~handler(name)` would answer a
+`.NativeCommandHandler`: what the core's context gives would be lost. The
+bridge's minimum is r13297, the family's base (r13294 fixes the forwarding of
+RFE #882; nothing in the bridge depends on it).
+
 ## A Rexx condition past .NET's frames (25/10/2026)
 
 **Found** while checking the family's lessons on command handlers (a Rexx
