@@ -198,7 +198,7 @@ public static unsafe class Bridge
     {
         var rexx = CurrentInterpreter();
         var handler = rexx.CommandHandler(id) ?? throw new InvalidOperationException("the command handler was released");
-        var context = new RexxCommandContext(rexx, Conv.AdoptRexx(caller));
+        var context = new RexxCommandContext(rexx, () => Conv.AdoptRexxPlain(caller));
         object? result = null;
         try { return result = handler(command, context) ?? "0"; }
         catch (TargetInvocationException e) when (e.InnerException != null)

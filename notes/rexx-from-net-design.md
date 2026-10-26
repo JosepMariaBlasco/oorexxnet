@@ -488,7 +488,7 @@ and a Rexx handler's in the same instance from 2 to ~170 µs, within a few
 hundred thousand commands). Afterwards the context is an
 `ObjectDisposedException`. Cost (warm, Linux, a host instance): a command
 to a .NET handler ~10 µs; one variable read in it ~4 µs more; a handler
-written in Rexx ~2 µs. A `.NetHandler` given to `.NetCommandHandler~new` is
+written in Rexx ~2 µs. *(Halved 26/10/2026: "Cheaper commands", below.)* A `.NetHandler` given to `.NetCommandHandler~new` is
 refused: a handler written in Rexx is a `.CommandHandler`, with no .NET in
 between.
 - **From Rexx** (until 25/10/2026 `.net~addCommandEnvironment(name,
@@ -522,6 +522,35 @@ handler would be, 0.58 µs), but it gets the exit context, not the core's
 `.NativeCommandHandler`: what the core's context gives would be lost. The
 bridge's minimum is r13297, the family's base (r13294 fixes the forwarding of
 RFE #882; nothing in the bridge depends on it).
+
+## Cheaper commands (26/10/2026)
+
+Where a command to a .NET handler went (r13297, a .NET host, 600 000
+commands, the handler `(c, ctx) => 0`): the managed side of the request
+~5.2 µs, of which ~2.5 µs making the `.CommandContext`'s proxy (`Wrap`'s
+questions about its type: about seven API calls) and ~0.9 µs releasing it;
+the rest in `.NetCommandHandler~command` (Rexx) and `NetRequest`'s encoding
+(each argument asked about every class of the bridge first). Changed, the
+design kept (the core's context, option (A)):
+
+- **The context's proxy is made on the handler's first use**
+  (`RexxCommandContext.Context`, lazy), with no questions about its type
+  (`Conv.AdoptRexxPlain`, `RexxInterpreter.WrapPlain`): a handler that does
+  not ask its context makes none. Used after the handler, it is an
+  `ObjectDisposedException` as before (`HostTests`
+  `ContextAfterTheHandler`).
+- **`.NetCommandHandler~command` is native** (`rexxnet`'s `net_command`):
+  the request made directly (the id, the command, the context by pointer:
+  X), with no Rexx activation between the sender and the handler (the
+  Lua bridge's lesson 1 too). A HALT given back halts the thread
+  (`raiseHeld`), so the sender gets it as from a Ctrl-C (the three cases
+  tested as before); a released handler answers FAILURE RC 30 (tested).
+
+Measured, the same machine, alternating, best of 6 × 100 000: a command to
+a .NET handler **16.2 → 7.6 µs**; one whose handler asks its context once
+(`HasVar`) 25 → 18.5 µs (the message to the core's `.CommandContext` is
+most of what is left). Tried and dropped: one nested attachment for the
+whole handler on its first use of the context (`Enter()`): no gain measured.
 
 ## A Rexx condition past .NET's frames (25/10/2026)
 
@@ -576,6 +605,8 @@ come out of .NET: a USER reached `command` only by the path above, now
 closed. When ooRexx delivers such conditions through its API (the
 dependency row), the handler's other conditions must be handed to the
 issuer too (`caller~raise`, or a native `command` as the Lua bridge's).
+*(Since 26/10/2026 `command` is native: "Cheaper commands"; whether a
+condition raised again there reaches the issuer is to be measured then.)*
 
 **Disposing an instance** releases its command handlers' delegates (the
 table), also while the application keeps the `RexxInterpreter` object

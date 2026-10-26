@@ -62,6 +62,15 @@ public sealed unsafe partial class RexxInterpreter
         return (RexxObject)top.Rexx.Wrap(new Ctx(top.Tc), p, borrowed: true)!;
     }
 
+    /// FromRequest for an object known to be plain (Conv.AdoptRexxPlain).
+    internal static RexxObject FromRequestPlain(nint p)
+    {
+        var f = frames;
+        if (f is not { Count: > 0 }) throw new BridgeException("a Rexx object outside a request from Rexx");
+        var top = f[^1];
+        return top.Rexx.WrapPlain(new Ctx(top.Tc), p);
+    }
+
     /// A callback's result (G): a Rexx object whose global reference is
     /// handed over (rexxnet took it before detaching its thread). No context
     /// here: a plain RexxObject.

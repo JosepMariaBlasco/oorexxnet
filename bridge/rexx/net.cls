@@ -784,19 +784,9 @@ syntax: raise propagate
   id = NetRequest("cmdHandler", handler)
   return
 syntax: raise propagate
-::method command unguarded           -- the handler's result is RC
-  expose id
-  use arg command, caller
-  if id == .nil then return caller~raise("FAILURE", 30)    -- released: as an unknown environment
-  signal on halt name halted
-  r = NetRequest("cmdRun", id, command, caller)
-  if r == .nil then return 0
-  return r
--- A HALT that Rexx code the handler called did not trap: the bridge gives
--- it back as a HALT (rule 1, host code), which arrives here, in this
--- method; the code that sent the command gets it, as ooRexx raises a
--- handler's condition there
-halted: return caller~raise("HALT", 0)
+-- command(command, caller): the handler's result is RC. Native (rexxnet's
+-- net_command): no Rexx activation between the sender and the handler
+::method command unguarded external "LIBRARY rexxnet net_command"
 ::method release unguarded           -- the delegate released; then FAILURE, RC 30
   expose id
   if id \== .nil then call NetRequest "cmdRelease", id

@@ -397,6 +397,24 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
 
     internal RexxObject? WrapObject(Ctx c, nint o) => (RexxObject?)Wrap(c, o);
 
+    /// Wrap for a borrowed object known to be plain (no String, routine,
+    /// class, package or .NetObject): the same table, no questions asked.
+    internal RexxObject WrapPlain(Ctx c, nint o)
+    {
+        RexxObject proxy;
+        bool request;
+        lock (objects)
+        {
+            if (objects.TryGetValue(o, out var e) && e.Proxy != null && e.Proxy.TryGetTarget(out var live) && !live.Disposed) return live;
+            proxy = new RexxObject(this, o);
+            if (e == null) objects[o] = e = new Entry();
+            request = e.Count++ == 0;
+            e.Proxy = new WeakReference<RexxObject>(proxy);
+        }
+        if (request) c.Global(o);
+        return proxy;
+    }
+
     static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     /// A .NET value as a Rexx object.

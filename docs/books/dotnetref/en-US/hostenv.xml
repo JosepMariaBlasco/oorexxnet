@@ -110,7 +110,8 @@ command. The context is valid while the command runs: the bridge releases it
 when the handler returns (then an <classname>ObjectDisposedException</classname>).
 The handler's own calls into Rexx (through
 <methodname>Interpreter</methodname>) run nested on the same thread. A
-command costs about 10 µs.</para>
+command costs about 8 µs; a handler that uses its context pays for the
+messages to it (each one to ooRexx's <classname>CommandContext</classname>).</para>
 
 <example id="ex.host-commands">
 <title>An ADDRESS environment</title>

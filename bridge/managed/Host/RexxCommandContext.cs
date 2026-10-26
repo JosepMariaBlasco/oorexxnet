@@ -25,15 +25,22 @@ public sealed class RexxCommandContext
 {
     readonly List<RexxObject> made = new();     // the streams, variables...: released with the context
 
-    internal RexxCommandContext(RexxInterpreter rexx, RexxObject context) { Interpreter = rexx; Context = context; }
+    // The .CommandContext's proxy is made the first time the handler asks for
+    // it (a handler that only reads its command makes none: ~3 µs a command).
+    readonly Func<RexxObject> make;
+    RexxObject? context;
+    bool ended;
+
+    internal RexxCommandContext(RexxInterpreter rexx, Func<RexxObject> make) { Interpreter = rexx; this.make = make; }
 
     // When the handler returns: the context and what it gave, released now
     // (a command makes a new context each time: left to the finalizer, they
     // would pile up).
     internal void End(object? result)
     {
+        ended = true;
         lock (made) { foreach (var o in made) if (!ReferenceEquals(o, result)) o.Dispose(); made.Clear(); }
-        if (!ReferenceEquals(Context, result)) Context.Dispose();
+        if (context != null && !ReferenceEquals(context, result)) context.Dispose();
     }
 
     RexxObject Keep(RexxObject? o)
@@ -48,8 +55,16 @@ public sealed class RexxCommandContext
     /// The instance whose Rexx code sent the command (to call Rexx code back).
     public RexxInterpreter Interpreter { get; }
 
-    /// The .CommandContext itself.
-    public RexxObject Context { get; }
+    /// The .CommandContext itself (valid while the handler runs).
+    public RexxObject Context
+    {
+        get
+        {
+            if (context != null) return context;
+            if (ended) throw new ObjectDisposedException(nameof(RexxCommandContext), "a RexxCommandContext is valid only while its handler runs");
+            return context = make();
+        }
+    }
 
     /// ENVIRONMENT: the name of the environment the command was sent to.
     public string Environment => Context.Send("ENVIRONMENT")?.ToString() ?? "";

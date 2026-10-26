@@ -235,6 +235,13 @@ call reg "STACK", dl~Upper
 address stack "x"; call ok "registered again after deregister", rc, "X"
 call ok "the bridge's own entry is not among the environments", -
         .CommandHandler~environments~allIndexes~makeString("l", " ")~pos("REXXNET") == 0, 1
+gone = .NetCommandHandler~new(dl~Upper); .CommandHandler~register("GONE", gone); gone~release
+signal on failure name goneTrap
+address gone "x"
+call ok "a released .NetCommandHandler: FAILURE", "none", "FAILURE"
+goneTrap: signal off failure
+call ok "... RC 30, as an unknown environment", condition("C") rc, "FAILURE 30"
+.CommandHandler~deregister("GONE")
 .CommandHandler~deregister("STACK")
 .CommandHandler~deregister("calc")
 signal on failure name removed

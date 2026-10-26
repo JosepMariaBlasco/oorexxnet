@@ -29,6 +29,22 @@ static partial class Program
         HaltBackAsHalt();
         ReliableCancellationOff();
         HandlersGoOnDispose();
+        ContextAfterTheHandler();
+    }
+
+    // The context is valid only while its handler runs: kept and used after,
+    // ObjectDisposedException (its proxy is made on first use, released at
+    // the end).
+    static void ContextAfterTheHandler()
+    {
+        using var rexx = RexxInterpreter.Create();
+        RexxCommandContext? kept = null, unused = null;
+        rexx.AddCommandEnvironment("KEEP", (c, ctx) => { kept = ctx; return ctx.HasVar("NOPE") ? 1 : 0; });
+        rexx.AddCommandEnvironment("UNUSED", (c, ctx) => { unused = ctx; return 0; });
+        Ok("a handler that asks its context", rexx.Run("address keep 'x'; return rc"), "0");
+        Throws<ObjectDisposedException>("... the context kept and used after the handler", () => kept!.HasVar("X"));
+        Ok("a handler that never asks it", rexx.Run("address unused 'x'; return rc"), "0");
+        Throws<ObjectDisposedException>("... the same after the handler", () => unused!.HasVar("X"));
     }
 
     // Disposing an instance lets its command handlers go, even while the

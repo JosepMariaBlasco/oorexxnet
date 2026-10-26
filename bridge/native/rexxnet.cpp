@@ -826,6 +826,31 @@ RexxRoutine2(RexxObjectPtr, NetRequest, CSTRING, op, ARGLIST, args)
     return request(c, req, &refs, receiver);
 }
 
+// .NetCommandHandler~command(command, caller): native, so that no Rexx
+// activation stands between the code that sent the command and the .NET
+// handler (oorexx-bridges, command handlers, lesson 1), and cheaper: the
+// request is made directly (its id, the command, the .CommandContext by
+// pointer: X), with none of encode's questions. A HALT that Rexx code the
+// handler called did not trap comes back as a halt of this thread
+// (raiseHeld: HaltThread), which the sender then gets, as a Ctrl-C; the
+// command's RC is 0 meanwhile.
+RexxMethod2(RexxObjectPtr, net_command, RexxObjectPtr, command, RexxObjectPtr, caller)
+{
+    findClasses(context);
+    RexxObjectPtr id = context->GetObjectVariable("ID");
+    if (id == NULLOBJECT || id == context->Nil())                // released: as an unknown environment
+        return context->SendMessage2(caller, "RAISE", context->String("FAILURE"), context->WholeNumber(30));
+    std::string req;
+    record(req, 'S', "cmdRun");
+    record(req, 'S', context->ObjectToStringValue(id));
+    RexxStringObject s = context->ObjectToString(command);
+    record(req, 'S', std::string(context->StringData(s), context->StringLength(s)));
+    record(req, 'X', std::to_string((uintptr_t)caller));
+    RexxObjectPtr r = request(context->threadContext, req);
+    if (context->CheckCondition()) return NULLOBJECT;
+    return r == NULLOBJECT || r == context->Nil() ? (RexxObjectPtr)context->WholeNumber(0) : r;
+}
+
 // NetHandlerNew(): a new handler id. NetHandlerOf(id): the handler (.nil if
 // released). NetHandlerDrop(id): forget it (handler~release).
 RexxRoutine0(int, NetHandlerNew) { return nextHandler++; }
@@ -1148,6 +1173,7 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
 
 RexxMethodEntry rexxnet_methods[] = {
     REXX_METHOD(net_unknown, net_unknown),
+    REXX_METHOD(net_command, net_command),
     REXX_METHOD(net_uninit, net_uninit),
     REXX_LAST_METHOD() };
 RexxRoutineEntry rexxnet_routines[] = {

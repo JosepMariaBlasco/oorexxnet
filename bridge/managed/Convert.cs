@@ -270,6 +270,12 @@ public static class Conv
     // handed over (a callback's result), adopted once.
     internal static RexxObject AdoptRexx(Rec r) => Adopt(r);
 
+    /// An X record known to be a plain Rexx object (not a String, a routine,
+    /// a class, a package or a .NetObject: the .CommandContext): its proxy
+    /// with no questions about its type.
+    internal static RexxObject AdoptRexxPlain(Rec r) =>
+        r.Adopted ??= r.Tag == 'X' ? RexxInterpreter.FromRequestPlain((nint)nuint.Parse(r.Text)) : Adopt(r);
+
     static RexxObject Adopt(Rec r)
     {
         if (r.Adopted == null)
