@@ -1094,6 +1094,14 @@ case still open; item 6 changed later):
    object): answer K, the condition raised on the request's context with the
    thread context's `RaiseException` / `RaiseCondition` (never an unwinding
    API: phase B's rule). Shared with command handlers (`RaiseAgain`).
+   A SYNTAX's **DESCRIPTION is lost** on the way (measured on r13297 through
+   `RexxObject.Send`, a `.NetHandler`, a command handler sending to Rexx and
+   one running Rexx code: code and ADDITIONAL arrive, `condition("D")` is
+   empty): ooRexx has no API that raises a SYNTAX with a description, and
+   `RaiseCondition("SYNTAX", ...)` crashes the process (its condition object
+   has no `CODE`), so SYNTAX always goes through `RaiseException`. An ooRexx
+   bug, unreported (the family's finding, in the coordination repository);
+   not worked around, as in the other bridges.
    **Through the whole chain of inner exceptions** (an `AggregateException`
    only when it holds one), as the callbacks' rule (`RexxCause`) does.
    Built first through reflection's wrappers only (an

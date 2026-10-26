@@ -154,6 +154,9 @@ public sealed unsafe partial class RexxInterpreter
             var parts = e.Code.Split('.');
             long code = long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0);
             if (additional == 0) additional = c.NewArray(0);
+            // the DESCRIPTION is lost: no API raises a SYNTAX with one, and
+            // RaiseCondition("SYNTAX", ...) would crash the process (ooRexx
+            // bug, unreported: see rexxnet.cpp's raiseHeld)
             c.RaiseException(code, additional);
         }
         else c.RaiseCondition(e.ConditionName, description, additional, result);

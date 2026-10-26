@@ -704,6 +704,9 @@ static int raiseHeld(RexxThreadContext *c, int id)
     // the end of the clause, CALL ON HALT after it (the call answers .nil
     // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
     bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
+    // A SYNTAX loses its DESCRIPTION here: no API raises one with it, and
+    // RaiseCondition("SYNTAX", ...) would crash the process (ooRexx bug,
+    // unreported: oorexx-bridges, oorexx-bugs/2026-10-26-raise-syntax-description.md).
     if (halt) c->HaltThread();
     else if (k.name == "SYNTAX") c->RaiseException(k.code, (RexxArrayObject)k.additional);
     else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, k.result);
