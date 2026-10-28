@@ -287,16 +287,22 @@ call ok "... untrapped: SYNTAX 4.1", haltUntrappedCb(halting, haltCmp), "SYNTAX 
 -- for the trap past .NET's frames, and a SIGNAL ON for it in that Rexx code
 -- unwound through them (the process ended: a C++ exception through the
 -- CLR). Now the message is sent nested (an attached thread context), as a
--- callback's: a HALT comes back as a HALT (rule 1), the others are dropped
--- at ooRexx's API as for any call.
+-- callback's. Rule 1 (oorexx-bridges, command handlers): the condition comes
+-- back as itself, with its description and additional object (ooRexx r13320,
+-- bug #2123: before, ooRexx's API dropped them); a HALT as a HALT. Not its
+-- RC: the API has no way to raise one.
 raiser = .Raiser~new
 call ok "SIGNAL ON HALT, a .NET method sends to a method raising HALT", sendSignal(raiser, "HALT"), "HALT"
-call ok "... SIGNAL ON NOTREADY, NOTREADY: not trapped, no end", sendSignal(raiser, "NOTREADY"), "not trapped"
-call ok "... SIGNAL ON ERROR, ERROR", sendSignal(raiser, "ERROR"), "not trapped"
-call ok "... SIGNAL ON FAILURE, FAILURE", sendSignal(raiser, "FAILURE"), "not trapped"
+call ok "... SIGNAL ON NOTREADY, NOTREADY as itself", sendSignal(raiser, "NOTREADY"), "NOTREADY not ready a2"
+call ok "... SIGNAL ON ERROR, ERROR", sendSignal(raiser, "ERROR"), "ERROR an error a3"
+call ok "... SIGNAL ON FAILURE, FAILURE", sendSignal(raiser, "FAILURE"), "FAILURE a failure a4"
+call ok "... SIGNAL ON USER, USER", sendSignal(raiser, "USER"), "USER OOPS a user condition a1"
+call ok "... the same from a .NetHandler's method (a delegate .NET calls)", sendSignal(raiser, "USER", "handler"), "USER OOPS a user condition a1"
+call ok "... NOTREADY from a .NetHandler's method", sendSignal(raiser, "NOTREADY", "handler"), "NOTREADY not ready a2"
 call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT", sendCmd(raiser, "halt"), "HALT"
 call ok "... untrapped, the command: SYNTAX 4.1", sendCmdUntrapped(raiser), "SYNTAX 4.1"
-call ok "... NOTREADY, SIGNAL ON NOTREADY: not trapped, RC its result", sendCmd(raiser, "notready"), "rc 9"
+call ok "... NOTREADY, SIGNAL ON NOTREADY: as itself", sendCmd(raiser, "notready"), "NOTREADY not ready a2"
+call ok "... USER of Rexx code the handler runs", sendCmd(raiser, "", "user"), "USER OOPS from the handler"
 
 -- A SYNTAX raised with a description (and a result) by Rexx code that .NET
 -- called, raised again in the Rexx caller: ooRexx has no API that raises a
@@ -333,26 +339,35 @@ haltUntrappedCb: use arg l, cmp; signal on syntax name haltUntrappedCbTrap; l~So
   haltUntrappedCbTrap: return "SYNTAX" condition("O")~code
 haltSeen: halted = 1; return
 sendSignal: procedure expose dl
-  use arg o, cond
+  use arg o, cond, how = "send"
   select
     when cond = "HALT" then signal on halt name sendSignalTrap
     when cond = "NOTREADY" then signal on notready name sendSignalTrap
     when cond = "ERROR" then signal on error name sendSignalTrap
     when cond = "FAILURE" then signal on failure name sendSignalTrap
+    when cond = "USER" then signal on user oops name sendSignalTrap
   end
-  r = dl~SendTo(o, cond)
+  if how = "send" then r = dl~SendTo(o, cond)
+  else r = dl~Text(.net~handler(o, cond))
   return "not trapped"
-  sendSignalTrap: return condition("C")
+  sendSignalTrap: return conditionText(condition("O"))
 noString: procedure
   use arg o
   signal on nostring name noStringTrap
   return .net~System~String~Concat(o)
   noStringTrap: return "NOSTRING"
-sendCmd: use arg raiser, what
+sendCmd: use arg raiser, what, command = ("send" what)
   signal on halt name sendCmdTrap; signal on notready name sendCmdTrap
-  address calc "send" what
+  signal on user oops name sendCmdTrap
+  address calc command
   return "rc" rc
-  sendCmdTrap: return condition("C")
+  sendCmdTrap: return conditionText(condition("O"))
+conditionText: procedure            -- a condition object: its name, description and additional
+  use arg o
+  a = o~additional
+  if a~isA(.array) then a = a~toString(, " "); else a = ""
+  d = o~description; if d == .nil then d = ""
+  return (o~condition d a)~space
 sendCmdUntrapped: use arg raiser
   signal on syntax name sendCmdUntrappedTrap
   address calc "send halt"
@@ -456,9 +471,10 @@ sendCmdUntrapped: use arg raiser
   return r r
 ::class Raiser                    -- methods raising a condition, for .NET to send to
 ::method halt;     raise halt
-::method notready; raise notready description "not ready" return 9
-::method error;    raise error 3 description "an error" return 3
-::method failure;  raise failure 4 description "a failure" return 4
+::method notready; raise notready description "not ready" additional (.array~of("a2")) return 9
+::method error;    raise error 3 description "an error" additional (.array~of("a3")) return 3
+::method failure;  raise failure 4 description "a failure" additional (.array~of("a4")) return 4
+::method user;     raise user oops description "a user condition" additional (.array~of("a1")) return 1
 ::method described; raise syntax 40.1 array("BOOM") description "the description" return "r"
 
 ::class HaltTester                -- a callback whose Rexx code is halted

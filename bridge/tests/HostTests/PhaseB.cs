@@ -72,33 +72,32 @@ static partial class Program
 
     // Rexx -> the host (a command handler, a function) -> Rexx code that
     // RAISEs USER, with no Rexx activation of the bridge in between, and
-    // SIGNAL ON USER in the caller. On ooRexx r13275 the condition is lost
-    // where the API runs Rexx code (oorexx-bridges, oorexx-bugs/2026-10-19-api-
-    // calls-drop-non-syntax-conditions.md): the caller's trap never fires, so
-    // no C++ unwinding crosses .NET's frames. Should ooRexx deliver it one
-    // day, a SIGNAL would unwind through them: this test then fails (or the
-    // process ends) and the path needs a guard.
+    // SIGNAL ON USER in the caller. Up to ooRexx r13320 the condition was lost
+    // where the API runs Rexx code (bug #2123); now it comes back as itself,
+    // with its description (rule 1 of oorexx-bridges' command handlers), and
+    // the SIGNAL does not unwind through .NET's frames: the host raises it
+    // again on its own context, which the native call returns to.
     static void SignalPastTheHost()
     {
         using var rexx = RexxInterpreter.Create();
         rexx.AddCommandEnvironment("RAISING", (c, ctx) => ctx.Interpreter.Run("raise user x description 'd' return 7"));
         rexx.AddFunction("RAISING", call => call.Interpreter.Run("raise user x description 'd' return 7"));
-        Ok("SIGNAL ON past the host: a command (ooRexx drops it)",
-           rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return 'trapped'"), "not trapped, rc 7");
-        Ok("... a function (ooRexx drops it)",
-           rexx.Run("signal on user x; v = raising(); return 'not trapped:' v\nx: return 'trapped'"), "not trapped: 7");
+        Ok("SIGNAL ON past the host: a command, the condition as itself",
+           rexx.Run("signal on user x; address raising 'go'; return 'not trapped, rc' rc\nx: return condition('C') condition('D')"), "USER X d");
+        Ok("... a function",
+           rexx.Run("signal on user x; v = raising(); return 'not trapped:' v\nx: return condition('C') condition('D')"), "USER X d");
         // A message the handler sends (RexxObject.Send) to a Rexx method that
         // raises a condition: ooRexx looked for the trap past .NET's frames,
         // and the caller's SIGNAL ended the process (a C++ exception through
         // the CLR). Sent nested now, as from a thread of its own: a HALT
-        // comes back as a HALT (rule 1), a NOTREADY is dropped at the API.
+        // comes back as a HALT, a NOTREADY as itself (rule 1; since #2123).
         rexx.AddCommandEnvironment("SENDING", (c, ctx) => ((RexxObject)ctx["O"]!).Send(c));
         rexx.AddFunction("SENDING", call => ((RexxObject)call.Arguments[0]!).Send(call.Arg<string>(1)));
         const string Raiser = "\n::class Raiser\n::method halt; raise halt\n::method notready; raise notready description 'd' return 9";
         Ok("SIGNAL ON HALT past the host's Send: a command",
            rexx.Run("o = .Raiser~new; signal on halt name x; address sending 'halt'; return 'not trapped'\nx: return condition('C')" + Raiser), "HALT");
-        Ok("... SIGNAL ON NOTREADY: a command, RC its result",
-           rexx.Run("o = .Raiser~new; signal on notready name x; address sending 'notready'; return 'not trapped, rc' rc\nx: return 'trapped'" + Raiser), "not trapped, rc 9");
+        Ok("... SIGNAL ON NOTREADY: a command, NOTREADY",
+           rexx.Run("o = .Raiser~new; signal on notready name x; address sending 'notready'; return 'not trapped, rc' rc\nx: return condition('C') condition('D')" + Raiser), "NOTREADY d");
         Ok("... SIGNAL ON HALT: a function",
            rexx.Run("signal on halt name x; v = sending(.Raiser~new, 'halt'); return 'not trapped'\nx: return condition('C')" + Raiser), "HALT");
         // An object that is not a string, made text by the host (ToString:
@@ -108,7 +107,11 @@ static partial class Program
         Ok("SIGNAL ON NOSTRING, the host makes .object~new text",
            rexx.Run("signal on nostring name x; return text(.object~new)\nx: return 'NOSTRING'"), "an Object");
         Ok("... SIGNAL ON NOTREADY: a function",
-           rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return 'trapped'" + Raiser), "not trapped: 9");
+           rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return condition('C') condition('D')" + Raiser), "NOTREADY d");
+        // untrapped, a condition other than SYNTAX or HALT is ignored, as in
+        // plain Rexx: the command goes on (its RC the handler's, 0)
+        Ok("... untrapped: the caller goes on",
+           rexx.Run("address raising 'go'; return 'went on, rc' rc"), "went on, rc 0");
     }
 
     // A HALT in Rexx code that a .NET handler (or function) runs, not trapped

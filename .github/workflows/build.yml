@@ -2,8 +2,10 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13297 (the family's base: RFE #882's
-# forwarding fix in r13294, StackCommandEnvironment in r13297; RFE #882 in r13288, command
+# revision: the bridge needs at least r13324 (the family's base: #2123, non-SYNTAX
+# conditions through the API, in r13320; #2128 in r13322 and #2116 in r13324, crashes
+# after an error in native code; #2126 in r13317; RFE #882's
+# forwarding fix in r13294; RFE #882 in r13288, command
 # environments written in Rexx, .CommandHandler, which the bridge's command
 # environments are made with; #2122 in r13286, a heap corruption when
 # native code asks IsInstanceOf of a number while threads run Rexx; RFE #880,
@@ -29,7 +31,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13297"
+  OOREXX_REV: "13324"
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"

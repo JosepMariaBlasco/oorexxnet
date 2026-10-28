@@ -331,8 +331,10 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
 - **Any Rexx condition, not only SYNTAX, comes back as itself** (rule 1 as
   clarified the same day), with its description, `additional` and result:
   the bridge passes them all (`RaiseAgain` takes `RESULT` too; `rexxnet`
-  keeps a held condition's `RESULT`). But ooRexx drops a condition other
-  than SYNTAX where its native API calls Rexx code: a `.NetHandler`'s
+  keeps a held condition's `RESULT`). **Up to ooRexx r13320** (#2123,
+  fixed there; the bridge's minimum is r13324 since 28/10/2026) ooRexx
+  dropped a condition other than SYNTAX where its native API calls Rexx
+  code: a `.NetHandler`'s
   method runs in a nested activity, which only SYNTAX leaves (measured: a
   `raise user` in a `List.Sort` comparator or a command handler's method
   is lost; `NativeActivation::trap` keeps such a condition only when native
@@ -341,6 +343,18 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   worked around: a Rexx trampoline with `CALL ON ANY` around the message
   does bring them back (tried: USER and HALT, as itself), at about +3 µs a
   callback, and was dropped by the family's decision to wait for the fix.
+  **Measured on r13324** (the bridge unchanged): USER, NOTREADY, ERROR and
+  FAILURE come back as themselves, with description and `additional`,
+  through `RexxObject.Send`, a `.NetHandler`'s method, a command handler
+  sending to Rexx and one running Rexx code, and a host's function and
+  command environment (`phase3.rex`, `HostTests` `SignalPastTheHost`).
+  Untrapped, they are ignored and the caller goes on, as in plain Rexx.
+  What does not come back: the RC of ERROR and FAILURE (`RaiseCondition`
+  has none; the family's parked RFE), and a `RAISE ... RETURN value`'s
+  value: plain Rexx gives it to the caller when the condition is not
+  trapped or a `CALL ON` resumes (it is the method's result, not in the
+  condition object); through .NET the call that raised it answers no
+  result, so `x = ...` raises 91.999 there.
   `::OPTIONS ERROR SYNTAX` (ooRexx #2119, fixed in r13282: it turned a
   handler's non-ERROR condition into SYNTAX 98.970) does not touch the
   bridge's paths: ERROR and FAILURE are raised on the sender with
@@ -520,8 +534,9 @@ written in Rexx 2.0 µs; an application function, a native exit as a native
 handler would be, 0.58 µs), but it gets the exit context, not the core's
 `.CommandContext`, and `.CommandHandler~handler(name)` would answer a
 `.NativeCommandHandler`: what the core's context gives would be lost. The
-bridge's minimum is r13297, the family's base (r13294 fixes the forwarding of
-RFE #882; nothing in the bridge depends on it).
+bridge's minimum was then r13297, the family's base (r13294 fixes the
+forwarding of RFE #882; nothing in the bridge depends on it); since
+28/10/2026 it is r13324 (#2123: see "Errors").
 
 ## Cheaper commands (26/10/2026)
 
@@ -578,8 +593,8 @@ from .NET while Rexx code waits on the thread attaches nested
 `Enter()` there attaches once for a batch. ooRexx then stops at the
 attachment: a HALT comes back as SYNTAX 4.1 and is given back as a HALT
 (rule 1: `SIGNAL ON HALT` traps it, untrapped SYNTAX 4.1), the other
-conditions are dropped at the API, as for every other call (the open
-ooRexx finding above). Cost: ~1 µs more a call (a `Send` inside a request
+conditions come back as themselves since #2123 (r13320; dropped at the API
+before, as for every other call). Cost: ~1 µs more a call (a `Send` inside a request
 ~2.2 → ~3.2 µs, best of 5 × 100 000, Linux). Tests: `phase3.rex` (a .NET
 method and a .NET command handler sending to such methods, with `SIGNAL ON`
 for each), `HostTests` `SignalPastTheHost` (a command and a function);
