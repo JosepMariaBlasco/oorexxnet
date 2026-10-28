@@ -118,7 +118,7 @@ static unsigned char *rexxCallback(int handler, int flags, const unsigned char *
 static void nativeFree(unsigned char *p) { free(p); }
 static void peerDead(int id);
 static void handlerGone(int id, int seen);
-static int raiseHeld(RexxThreadContext *c, int id);
+static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer);
 
 static void loadClr()
 {
@@ -388,7 +388,8 @@ static void drainDead(RexxThreadContext *c)
 // Rexx conditions that ended a callback, kept so that if they come back out
 // of .NET they are raised again as they were. The last few only: .NET may
 // swallow the exception, and then nobody asks for it.
-struct Condition { int id; std::string name; wholenumber_t code; RexxObjectPtr additional, description, result; };
+// returned: what the method answered with the condition (RAISE ... RETURN value)
+struct Condition { int id; std::string name; wholenumber_t code; RexxObjectPtr additional, description, result, returned; };
 static std::deque<Condition> conditions;
 static int nextCondition = 1;
 const size_t keptConditions = 32;
@@ -604,7 +605,10 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         case 'X':                                   // a Rexx object coming back (held for us by the managed side)
             return (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
         case 'K':                                   // a condition already raised by the managed side
-            return payload == "halt" ? c->Nil() : NULLOBJECT;   // (a HALT: the thread halted, the call answers .nil)
+            // (a HALT: the thread halted, the call answers .nil; else what the
+            // Rexx code returned with the condition, its pending RESULT, or none)
+            return payload == "halt" ? c->Nil()
+                 : payload.empty() ? NULLOBJECT : (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
         case 'p':                                   // an instance of a Rexx class extending a .NET class: its Rexx object
         {
             RexxObjectPtr o = peerCrossing(c, atoi(payload.c_str()));
@@ -617,10 +621,11 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         }
         case 'C':                                   // a Rexx condition from a callback, raised again
         {
-            int raised = raiseHeld(c, atoi(field(payload, 0).c_str()));
+            RexxObjectPtr answer;
+            int raised = raiseHeld(c, atoi(field(payload, 0).c_str()), &answer);
             if (!raised)
                 c->RaiseException1(Rexx_Error_Execution_user_defined, c->String(payload.substr(payload.find('\t') + 1).c_str()));
-            return raised == 2 ? c->Nil() : NULLOBJECT;            // (a HALT: the thread halted, the call answers .nil)
+            return raised == 2 ? c->Nil() : answer;                // (a HALT: the thread halted, the call answers .nil)
         }
         case 'U':                                   // no such member: 97.1, the receiver, the name, the exception
         {
@@ -687,9 +692,15 @@ static thread_local RexxThreadContext *requesting = nullptr;
 // callback's answer E), raised again on c: by a response C, or by the managed
 // side directly (a command handler, which no request answers). 0 if no such id,
 // 2 if it was a HALT (raised by halting the thread: see below), else 1.
-static int raiseHeld(RexxThreadContext *c, int id)
+// *answer: what the native call answers, for a condition other than SYNTAX
+// or HALT the value the Rexx code returned with it (RAISE ... RETURN), which
+// plain Rexx gives the caller when the condition is not trapped or a CALL ON
+// resumes; it goes as the condition's RESULT, so the pending condition object
+// keeps it alive until the call returns. Else NULLOBJECT (none).
+static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
 {
-    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT, NULLOBJECT};
+    if (answer) *answer = NULLOBJECT;
+    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT, NULLOBJECT, NULLOBJECT};
     {
         std::lock_guard<std::mutex> g(tablesLock);
         for (auto it = conditions.begin(); it != conditions.end(); ++it)
@@ -723,10 +734,16 @@ static int raiseHeld(RexxThreadContext *c, int id)
             c->ReleaseLocalReference(raised);
         }
     }
-    else c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, k.result);
+    else
+    {
+        RexxObjectPtr result = k.result ? k.result : k.returned;
+        c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, result);
+        if (answer) *answer = result;
+    }
     if (k.additional) c->ReleaseGlobalReference(k.additional);
     if (k.description) c->ReleaseGlobalReference(k.description);
     if (k.result) c->ReleaseGlobalReference(k.result);
+    if (k.returned) c->ReleaseGlobalReference(k.returned);
     return halt ? 2 : 1;
 }
 
@@ -1024,7 +1041,7 @@ static void decodeCondition(RexxThreadContext *tc, RexxDirectoryObject info, Rex
 }
 
 // The pending condition as a record E (and kept, to be raised again).
-static std::string conditionRecord(RexxThreadContext *tc)
+static std::string conditionRecord(RexxThreadContext *tc, RexxObjectPtr returned = NULLOBJECT)
 {
     RexxDirectoryObject info = tc->GetConditionInfo();
     RexxCondition k;
@@ -1050,7 +1067,8 @@ static std::string conditionRecord(RexxThreadContext *tc)
     RexxObjectPtr result = tc->DirectoryAt(info, "RESULT");          // RAISE ... RETURN/EXIT result
     Condition kept{0, name, k.code, additional && additional != tc->Nil() ? tc->RequestGlobalReference(additional) : NULLOBJECT,
                    description && description != tc->Nil() ? tc->RequestGlobalReference(description) : NULLOBJECT,
-                   result && result != tc->Nil() ? tc->RequestGlobalReference(result) : NULLOBJECT};
+                   result && result != tc->Nil() ? tc->RequestGlobalReference(result) : NULLOBJECT,
+                   returned && returned != tc->Nil() && name != "SYNTAX" ? tc->RequestGlobalReference(returned) : NULLOBJECT};
     std::vector<Condition> dropped;
     {
         std::lock_guard<std::mutex> g(tablesLock);
@@ -1063,6 +1081,7 @@ static std::string conditionRecord(RexxThreadContext *tc)
         if (d.additional) tc->ReleaseGlobalReference(d.additional);
         if (d.description) tc->ReleaseGlobalReference(d.description);
         if (d.result) tc->ReleaseGlobalReference(d.result);
+        if (d.returned) tc->ReleaseGlobalReference(d.returned);
     }
     std::string traceback;
     RexxObjectPtr tb = tc->DirectoryAt(info, "TRACEBACK");
@@ -1169,16 +1188,16 @@ static unsigned char *rexxCallback(int id, int flags, const unsigned char *req, 
     parseRecord(req, (size_t)len, 0, tag, payload);
     RexxObjectPtr args = decode(tc, tag, payload);
     RexxObjectPtr r = NULLOBJECT;
-    // (a condition other than SYNTAX that the method lets out does not reach
-    // here: ooRexx drops it at the API, oorexx-bridges' finding of 19/10/2026,
-    // api-calls-drop-non-syntax-conditions)
+    // (a condition other than SYNTAX that the method lets out reaches here
+    // since ooRexx r13320, #2123, with what the method returned: RAISE ...
+    // RETURN value, kept with it)
     if (!tc->CheckCondition()) r = tc->SendMessage(h.target, h.message.c_str(), (RexxArrayObject)args);
     if (!tc->CheckCondition())
     {
         if (r == NULLOBJECT) record(out, 'V', "");
         else if (!encode(tc, r, out, nullptr, true)) out.clear();
     }
-    if (tc->CheckCondition()) out = (flags & 1) ? reportCondition(tc) : conditionRecord(tc);
+    if (tc->CheckCondition()) out = (flags & 1) ? reportCondition(tc) : conditionRecord(tc, r);
     if (nested)                                     // (the outer method's context: no local references left behind)
     {
         if (args) tc->ReleaseLocalReference(args);

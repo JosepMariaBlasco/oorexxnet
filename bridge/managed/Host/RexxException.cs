@@ -25,6 +25,11 @@ public sealed class RexxException : Exception
     /// .NET (null for a callback's condition: rexxnet keeps that one).
     public RexxObject? Condition { get; }
     internal readonly int ConditionId;            // rexxnet keeps the condition, to raise it again in Rexx
+    /// What the call that left the condition answered: a RAISE ... RETURN
+    /// value (a condition other than SYNTAX: the Rexx code went on and
+    /// returned it). Raised again in Rexx, the call there answers it, as in
+    /// plain Rexx when the condition is not trapped or a CALL ON resumes.
+    internal object? Returned { get; init; }
 
     internal RexxException(string message, Exception? inner, string name, string code, int rc,
                            string errorText, string program, int line, string traceback, int conditionId,
@@ -44,7 +49,7 @@ public sealed class RexxException : Exception
     internal static string FormatCode(long code) => $"{code / 1000}.{code % 1000}";      // "98.900", "35.1", as Rexx writes them
 
     /// The pending condition of the context, as an exception (and cleared).
-    internal static unsafe RexxException FromPending(RexxInterpreter rexx, Ctx c)
+    internal static unsafe RexxException FromPending(RexxInterpreter rexx, Ctx c, nint returned = 0)
     {
         nint info = c.ConditionInfo();
         RexxConditionData k;
@@ -85,7 +90,8 @@ public sealed class RexxException : Exception
             if (x != 0) c.ReleaseLocal(x);                // DecodeConditionInfo's local references
         var condition = rexx.Wrap(c, info) as RexxObject;
         return new RexxException(message, inner, name, code, (int)k.rc, errorText, program, (int)k.position,
-                                 string.Join("\n", lines), 0, condition);
+                                 string.Join("\n", lines), 0, condition)
+               { Returned = returned != 0 && returned != c.Nil && name != "SYNTAX" ? rexx.Wrap(c, returned) : null };
     }
 
     /// The RexxException that a .NET call made from Rexx let through (Rexx

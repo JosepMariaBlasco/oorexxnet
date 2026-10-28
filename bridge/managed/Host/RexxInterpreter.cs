@@ -470,9 +470,11 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
     internal static bool IsNewLocal(object? v) => v is not null and not bool && (v is RexxString || v is not RexxObject);
 
     /// Throws the pending condition, if any.
-    internal void Check(Ctx c)
+    /// returned: what the call that left the condition answered (a RAISE ...
+    /// RETURN value), kept with the exception for RaiseAgain.
+    internal void Check(Ctx c, nint returned = 0)
     {
-        if (c.CheckCondition()) throw RexxException.FromPending(this, c);
+        if (c.CheckCondition()) throw RexxException.FromPending(this, c, returned);
     }
 
     // ----------------------------------------------------------- operations
@@ -493,7 +495,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
         nint result = c.CallRoutine(r, a);
         c.ReleaseLocal(a);
         c.ReleaseLocal(r);
-        Check(c);
+        Check(c, result);
         return Wrap(c, result);
     }
 
@@ -505,7 +507,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
         nint a = Args(c, args);
         nint result = c.CallProgram(path, a);
         c.ReleaseLocal(a);
-        Check(c);
+        Check(c, result);
         return (RexxObject?)Wrap(c, result);
     }
 

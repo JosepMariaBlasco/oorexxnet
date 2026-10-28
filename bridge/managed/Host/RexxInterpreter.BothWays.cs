@@ -118,10 +118,18 @@ public sealed unsafe partial class RexxInterpreter
     /// Whether the last RaiseAgain on this thread halted it (a HALT): the
     /// native call then answers .nil, so that CALL ON HALT resumes the clause.
     [ThreadStatic] internal static bool LastWasHalt;
+    /// What the native call answers after the last RaiseAgain (or
+    /// Callbacks.RaiseHeld) on this thread: for a condition other than SYNTAX
+    /// or HALT, the value the Rexx code returned with it (RAISE ... RETURN),
+    /// which plain Rexx gives the caller when the condition is not trapped or
+    /// a CALL ON resumes; 0 for none. It goes as the condition's RESULT, so
+    /// the pending condition object keeps it alive until the call returns.
+    [ThreadStatic] internal static nint LastResult;
 
     internal static bool RaiseAgain(RexxException e)
     {
         LastWasHalt = false;
+        LastResult = 0;
         var f = frames;
         if (f is not { Count: > 0 }) return false;
         var top = f[^1];
@@ -167,7 +175,12 @@ public sealed unsafe partial class RexxInterpreter
                 c.ReleaseLocal(raised);
             }
         }
-        else c.RaiseCondition(e.ConditionName, description, additional, result);
+        else
+        {
+            if (result == 0 && e.Returned != null) result = Live(c, e.Returned);
+            c.RaiseCondition(e.ConditionName, description, additional, result);
+            if (result != 0 && result != c.Nil) LastResult = result;
+        }
         return true;
     }
 

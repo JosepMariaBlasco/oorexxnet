@@ -108,10 +108,17 @@ static partial class Program
            rexx.Run("signal on nostring name x; return text(.object~new)\nx: return 'NOSTRING'"), "an Object");
         Ok("... SIGNAL ON NOTREADY: a function",
            rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return condition('C') condition('D')" + Raiser), "NOTREADY d");
+        // RAISE ... RETURN value, untrapped (or after CALL ON): the function
+        // answers the value, as in plain Rexx
+        Ok("... untrapped, a function: RAISE ... RETURN's value",
+           rexx.Run("v = raising(); return 'went on:' v"), "went on: 7");
+        Ok("... after CALL ON USER",
+           rexx.Run("call on user x name h; v = raising(); return 'resumed:' v\nh: return"), "resumed: 7");
         // untrapped, a condition other than SYNTAX or HALT is ignored, as in
-        // plain Rexx: the command goes on (its RC the handler's, 0)
+        // plain Rexx: the command goes on, its RC the RETURN value (what a
+        // handler written in Rexx doing the same would answer)
         Ok("... untrapped: the caller goes on",
-           rexx.Run("address raising 'go'; return 'went on, rc' rc"), "went on, rc 0");
+           rexx.Run("address raising 'go'; return 'went on, rc' rc"), "went on, rc 7");
     }
 
     // A HALT in Rexx code that a .NET handler (or function) runs, not trapped

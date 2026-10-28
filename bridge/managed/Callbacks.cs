@@ -70,13 +70,13 @@ public static unsafe class Callbacks
     /// rexxnet has handed its callback over (the bridge's native half is running).
     internal static bool Started => native != null;
 
-    static delegate* unmanaged<nint, int, int> nativeRaiseHeld;
+    static delegate* unmanaged<nint, int, nint*, int> nativeRaiseHeld;
 
     internal static void Init(IntPtr callback, IntPtr free, IntPtr raiseHeld)
     {
         native = (delegate* unmanaged<int, int, byte*, int, int*, byte*>)callback;
         nativeFree = (delegate* unmanaged<byte*, void>)free;
-        nativeRaiseHeld = (delegate* unmanaged<nint, int, int>)raiseHeld;
+        nativeRaiseHeld = (delegate* unmanaged<nint, int, nint*, int>)raiseHeld;
     }
 
     /// Raises again, on the thread context tc, the Rexx condition that a
@@ -85,9 +85,12 @@ public static unsafe class Callbacks
     internal static bool RaiseHeld(nint tc, RexxException e)
     {
         RexxInterpreter.LastWasHalt = false;
+        RexxInterpreter.LastResult = 0;
         if (e.ConditionId <= 0 || nativeRaiseHeld == null) return false;
-        int raised = nativeRaiseHeld(tc, e.ConditionId);     // 2: a HALT, the thread halted
+        nint answer;
+        int raised = nativeRaiseHeld(tc, e.ConditionId, &answer);     // 2: a HALT, the thread halted
         RexxInterpreter.LastWasHalt = raised == 2;
+        RexxInterpreter.LastResult = answer;                          // (a RAISE ... RETURN value, or 0)
         return raised != 0;
     }
 

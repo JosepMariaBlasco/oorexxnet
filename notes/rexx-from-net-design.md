@@ -350,11 +350,26 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   command environment (`phase3.rex`, `HostTests` `SignalPastTheHost`).
   Untrapped, they are ignored and the caller goes on, as in plain Rexx.
   What does not come back: the RC of ERROR and FAILURE (`RaiseCondition`
-  has none; the family's parked RFE), and a `RAISE ... RETURN value`'s
-  value: plain Rexx gives it to the caller when the condition is not
-  trapped or a `CALL ON` resumes (it is the method's result, not in the
-  condition object); through .NET the call that raised it answers no
-  result, so `x = ...` raises 91.999 there.
+  has none; the family's parked RFE).
+  **A `RAISE ... RETURN value`'s value** (28/10/2026): plain Rexx gives it
+  to the caller when the condition is not trapped or a `CALL ON` resumes; it
+  is the method's result, not in the condition object (no `RESULT` index
+  for a USER). Through the API the call answers it with the condition
+  pending, and the bridge used to drop it with the call's result: the call
+  that raised the condition again answered none, so `x = ...` raised 91.999
+  (measured on r13324). Now it is kept with the condition, in
+  `RexxException.Returned` (`Check(c, result)` after a send, a routine, a
+  program) and in rexxnet's held condition (`returned`, a `.NetHandler`'s
+  method), raised as the condition's `RESULT` (which keeps it alive until
+  the native call returns) and answered by the call: a .NET method's
+  request (answer K, the pointer), a callback's (C), a host's function
+  (`retc`); a host's command environment gets it as RC, as a handler
+  written in Rexx returning it would. Δ from plain Rexx: the caller's
+  condition object has `RESULT` set. For a `.NetHandler` (a delegate that
+  .NET calls, `List.Sort`'s comparer) the value is what the handler
+  returned, answered by the .NET call that let the condition out: the
+  nearest there is. Tests: `phase3.rex` (untrapped, `CALL ON`, a
+  `.NetHandler`), `HostTests` `SignalPastTheHost`.
   `::OPTIONS ERROR SYNTAX` (ooRexx #2119, fixed in r13282: it turned a
   handler's non-ERROR condition into SYNTAX 98.970) does not touch the
   bridge's paths: ERROR and FAILURE are raised on the sender with

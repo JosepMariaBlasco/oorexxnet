@@ -260,7 +260,14 @@ internal static unsafe class Exits
             object? r = handler(call);
             p->retc = ReferenceEquals(r, RexxInterpreter.NoResult) ? 0 : rexx.ToRexx(c, r);
         }
-        catch (Exception e) { if (Fail(c, e)) p->retc = c.Nil; }   // (a HALT: the call answers .nil, so CALL ON HALT can resume)
+        catch (Exception e)
+        {
+            // (a HALT: the call answers .nil, so CALL ON HALT can resume; a
+            // condition the Rexx code returned a value with, RAISE ... RETURN:
+            // that value, as plain Rexx answers it)
+            if (Fail(c, e)) p->retc = c.Nil;
+            else if (RexxInterpreter.LastResult != 0) p->retc = RexxInterpreter.LastResult;
+        }
         finally
         {
             call.End();
@@ -296,6 +303,7 @@ internal static unsafe class Exits
     // True when it was a HALT (the thread halted: the exit answers a value).
     static bool Fail(Ctx c, Exception e)
     {
+        RexxInterpreter.LastResult = 0;
         // a Rexx condition of Rexx code the function called (or of a
         // .NetHandler's method, which rexxnet holds): raised again as itself
         if ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException re)

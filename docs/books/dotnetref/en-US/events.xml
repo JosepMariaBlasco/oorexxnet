@@ -214,7 +214,9 @@ syntax:
 its description and additional object (ooRexx r13320 or later; not the
 <literal>RC</literal> of an ERROR or FAILURE, which ooRexx's native API cannot
 raise again). Not trapped by the Rexx code that called .NET, it is ignored,
-as in plain Rexx.</para>
+as in plain Rexx, and a value the Rexx code returned with it
+(<literal>RAISE ... RETURN</literal>) is what the call answers, also when a
+<literal>CALL ON</literal> resumes.</para>
 <example id="ex.events-user">
 <title>A handler's USER condition, trapped by the caller</title>
 <programlisting language="rexx">l = .net~type("System.Collections.Generic.List&lt;int&gt;")~new

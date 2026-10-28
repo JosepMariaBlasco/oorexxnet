@@ -120,7 +120,7 @@ public class RexxObject : DynamicObject, IEnumerable<object?>, IDisposable
         nint result = scope == null ? c.Send(target, name, a) : c.SendScoped(target, name, scope.Live, a);
         c.ReleaseLocal(a);
         Done(c, target);
-        r.Check(c);
+        r.Check(c, result);
         return r.Wrap(c, result);
     }
 
@@ -380,7 +380,7 @@ public sealed class RexxRoutine : RexxObject
         nint a = r.Args(c, args);
         nint result = c.CallRoutine(Live, a);
         c.ReleaseLocal(a);
-        r.Check(c);
+        r.Check(c, result);
         return r.Wrap(c, result);
     }
 

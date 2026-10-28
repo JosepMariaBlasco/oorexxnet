@@ -303,6 +303,11 @@ call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT",
 call ok "... untrapped, the command: SYNTAX 4.1", sendCmdUntrapped(raiser), "SYNTAX 4.1"
 call ok "... NOTREADY, SIGNAL ON NOTREADY: as itself", sendCmd(raiser, "notready"), "NOTREADY not ready a2"
 call ok "... USER of Rexx code the handler runs", sendCmd(raiser, "", "user"), "USER OOPS from the handler"
+-- RAISE ... RETURN value: not trapped, or after a CALL ON, the call that
+-- raised it answers the value, as in plain Rexx (it is the method's result)
+call ok "RAISE ... RETURN, untrapped: .NET's call answers the value", returned(raiser, "send"), "1"
+call ok "... after CALL ON USER", returned(raiser, "send", "call on"), "handler 1"
+call ok "... from a .NetHandler's method", returned(raiser, "handler"), "1"
 
 -- A SYNTAX raised with a description (and a result) by Rexx code that .NET
 -- called, raised again in the Rexx caller: ooRexx has no API that raises a
@@ -362,6 +367,14 @@ sendCmd: use arg raiser, what, command = ("send" what)
   address calc command
   return "rc" rc
   sendCmdTrap: return conditionText(condition("O"))
+returned: procedure expose dl        -- what x = (a .NET call reaching Raiser~user) gets
+  use arg o, how, trap = ""
+  .local~handled = ""
+  if trap = "call on" then call on user oops name returnedHandler
+  if how = "send" then x = dl~SendTo(o, "USER")
+  else x = dl~Text(.net~handler(o, "USER"))
+  return (.handled x)~strip
+  returnedHandler: .local~handled = "handler"; return
 conditionText: procedure            -- a condition object: its name, description and additional
   use arg o
   a = o~additional
