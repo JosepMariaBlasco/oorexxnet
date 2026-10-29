@@ -1193,8 +1193,20 @@ case still open; item 6 changed later):
    condition object, which the collector marks. Measured here with a
    threaded stress test (16 Rexx threads, 1000 callbacks each letting a
    SYNTAX through .NET, two threads allocating and forcing collections):
-   see the coordination repository's entry. Back to
-   `RaiseConditionObject` for SYNTAX when #2132 is in.
+   no crash on either build, so the hole was not hit here; the family's
+   rule holds anyway. Back to `RaiseConditionObject` for SYNTAX when #2132
+   is in. **The older door of #2132**: a SYNTAX that Rexx code a native
+   method or routine called leaves pending, the native code returning with
+   it untouched, goes back through the same `reraiseException`. rexxnet had
+   such paths: `encode` stopping at a user's method that raised (lesson 7),
+   a `.NetRef` subclass's own `VALUE=` after a call with `ref`/`out`
+   parameters (which also went on setting the others: now it stops), a
+   command whose own `MAKESTRING` raised. `net_unknown`, `NetRequest` and
+   `net_command` now raise a pending SYNTAX again with `RaiseException`
+   before they return (`reraiseSyntax`: DESCRIPTION and RESULT kept, as
+   `raiseHeld`); until #2132 is in. The host lets no callee's condition
+   through untouched: Rexx code it calls runs in a context of its own, and
+   what comes back is raised again by `RaiseAgain`.
    *Before r13329, for every condition:* `RaiseException` / `RaiseCondition`, and a SYNTAX's
    **DESCRIPTION and RESULT, put back by hand**: ooRexx has no API
    that raises a SYNTAX with them (`RaiseException` takes a code and the

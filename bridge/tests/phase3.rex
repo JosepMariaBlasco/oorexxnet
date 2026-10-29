@@ -371,6 +371,7 @@ call ok "... VALUE answering 1", encoded(.MyLogical~make("ONE")), "ran True"
 call ok "... a .NetRef subclass", encoded(.MyRef~new("SYNTAX")), "93.900 value says no"
 call ok "... a .NetTyped subclass's VALUE", encoded(.MyTyped~new("SYNTAX")), "93.900 value says no"
 call ok "... its KIND", encoded(.MyTyped~new("KIND")), "93.900 kind says no"
+call ok "a .NetRef subclass whose own VALUE= raises, for an out parameter: that condition", outParam(), "93.900 value= says no"
 
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
@@ -446,6 +447,11 @@ encoded: procedure                  -- o as an argument to .NET (String.Format):
   encodedTrap: c = condition("O")
   if c~code = "91.999" then return c~code
   return c~code c~additional[1]
+outParam: procedure                 -- Int32.TryParse("5", out r), r a .NetRef subclass whose VALUE= raises
+  signal on syntax name outParamTrap
+  .net~System~Int32~TryParse("5", .MySetRef~new)
+  return "not trapped"
+  outParamTrap: c = condition("O"); return c~code c~additional[1]
 reply: procedure expose dl          -- obj as a callback's reply ("text", "count", "length"), or answered to .NET's Send, or made text by Rexx
   use arg how, obj
   signal on user says name replyTrap; signal on syntax name replyTrap
@@ -614,6 +620,9 @@ sendCmdUntrapped: use arg raiser
 ::class MyRef subclass NetRef           -- its own VALUE raises
 ::method init; expose k; use arg k; self~init:super("x")
 ::method value; raise syntax 93.900 array("value says no")
+::class MySetRef subclass NetRef        -- its own VALUE= raises
+::method init; self~init:super(0)
+::method "VALUE="; raise syntax 93.900 array("value= says no")
 ::class MyTyped subclass NetTyped       -- its own VALUE or KIND raises
 ::method init; expose k; use arg k; self~init:super("System.String", "x")
 ::method value; expose k

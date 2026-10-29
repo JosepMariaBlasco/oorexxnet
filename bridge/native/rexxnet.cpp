@@ -315,6 +315,36 @@ static bool sentText(RexxThreadContext *c, RexxObjectPtr o, const char *msg, std
     return sent(c, o, msg, r) && textOf(c, r, s);
 }
 
+// A SYNTAX left pending by Rexx code this native method or routine called
+// (a user's method that encode sent to, a .NetRef's VALUE=), raised again
+// with RaiseException before the native code returns, its DESCRIPTION and
+// RESULT put into the new condition object, as raiseHeld does. Left pending,
+// it went back through Activity::reraiseException, where a collection by
+// another thread can take it (ooRexx #2132: a crash). Any other condition is
+// left as it is (raised again while the native activation still holds it).
+// Workaround, until #2132 is in.
+static void reraiseSyntax(RexxThreadContext *c)
+{
+    if (!c->CheckCondition()) return;
+    RexxDirectoryObject info = c->GetConditionInfo();
+    if (info == NULLOBJECT) return;
+    RexxObjectPtr name = c->DirectoryAt(info, "CONDITION");
+    if (!name || !c->IsString(name) || strcmp(c->ObjectToStringValue(name), "SYNTAX") != 0) return;
+    RexxCondition k;
+    c->DecodeConditionInfo(info, &k);
+    RexxObjectPtr additional = c->DirectoryAt(info, "ADDITIONAL");
+    RexxObjectPtr description = c->DirectoryAt(info, "DESCRIPTION");
+    RexxObjectPtr result = c->DirectoryAt(info, "RESULT");
+    c->ClearCondition();
+    c->RaiseException(k.code, additional && c->IsArray(additional) ? (RexxArrayObject)additional : NULLOBJECT);
+    RexxDirectoryObject raised = c->GetConditionInfo();
+    if (raised != NULLOBJECT)
+    {
+        if (description && description != c->Nil()) c->DirectoryPut(raised, description, "DESCRIPTION");
+        if (result && result != c->Nil()) c->DirectoryPut(raised, result, "RESULT");
+    }
+}
+
 // Its count of times to .NET (0 for a pair's); -1 with a condition pending
 // if the handler's TARGET or MESSAGE raised one.
 static int registerHandler(RexxThreadContext *c, int id, RexxObjectPtr h, bool peer)
@@ -859,6 +889,7 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
         at = parseRecord(p, payload.size(), at, tag, v);
         RexxObjectPtr value = decode(c, tag, v);
         c->SendMessage1((*refs)[k], "VALUE=", value ? value : c->Nil());
+        if (c->CheckCondition()) return NULLOBJECT;     // (a subclass's own VALUE= raised: that condition, the rest not set)
     }
     return result;
 }
@@ -866,9 +897,8 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
 // -------------------------------------------------------------- Rexx methods
 
 // NetObject~unknown(name, args): o~name, o~name(args), o~name = v.
-RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
+static RexxObjectPtr netUnknown(RexxMethodContext *context, CSTRING name, RexxArrayObject args)
 {
-    findClasses(context);
     RexxThreadContext *c = context->threadContext;
     std::string id = context->ObjectToStringValue(context->GetObjectVariable("NETID"));
     std::string req, n(name);
@@ -910,6 +940,14 @@ RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
     return request(c, req, nullptr, context->GetSelf());
 }
 
+RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
+{
+    findClasses(context);
+    RexxObjectPtr r = netUnknown(context, name, args);
+    reraiseSyntax(context->threadContext);
+    return r;
+}
+
 // NetObject~uninit: one Rexx proxy fewer for this handle.
 RexxMethod0(RexxObjectPtr, net_uninit)
 {
@@ -927,10 +965,12 @@ RexxRoutine2(RexxObjectPtr, NetRequest, CSTRING, op, ARGLIST, args)
     record(req, 'S', op);
     size_t n = context->ArraySize(args);
     Refs refs;
-    for (size_t i = 2; i <= n; i++) if (!encode(c, context->ArrayAt(args, i), req, &refs)) return NULLOBJECT;
+    for (size_t i = 2; i <= n; i++) if (!encode(c, context->ArrayAt(args, i), req, &refs)) { reraiseSyntax(c); return NULLOBJECT; }
     std::string o(op);                              // .net~invoke(o, ...), .net~get, .net~set, events: o receives
     RexxObjectPtr receiver = (o == "send" || o == "set" || o == "event") && n >= 2 ? context->ArrayAt(args, 2) : NULLOBJECT;
-    return request(c, req, &refs, receiver);
+    RexxObjectPtr r = request(c, req, &refs, receiver);
+    reraiseSyntax(c);
+    return r;
 }
 
 // .NetCommandHandler~command(command, caller): native, so that no Rexx
@@ -951,11 +991,11 @@ RexxMethod2(RexxObjectPtr, net_command, RexxObjectPtr, command, RexxObjectPtr, c
     record(req, 'S', "cmdRun");
     record(req, 'S', context->ObjectToStringValue(id));
     RexxStringObject s = context->ObjectToString(command);
-    if (s == NULLOBJECT || context->CheckCondition()) return NULLOBJECT;     // (a command whose own MAKESTRING or STRING raised: that condition)
+    if (s == NULLOBJECT || context->CheckCondition()) { reraiseSyntax(context->threadContext); return NULLOBJECT; }     // (a command whose own MAKESTRING or STRING raised: that condition)
     record(req, 'S', std::string(context->StringData(s), context->StringLength(s)));
     record(req, 'X', std::to_string((uintptr_t)caller));
     RexxObjectPtr r = request(context->threadContext, req);
-    if (context->CheckCondition()) return NULLOBJECT;
+    if (context->CheckCondition()) { reraiseSyntax(context->threadContext); return NULLOBJECT; }
     return r == NULLOBJECT || r == context->Nil() ? (RexxObjectPtr)context->WholeNumber(0) : r;
 }
 
