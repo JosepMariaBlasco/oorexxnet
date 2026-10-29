@@ -328,6 +328,28 @@ call ok "... a .NET command handler runs Rexx code", described("address calc 'ru
 call ok "SIGNAL ON NOSTRING, .NET makes .object~new text", noString(.object~new), "an Object"
 call ok "... an object of a class with no STRING method of its own", noString(.Raiser~new), "a RAISER"
 
+-- A callback's reply (or what a message .NET sends answers) whose conversion
+-- by .NET runs user code that raises a condition, with a SIGNAL ON for it in
+-- the Rexx code that called .NET (oorexx-bridges, lesson 6): it reaches .NET
+-- as a RexxException, .NET finishes, and the caller traps it as itself, as
+-- when Rexx itself makes the object text. A SYNTAX from MAKESTRING or STRING
+-- crashed the process (a null string read), and so did a SUPPLIER answering
+-- no Supplier (now Error 98.994, as DO ... OVER gives).
+call ok "a callback's reply made text by .NET, its MAKESTRING raising USER", reply("text", .ReplyMS~new("USER")), "USER SAYS makestring says no"
+call ok "... its MAKESTRING raising SYNTAX", reply("text", .ReplyMS~new("SYNTAX")), "SYNTAX 93.900"
+call ok "... its STRING raising USER", reply("text", .ReplySS~new("USER")), "USER SAYS string says no"
+call ok "... its STRING raising SYNTAX", reply("text", .ReplySS~new("SYNTAX")), "SYNTAX 93.900"
+call ok "... as plain Rexx makes it text", reply("rexx", .ReplyMS~new("SYNTAX")) reply("rexx", .ReplySS~new("USER")), "SYNTAX 93.900 USER SAYS string says no"
+call ok "... what a message .NET sends answers, its MAKESTRING raising SYNTAX", reply("send", .ReplyMS~new("SYNTAX")), "SYNTAX 93.900"
+call ok "... its STRING raising USER", reply("send", .ReplySS~new("USER")), "USER SAYS string says no"
+call ok "a callback's reply copied to a dictionary, its SUPPLIER raising USER", reply("count", .ReplyDir~new("USER")), "USER SAYS supplier says no"
+call ok "... raising SYNTAX", reply("count", .ReplyDir~new("SYNTAX")), "SYNTAX 93.900"
+call ok "... answering nothing", reply("count", .ReplyDir~new("NOTHING")), "SYNTAX 98.994"
+call ok "... answering a string", reply("count", .ReplyDir~new("WRONG")), "SYNTAX 98.994"
+call ok "... copied to an array, its SUPPLIER raising USER", reply("length", .ReplyArr~new("USER")), "USER SAYS supplier says no"
+call ok "... answering nothing", reply("length", .ReplyArr~new("NOTHING")), "SYNTAX 98.994"
+call ok "... the process goes on", dl~TextOf(.net~handler(.Giver~new(.ReplyMS~new("FINE")), "GIVE")), "fine"
+
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
 exit .fails > 0
@@ -375,6 +397,20 @@ returned: procedure expose dl        -- what x = (a .NET call reaching Raiser~us
   else x = dl~Text(.net~handler(o, "USER"))
   return (.handled x)~strip
   returnedHandler: .local~handled = "handler"; return
+reply: procedure expose dl          -- obj as a callback's reply ("text", "count", "length"), or answered to .NET's Send, or made text by Rexx
+  use arg how, obj
+  signal on user says name replyTrap; signal on syntax name replyTrap
+  h = .net~handler(.Giver~new(obj), "GIVE")
+  select
+    when how = "text" then return dl~TextOf(h)
+    when how = "count" then return dl~CountOf(h)
+    when how = "length" then return dl~LengthOf(h)
+    when how = "send" then return dl~SendText(.Giver~new(obj), "GIVE")
+    when how = "rexx" then return "" || obj
+  end
+  replyTrap: c = condition("O")
+  if c~condition == "SYNTAX" then return "SYNTAX" c~code
+  return c~condition c~description
 conditionText: procedure            -- a condition object: its name, description and additional
   use arg o
   a = o~additional
@@ -489,6 +525,34 @@ sendCmdUntrapped: use arg raiser
 ::method failure;  raise failure 4 description "a failure" additional (.array~of("a4")) return 4
 ::method user;     raise user oops description "a user condition" additional (.array~of("a1")) return 1
 ::method described; raise syntax 40.1 array("BOOM") description "the description" return "r"
+
+::class Giver                     -- gives what it was made with
+::method init; expose v; use arg v
+::method give; expose v; return v
+::class ReplyMS                   -- a reply whose MAKESTRING raises USER or SYNTAX
+::method init; expose k; use arg k
+::method makestring; expose k
+  if k = "SYNTAX" then raise syntax 93.900 array("makestring says no")
+  if k = "USER" then raise user says description "makestring says no"
+  return "fine"
+::class ReplySS                   -- a reply whose STRING raises USER or SYNTAX
+::method init; expose k; use arg k
+::method string; expose k
+  if k = "SYNTAX" then raise syntax 93.900 array("string says no")
+  raise user says description "string says no"
+::class ReplyDir subclass directory   -- a reply whose SUPPLIER raises, or answers nothing or a string
+::method init; expose k; use arg k; self~init:super; self["A"] = 1
+::method supplier; expose k
+  if k = "SYNTAX" then raise syntax 93.900 array("supplier says no")
+  if k = "USER" then raise user says description "supplier says no"
+  if k = "WRONG" then return "x"
+  return
+::class ReplyArr subclass array    -- the same, an Array subclass
+::method new class; use arg k; o = self~new:super(2); o~k = k; o[1] = "a"; o[2] = "b"; return o
+::attribute k
+::method supplier; expose k
+  if k = "USER" then raise user says description "supplier says no"
+  return
 
 ::class HaltTester                -- a callback whose Rexx code is halted
 ::method haltCompare               -- a Comparison<int> whose Rexx code is halted

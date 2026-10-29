@@ -201,8 +201,27 @@ public class RexxObject : DynamicObject, IEnumerable<object?>, IDisposable
         nint t = Target(c), none = c.NewArray(0);
         nint s = c.Send(t, "SUPPLIER", none);
         c.ReleaseLocal(none);
+        // An own SUPPLIER method that answers nothing or no Supplier: Error
+        // 98.994, as DO ... OVER gives in plain Rexx (the API's supplier
+        // functions take any object for one: walked, it crashed the process)
+        if (!c.CheckCondition())
+        {
+            nint k = c.FindClass("SUPPLIER");
+            bool isSupplier = s != 0 && c.IsInstanceOf(s, k);
+            c.ReleaseLocal(k);
+            if (!isSupplier)
+            {
+                if (s != 0) c.ReleaseLocal(s);
+                s = 0;
+                nint a = c.NewArray(1);
+                c.ArrayPut(a, t, 1);
+                c.RaiseException(98994, a);
+                c.ReleaseLocal(a);
+            }
+        }
         Done(c, t);
         r.Check(c);
+        if (s == 0) throw new InvalidOperationException("SUPPLIER gave no Supplier");     // (Check raised it: not reached)
         var list = new List<KeyValuePair<object?, object?>>();
         while (c.SupplierAvailable(s))
         {

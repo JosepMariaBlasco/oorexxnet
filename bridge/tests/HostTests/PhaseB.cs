@@ -108,6 +108,30 @@ static partial class Program
            rexx.Run("signal on nostring name x; return text(.object~new)\nx: return 'NOSTRING'"), "an Object");
         Ok("... SIGNAL ON NOTREADY: a function",
            rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return condition('C') condition('D')" + Raiser), "NOTREADY d");
+        // An object whose own STRING (or MAKESTRING) raises a condition, made
+        // text by the host: a RexxException, and from a function the caller's
+        // SIGNAL ON traps it as itself (oorexx-bridges, lesson 6). A SYNTAX
+        // crashed the process (a null string read); a SUPPLIER answering no
+        // Supplier too (now Error 98.994, as DO ... OVER gives).
+        const string Repliers = "\n::class S\n::method init; expose k; use arg k\n" +
+            "::method string; expose k; if k = 'SYNTAX' then raise syntax 93.900 array('string says no'); raise user says description 'd'\n" +
+            "::class D subclass directory\n::method init; expose k; use arg k; self~init:super; self['A'] = 1\n" +
+            "::method supplier; expose k; if k = 'WRONG' then return 'x'; if k = 'USER' then raise user says description 'd'";
+        var syntaxString = rexx.Run<RexxObject>("return .S~new('SYNTAX')" + Repliers);
+        Throws<RexxException>("ToString, the object's STRING raising SYNTAX", () => syntaxString.ToString(), "string says no");
+        var userString = rexx.Run<RexxObject>("return .S~new('USER')" + Repliers);
+        Throws<RexxException>("... raising USER", () => userString.ToString(), "USER");
+        Ok("... from a function, SIGNAL ON SYNTAX in the caller",
+           rexx.Run("signal on syntax name x; return text(.S~new('SYNTAX'))\nx: return condition('O')~code" + Repliers), "93.900");
+        Ok("... SIGNAL ON USER in the caller",
+           rexx.Run("signal on user says name x; return text(.S~new('USER'))\nx: return condition('C') condition('D')" + Repliers), "USER SAYS d");
+        var noSupplier = rexx.Run<RexxObject>("return .D~new('NOTHING')" + Repliers);
+        Throws<RexxException>("Supplier, its SUPPLIER answering nothing", () => noSupplier.Supplier(), "to a supplier object");
+        Throws<RexxException>("... converted to a dictionary", () => RexxConvert.To<Dictionary<string, object?>>(noSupplier), "to a supplier object");
+        var wrongSupplier = rexx.Run<RexxObject>("return .D~new('WRONG')" + Repliers);
+        Throws<RexxException>("... answering a string", () => wrongSupplier.Supplier(), "to a supplier object");
+        var userSupplier = rexx.Run<RexxObject>("return .D~new('USER')" + Repliers);
+        Throws<RexxException>("... raising USER", () => userSupplier.Supplier(), "USER");
         // RAISE ... RETURN value, untrapped (or after CALL ON): the function
         // answers the value, as in plain Rexx
         Ok("... untrapped, a function: RAISE ... RETURN's value",

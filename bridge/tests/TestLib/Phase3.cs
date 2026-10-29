@@ -69,6 +69,15 @@ public static class Delegates
 {
     // o~name, sent from .NET (RexxObject.Send) while Rexx code waits for .NET
     public static object? SendTo(Rexx.Net.RexxObject o, string name) => o.Send(name);
+    // what o~name answers, made text by .NET (RexxObject.ToString: its own
+    // MAKESTRING or STRING method runs)
+    public static string SendText(Rexx.Net.RexxObject o, string name) => o.Send(name)?.ToString() ?? "null";
+
+    // a callback's reply converted by .NET: made text (its MAKESTRING or
+    // STRING runs), copied to a dictionary or an array (its SUPPLIER runs)
+    public static string TextOf(Func<object?> f) => f()?.ToString() ?? "null";
+    public static int CountOf(Func<Dictionary<string, object?>> f) => f().Count;
+    public static int LengthOf(Func<string[]> f) => f().Length;
 
     // command handlers written in .NET, for .NetCommandHandler~new
     public static Func<string, Rexx.Net.RexxCommandContext, object?> Upper => (cmd, ctx) => cmd.ToUpperInvariant();

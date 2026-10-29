@@ -627,6 +627,31 @@ caller ended the process (the SIGNAL through the CLR, as above). Now, nested,
 the text comes back (`an Object`) and no NOSTRING is raised: from Rexx code
 that waits for .NET there is nothing to trap it (`phase3.rex`, `HostTests`).
 
+**User code run while .NET converts a value Rexx gave it (the family's
+lesson 6, 29/10/2026, a finding of the SQLite binding).** A callback's reply
+(a `.NetHandler`'s method, any delegate a Rexx method stands for), or what a
+message .NET sends answers, can run user code while .NET converts it: its own
+`MAKESTRING` or `STRING` (`RexxObject.ToString`, `Send<string>`, the text in an
+`InvalidCastException`), and the `SUPPLIER` of a subclass of Directory,
+StringTable or Array copied to a dictionary or a .NET array. The native side
+runs none (a callback's reply is encoded in the callback's own attached
+context; anything that is not a string goes to .NET by reference), and every
+conversion .NET makes runs in a context of its own, nested while Rexx code
+waits (above). Measured on r13324 with USER and SYNTAX raised by each of those
+methods, with `SIGNAL ON` for it in the Rexx code that called .NET: nothing
+unwinds through the CLR; .NET gets a `RexxException`, finishes, and the caller
+traps the condition as itself, as when Rexx itself makes the object text.
+Two crashes were found on the way, both fixed: a SYNTAX from `MAKESTRING` or
+`STRING` left `ObjectToString` with no string, which was read (`Api.ToStr`
+now answers "" and the caller's check raises the condition); a `SUPPLIER`
+answering nothing, or no Supplier, was walked by the API's supplier functions
+(which take any object for one): now Error 98.994, "Unable to convert object
+... to a supplier object", the error `DO ... OVER` gives in plain Rexx. Tests:
+`phase3.rex` (a callback's reply made text, copied to a dictionary or an
+array; a message's result made text), `HostTests` `SignalPastTheHost`
+(`ToString`, `Supplier`, `RexxConvert.To` a dictionary, from a function with
+`SIGNAL ON` in the caller); the SYNTAX cases ended the process before.
+
 **USER through `.NetCommandHandler` (the lesson's check).** Its `command`
 is written in Rexx, so a condition that `rexxnet` raises again there
 (`raiseHeld`, after the request) would stop in it, not in the issuer. Today

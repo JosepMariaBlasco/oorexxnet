@@ -357,9 +357,13 @@ internal readonly unsafe struct Ctx
     /// itself (a String): released here, or the creating thread's context
     /// leaks and every later release gets slower (measured: a call that
     /// returns its String argument went from 2 to 800 µs in 100 000 calls).
+    /// No string (a SYNTAX raised by the object's own MAKESTRING or STRING
+    /// method: the condition is pending): "", and the caller's Check raises
+    /// it. Read, the null crashed the process.
     public string ToStr(nint o)
     {
         nint s = ((delegate* unmanaged<nint, nint, nint>)F(ThreadInterface.ObjectToString))(P, o);
+        if (s == 0) return "";
         var v = StrValue(s);
         ReleaseLocal(s);
         return v;

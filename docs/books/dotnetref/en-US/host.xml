@@ -262,9 +262,16 @@ subclass), and whether it has a method of that name.</para></listitem></varliste
 <varlistentry><term><methodname>Supplier</methodname>, enumeration</term>
 <listitem><para>The object's <computeroutput>o~supplier</computeroutput>, as
 (index, item) pairs, taken now; <literal>foreach</literal> gives its
-items.</para></listitem></varlistentry>
+items. An own <methodname>supplier</methodname> method that answers no
+<classname>Supplier</classname> is Error 98.994 (a
+<classname>RexxException</classname>), as <computeroutput>do ... over</computeroutput>
+gives in Rexx.</para></listitem></varlistentry>
 <varlistentry><term><methodname>ToString</methodname></term>
-<listitem><para>The object's <computeroutput>o~string</computeroutput>.</para></listitem></varlistentry>
+<listitem><para>The object's <computeroutput>o~string</computeroutput>. A
+condition its own <methodname>makestring</methodname> or
+<methodname>string</methodname> method raises is a
+<classname>RexxException</classname>; called while Rexx code waits for .NET,
+that code traps it as itself.</para></listitem></varlistentry>
 <varlistentry><term><methodname>NetValue</methodname></term>
 <listitem><para>For a Rexx <classname>NetObject</classname>, its .NET object
 (for a <classname>NetType</classname>, its <literal>System.Type</literal>);
