@@ -184,7 +184,7 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             if (r.inst.Version < Native.InstanceInterfaceVersion || c.Version < Native.ThreadInterfaceVersion)
             {
                 r.inst.Terminate();
-                throw new InvalidOperationException($"ooRexx 5.0 or later is needed (this one's API: instance {r.inst.Version}, thread {c.Version})");
+                throw new InvalidOperationException($"ooRexx 5.3.0 r13329 or later is needed (this one's API: instance {r.inst.Version}, thread {c.Version})");
             }
             nint sc = c.FindClass("STRING");
             r.stringClass = c.Global(sc);

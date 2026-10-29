@@ -108,6 +108,16 @@ static partial class Program
            rexx.Run("signal on nostring name x; return text(.object~new)\nx: return 'NOSTRING'"), "an Object");
         Ok("... SIGNAL ON NOTREADY: a function",
            rexx.Run("signal on notready name x; v = sending(.Raiser~new, 'notready'); return 'not trapped:' v\nx: return condition('C') condition('D')" + Raiser), "NOTREADY d");
+        // ERROR's and FAILURE's RC: the condition object raised again as it
+        // is (RaiseConditionObject, ooRexx r13329), the RC as in plain Rexx
+        rexx.AddFunction("FAILING", call => call.Interpreter.Run("raise " + call.Arg<string>(0) + " 4 description 'd' return 44"));
+        Ok("ERROR's RC past the host: SIGNAL ON ERROR, a function",
+           rexx.Run("signal on error name x; v = failing('error'); return 'not trapped'\nx: return rc condition('O')~rc condition('D')"), "4 4 d");
+        Ok("... CALL ON FAILURE: the RC, and the call answers RETURN's value",
+           rexx.Run("call on failure name h; v = failing('failure'); return v .got\nh: .local~got = rc condition('O')~rc; return"), "44 4 4");
+        rexx.AddCommandEnvironment("FAILING", (c, ctx) => ctx.Interpreter.Run("raise error 3 description 'd' return 3"));
+        Ok("... a command",
+           rexx.Run("signal on error name x; address failing 'go'; return 'not trapped'\nx: return rc condition('O')~rc condition('D')"), "3 3 d");
         // An object whose own STRING (or MAKESTRING) raises a condition, made
         // text by the host: a RexxException, and from a function the caller's
         // SIGNAL ON traps it as itself (oorexx-bridges, lesson 6). A SYNTAX

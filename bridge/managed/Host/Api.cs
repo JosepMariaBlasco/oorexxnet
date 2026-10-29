@@ -34,7 +34,7 @@ internal struct RexxOptionData
 internal static unsafe class Native
 {
     public const ushort REXX_VALUE_CSTRING = 15, REXX_VALUE_POINTER = 16;
-    public const long InstanceInterfaceVersion = 101, ThreadInterfaceVersion = 103;   // ooRexx 5.0 or later
+    public const long InstanceInterfaceVersion = 101, ThreadInterfaceVersion = 104;   // ooRexx 5.3.0 r13329 or later (RaiseConditionObject)
 
     static Native()
     {
@@ -492,6 +492,11 @@ internal readonly unsafe struct Ctx
         fixed (byte* pn = n)
             ((delegate* unmanaged<nint, byte*, nint, nint, nint, void>)F(ThreadInterface.RaiseCondition))(P, pn, description, additional, result);
     }
+
+    /// Raises a copy of a condition object with everything it holds (RFE
+    /// #883, ooRexx r13329: thread interface 104), the same way.
+    public void RaiseConditionObject(nint condition) =>
+        ((delegate* unmanaged<nint, nint, void>)F(ThreadInterface.RaiseConditionObject))(P, condition);
 
     /// Raises a SYNTAX error (code: major * 1000 + minor; its substitutions), the same way.
     public void RaiseException(long code, nint additional) =>

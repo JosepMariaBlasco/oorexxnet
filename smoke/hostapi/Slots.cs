@@ -161,6 +161,7 @@ static class ThreadInterface
     public const int IsStringTable = 144;
     public const int SendMessageScoped = 145;
     public const int GetInterpreterInstance = 146;
+    public const int RaiseConditionObject = 147;
 }
 static class ExitContextInterface
 {

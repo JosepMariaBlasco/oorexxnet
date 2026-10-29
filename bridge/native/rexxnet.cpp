@@ -388,8 +388,10 @@ static void drainDead(RexxThreadContext *c)
 // Rexx conditions that ended a callback, kept so that if they come back out
 // of .NET they are raised again as they were. The last few only: .NET may
 // swallow the exception, and then nobody asks for it.
-// returned: what the method answered with the condition (RAISE ... RETURN value)
-struct Condition { int id; std::string name; wholenumber_t code; RexxObjectPtr additional, description, result, returned; };
+// object: the condition object itself (a global reference), raised again as
+// it is (RaiseConditionObject: a copy with everything it holds); returned:
+// what the method answered with the condition (RAISE ... RETURN value)
+struct Condition { int id; std::string name; wholenumber_t code; RexxObjectPtr object, returned; };
 static std::deque<Condition> conditions;
 static int nextCondition = 1;
 const size_t keptConditions = 32;
@@ -700,7 +702,7 @@ static thread_local RexxThreadContext *requesting = nullptr;
 static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
 {
     if (answer) *answer = NULLOBJECT;
-    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT, NULLOBJECT, NULLOBJECT};
+    Condition k{0, "", 0, NULLOBJECT, NULLOBJECT};
     {
         std::lock_guard<std::mutex> g(tablesLock);
         for (auto it = conditions.begin(); it != conditions.end(); ++it)
@@ -715,34 +717,38 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     // the end of the clause, CALL ON HALT after it (the call answers .nil
     // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
     bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
-    // A SYNTAX: no API raises one with its DESCRIPTION, and
-    // RaiseCondition("SYNTAX", ...) would crash the process (ooRexx bug,
-    // unreported: oorexx-bridges, oorexx-bugs/2026-10-26-raise-syntax-description.md).
-    // Workaround, to drop when ooRexx can raise a condition object as it is:
-    // GetConditionInfo() answers the native activation's pending condition
-    // object itself (r13297), the one raised in the caller when this native
-    // code returns, so its DESCRIPTION and RESULT are put back into it.
+    // Any other condition: the condition object as it is (RFE #883,
+    // RaiseConditionObject, ooRexx r13329): a SYNTAX with its DESCRIPTION,
+    // ERROR and FAILURE with their RC, everything it holds.
     if (halt) c->HaltThread();
-    else if (k.name == "SYNTAX")
-    {
-        c->RaiseException(k.code, (RexxArrayObject)k.additional);
-        RexxDirectoryObject raised = c->GetConditionInfo();
-        if (raised != NULLOBJECT)
-        {
-            if (k.description) c->DirectoryPut(raised, k.description, "DESCRIPTION");
-            if (k.result) c->DirectoryPut(raised, k.result, "RESULT");
-            c->ReleaseLocalReference(raised);
-        }
-    }
+    else if (c->functions->interfaceVersion < THREAD_INTERFACE_VERSION_5_3_0)       // (an ooRexx older than the minimum: no such entry)
+        c->RaiseException1(Rexx_Error_Execution_user_defined,
+            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13329 or later to raise a Rexx condition again"));
     else
     {
-        RexxObjectPtr result = k.result ? k.result : k.returned;
-        c->RaiseCondition(k.name.c_str(), k.description ? (RexxStringObject)k.description : NULLOBJECT, k.additional, result);
-        if (answer) *answer = result;
+        c->RaiseConditionObject((RexxDirectoryObject)k.object);
+        // RAISE ... RETURN's value: not in the condition object (ooRexx
+        // #2130), so the call's result kept with it is put into the pending
+        // copy as its RESULT (GetConditionInfo() answers that copy itself,
+        // r13297), which keeps it alive until the call returns. Workaround,
+        // to drop when #2130 is in.
+        if (k.name != "SYNTAX")
+        {
+            RexxDirectoryObject raised = c->GetConditionInfo();
+            if (raised != NULLOBJECT)
+            {
+                RexxObjectPtr result = c->DirectoryAt(raised, "RESULT");
+                if ((result == NULLOBJECT || result == c->Nil()) && k.returned)
+                {
+                    c->DirectoryPut(raised, k.returned, "RESULT");
+                    result = k.returned;
+                }
+                if (answer && result != c->Nil()) *answer = result;
+                c->ReleaseLocalReference(raised);
+            }
+        }
     }
-    if (k.additional) c->ReleaseGlobalReference(k.additional);
-    if (k.description) c->ReleaseGlobalReference(k.description);
-    if (k.result) c->ReleaseGlobalReference(k.result);
+    if (k.object) c->ReleaseGlobalReference(k.object);
     if (k.returned) c->ReleaseGlobalReference(k.returned);
     return halt ? 2 : 1;
 }
@@ -1059,15 +1065,8 @@ static std::string conditionRecord(RexxThreadContext *tc, RexxObjectPtr returned
         RexxObjectPtr x = tc->ArrayAt(k.additional, 2);
         if (x && tc->IsInstanceOf(x, cls.netObject)) exc = tc->ObjectToStringValue(tc->SendMessage0(x, "NETID"));
     }
-    // kept as the condition object has them (rule 1: raised again as they
-    // were), not as decoded: an ADDITIONAL that is not an Array is legal
-    // for a condition other than SYNTAX, and decodes as NULLOBJECT
-    RexxObjectPtr additional = tc->DirectoryAt(info, "ADDITIONAL");
-    RexxObjectPtr description = tc->DirectoryAt(info, "DESCRIPTION");
-    RexxObjectPtr result = tc->DirectoryAt(info, "RESULT");          // RAISE ... RETURN/EXIT result
-    Condition kept{0, name, k.code, additional && additional != tc->Nil() ? tc->RequestGlobalReference(additional) : NULLOBJECT,
-                   description && description != tc->Nil() ? tc->RequestGlobalReference(description) : NULLOBJECT,
-                   result && result != tc->Nil() ? tc->RequestGlobalReference(result) : NULLOBJECT,
+    // the condition object itself, kept (rule 1: raised again as it was)
+    Condition kept{0, name, k.code, tc->RequestGlobalReference(info),
                    returned && returned != tc->Nil() && name != "SYNTAX" ? tc->RequestGlobalReference(returned) : NULLOBJECT};
     std::vector<Condition> dropped;
     {
@@ -1078,9 +1077,7 @@ static std::string conditionRecord(RexxThreadContext *tc, RexxObjectPtr returned
     }
     for (auto &d : dropped)
     {
-        if (d.additional) tc->ReleaseGlobalReference(d.additional);
-        if (d.description) tc->ReleaseGlobalReference(d.description);
-        if (d.result) tc->ReleaseGlobalReference(d.result);
+        if (d.object) tc->ReleaseGlobalReference(d.object);
         if (d.returned) tc->ReleaseGlobalReference(d.returned);
     }
     std::string traceback;

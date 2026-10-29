@@ -10,9 +10,13 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13324 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13324 is the base of the
-  family of ooRexx bridges: from r13320, a condition other than SYNTAX that
+- **ooRexx 5.3.0 r13329 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13329 is the base of the
+  family of ooRexx bridges: it can raise a Rexx condition again as it was
+  (RFE #883), so that one that Rexx code called by .NET lets out reaches the
+  Rexx code that called .NET with everything it holds (a SYNTAX's
+  description, the RC of an ERROR or FAILURE); r13326 fixes a crash when
+  native code calls a routine that uses its caller's variables (#2129); from r13320, a condition other than SYNTAX that
   Rexx code called by .NET lets out reaches the Rexx code that called .NET
   as itself (ooRexx bug #2123); r13322 and r13324 fix crashes at a garbage
   collection after an error in native code (#2128, #2116); r13317, the

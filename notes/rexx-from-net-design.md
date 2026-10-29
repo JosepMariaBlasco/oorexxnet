@@ -349,8 +349,12 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   sending to Rexx and one running Rexx code, and a host's function and
   command environment (`phase3.rex`, `HostTests` `SignalPastTheHost`).
   Untrapped, they are ignored and the caller goes on, as in plain Rexx.
-  What does not come back: the RC of ERROR and FAILURE (`RaiseCondition`
-  has none; the family's parked RFE).
+  What did not come back: the RC of ERROR and FAILURE (`RaiseCondition`
+  has none). **Since r13329** (RFE #883, the bridge's minimum since
+  29/10/2026) both re-raise points raise the condition object itself
+  (`RaiseConditionObject`: a copy with everything it holds), so the RC
+  arrives as in plain Rexx, the variable `RC` and the object's, with
+  `SIGNAL ON` and `CALL ON` (`phase3.rex`, `HostTests`).
   **A `RAISE ... RETURN value`'s value** (28/10/2026): plain Rexx gives it
   to the caller when the condition is not trapped or a `CALL ON` resumes; it
   is the method's result, not in the condition object (no `RESULT` index
@@ -365,7 +369,10 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   request (answer K, the pointer), a callback's (C), a host's function
   (`retc`); a host's command environment gets it as RC, as a handler
   written in Rexx returning it would. Δ from plain Rexx: the caller's
-  condition object has `RESULT` set. For a `.NetHandler` (a delegate that
+  condition object has `RESULT` set. Since r13329 the value is put into
+  the pending copy that `RaiseConditionObject` raised, only when it has no
+  `RESULT` of its own: the copy of a `RAISE ... RETURN` has none either
+  (ooRexx #2130); the workaround goes when #2130 is in. For a `.NetHandler` (a delegate that
   .NET calls, `List.Sort`'s comparer) the value is what the handler
   returned, answered by the .NET call that let the condition out: the
   nearest there is. Tests: `phase3.rex` (untrapped, `CALL ON`, a
@@ -551,7 +558,9 @@ handler would be, 0.58 µs), but it gets the exit context, not the core's
 `.NativeCommandHandler`: what the core's context gives would be lost. The
 bridge's minimum was then r13297, the family's base (r13294 fixes the
 forwarding of RFE #882; nothing in the bridge depends on it); since
-28/10/2026 it is r13324 (#2123: see "Errors").
+28/10/2026 it was r13324 (#2123: see "Errors"), and since 29/10/2026 it is
+r13329 (RFE #883, `RaiseConditionObject`: see "Errors" and point 6 of
+"Phase C: built").
 
 ## Cheaper commands (26/10/2026)
 
@@ -1146,10 +1155,16 @@ case still open; item 6 changed later):
    condition object) that ends the .NET call becomes the same condition in
    the calling Rexx code (code, substitutions, so the same message; for a
    condition other than SYNTAX, its name, description and additional
-   object): answer K, the condition raised on the request's context with the
-   thread context's `RaiseException` / `RaiseCondition` (never an unwinding
-   API: phase B's rule). Shared with command handlers (`RaiseAgain`).
-   A SYNTAX's **DESCRIPTION and RESULT, put back by hand**: ooRexx has no API
+   object): answer K, the condition raised on the request's context (never
+   an unwinding API: phase B's rule). Shared with command handlers
+   (`RaiseAgain`). **Since ooRexx r13329** the condition object itself is
+   raised (`RaiseConditionObject`, RFE #883: a copy with everything it
+   holds; rexxnet keeps the object of a held condition, `RaiseAgain` takes
+   the `RexxException`'s), and the workaround below is gone; a rexxnet
+   loaded by an older ooRexx (no such entry: interface 104) raises a
+   98.900 that says so instead, and the host refuses to start on one.
+   *Until then:* `RaiseException` / `RaiseCondition`, and a SYNTAX's
+   **DESCRIPTION and RESULT, put back by hand**: ooRexx has no API
    that raises a SYNTAX with them (`RaiseException` takes a code and the
    substitutions only), and `RaiseCondition("SYNTAX", ...)` crashes the
    process (its condition object has no `CODE`), an ooRexx bug, unreported
@@ -1163,9 +1178,8 @@ case still open; item 6 changed later):
    (its re-raise rewrites the position, program and message, not those two).
    Both re-raise points do it (rexxnet's `raiseHeld`, `RaiseAgain`); the
    family's workaround (oorexxwasm's first), undocumented behaviour, to drop
-   when ooRexx can raise a condition object as it is. A future ooRexx that
-   answered a copy would lose them again, nothing worse: `phase3.rex` and
-   `HostTests` (six paths) would show it.
+   when ooRexx can raise a condition object as it is (it did, r13329).
+   `phase3.rex` and `HostTests` (six paths) check DESCRIPTION and RESULT.
    **Through the whole chain of inner exceptions** (an `AggregateException`
    only when it holds one), as the callbacks' rule (`RexxCause`) does.
    Built first through reflection's wrappers only (an

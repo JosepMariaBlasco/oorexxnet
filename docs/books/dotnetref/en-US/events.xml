@@ -211,9 +211,8 @@ syntax:
 <screen>41.1 Nonnumeric value ("a") used in arithmetic operation.</screen>
 </example>
 <para>A condition other than SYNTAX comes back the same way, as itself, with
-its description and additional object (ooRexx r13320 or later; not the
-<literal>RC</literal> of an ERROR or FAILURE, which ooRexx's native API cannot
-raise again). Not trapped by the Rexx code that called .NET, it is ignored,
+its description, additional object and the <literal>RC</literal> of an ERROR
+or FAILURE. Not trapped by the Rexx code that called .NET, it is ignored,
 as in plain Rexx, and a value the Rexx code returned with it
 (<literal>RAISE ... RETURN</literal>) is what the call answers, also when a
 <literal>CALL ON</literal> resumes.</para>

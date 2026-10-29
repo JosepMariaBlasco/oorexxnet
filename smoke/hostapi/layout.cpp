@@ -163,6 +163,7 @@ int main() {
   printf("RexxThreadInterface.IsStringTable %zu\n", offsetof(RexxThreadInterface, IsStringTable));
   printf("RexxThreadInterface.SendMessageScoped %zu\n", offsetof(RexxThreadInterface, SendMessageScoped));
   printf("RexxThreadInterface.GetInterpreterInstance %zu\n", offsetof(RexxThreadInterface, GetInterpreterInstance));
+  printf("RexxThreadInterface.RaiseConditionObject %zu\n", offsetof(RexxThreadInterface, RaiseConditionObject));
   printf("ExitContextInterface %zu\n", sizeof(ExitContextInterface));
   printf("ExitContextInterface.interfaceVersion %zu\n", offsetof(ExitContextInterface, interfaceVersion));
   printf("ExitContextInterface.SetContextVariable %zu\n", offsetof(ExitContextInterface, SetContextVariable));

@@ -309,11 +309,20 @@ call ok "RAISE ... RETURN, untrapped: .NET's call answers the value", returned(r
 call ok "... after CALL ON USER", returned(raiser, "send", "call on"), "handler 1"
 call ok "... from a .NetHandler's method", returned(raiser, "handler"), "1"
 
+-- ERROR's and FAILURE's RC: the condition object raised again as it is
+-- (RaiseConditionObject, ooRexx r13329), so the RC arrives as in plain Rexx:
+-- the variable RC and the object's, with SIGNAL ON and with CALL ON
+call ok "ERROR's RC, sent from .NET: SIGNAL ON ERROR", rcOf(raiser, "ERROR", "send"), "3 3"
+call ok "... FAILURE's", rcOf(raiser, "FAILURE", "send"), "4 4"
+call ok "... a .NetHandler's method", rcOf(raiser, "ERROR", "handler"), "3 3"
+call ok "... CALL ON ERROR", rcOf(raiser, "ERROR", "send", "call on"), "3 3 x 3"
+call ok "... a .NET command handler sends", rcOf(raiser, "ERROR", "command"), "3 3"
+call ok "... a .NET command handler runs Rexx code", rcOf(raiser, "FAILURE", "run"), "4 4"
+call ok "... plain Rexx, for reference", rcOf(raiser, "ERROR", "rexx") rcOf(raiser, "ERROR", "rexx", "call on"), "3 3 3 3 x 3"
+
 -- A SYNTAX raised with a description (and a result) by Rexx code that .NET
--- called, raised again in the Rexx caller: ooRexx has no API that raises a
--- SYNTAX with them (ooRexx bug, unreported); the bridge puts them back into
--- the pending condition object (a workaround). If this fails with an empty
--- description, a newer ooRexx copies that object: see raiseHeld in rexxnet.cpp.
+-- called, raised again in the Rexx caller with all of them (the condition
+-- object as it is: RaiseConditionObject, ooRexx r13329).
 expect = "40.1 [the description] BOOM r"
 call ok "a SYNTAX's description and result: sent from .NET", described("x = dl~SendTo(raiser, 'DESCRIBED')"), expect
 call ok "... a .NetHandler's method", described("x = dl~Text(.net~handler(raiser, 'DESCRIBED'))"), expect
@@ -365,6 +374,26 @@ haltCallCb: use arg l, cmp; halted = 0; call on halt name haltSeen; l~Sort(cmp);
 haltUntrappedCb: use arg l, cmp; signal on syntax name haltUntrappedCbTrap; l~Sort(cmp); return "nothing"
   haltUntrappedCbTrap: return "SYNTAX" condition("O")~code
 haltSeen: halted = 1; return
+rcOf: procedure expose dl            -- the variable RC and the condition object's, a condition raised past .NET (raiser: the command handler reads it)
+  use arg raiser, cond, how, trap = ""
+  .local~handled = ""
+  if trap = "call on" then do
+    if cond = "ERROR" then call on error name rcOfHandler; else call on failure name rcOfHandler
+  end
+  else do
+    if cond = "ERROR" then signal on error name rcOfTrap; else signal on failure name rcOfTrap
+  end
+  select
+    when how = "send" then x = dl~SendTo(raiser, cond)
+    when how = "handler" then x = dl~Text(.net~handler(raiser, cond))
+    when how = "command" then address calc "send" cond~lower
+    when how = "run" then address calc "run" cond~lower
+    when how = "rexx" then x = raiser~send(cond)
+  end
+  if trap = "call on" then return .handled "x" x
+  return "not trapped"
+  rcOfTrap: return rc condition("O")~rc
+  rcOfHandler: .local~handled = rc condition("O")~rc; return
 sendSignal: procedure expose dl
   use arg o, cond, how = "send"
   select

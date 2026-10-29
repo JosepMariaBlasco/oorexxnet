@@ -145,3 +145,4 @@ NewStringTable
 IsStringTable
 SendMessageScoped
 GetInterpreterInstance
+RaiseConditionObject

@@ -134,52 +134,44 @@ public sealed unsafe partial class RexxInterpreter
         if (f is not { Count: > 0 }) return false;
         var top = f[^1];
         var c = new Ctx(top.Tc);
-        nint additional = 0, description = 0, result = 0;
-        if (e.Condition != null && !e.Condition.Disposed)
-        {
-            try
-            {
-                additional = Live(c, e.Condition["ADDITIONAL"]);
-                if (e.Condition["DESCRIPTION"] is RexxString d) description = c.Str(d.Value);
-                result = Live(c, e.Condition["RESULT"]);           // RAISE ... RETURN/EXIT result
-            }
-            catch (Exception) { }
-        }
         if (e.Code == "4.1")
         {
             // a HALT the Rexx code did not trap (ooRexx makes it SYNTAX 4.1):
             // a HALT again, by halting the thread, not RaiseCondition (an
             // untrapped HALT raised so is ignored): see rexxnet's raiseHeld
-            if (additional != 0) c.ReleaseLocal(additional);
-            if (description != 0) c.ReleaseLocal(description);
-            if (result != 0) c.ReleaseLocal(result);
             c.HaltThread();
             LastWasHalt = true;
             return true;
         }
-        if (e.Code.Length > 0)
+        // the condition object as it is (RaiseConditionObject: a copy with
+        // everything it holds, the DESCRIPTION of a SYNTAX and the RC of an
+        // ERROR or FAILURE included; see rexxnet.cpp's raiseHeld)
+        if (e.Condition is { Disposed: false } condition) c.RaiseConditionObject(condition.Live);
+        else if (e.Code.Length > 0)                 // (its condition object disposed by the application: what is known)
         {
             var parts = e.Code.Split('.');
-            long code = long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0);
-            if (additional == 0) additional = c.NewArray(0);
-            // no API raises a SYNTAX with its DESCRIPTION, and
-            // RaiseCondition("SYNTAX", ...) would crash the process (ooRexx
-            // bug, unreported): put back into the pending condition object,
-            // a workaround (see rexxnet.cpp's raiseHeld)
-            c.RaiseException(code, additional);
+            c.RaiseException(long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0), c.NewArray(0));
+        }
+        else c.RaiseCondition(e.ConditionName, 0, 0, 0);
+        if (e.Code.Length == 0)
+        {
+            // RAISE ... RETURN's value: not in the condition object (ooRexx
+            // #2130), so the value the call returned is put into the pending
+            // copy as its RESULT (ConditionInfo answers that copy itself),
+            // which keeps it alive until the native call returns. Workaround,
+            // to drop when #2130 is in.
             nint raised = c.ConditionInfo();
             if (raised != 0 && raised != c.Nil)
             {
-                if (description != 0) c.DirectoryPut(raised, description, "DESCRIPTION");
-                if (result != 0 && result != c.Nil) c.DirectoryPut(raised, result, "RESULT");
+                nint result = c.DirectoryAt(raised, "RESULT");
+                if ((result == 0 || result == c.Nil) && e.Returned != null)
+                {
+                    result = Live(c, e.Returned);
+                    if (result != 0) c.DirectoryPut(raised, result, "RESULT");
+                }
+                if (result != 0 && result != c.Nil) LastResult = result;
                 c.ReleaseLocal(raised);
             }
-        }
-        else
-        {
-            if (result == 0 && e.Returned != null) result = Live(c, e.Returned);
-            c.RaiseCondition(e.ConditionName, description, additional, result);
-            if (result != 0 && result != c.Nil) LastResult = result;
         }
         return true;
     }
