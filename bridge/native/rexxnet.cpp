@@ -763,10 +763,32 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     // the end of the clause, CALL ON HALT after it (the call answers .nil
     // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
     bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
+    // A SYNTAX: RaiseException, not RaiseConditionObject. The copy that
+    // RaiseConditionObject raises for a SYNTAX is held by nothing the
+    // collector marks while the native activation is popped (ooRexx #2132: a
+    // crash under threads, the family's finding); RaiseException's object is
+    // the activity's condition object. Its DESCRIPTION and RESULT are put into
+    // GetConditionInfo()'s object, the pending condition object itself
+    // (r13297): a workaround, until #2132 is in.
     // Any other condition: the condition object as it is (RFE #883,
-    // RaiseConditionObject, ooRexx r13329): a SYNTAX with its DESCRIPTION,
-    // ERROR and FAILURE with their RC, everything it holds.
+    // RaiseConditionObject, ooRexx r13329): ERROR and FAILURE with their RC,
+    // everything it holds.
     if (halt) c->HaltThread();
+    else if (k.name == "SYNTAX")
+    {
+        RexxDirectoryObject o = (RexxDirectoryObject)k.object;
+        RexxObjectPtr additional = c->DirectoryAt(o, "ADDITIONAL");
+        RexxObjectPtr description = c->DirectoryAt(o, "DESCRIPTION");
+        RexxObjectPtr result = c->DirectoryAt(o, "RESULT");
+        c->RaiseException(k.code, additional && c->IsArray(additional) ? (RexxArrayObject)additional : NULLOBJECT);
+        RexxDirectoryObject raised = c->GetConditionInfo();
+        if (raised != NULLOBJECT)
+        {
+            if (description && description != c->Nil()) c->DirectoryPut(raised, description, "DESCRIPTION");
+            if (result && result != c->Nil()) c->DirectoryPut(raised, result, "RESULT");
+            c->ReleaseLocalReference(raised);
+        }
+    }
     else if (c->functions->interfaceVersion < THREAD_INTERFACE_VERSION_5_3_0)       // (an ooRexx older than the minimum: no such entry)
         c->RaiseException1(Rexx_Error_Execution_user_defined,
             c->String("ooRexx/.NET needs ooRexx 5.3.0 r13329 or later to raise a Rexx condition again"));
@@ -778,7 +800,6 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
         // copy as its RESULT (GetConditionInfo() answers that copy itself,
         // r13297), which keeps it alive until the call returns. Workaround,
         // to drop when #2130 is in.
-        if (k.name != "SYNTAX")
         {
             RexxDirectoryObject raised = c->GetConditionInfo();
             if (raised != NULLOBJECT)

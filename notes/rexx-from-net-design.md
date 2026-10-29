@@ -351,8 +351,8 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   Untrapped, they are ignored and the caller goes on, as in plain Rexx.
   What did not come back: the RC of ERROR and FAILURE (`RaiseCondition`
   has none). **Since r13329** (RFE #883, the bridge's minimum since
-  29/10/2026) both re-raise points raise the condition object itself
-  (`RaiseConditionObject`: a copy with everything it holds), so the RC
+  29/10/2026) both re-raise points raise a condition other than SYNTAX
+  as its object (`RaiseConditionObject`: a copy with everything it holds), so the RC
   arrives as in plain Rexx, the variable `RC` and the object's, with
   `SIGNAL ON` and `CALL ON` (`phase3.rex`, `HostTests`).
   **A `RAISE ... RETURN value`'s value** (28/10/2026): plain Rexx gives it
@@ -1176,13 +1176,26 @@ case still open; item 6 changed later):
    condition other than SYNTAX, its name, description and additional
    object): answer K, the condition raised on the request's context (never
    an unwinding API: phase B's rule). Shared with command handlers
-   (`RaiseAgain`). **Since ooRexx r13329** the condition object itself is
-   raised (`RaiseConditionObject`, RFE #883: a copy with everything it
-   holds; rexxnet keeps the object of a held condition, `RaiseAgain` takes
-   the `RexxException`'s), and the workaround below is gone; a rexxnet
-   loaded by an older ooRexx (no such entry: interface 104) raises a
-   98.900 that says so instead, and the host refuses to start on one.
-   *Until then:* `RaiseException` / `RaiseCondition`, and a SYNTAX's
+   (`RaiseAgain`). **Since ooRexx r13329** a condition other than SYNTAX
+   is raised as its object (`RaiseConditionObject`, RFE #883: a copy with
+   everything it holds, the RC of ERROR and FAILURE; rexxnet keeps the
+   object of a held condition, `RaiseAgain` takes the `RexxException`'s); a
+   rexxnet loaded by an older ooRexx (no such entry: interface 104) raises
+   a 98.900 that says so instead, and the host refuses to start on one.
+   **A SYNTAX still goes through `RaiseException` and the workaround
+   below** (29/10/2026, the family's decision, the same day r13329 was
+   adopted): the copy that `RaiseConditionObject` raises for a SYNTAX is
+   held by nothing the collector marks while the native activation is
+   popped (`reraiseException` → `raisePropagate`, before the caller's
+   `trap()` stores it), so a collection by another thread there takes it
+   (ooRexx #2132; found by the Python bridge's threaded test, confirmed
+   with an instrumented build); `RaiseException`'s object is the activity's
+   condition object, which the collector marks. Measured here with a
+   threaded stress test (16 Rexx threads, 1000 callbacks each letting a
+   SYNTAX through .NET, two threads allocating and forcing collections):
+   see the coordination repository's entry. Back to
+   `RaiseConditionObject` for SYNTAX when #2132 is in.
+   *Before r13329, for every condition:* `RaiseException` / `RaiseCondition`, and a SYNTAX's
    **DESCRIPTION and RESULT, put back by hand**: ooRexx has no API
    that raises a SYNTAX with them (`RaiseException` takes a code and the
    substitutions only), and `RaiseCondition("SYNTAX", ...)` crashes the
@@ -1197,7 +1210,8 @@ case still open; item 6 changed later):
    (its re-raise rewrites the position, program and message, not those two).
    Both re-raise points do it (rexxnet's `raiseHeld`, `RaiseAgain`); the
    family's workaround (oorexxwasm's first), undocumented behaviour, to drop
-   when ooRexx can raise a condition object as it is (it did, r13329).
+   when ooRexx can raise a condition object as it is safely (r13329 can,
+   and for a SYNTAX once #2132 is in).
    `phase3.rex` and `HostTests` (six paths) check DESCRIPTION and RESULT.
    **Through the whole chain of inner exceptions** (an `AggregateException`
    only when it holds one), as the callbacks' rule (`RexxCause`) does.

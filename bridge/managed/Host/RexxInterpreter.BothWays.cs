@@ -143,10 +143,28 @@ public sealed unsafe partial class RexxInterpreter
             LastWasHalt = true;
             return true;
         }
-        // the condition object as it is (RaiseConditionObject: a copy with
-        // everything it holds, the DESCRIPTION of a SYNTAX and the RC of an
-        // ERROR or FAILURE included; see rexxnet.cpp's raiseHeld)
-        if (e.Condition is { Disposed: false } condition) c.RaiseConditionObject(condition.Live);
+        // a SYNTAX: RaiseException, its DESCRIPTION and RESULT put into the
+        // pending condition object (ooRexx #2132: RaiseConditionObject's copy
+        // of a SYNTAX can be collected under threads; see rexxnet.cpp's
+        // raiseHeld); any other condition: the condition object as it is
+        // (RaiseConditionObject: a copy with everything it holds, the RC of
+        // an ERROR or FAILURE included)
+        if (e.Code.Length > 0 && e.Condition is { Disposed: false } syntax)
+        {
+            nint o = syntax.Live;
+            nint additional = c.DirectoryAt(o, "ADDITIONAL"), description = c.DirectoryAt(o, "DESCRIPTION"), result = c.DirectoryAt(o, "RESULT");
+            var parts = e.Code.Split('.');
+            c.RaiseException(long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0),
+                             additional != 0 && additional != c.Nil ? additional : c.NewArray(0));
+            nint raised = c.ConditionInfo();
+            if (raised != 0 && raised != c.Nil)
+            {
+                if (description != 0 && description != c.Nil) c.DirectoryPut(raised, description, "DESCRIPTION");
+                if (result != 0 && result != c.Nil) c.DirectoryPut(raised, result, "RESULT");
+                c.ReleaseLocal(raised);
+            }
+        }
+        else if (e.Condition is { Disposed: false } condition) c.RaiseConditionObject(condition.Live);
         else if (e.Code.Length > 0)                 // (its condition object disposed by the application: what is known)
         {
             var parts = e.Code.Split('.');
