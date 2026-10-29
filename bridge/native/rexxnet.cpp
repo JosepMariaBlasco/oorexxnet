@@ -283,7 +283,40 @@ static bool instanceEnding(RexxInstance *i)         // (tablesLock held)
 static std::vector<std::pair<int, int>> goneHandlers;   // handlers .NET can no longer call (id, count seen), for drainDead
 static std::atomic<bool> anyDead{false};
 
-// Its count of times to .NET (0 for a pair's).
+// Messages to objects that user code may stand behind: an instance of a
+// subclass of the bridge's classes (or of .LogicalWrapper) with its own
+// method, a value whose own MAKESTRING or STRING runs. False, with a condition
+// pending, if it raised one or answered nothing (91.999, as plain Rexx), so
+// that the caller stops at once: going on, a value half encoded went to .NET
+// and the condition reached the Rexx caller late, after .NET had run; and
+// ObjectToStringValue's NULL, read, crashed the process (oorexx-bridges,
+// lesson 7).
+static bool sent(RexxThreadContext *c, RexxObjectPtr o, const char *msg, RexxObjectPtr &r)
+{
+    r = c->SendMessage0(o, msg);
+    if (c->CheckCondition()) return false;
+    if (r == NULLOBJECT)
+    {
+        c->RaiseException1(Rexx_Error_No_result_object_message, c->String(msg));
+        return false;
+    }
+    return true;
+}
+static bool textOf(RexxThreadContext *c, RexxObjectPtr o, std::string &s)
+{
+    CSTRING t = c->ObjectToStringValue(o);
+    if (t == nullptr || c->CheckCondition()) return false;
+    s = t;
+    return true;
+}
+static bool sentText(RexxThreadContext *c, RexxObjectPtr o, const char *msg, std::string &s)
+{
+    RexxObjectPtr r;
+    return sent(c, o, msg, r) && textOf(c, r, s);
+}
+
+// Its count of times to .NET (0 for a pair's); -1 with a condition pending
+// if the handler's TARGET or MESSAGE raised one.
 static int registerHandler(RexxThreadContext *c, int id, RexxObjectPtr h, bool peer)
 {
     {
@@ -291,8 +324,9 @@ static int registerHandler(RexxThreadContext *c, int id, RexxObjectPtr h, bool p
         auto it = handlers.find(id);
         if (it != handlers.end()) return it->second.peer ? 0 : ++it->second.regs;
     }
-    RexxObjectPtr target = c->SendMessage0(h, "TARGET");
-    std::string message = c->ObjectToStringValue(c->SendMessage0(h, "MESSAGE"));
+    RexxObjectPtr target;
+    std::string message;
+    if (!sent(c, h, "TARGET", target) || !sentText(c, h, "MESSAGE", message)) return -1;
     Handler e{peer ? h : c->RequestGlobalReference(h), peer ? target : c->RequestGlobalReference(target), message, c->instance};
     e.peer = peer;
     e.regs = peer ? 0 : 1;
@@ -425,32 +459,39 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     if (o == NULLOBJECT || o == c->Nil()) { record(out, 'N', ""); return true; }
     if (c->IsInstanceOf(o, cls.netObject))
     {
-        record(out, 'O', c->ObjectToStringValue(c->SendMessage0(o, "NETID")));
+        std::string id;
+        if (!sentText(c, o, "NETID", id)) return false;
+        record(out, 'O', id);
         return true;
     }
     if (c->IsInstanceOf(o, cls.netRef))
     {
         std::string inner;
-        if (!encode(c, c->SendMessage0(o, "VALUE"), inner, nullptr, false, memo)) return false;
+        RexxObjectPtr v;
+        if (!sent(c, o, "VALUE", v) || !encode(c, v, inner, nullptr, false, memo)) return false;
         record(out, 'R', inner);
         if (refs) refs->push_back(o);
         return true;
     }
     if (c->IsInstanceOf(o, cls.netHandler))
     {
-        int id = atoi(c->ObjectToStringValue(c->SendMessage0(o, "ID")));
-        std::string options = c->ObjectToStringValue(c->SendMessage0(o, "OPTIONS"));
+        std::string ids, options;
+        RexxObjectPtr released;
+        if (!sentText(c, o, "ID", ids) || !sentText(c, o, "OPTIONS", options) || !sent(c, o, "RELEASED", released)) return false;
+        int id = atoi(ids.c_str());
         int n = 0;
-        if (c->SendMessage0(o, "RELEASED") == c->True()) options += " released";   // still its delegate, for -=
-        else n = registerHandler(c, id, o, options == "peer");
+        if (released == c->True()) options += " released";   // still its delegate, for -=
+        else if ((n = registerHandler(c, id, o, options == "peer")) < 0) return false;
         record(out, 'H', std::to_string(id) + '\t' + options + '\t' + std::to_string(n));
         return true;
     }
     if (c->IsInstanceOf(o, cls.netTyped))
     {
-        std::string inner = c->ObjectToStringValue(c->SendMessage0(o, "KIND"));
+        std::string inner;
+        RexxObjectPtr v;
+        if (!sentText(c, o, "KIND", inner)) return false;
         inner += '\t';
-        if (!encode(c, c->SendMessage0(o, "VALUE"), inner, nullptr, false, memo)) return false;
+        if (!sent(c, o, "VALUE", v) || !encode(c, v, inner, nullptr, false, memo)) return false;
         record(out, 'T', inner);
         return true;
     }
@@ -499,7 +540,9 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
         for (size_t d = 1; d <= dims; d++)
         {
             wholenumber_t n = 0;
-            c->ObjectToWholeNumber(c->SendMessage1(o, "DIMENSION", c->WholeNumberToObject((wholenumber_t)d)), &n);
+            RexxObjectPtr dn = c->SendMessage1(o, "DIMENSION", c->WholeNumberToObject((wholenumber_t)d));
+            if (c->CheckCondition()) return false;
+            c->ObjectToWholeNumber(dn, &n);
             if (d > 1) head += ',';
             head += std::to_string(n);
         }
@@ -514,13 +557,16 @@ static bool encode(RexxThreadContext *c, RexxObjectPtr o, std::string &out, Refs
     // "1" or "0", a bool in .NET (to a bool or an object parameter)
     if (cls.logical && c->IsInstanceOf(o, cls.logical))
     {
-        RexxObjectPtr v = c->SendMessage0(o, "VALUE");
-        record(out, 'B', v != NULLOBJECT && strcmp(c->ObjectToStringValue(v), "1") == 0 ? "1" : "0");
+        RexxObjectPtr v;
+        std::string t;
+        if (!sent(c, o, "VALUE", v) || !textOf(c, v, t)) return false;
+        record(out, 'B', t == "1" ? "1" : "0");
         return true;
     }
     if (c->IsInstanceOf(o, cls.string))
     {
         RexxStringObject s = c->ObjectToString(o);
+        if (s == NULLOBJECT || c->CheckCondition()) return false;
         record(out, 'S', std::string(c->StringData(s), c->StringLength(s)));
         if ((RexxObjectPtr)s != o) c->ReleaseLocalReference(s);       // (a new string: a number's, say)
         return true;
@@ -884,6 +930,7 @@ RexxMethod2(RexxObjectPtr, net_command, RexxObjectPtr, command, RexxObjectPtr, c
     record(req, 'S', "cmdRun");
     record(req, 'S', context->ObjectToStringValue(id));
     RexxStringObject s = context->ObjectToString(command);
+    if (s == NULLOBJECT || context->CheckCondition()) return NULLOBJECT;     // (a command whose own MAKESTRING or STRING raised: that condition)
     record(req, 'S', std::string(context->StringData(s), context->StringLength(s)));
     record(req, 'X', std::to_string((uintptr_t)caller));
     RexxObjectPtr r = request(context->threadContext, req);

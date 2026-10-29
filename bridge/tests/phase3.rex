@@ -359,6 +359,19 @@ call ok "... copied to an array, its SUPPLIER raising USER", reply("length", .Re
 call ok "... answering nothing", reply("length", .ReplyArr~new("NOTHING")), "SYNTAX 98.994"
 call ok "... the process goes on", dl~TextOf(.net~handler(.Giver~new(.ReplyMS~new("FINE")), "GIVE")), "fine"
 
+-- An argument whose own method raises while rexxnet encodes it for .NET (a
+-- subclass of .LogicalWrapper, .NetRef or .NetTyped; oorexx-bridges, lesson
+-- 7): the condition, before .NET runs. The encoding went on (.NET ran with a
+-- wrong value, and its error replaced the condition), or read
+-- ObjectToStringValue's NULL (the process ended).
+call ok "an argument's own VALUE raising SYNTAX: a .LogicalWrapper subclass", encoded(.MyLogical~make("SYNTAX")), "93.900 value says no"
+call ok "... VALUE answering an object whose MAKESTRING raises SYNTAX", encoded(.MyLogical~make("MS")), "93.900 makestring says no"
+call ok "... VALUE answering nothing: 91.999, as plain Rexx", encoded(.MyLogical~make("NOTHING")), "91.999"
+call ok "... VALUE answering 1", encoded(.MyLogical~make("ONE")), "ran True"
+call ok "... a .NetRef subclass", encoded(.MyRef~new("SYNTAX")), "93.900 value says no"
+call ok "... a .NetTyped subclass's VALUE", encoded(.MyTyped~new("SYNTAX")), "93.900 value says no"
+call ok "... its KIND", encoded(.MyTyped~new("KIND")), "93.900 kind says no"
+
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
 exit .fails > 0
@@ -426,6 +439,13 @@ returned: procedure expose dl        -- what x = (a .NET call reaching Raiser~us
   else x = dl~Text(.net~handler(o, "USER"))
   return (.handled x)~strip
   returnedHandler: .local~handled = "handler"; return
+encoded: procedure                  -- o as an argument to .NET (String.Format): what .NET made, or the condition
+  use arg o
+  signal on syntax name encodedTrap
+  return .net~System~String~Format("ran {0}", o)
+  encodedTrap: c = condition("O")
+  if c~code = "91.999" then return c~code
+  return c~code c~additional[1]
 reply: procedure expose dl          -- obj as a callback's reply ("text", "count", "length"), or answered to .NET's Send, or made text by Rexx
   use arg how, obj
   signal on user says name replyTrap; signal on syntax name replyTrap
@@ -582,6 +602,26 @@ sendCmdUntrapped: use arg raiser
 ::method supplier; expose k
   if k = "USER" then raise user says description "supplier says no"
   return
+
+::class MyLogical subclass LogicalWrapper   -- its own VALUE raises, answers nothing, or an object whose MAKESTRING raises
+::method make class; use arg k; o = self~new(.true); o~k = k; return o
+::attribute k
+::method value
+  if self~k = "SYNTAX" then raise syntax 93.900 array("value says no")
+  if self~k = "MS" then return .ReplyMS~new("SYNTAX")
+  if self~k = "NOTHING" then return
+  return 1
+::class MyRef subclass NetRef           -- its own VALUE raises
+::method init; expose k; use arg k; self~init:super("x")
+::method value; raise syntax 93.900 array("value says no")
+::class MyTyped subclass NetTyped       -- its own VALUE or KIND raises
+::method init; expose k; use arg k; self~init:super("System.String", "x")
+::method value; expose k
+  if k = "SYNTAX" then raise syntax 93.900 array("value says no")
+  return "x"
+::method kind; expose k
+  if k = "KIND" then raise syntax 93.900 array("kind says no")
+  return "System.String"
 
 ::class HaltTester                -- a callback whose Rexx code is halted
 ::method haltCompare               -- a Comparison<int> whose Rexx code is halted

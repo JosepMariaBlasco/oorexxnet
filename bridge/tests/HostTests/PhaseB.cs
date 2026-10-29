@@ -135,6 +135,13 @@ static partial class Program
            rexx.Run("signal on syntax name x; return text(.S~new('SYNTAX'))\nx: return condition('O')~code" + Repliers), "93.900");
         Ok("... SIGNAL ON USER in the caller",
            rexx.Run("signal on user says name x; return text(.S~new('USER'))\nx: return condition('C') condition('D')" + Repliers), "USER SAYS d");
+        // a result the host looks at (is it a .LogicalWrapper's bool?) whose
+        // own VALUE answers an object whose MAKESTRING raises: no .NET value,
+        // and no condition left pending for the next call
+        var lw = rexx.Run<RexxObject>("return .L~make\n::requires 'logicalwrapper.cls'\n::class L subclass LogicalWrapper\n" +
+                                      "::method make class; return self~new(.true)\n::method value; return .S~new('SYNTAX')" + Repliers);
+        Ok("a .LogicalWrapper subclass whose VALUE's text raises: no .NET value", lw.NetValue == null, true);
+        Ok("... the next call goes on", rexx.Run<int>("return 1 + 1"), 2);
         var noSupplier = rexx.Run<RexxObject>("return .D~new('NOTHING')" + Repliers);
         Throws<RexxException>("Supplier, its SUPPLIER answering nothing", () => noSupplier.Supplier(), "to a supplier object");
         Throws<RexxException>("... converted to a dictionary", () => RexxConvert.To<Dictionary<string, object?>>(noSupplier), "to a supplier object");

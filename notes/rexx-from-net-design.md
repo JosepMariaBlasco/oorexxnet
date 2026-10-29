@@ -661,6 +661,25 @@ array; a message's result made text), `HostTests` `SignalPastTheHost`
 (`ToString`, `Supplier`, `RexxConvert.To` a dictionary, from a function with
 `SIGNAL ON` in the caller); the SYNTAX cases ended the process before.
 
+**The three shapes of the family's lesson 7 (29/10/2026), in rexxnet.**
+Encoding an argument (or a callback's reply) for .NET, rexxnet sends
+messages that user code may stand behind: an instance of a subclass of
+`.LogicalWrapper`, `.NetRef`, `.NetTyped` or `.NetHandler` with its own
+`VALUE`, `KIND`, `ID`..., and a value whose own `MAKESTRING` runs. Measured
+on r13329: a `.LogicalWrapper` subclass whose `VALUE` answered an object
+whose `MAKESTRING` raises SYNTAX, and a `.NetTyped` subclass whose `KIND`
+raises, **crashed the process** (`ObjectToStringValue`'s NULL, read: shape
+1); a `.NetRef` subclass whose `VALUE` raises went to .NET as `null`, and
+.NET's error ("no ... accepts") replaced the condition; a `VALUE` answering
+nothing went as `False` and .NET ran (shape 3). Now every such message is
+checked (`sent`, `sentText`, `textOf`): the encoding stops at the first
+condition, which reaches the caller before .NET runs; a message answering
+nothing is 91.999, as plain Rexx. On the managed side, `ToStr` and
+`Supplier` (shapes 1 and 2) were fixed with lesson 6, every `Send` checks,
+and `NetOf` (is a result a `.NetObject`, a `.LogicalWrapper`?) clears a
+condition its look raised, as it already did for `VALUE` and `NETID`
+themselves. Tests: `phase3.rex` (seven arguments), `HostTests`.
+
 **USER through `.NetCommandHandler` (the lesson's check).** Its `command`
 is written in Rexx, so a condition that `rexxnet` raises again there
 (`raiseHeld`, after the request) would stop in it, not in the issuer. Today

@@ -232,8 +232,9 @@ public sealed unsafe partial class RexxInterpreter
             nint empty = c.NewArray(0), v = c.Send(o, "VALUE", empty);  // (a subclass's own instances)
             c.ReleaseLocal(empty);
             if (v == 0 || c.CheckCondition()) { c.ClearCondition(); return null; }
-            bool b = c.ToStr(v) == "1";
+            bool b = c.ToStr(v) == "1";                             // (its own MAKESTRING may raise: as above)
             c.ReleaseLocal(v);
+            if (c.CheckCondition()) { c.ClearCondition(); return null; }
             return b;
         }
         if (Bridge.NetObjectClass == 0 || !c.IsInstanceOf(o, Bridge.NetObjectClass)) return null;
@@ -243,6 +244,7 @@ public sealed unsafe partial class RexxInterpreter
         if (id == 0 || c.CheckCondition()) { c.ClearCondition(); return null; }
         var s = c.ToStr(id);
         c.ReleaseLocal(id);
+        if (c.CheckCondition()) { c.ClearCondition(); return null; }
         if (!int.TryParse(s, out int n)) return null;
         try
         {
