@@ -141,7 +141,7 @@ public static unsafe class Bridge
                 w.Add('C', re.ConditionId + "\t" + re.Message);
                 return w.ToArray();
             }
-            if (RexxException.Raised(e) is RexxException called && RexxInterpreter.RaiseAgain(called))
+            if (RexxException.Raised(e) is RexxException called && RexxInterpreter.RaiseAgain(called, haltHere: false))
             {                                                     // Rexx code called by .NET failed: the same error
                 w = new Writer();
                 // (a HALT: the call answers .nil; else what the Rexx code

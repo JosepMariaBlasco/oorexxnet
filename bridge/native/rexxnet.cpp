@@ -119,6 +119,7 @@ static void nativeFree(unsigned char *p) { free(p); }
 static void peerDead(int id);
 static void handlerGone(int id, int seen);
 static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer);
+static void haltBack(RexxThreadContext *c);
 
 static void loadClr()
 {
@@ -313,36 +314,6 @@ static bool sentText(RexxThreadContext *c, RexxObjectPtr o, const char *msg, std
 {
     RexxObjectPtr r;
     return sent(c, o, msg, r) && textOf(c, r, s);
-}
-
-// A SYNTAX left pending by Rexx code this native method or routine called
-// (a user's method that encode sent to, a .NetRef's VALUE=), raised again
-// with RaiseException before the native code returns, its DESCRIPTION and
-// RESULT put into the new condition object, as raiseHeld does. Left pending,
-// it went back through Activity::reraiseException, where a collection by
-// another thread can take it (ooRexx #2132: a crash). Any other condition is
-// left as it is (raised again while the native activation still holds it).
-// Workaround, until #2132 is in.
-static void reraiseSyntax(RexxThreadContext *c)
-{
-    if (!c->CheckCondition()) return;
-    RexxDirectoryObject info = c->GetConditionInfo();
-    if (info == NULLOBJECT) return;
-    RexxObjectPtr name = c->DirectoryAt(info, "CONDITION");
-    if (!name || !c->IsString(name) || strcmp(c->ObjectToStringValue(name), "SYNTAX") != 0) return;
-    RexxCondition k;
-    c->DecodeConditionInfo(info, &k);
-    RexxObjectPtr additional = c->DirectoryAt(info, "ADDITIONAL");
-    RexxObjectPtr description = c->DirectoryAt(info, "DESCRIPTION");
-    RexxObjectPtr result = c->DirectoryAt(info, "RESULT");
-    c->ClearCondition();
-    c->RaiseException(k.code, additional && c->IsArray(additional) ? (RexxArrayObject)additional : NULLOBJECT);
-    RexxDirectoryObject raised = c->GetConditionInfo();
-    if (raised != NULLOBJECT)
-    {
-        if (description && description != c->Nil()) c->DirectoryPut(raised, description, "DESCRIPTION");
-        if (result && result != c->Nil()) c->DirectoryPut(raised, result, "RESULT");
-    }
 }
 
 // Its count of times to .NET (0 for a pair's); -1 with a condition pending
@@ -683,10 +654,11 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
         case 'X':                                   // a Rexx object coming back (held for us by the managed side)
             return (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
         case 'K':                                   // a condition already raised by the managed side
-            // (a HALT: the thread halted, the call answers .nil; else what the
-            // Rexx code returned with the condition, its pending RESULT, or none)
-            return payload == "halt" ? c->Nil()
-                 : payload.empty() ? NULLOBJECT : (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
+            // (a HALT: given back here, haltBack, and the call answers .nil;
+            // else what the Rexx code returned with the condition, or none)
+            if (payload == "halt") { haltBack(c); return c->Nil(); }
+            return payload.empty()
+                 ? NULLOBJECT : (RexxObjectPtr)(uintptr_t)strtoull(payload.c_str(), nullptr, 10);
         case 'p':                                   // an instance of a Rexx class extending a .NET class: its Rexx object
         {
             RexxObjectPtr o = peerCrossing(c, atoi(payload.c_str()));
@@ -766,6 +738,25 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
 // programs, with their GUI thread, crash on Windows).
 static thread_local RexxThreadContext *requesting = nullptr;
 
+// The .CommandContext of the command net_command is running on this thread,
+// if any: a HALT that the handler's Rexx code did not trap is given back to
+// the issuer through it (caller~raise("HALT", 0), the core's way), not by
+// halting the thread. Since ooRexx r13334 (#2124) a halt posted on a frame
+// that is ending is no longer lost, so HaltThread here halted the first
+// clause after the handler, the core's own CommandContext~finish, where no
+// trap of the issuer's applies (an untrapped SYNTAX 4.1).
+static thread_local RexxObjectPtr haltCaller = NULLOBJECT;
+
+// A HALT given back to the Rexx code on this thread: to a command's issuer
+// through its context, else by halting the thread (a Ctrl-C: SIGNAL ON HALT
+// traps it at the end of the clause, CALL ON HALT after it, untrapped SYNTAX
+// 4.1, as in plain Rexx).
+static void haltBack(RexxThreadContext *c)
+{
+    if (haltCaller) c->SendMessage2(haltCaller, "RAISE", c->String("HALT"), c->WholeNumber(0));
+    else c->HaltThread();
+}
+
 // A Rexx condition that a callback's Rexx code raised, kept by its id (the
 // callback's answer E), raised again on c: by a response C, or by the managed
 // side directly (a command handler, which no request answers). 0 if no such id,
@@ -773,8 +764,7 @@ static thread_local RexxThreadContext *requesting = nullptr;
 // *answer: what the native call answers, for a condition other than SYNTAX
 // or HALT the value the Rexx code returned with it (RAISE ... RETURN), which
 // plain Rexx gives the caller when the condition is not trapped or a CALL ON
-// resumes; it goes as the condition's RESULT, so the pending condition object
-// keeps it alive until the call returns. Else NULLOBJECT (none).
+// resumes. Else NULLOBJECT (none).
 static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
 {
     if (answer) *answer = NULLOBJECT;
@@ -793,56 +783,26 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     // the end of the clause, CALL ON HALT after it (the call answers .nil
     // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
     bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
-    // A SYNTAX: RaiseException, not RaiseConditionObject. The copy that
-    // RaiseConditionObject raises for a SYNTAX is held by nothing the
-    // collector marks while the native activation is popped (ooRexx #2132: a
-    // crash under threads, the family's finding); RaiseException's object is
-    // the activity's condition object. Its DESCRIPTION and RESULT are put into
-    // GetConditionInfo()'s object, the pending condition object itself
-    // (r13297): a workaround, until #2132 is in.
     // Any other condition: the condition object as it is (RFE #883,
-    // RaiseConditionObject, ooRexx r13329): ERROR and FAILURE with their RC,
+    // RaiseConditionObject, ooRexx r13329; for a SYNTAX safely since r13344,
+    // #2132): a SYNTAX with its DESCRIPTION, ERROR and FAILURE with their RC,
     // everything it holds.
-    if (halt) c->HaltThread();
-    else if (k.name == "SYNTAX")
-    {
-        RexxDirectoryObject o = (RexxDirectoryObject)k.object;
-        RexxObjectPtr additional = c->DirectoryAt(o, "ADDITIONAL");
-        RexxObjectPtr description = c->DirectoryAt(o, "DESCRIPTION");
-        RexxObjectPtr result = c->DirectoryAt(o, "RESULT");
-        c->RaiseException(k.code, additional && c->IsArray(additional) ? (RexxArrayObject)additional : NULLOBJECT);
-        RexxDirectoryObject raised = c->GetConditionInfo();
-        if (raised != NULLOBJECT)
-        {
-            if (description && description != c->Nil()) c->DirectoryPut(raised, description, "DESCRIPTION");
-            if (result && result != c->Nil()) c->DirectoryPut(raised, result, "RESULT");
-            c->ReleaseLocalReference(raised);
-        }
-    }
+    if (halt) haltBack(c);
     else if (c->functions->interfaceVersion < THREAD_INTERFACE_VERSION_5_3_0)       // (an ooRexx older than the minimum: no such entry)
         c->RaiseException1(Rexx_Error_Execution_user_defined,
-            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13329 or later to raise a Rexx condition again"));
+            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13344 or later to raise a Rexx condition again"));
     else
     {
         c->RaiseConditionObject((RexxDirectoryObject)k.object);
-        // RAISE ... RETURN's value: not in the condition object (ooRexx
-        // #2130), so the call's result kept with it is put into the pending
-        // copy as its RESULT (GetConditionInfo() answers that copy itself,
-        // r13297), which keeps it alive until the call returns. Workaround,
-        // to drop when #2130 is in.
+        // RAISE ... RETURN's value: what the native call answers, as plain
+        // Rexx gives it (ooRexx r13339, #2130, keeps it with the condition
+        // raised); held by an Array of this context until the call returns,
+        // since the global reference goes now
+        if (k.name != "SYNTAX" && k.returned && answer)
         {
-            RexxDirectoryObject raised = c->GetConditionInfo();
-            if (raised != NULLOBJECT)
-            {
-                RexxObjectPtr result = c->DirectoryAt(raised, "RESULT");
-                if ((result == NULLOBJECT || result == c->Nil()) && k.returned)
-                {
-                    c->DirectoryPut(raised, k.returned, "RESULT");
-                    result = k.returned;
-                }
-                if (answer && result != c->Nil()) *answer = result;
-                c->ReleaseLocalReference(raised);
-            }
+            RexxArrayObject keep = c->NewArray(1);
+            c->ArrayPut(keep, k.returned, 1);
+            *answer = k.returned;
         }
     }
     if (k.object) c->ReleaseGlobalReference(k.object);
@@ -943,9 +903,7 @@ static RexxObjectPtr netUnknown(RexxMethodContext *context, CSTRING name, RexxAr
 RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
 {
     findClasses(context);
-    RexxObjectPtr r = netUnknown(context, name, args);
-    reraiseSyntax(context->threadContext);
-    return r;
+    return netUnknown(context, name, args);
 }
 
 // NetObject~uninit: one Rexx proxy fewer for this handle.
@@ -965,12 +923,10 @@ RexxRoutine2(RexxObjectPtr, NetRequest, CSTRING, op, ARGLIST, args)
     record(req, 'S', op);
     size_t n = context->ArraySize(args);
     Refs refs;
-    for (size_t i = 2; i <= n; i++) if (!encode(c, context->ArrayAt(args, i), req, &refs)) { reraiseSyntax(c); return NULLOBJECT; }
+    for (size_t i = 2; i <= n; i++) if (!encode(c, context->ArrayAt(args, i), req, &refs)) return NULLOBJECT;
     std::string o(op);                              // .net~invoke(o, ...), .net~get, .net~set, events: o receives
     RexxObjectPtr receiver = (o == "send" || o == "set" || o == "event") && n >= 2 ? context->ArrayAt(args, 2) : NULLOBJECT;
-    RexxObjectPtr r = request(c, req, &refs, receiver);
-    reraiseSyntax(c);
-    return r;
+    return request(c, req, &refs, receiver);
 }
 
 // .NetCommandHandler~command(command, caller): native, so that no Rexx
@@ -978,9 +934,9 @@ RexxRoutine2(RexxObjectPtr, NetRequest, CSTRING, op, ARGLIST, args)
 // handler (oorexx-bridges, command handlers, lesson 1), and cheaper: the
 // request is made directly (its id, the command, the .CommandContext by
 // pointer: X), with none of encode's questions. A HALT that Rexx code the
-// handler called did not trap comes back as a halt of this thread
-// (raiseHeld: HaltThread), which the sender then gets, as a Ctrl-C; the
-// command's RC is 0 meanwhile.
+// handler called did not trap is given back to the issuer through its
+// context, caller~raise("HALT", 0) (haltBack): SIGNAL ON HALT traps it,
+// CALL ON HALT resumes with RC 0, untrapped SYNTAX 4.1.
 RexxMethod2(RexxObjectPtr, net_command, RexxObjectPtr, command, RexxObjectPtr, caller)
 {
     findClasses(context);
@@ -991,11 +947,17 @@ RexxMethod2(RexxObjectPtr, net_command, RexxObjectPtr, command, RexxObjectPtr, c
     record(req, 'S', "cmdRun");
     record(req, 'S', context->ObjectToStringValue(id));
     RexxStringObject s = context->ObjectToString(command);
-    if (s == NULLOBJECT || context->CheckCondition()) { reraiseSyntax(context->threadContext); return NULLOBJECT; }     // (a command whose own MAKESTRING or STRING raised: that condition)
+    if (s == NULLOBJECT || context->CheckCondition()) return NULLOBJECT;     // (a command whose own MAKESTRING or STRING raised: that condition)
     record(req, 'S', std::string(context->StringData(s), context->StringLength(s)));
     record(req, 'X', std::to_string((uintptr_t)caller));
+    RexxObjectPtr outerCaller = haltCaller;
+    haltCaller = caller;
     RexxObjectPtr r = request(context->threadContext, req);
-    if (context->CheckCondition()) { reraiseSyntax(context->threadContext); return NULLOBJECT; }
+    haltCaller = outerCaller;
+    // a condition raised again on the issuer: the call answers what the
+    // handler's Rexx code returned with it (RAISE ... RETURN: the RC, as a
+    // handler written in Rexx gives; ooRexx #2130 keeps it), else nothing
+    if (context->CheckCondition()) return r == context->Nil() ? NULLOBJECT : r;
     return r == NULLOBJECT || r == context->Nil() ? (RexxObjectPtr)context->WholeNumber(0) : r;
 }
 

@@ -155,6 +155,8 @@ static partial class Program
            rexx.Run("v = raising(); return 'went on:' v"), "went on: 7");
         Ok("... after CALL ON USER",
            rexx.Run("call on user x name h; v = raising(); return 'resumed:' v\nh: return"), "resumed: 7");
+        Ok("... trapped: the condition object has no RESULT, as plain Rexx",
+           rexx.Run("signal on user x; v = raising(); return 'not trapped'\nx: return condition('O')~result == .nil"), "1");
         // untrapped, a condition other than SYNTAX or HALT is ignored, as in
         // plain Rexx: the command goes on, its RC the RETURN value (what a
         // handler written in Rexx doing the same would answer)

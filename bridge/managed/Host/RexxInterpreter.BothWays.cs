@@ -122,11 +122,14 @@ public sealed unsafe partial class RexxInterpreter
     /// Callbacks.RaiseHeld) on this thread: for a condition other than SYNTAX
     /// or HALT, the value the Rexx code returned with it (RAISE ... RETURN),
     /// which plain Rexx gives the caller when the condition is not trapped or
-    /// a CALL ON resumes; 0 for none. It goes as the condition's RESULT, so
-    /// the pending condition object keeps it alive until the call returns.
+    /// a CALL ON resumes; 0 for none (held by an Array of the frame's context
+    /// until the native call returns).
     [ThreadStatic] internal static nint LastResult;
 
-    internal static bool RaiseAgain(RexxException e)
+    /// haltHere: false for a request's answer (K), whose HALT rexxnet gives
+    /// back itself (to a command's issuer through its context, else by
+    /// halting the thread: rexxnet.cpp's haltBack).
+    internal static bool RaiseAgain(RexxException e, bool haltHere = true)
     {
         LastWasHalt = false;
         LastResult = 0;
@@ -139,56 +142,33 @@ public sealed unsafe partial class RexxInterpreter
             // a HALT the Rexx code did not trap (ooRexx makes it SYNTAX 4.1):
             // a HALT again, by halting the thread, not RaiseCondition (an
             // untrapped HALT raised so is ignored): see rexxnet's raiseHeld
-            c.HaltThread();
+            if (haltHere) c.HaltThread();
             LastWasHalt = true;
             return true;
         }
-        // a SYNTAX: RaiseException, its DESCRIPTION and RESULT put into the
-        // pending condition object (ooRexx #2132: RaiseConditionObject's copy
-        // of a SYNTAX can be collected under threads; see rexxnet.cpp's
-        // raiseHeld); any other condition: the condition object as it is
-        // (RaiseConditionObject: a copy with everything it holds, the RC of
-        // an ERROR or FAILURE included)
-        if (e.Code.Length > 0 && e.Condition is { Disposed: false } syntax)
-        {
-            nint o = syntax.Live;
-            nint additional = c.DirectoryAt(o, "ADDITIONAL"), description = c.DirectoryAt(o, "DESCRIPTION"), result = c.DirectoryAt(o, "RESULT");
-            var parts = e.Code.Split('.');
-            c.RaiseException(long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0),
-                             additional != 0 && additional != c.Nil ? additional : c.NewArray(0));
-            nint raised = c.ConditionInfo();
-            if (raised != 0 && raised != c.Nil)
-            {
-                if (description != 0 && description != c.Nil) c.DirectoryPut(raised, description, "DESCRIPTION");
-                if (result != 0 && result != c.Nil) c.DirectoryPut(raised, result, "RESULT");
-                c.ReleaseLocal(raised);
-            }
-        }
-        else if (e.Condition is { Disposed: false } condition) c.RaiseConditionObject(condition.Live);
+        // the condition object as it is (RaiseConditionObject: a copy with
+        // everything it holds, the DESCRIPTION of a SYNTAX and the RC of an
+        // ERROR or FAILURE included; for a SYNTAX safely since ooRexx r13344,
+        // #2132; see rexxnet.cpp's raiseHeld)
+        if (e.Condition is { Disposed: false } condition) c.RaiseConditionObject(condition.Live);
         else if (e.Code.Length > 0)                 // (its condition object disposed by the application: what is known)
         {
             var parts = e.Code.Split('.');
             c.RaiseException(long.Parse(parts[0]) * 1000 + (parts.Length > 1 ? long.Parse(parts[1]) : 0), c.NewArray(0));
         }
         else c.RaiseCondition(e.ConditionName, 0, 0, 0);
-        if (e.Code.Length == 0)
+        // RAISE ... RETURN's value: what the native call answers, as plain
+        // Rexx gives it (ooRexx r13339, #2130, keeps it with the condition
+        // raised); held by an Array of the frame's context until the call
+        // returns
+        if (e.Code.Length == 0 && e.Returned != null)
         {
-            // RAISE ... RETURN's value: not in the condition object (ooRexx
-            // #2130), so the value the call returned is put into the pending
-            // copy as its RESULT (ConditionInfo answers that copy itself),
-            // which keeps it alive until the native call returns. Workaround,
-            // to drop when #2130 is in.
-            nint raised = c.ConditionInfo();
-            if (raised != 0 && raised != c.Nil)
+            nint result = Live(c, e.Returned);
+            if (result != 0 && result != c.Nil)
             {
-                nint result = c.DirectoryAt(raised, "RESULT");
-                if ((result == 0 || result == c.Nil) && e.Returned != null)
-                {
-                    result = Live(c, e.Returned);
-                    if (result != 0) c.DirectoryPut(raised, result, "RESULT");
-                }
-                if (result != 0 && result != c.Nil) LastResult = result;
-                c.ReleaseLocal(raised);
+                nint keep = c.NewArray(1);
+                c.ArrayPut(keep, result, 1);
+                LastResult = result;
             }
         }
         return true;
@@ -314,16 +294,16 @@ public sealed unsafe partial class RexxInterpreter
     // ------------------------------------------------------ .net from the start
 
     static bool netSetUp;
-    static readonly Dictionary<string, nint> builtIn = new();   // net.cls and CLR.CLS: global references
-
     /// One of the packages built into this assembly, loaded once for the
-    /// process under its name (LoadPackageFromData), so that ::requires finds
-    /// it without a file; 0 if it is not built in. A global reference.
+    /// process (SetUpNet) under its name (LoadPackageFromData), so that
+    /// ::requires finds it without a file; 0 if it is not built in. A local
+    /// reference. ooRexx keeps it loaded (before r13332 it forgot a package
+    /// loaded from data at a collection when nothing referred to it, #2108,
+    /// and a global reference kept each one).
     nint BuiltIn(Ctx c, string name)
     {
         lock (netGate)
         {
-            if (builtIn.TryGetValue(name, out nint kept)) return kept;
             using var s = typeof(Bridge).Assembly.GetManifestResourceStream(name);
             if (s == null) return 0;
             nint p = c.LoadPackageFromData(name, new StreamReader(s).ReadToEnd());
@@ -333,15 +313,7 @@ public sealed unsafe partial class RexxInterpreter
                 if (p != 0) c.ReleaseLocal(p);
                 throw new InvalidOperationException($"the built-in {name} could not be loaded: {e.Message}", e);
             }
-            if (p == 0) return 0;
-            // kept for the process: ooRexx forgets a package loaded from
-            // data when nothing refers to it (a collection, as when another
-            // instance terminates), and ::requires would then look for a file
-            // (ooRexx bug #2108; patch: patches/oorexx/package-from-data-cache.diff)
-            nint g = c.Global(p);
-            c.ReleaseLocal(p);
-            builtIn[name] = g;
-            return g;
+            return p;
         }
     }
 
@@ -424,8 +396,8 @@ public sealed unsafe partial class RexxInterpreter
             if (!Callbacks.Started) return;          // rexxnet had started a runtime of its own first
             c.RegisterLibrary("rexxnet", ((delegate* unmanaged<nint>)getPackage)());
             // net.cls requires logicalwrapper.cls: ooRexx's, found in its search path
-            nint net = BuiltIn(c, "net.cls");
-            BuiltIn(c, "CLR.CLS");
+            nint net = BuiltIn(c, "net.cls"), clr = BuiltIn(c, "CLR.CLS");
+            if (clr != 0) c.ReleaseLocal(clr);
             if (net == 0) return;
             nint k1 = c.FindPackageClass(net, "NETOBJECT"), k2 = c.FindPackageClass(net, "NETTYPE"),
                  k3 = c.FindPackageClass(net, "NETARRAY"), k4 = c.FindPackageClass(net, "NETENUM"),
@@ -434,6 +406,7 @@ public sealed unsafe partial class RexxInterpreter
                 Bridge.SetClasses(c.Global(k1), c.Global(k2), c.Global(k3), c.Global(k4), k5 != 0 ? c.Global(k5) : 0);
             c.ReleaseLocal(k1); c.ReleaseLocal(k2); c.ReleaseLocal(k3); c.ReleaseLocal(k4);
             if (k5 != 0) c.ReleaseLocal(k5);
+            c.ReleaseLocal(net);
         }
     }
 

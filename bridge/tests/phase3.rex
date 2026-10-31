@@ -299,7 +299,7 @@ call ok "... SIGNAL ON FAILURE, FAILURE", sendSignal(raiser, "FAILURE"), "FAILUR
 call ok "... SIGNAL ON USER, USER", sendSignal(raiser, "USER"), "USER OOPS a user condition a1"
 call ok "... the same from a .NetHandler's method (a delegate .NET calls)", sendSignal(raiser, "USER", "handler"), "USER OOPS a user condition a1"
 call ok "... NOTREADY from a .NetHandler's method", sendSignal(raiser, "NOTREADY", "handler"), "NOTREADY not ready a2"
-call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT", sendCmd(raiser, "halt"), "HALT"
+call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT", sendCmd(raiser, "halt"), "HALT send halt"
 call ok "... untrapped, the command: SYNTAX 4.1", sendCmdUntrapped(raiser), "SYNTAX 4.1"
 call ok "... NOTREADY, SIGNAL ON NOTREADY: as itself", sendCmd(raiser, "notready"), "NOTREADY not ready a2"
 call ok "... USER of Rexx code the handler runs", sendCmd(raiser, "", "user"), "USER OOPS from the handler"
@@ -308,6 +308,7 @@ call ok "... USER of Rexx code the handler runs", sendCmd(raiser, "", "user"), "
 call ok "RAISE ... RETURN, untrapped: .NET's call answers the value", returned(raiser, "send"), "1"
 call ok "... after CALL ON USER", returned(raiser, "send", "call on"), "handler 1"
 call ok "... from a .NetHandler's method", returned(raiser, "handler"), "1"
+call ok "... trapped, the condition object has no RESULT, as plain Rexx", noResult(raiser, "send") noResult(raiser, "handler") noResult(raiser, "rexx"), "1 1 1"
 
 -- ERROR's and FAILURE's RC: the condition object raised again as it is
 -- (RaiseConditionObject, ooRexx r13329), so the RC arrives as in plain Rexx:
@@ -466,6 +467,14 @@ reply: procedure expose dl          -- obj as a callback's reply ("text", "count
   replyTrap: c = condition("O")
   if c~condition == "SYNTAX" then return "SYNTAX" c~code
   return c~condition c~description
+noResult: procedure expose dl        -- RAISE USER ... RETURN, trapped by SIGNAL ON: 1 if condition("O") has no RESULT
+  use arg o, how
+  signal on user oops name noResultTrap
+  if how = "send" then x = dl~SendTo(o, "USER")
+  else if how = "handler" then x = dl~Text(.net~handler(o, "USER"))
+  else x = o~user
+  return "not trapped"
+  noResultTrap: return condition("O")~result == .nil
 conditionText: procedure            -- a condition object: its name, description and additional
   use arg o
   a = o~additional

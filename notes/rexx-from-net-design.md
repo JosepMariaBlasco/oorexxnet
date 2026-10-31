@@ -368,11 +368,15 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   the native call returns) and answered by the call: a .NET method's
   request (answer K, the pointer), a callback's (C), a host's function
   (`retc`); a host's command environment gets it as RC, as a handler
-  written in Rexx returning it would. Δ from plain Rexx: the caller's
-  condition object has `RESULT` set. Since r13329 the value is put into
-  the pending copy that `RaiseConditionObject` raised, only when it has no
-  `RESULT` of its own: the copy of a `RAISE ... RETURN` has none either
-  (ooRexx #2130); the workaround goes when #2130 is in. For a `.NetHandler` (a delegate that
+  written in Rexx returning it would. Until r13339 that was a workaround
+  (Δ: the caller's condition object had `RESULT` set): ooRexx lost the
+  value a native routine returned with a condition raised without a
+  `RESULT` (#2130). **Since the minimum r13344** (31/10/2026) the value is
+  only answered by the call (held by an Array of the call's context until
+  it returns), the condition object has no `RESULT`, as in plain Rexx
+  (`phase3.rex`, `HostTests`: one test each), and `net_command` answers it
+  with the condition pending (it used to answer nothing, the RC coming from
+  that `RESULT`). For a `.NetHandler` (a delegate that
   .NET calls, `List.Sort`'s comparer) the value is what the handler
   returned, answered by the .NET call that let the condition out: the
   nearest there is. Tests: `phase3.rex` (untrapped, `CALL ON`, a
@@ -402,6 +406,19 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   is SYNTAX 4.1, as in plain Rexx. Tests: `phase3.rex` (a command handler
   and a callback, the three cases), `HostTests` `HaltBackAsHalt` (a .NET
   command handler and a .NET function running `raise halt`).
+  **A command's HALT, since ooRexx r13334** (#2124: a halt posted on a
+  frame that is ending is no longer lost): halting the thread from a .NET
+  command handler halted the first clause after it, the core's own
+  `CommandContext~finish`, where the issuer's `SIGNAL ON HALT` does not
+  apply (an untrapped SYNTAX 4.1; measured on r13344, the issuer's tests
+  failed). Now a command's HALT is given back through its context,
+  `caller~raise("HALT", 0)`, the core's way and what a handler written in
+  Rexx does (rexxnet's `haltBack`, for `raiseHeld` and for the managed
+  side's answer K, whose `RaiseAgain` no longer halts the thread itself):
+  `SIGNAL ON HALT` traps it, its description the command, as a Rexx
+  handler's; `CALL ON HALT` resumes with RC 0; untrapped SYNTAX 4.1.
+  Callbacks and functions still halt the thread (no ending frame between
+  them and the caller).
 - **The handler's value is `RC` whatever its sign**, as before.
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing
@@ -1182,9 +1199,9 @@ case still open; item 6 changed later):
    object of a held condition, `RaiseAgain` takes the `RexxException`'s); a
    rexxnet loaded by an older ooRexx (no such entry: interface 104) raises
    a 98.900 that says so instead, and the host refuses to start on one.
-   **A SYNTAX still goes through `RaiseException` and the workaround
-   below** (29/10/2026, the family's decision, the same day r13329 was
-   adopted): the copy that `RaiseConditionObject` raises for a SYNTAX is
+   **From 29 to 31/10/2026 a SYNTAX went through `RaiseException` and
+   the workaround below** (the family's decision, the same day r13329 was
+   adopted; gone with the minimum r13344, which has #2132's fix): the copy that `RaiseConditionObject` raises for a SYNTAX is
    held by nothing the collector marks while the native activation is
    popped (`reraiseException` → `raisePropagate`, before the caller's
    `trap()` stores it), so a collection by another thread there takes it
@@ -1194,8 +1211,7 @@ case still open; item 6 changed later):
    threaded stress test (16 Rexx threads, 1000 callbacks each letting a
    SYNTAX through .NET, two threads allocating and forcing collections):
    no crash on either build, so the hole was not hit here; the family's
-   rule holds anyway. Back to `RaiseConditionObject` for SYNTAX when #2132
-   is in. **The older door of #2132**: a SYNTAX that Rexx code a native
+   rule held anyway. **The older door of #2132**: a SYNTAX that Rexx code a native
    method or routine called leaves pending, the native code returning with
    it untouched, goes back through the same `reraiseException`. rexxnet had
    such paths: `encode` stopping at a user's method that raised (lesson 7),
@@ -1204,7 +1220,8 @@ case still open; item 6 changed later):
    command whose own `MAKESTRING` raised. `net_unknown`, `NetRequest` and
    `net_command` now raise a pending SYNTAX again with `RaiseException`
    before they return (`reraiseSyntax`: DESCRIPTION and RESULT kept, as
-   `raiseHeld`); until #2132 is in. The host lets no callee's condition
+   `raiseHeld`), until r13344 (gone; the `VALUE=` loop still stops at the
+   first condition). The host lets no callee's condition
    through untouched: Rexx code it calls runs in a context of its own, and
    what comes back is raised again by `RaiseAgain`.
    *Before r13329, for every condition:* `RaiseException` / `RaiseCondition`, and a SYNTAX's
@@ -1401,6 +1418,11 @@ uses `.net`. That is what a package should spare its users, so:
   wrong for data: ooRexx bug
   [#2108](https://sourceforge.net/p/oorexx/bugs/2108/), reported with a
   reproducer and a patch, `patches/oorexx/package-from-data-cache.diff`.)
+  **Fixed in ooRexx r13332**: with the minimum at r13344 (31/10/2026) the
+  global references went (`BuiltIn` answers a local reference, released
+  once the classes are taken) and so did the diff; `HostTests` checks that
+  after another instance's end and more collections the packages are still
+  the built-in ones.
 - **`rexxnet` gets the managed entry points directly.** New export
   `RexxNetRegister(request, free, release, init, classes)`: the managed side,
   already running, hands over `Bridge.Request` and the rest, so `rexxnet`

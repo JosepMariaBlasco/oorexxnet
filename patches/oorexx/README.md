@@ -76,7 +76,12 @@ still fine and the process aborts as soon as another thread runs Rexx code
 (`terminate called after throwing an instance of 'ActivityException'`), so
 that particular mistake would also stop the rest of the suite.
 
-## `package-from-data-cache.diff` (09/10/2026, against trunk r13268)
+## `package-from-data-cache.diff` (09/10/2026, against trunk r13268) — removed
+
+**Fixed in ooRexx r13332** (test r13333, 30/10/2026), as **#2108**; the
+bridge's minimum is past it, so the diff was removed (in the history) and
+the global references that kept the built-in packages alive went with it.
+What follows is the record.
 
 Reported as **#2108** (<https://sourceforge.net/p/oorexx/bugs/2108/>,
 09/10/2026), from `sf-bug-report-datapackage.md`. Two files: `interpreter/package/PackageManager.cpp` and

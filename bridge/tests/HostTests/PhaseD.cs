@@ -26,6 +26,12 @@ static partial class Program
         using (var other = RexxInterpreter.Create())
             Ok("D: in another instance", other.Run("return .clr~new('System.Text.StringBuilder', 'abc')~Length\n::requires CLR.CLS"), "3");
         Ok("D: after it ended",       rexx.Run("return .clr~new('System.Text.StringBuilder', 'abcd')~Length\n::requires CLR.CLS"), "4");
+        // nothing of the bridge's keeps them alive (ooRexx r13332 keeps a
+        // package loaded from data, #2108): after more collections, still
+        // the built-in ones, not a file found on the search path
+        rexx.Run("do 300000; a = .array~new(5); end");
+        using (var other = RexxInterpreter.Create()) other.Run("return 1");
+        Ok("D: after collections, still built in", rexx.Run("return .CLR~package~name .NetObject~package~name\n::requires CLR.CLS\n::requires 'net.cls'"), "CLR.CLS net.cls");
         // RexxOptions.Net = false changes nothing once the packages are there
         using (var off = RexxInterpreter.Create(new RexxOptions { Net = false }))
             Ok("D: Net = false later",  off.Run("return .net~System~Math~Min(3, 7)\n::requires 'net.cls'"), "3");

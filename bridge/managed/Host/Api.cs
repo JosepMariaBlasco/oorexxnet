@@ -34,7 +34,7 @@ internal struct RexxOptionData
 internal static unsafe class Native
 {
     public const ushort REXX_VALUE_CSTRING = 15, REXX_VALUE_POINTER = 16;
-    public const long InstanceInterfaceVersion = 101, ThreadInterfaceVersion = 104;   // ooRexx 5.3.0 r13329 or later (RaiseConditionObject)
+    public const long InstanceInterfaceVersion = 101, ThreadInterfaceVersion = 104;   // RaiseConditionObject: ooRexx 5.3.0 r13329 or later (the minimum, r13344, is checked by install.rex)
 
     static Native()
     {
