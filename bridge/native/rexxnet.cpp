@@ -744,7 +744,9 @@ static thread_local RexxThreadContext *requesting = nullptr;
 // halting the thread. Since ooRexx r13334 (#2124) a halt posted on a frame
 // that is ending is no longer lost, so HaltThread here halted the first
 // clause after the handler, the core's own CommandContext~finish, where no
-// trap of the issuer's applies (an untrapped SYNTAX 4.1).
+// trap of the issuer's applies (an untrapped SYNTAX 4.1). ooRexx r13346
+// fixed that (the halt belongs to the native code's Rexx caller again);
+// caller~raise stays: it is the core's way for a command handler.
 static thread_local RexxObjectPtr haltCaller = NULLOBJECT;
 
 // A HALT given back to the Rexx code on this thread: to a command's issuer
@@ -790,7 +792,7 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     if (halt) haltBack(c);
     else if (c->functions->interfaceVersion < THREAD_INTERFACE_VERSION_5_3_0)       // (an ooRexx older than the minimum: no such entry)
         c->RaiseException1(Rexx_Error_Execution_user_defined,
-            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13344 or later to raise a Rexx condition again"));
+            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13346 or later to raise a Rexx condition again"));
     else
     {
         c->RaiseConditionObject((RexxDirectoryObject)k.object);

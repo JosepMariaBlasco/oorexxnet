@@ -10,9 +10,11 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13344 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13344 is the base of the
-  family of ooRexx bridges: from it a SYNTAX raised again by native code
+- **ooRexx 5.3.0 r13346 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13346 is the base of the
+  family of ooRexx bridges: it gives a halt asked for while native code runs
+  back to the Rexx code that called it (r13334 to r13345 could give it to
+  the next Rexx frame instead); from r13344 a SYNTAX raised again by native code
   cannot be collected under threads (#2132), a value returned with a
   condition is kept (#2130), a package loaded from data stays loaded
   (#2108), and a halt from another thread is not lost (#2124); r13329 can

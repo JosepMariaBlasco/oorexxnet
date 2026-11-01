@@ -418,7 +418,11 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   `SIGNAL ON HALT` traps it, its description the command, as a Rexx
   handler's; `CALL ON HALT` resumes with RC 0; untrapped SYNTAX 4.1.
   Callbacks and functions still halt the thread (no ending frame between
-  them and the caller).
+  them and the caller). ooRexx r13346 (the minimum since 01/11/2026) fixed
+  #2124's regression: a halt asked for while native code runs belongs to
+  its Rexx caller again; the context's way stays for commands (the core's,
+  and the family's: the other bridges moved to it too), and every test
+  passed unchanged on r13346.
 - **The handler's value is `RC` whatever its sign**, as before.
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing
