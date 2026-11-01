@@ -300,7 +300,7 @@ internal static unsafe class Exits
     }
 
     // The error, recorded on the context and raised when the exit returns.
-    // True when it was a HALT (the thread halted: the exit answers a value).
+    // True when it was a HALT (raised again: the exit answers a value).
     static bool Fail(Ctx c, Exception e)
     {
         RexxInterpreter.LastResult = 0;

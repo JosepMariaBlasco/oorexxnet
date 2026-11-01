@@ -675,7 +675,7 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             int raised = raiseHeld(c, atoi(field(payload, 0).c_str()), &answer);
             if (!raised)
                 c->RaiseException1(Rexx_Error_Execution_user_defined, c->String(payload.substr(payload.find('\t') + 1).c_str()));
-            return raised == 2 ? c->Nil() : answer;                // (a HALT: the thread halted, the call answers .nil)
+            return raised == 2 ? c->Nil() : answer;                // (a HALT: raised again, the call answers .nil)
         }
         case 'U':                                   // no such member: 97.1, the receiver, the name, the exception
         {
@@ -749,20 +749,34 @@ static thread_local RexxThreadContext *requesting = nullptr;
 // caller~raise stays: it is the core's way for a command handler.
 static thread_local RexxObjectPtr haltCaller = NULLOBJECT;
 
-// A HALT given back to the Rexx code on this thread: to a command's issuer
-// through its context, else by halting the thread (a Ctrl-C: SIGNAL ON HALT
-// traps it at the end of the clause, CALL ON HALT after it, untrapped SYNTAX
-// 4.1, as in plain Rexx).
+// A HALT given back to the Rexx code on this thread (oorexx-bridges, command
+// handlers, rule 1, revised): to a command's issuer through its context;
+// else raised, as RAISE HALT in Rexx would (SIGNAL ON HALT and CALL ON HALT
+// at the call, untrapped SYNTAX 4.1; the native call answers a value, .nil,
+// or CALL ON HALT would end in Error 44.1). A pending SYNTAX 4.1 (the halt as
+// ooRexx left it) is cleared first; any other pending condition stays, and the
+// halt goes by halting the thread instead (a Ctrl-C: CALL ON HALT after the
+// next clause, no description).
 static void haltBack(RexxThreadContext *c)
 {
-    if (haltCaller) c->SendMessage2(haltCaller, "RAISE", c->String("HALT"), c->WholeNumber(0));
-    else c->HaltThread();
+    if (haltCaller) { c->SendMessage2(haltCaller, "RAISE", c->String("HALT"), c->WholeNumber(0)); return; }
+    if (c->CheckCondition())
+    {
+        RexxDirectoryObject k = c->GetConditionInfo();
+        RexxObjectPtr name = k ? c->DirectoryAt(k, "CONDITION") : NULLOBJECT;
+        RexxObjectPtr code = k ? c->DirectoryAt(k, "CODE") : NULLOBJECT;
+        if (name && code && strcmp(c->ObjectToStringValue(name), "SYNTAX") == 0
+                         && strcmp(c->ObjectToStringValue(code), "4.1") == 0)
+            c->ClearCondition();
+        else { c->HaltThread(); return; }
+    }
+    c->RaiseCondition("HALT", NULLOBJECT, NULLOBJECT, NULLOBJECT);
 }
 
 // A Rexx condition that a callback's Rexx code raised, kept by its id (the
 // callback's answer E), raised again on c: by a response C, or by the managed
 // side directly (a command handler, which no request answers). 0 if no such id,
-// 2 if it was a HALT (raised by halting the thread: see below), else 1.
+// 2 if it was a HALT (given back by haltBack: see below), else 1.
 // *answer: what the native call answers, for a condition other than SYNTAX
 // or HALT the value the Rexx code returned with it (RAISE ... RETURN), which
 // plain Rexx gives the caller when the condition is not trapped or a CALL ON
@@ -779,11 +793,8 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     if (k.id == 0) return 0;
     // SYNTAX 4.1 ("Program interrupted with HALT condition") is what ooRexx
     // makes of a HALT the callback's Rexx code did not trap: the Rexx caller
-    // gets a HALT again (oorexx-bridges, command handlers, rule 1). Not
-    // RaiseCondition: an untrapped HALT raised so is ignored and the halt
-    // lost. HaltThread is a Ctrl-C on this thread: SIGNAL ON HALT traps it at
-    // the end of the clause, CALL ON HALT after it (the call answers .nil
-    // meanwhile), and untrapped it is SYNTAX 4.1, as in plain Rexx.
+    // gets a HALT again (oorexx-bridges, command handlers, rule 1), raised
+    // by haltBack, and the call answers .nil.
     bool halt = k.name == "SYNTAX" && k.code == Rexx_Error_Program_interrupted_condition;
     // Any other condition: the condition object as it is (RFE #883,
     // RaiseConditionObject, ooRexx r13329; for a SYNTAX safely since r13344,

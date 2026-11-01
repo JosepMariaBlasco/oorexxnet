@@ -88,7 +88,7 @@ public static unsafe class Callbacks
         RexxInterpreter.LastResult = 0;
         if (e.ConditionId <= 0 || nativeRaiseHeld == null) return false;
         nint answer;
-        int raised = nativeRaiseHeld(tc, e.ConditionId, &answer);     // 2: a HALT, the thread halted
+        int raised = nativeRaiseHeld(tc, e.ConditionId, &answer);     // 2: a HALT, given back (rexxnet haltBack)
         RexxInterpreter.LastWasHalt = raised == 2;
         RexxInterpreter.LastResult = answer;                          // (a RAISE ... RETURN value, or 0)
         return raised != 0;

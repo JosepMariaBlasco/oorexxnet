@@ -271,10 +271,11 @@ SYNTAX 98.900, the exception in
 Rexx code the handler called does not trap (ooRexx makes it SYNTAX 4.1 on
 the way out) is a HALT again in the code that sent the command:
 <literal>SIGNAL ON HALT</literal> traps it, <literal>CALL ON HALT</literal>
-runs, and untrapped it is SYNTAX 4.1, as a Ctrl-C would be. Any other
-condition that such Rexx code lets out (<literal>RAISE USER</literal>,
-NOTREADY, ERROR, FAILURE) is raised again as itself, with its description
-and additional object, though not its <literal>RC</literal>; untrapped, it is
+runs with <literal>RC</literal> 0, and untrapped it is SYNTAX 4.1, as with a
+handler written in Rexx. Any other condition that such Rexx code lets out
+(<literal>RAISE USER</literal>, NOTREADY, ERROR, FAILURE) is raised again as
+itself, with its description, additional object and, for ERROR and FAILURE,
+its <literal>RC</literal>; untrapped, it is
 ignored and the code goes on, as in plain Rexx.</para></listitem>
 <listitem><para>Its output and errors go to the context's streams, which
 exist with <literal>ADDRESS ... WITH</literal>; without it, the handler

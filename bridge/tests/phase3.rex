@@ -270,17 +270,19 @@ call ok "... a .NET error is still 98.900", errorSyntax~call("throw"), "syntax 9
 call ok "... an RC as without it", errorSyntax~call("2+3"), "rc 5"
 
 -- A HALT that the handler's (or a callback's) Rexx code does not trap reaches
--- the bridge as SYNTAX 4.1; the sender gets a HALT again, by halting the
--- thread (oorexx-bridges, command handlers, rule 1): SIGNAL ON HALT traps it,
--- CALL ON HALT runs after the next clause, untrapped it is SYNTAX 4.1.
+-- the bridge as SYNTAX 4.1; the sender gets a HALT again (oorexx-bridges,
+-- command handlers, rule 1): through the command's context (RC 0), raised
+-- for a callback, as RAISE HALT would: SIGNAL ON HALT traps it, CALL ON HALT
+-- runs (for a callback at the call: haltOrder), untrapped it is SYNTAX 4.1.
 halting = .net~type("System.Collections.Generic.List<int>")~new; halting~Add(2); halting~Add(1)
 haltCmp = .net~handler(.HaltTester~new, "HALTCOMPARE")
 call ok "a HALT from a command handler: SIGNAL ON HALT", haltSignalCmd(), "HALT"
-call ok "... CALL ON HALT, after the next clause", haltCallCmd(), "0 1"
+call ok "... CALL ON HALT, RC 0", haltCallCmd(), "0 1"
 call ok "... untrapped: SYNTAX 4.1", haltUntrappedCmd(), "SYNTAX 4.1"
 call ok "a HALT from a callback: SIGNAL ON HALT", haltSignalCb(halting, haltCmp), "HALT"
-call ok "... CALL ON HALT, after the next clause", haltCallCb(halting, haltCmp), "1"
+call ok "... CALL ON HALT", haltCallCb(halting, haltCmp), "1"
 call ok "... untrapped: SYNTAX 4.1", haltUntrappedCb(halting, haltCmp), "SYNTAX 4.1"
+call ok "... CALL ON HALT: when the handler runs (callback)", haltOrder("callback", halting, haltCmp), "halt after"
 
 -- A message that .NET sends (RexxObject.Send) to a Rexx method raising a
 -- condition other than SYNTAX, while Rexx code waits for .NET: ooRexx looked
@@ -299,6 +301,8 @@ call ok "... SIGNAL ON FAILURE, FAILURE", sendSignal(raiser, "FAILURE"), "FAILUR
 call ok "... SIGNAL ON USER, USER", sendSignal(raiser, "USER"), "USER OOPS a user condition a1"
 call ok "... the same from a .NetHandler's method (a delegate .NET calls)", sendSignal(raiser, "USER", "handler"), "USER OOPS a user condition a1"
 call ok "... NOTREADY from a .NetHandler's method", sendSignal(raiser, "NOTREADY", "handler"), "NOTREADY not ready a2"
+call ok "CALL ON HALT, a .NET method sends to a method raising HALT: at the call", haltOrder("send", , , raiser), "halt after .nil"
+call ok "... from a .NetHandler's method", haltOrder("handler", , , raiser), "halt after .nil"
 call ok "a .NET command handler sends to a method raising HALT: SIGNAL ON HALT", sendCmd(raiser, "halt"), "HALT send halt"
 call ok "... untrapped, the command: SYNTAX 4.1", sendCmdUntrapped(raiser), "SYNTAX 4.1"
 call ok "... NOTREADY, SIGNAL ON NOTREADY: as itself", sendCmd(raiser, "notready"), "NOTREADY not ready a2"
@@ -389,6 +393,21 @@ haltCallCb: use arg l, cmp; halted = 0; call on halt name haltSeen; l~Sort(cmp);
 haltUntrappedCb: use arg l, cmp; signal on syntax name haltUntrappedCbTrap; l~Sort(cmp); return "nothing"
   haltUntrappedCbTrap: return "SYNTAX" condition("O")~code
 haltSeen: halted = 1; return
+haltOrder: procedure expose dl      -- when CALL ON HALT's handler runs: at the call, as RAISE HALT's (a Ctrl-C's: after the next clause)
+  use arg how, l, cmp, raiser
+  seen = ""; x = "unset"
+  call on halt name haltOrderSeen
+  select
+    when how = "callback" then l~Sort(cmp)
+    when how = "send" then x = dl~SendTo(raiser, "HALT")
+    when how = "handler" then x = dl~Text(.net~handler(raiser, "HALT"))
+  end
+  seen = seen "after"
+  nop
+  if how = "callback" then return strip(seen)
+  if x == .nil then x = ".nil"
+  return strip(seen) x
+  haltOrderSeen: seen = seen "halt"; return
 rcOf: procedure expose dl            -- the variable RC and the condition object's, a condition raised past .NET (raiser: the command handler reads it)
   use arg raiser, cond, how, trap = ""
   .local~handled = ""

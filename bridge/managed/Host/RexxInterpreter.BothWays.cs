@@ -115,7 +115,7 @@ public sealed unsafe partial class RexxInterpreter
     /// Rexx code that called .NET on this thread: recorded on its context and
     /// raised when the native call returns (never an unwinding API: see
     /// "Phase B: built", item 4). False when no Rexx code waits here.
-    /// Whether the last RaiseAgain on this thread halted it (a HALT): the
+    /// Whether the last RaiseAgain on this thread gave a HALT back: the
     /// native call then answers .nil, so that CALL ON HALT resumes the clause.
     [ThreadStatic] internal static bool LastWasHalt;
     /// What the native call answers after the last RaiseAgain (or
@@ -127,8 +127,8 @@ public sealed unsafe partial class RexxInterpreter
     [ThreadStatic] internal static nint LastResult;
 
     /// haltHere: false for a request's answer (K), whose HALT rexxnet gives
-    /// back itself (to a command's issuer through its context, else by
-    /// halting the thread: rexxnet.cpp's haltBack).
+    /// back itself (to a command's issuer through its context, else raised:
+    /// rexxnet.cpp's haltBack).
     internal static bool RaiseAgain(RexxException e, bool haltHere = true)
     {
         LastWasHalt = false;
@@ -140,9 +140,12 @@ public sealed unsafe partial class RexxInterpreter
         if (e.Code == "4.1")
         {
             // a HALT the Rexx code did not trap (ooRexx makes it SYNTAX 4.1):
-            // a HALT again, by halting the thread, not RaiseCondition (an
-            // untrapped HALT raised so is ignored): see rexxnet's raiseHeld
-            if (haltHere) c.HaltThread();
+            // a HALT again, raised, as RAISE HALT in Rexx would (oorexx-
+            // bridges, command handlers, rule 1, revised; the native call
+            // answers .nil: see rexxnet's haltBack). A pending SYNTAX 4.1 is
+            // cleared first; another pending condition stays, and the halt
+            // goes by halting the thread instead (a Ctrl-C).
+            if (haltHere) HaltBack(c);
             LastWasHalt = true;
             return true;
         }
@@ -172,6 +175,18 @@ public sealed unsafe partial class RexxInterpreter
             }
         }
         return true;
+    }
+
+    static void HaltBack(Ctx c)
+    {
+        if (c.CheckCondition())
+        {
+            nint k = c.ConditionInfo();
+            nint name = k != 0 ? c.DirectoryAt(k, "CONDITION") : 0, code = k != 0 ? c.DirectoryAt(k, "CODE") : 0;
+            if (name != 0 && code != 0 && c.ToStr(name) == "SYNTAX" && c.ToStr(code) == "4.1") c.ClearCondition();
+            else { c.HaltThread(); return; }
+        }
+        c.RaiseCondition("HALT", 0, 0, 0);
     }
 
     // A condition object's entry as a Rexx object pointer (0 for none, .nil).

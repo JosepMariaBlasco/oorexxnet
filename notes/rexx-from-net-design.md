@@ -399,11 +399,11 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   command handler and a `List.Sort` comparator, both `raise halt`). Now
   SYNTAX 4.1 is raised again by halting the thread (`HaltThread`; rexxnet's
   `raiseHeld`, the host's `RaiseAgain`), not with `RaiseCondition`, which
-  ooRexx ignores for an untrapped HALT: `SIGNAL ON HALT` traps it at the end
-  of the clause, `CALL ON HALT` after the next clause (the native call, the
-  command or the function answers `.nil` / RC 0 meanwhile, so the clause can
-  resume: a function exit that answered nothing was 44.1), and untrapped it
-  is SYNTAX 4.1, as in plain Rexx. Tests: `phase3.rex` (a command handler
+  ooRexx then ignored for an untrapped HALT: `SIGNAL ON HALT` traps it at the
+  end of the clause, `CALL ON HALT` after the next clause (the native call,
+  the command or the function answers `.nil` / RC 0 meanwhile, so the clause
+  can resume: a function exit that answered nothing was 44.1), and untrapped
+  it is SYNTAX 4.1, as in plain Rexx. (Until 01/11/2026; now raised, below.) Tests: `phase3.rex` (a command handler
   and a callback, the three cases), `HostTests` `HaltBackAsHalt` (a .NET
   command handler and a .NET function running `raise halt`).
   **A command's HALT, since ooRexx r13334** (#2124: a halt posted on a
@@ -417,12 +417,27 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   side's answer K, whose `RaiseAgain` no longer halts the thread itself):
   `SIGNAL ON HALT` traps it, its description the command, as a Rexx
   handler's; `CALL ON HALT` resumes with RC 0; untrapped SYNTAX 4.1.
-  Callbacks and functions still halt the thread (no ending frame between
-  them and the caller). ooRexx r13346 (the minimum since 01/11/2026) fixed
+  Callbacks and functions halted the thread (no ending frame between
+  them and the caller) until 01/11/2026 (below). ooRexx r13346 (the minimum since 01/11/2026) fixed
   #2124's regression: a halt asked for while native code runs belongs to
   its Rexx caller again; the context's way stays for commands (the core's,
   and the family's: the other bridges moved to it too), and every test
   passed unchanged on r13346.
+  **Functions, methods and callbacks raise the HALT** (01/11/2026, the
+  family's rule 1 revised): `RaiseCondition("HALT")` and the call answers
+  `.nil`, as `raise halt ... return` in Rexx (rexxnet's `haltBack`, the
+  host's `HaltBack` in `RaiseAgain`). An untrapped HALT raised so is no
+  longer ignored (measured by the family on r13344 and r13346: Error 4.1),
+  and `CALL ON HALT` now runs at the call, not after the next clause (a
+  Ctrl-C's timing): changed for a .NET function the host adds (`HostTests`,
+  the test "the handler runs at the call"); a request answered from rexxnet
+  (a callback, `RexxObject.Send`, a `.NetHandler`'s method) already ran it
+  at the call with `HaltThread` (the halt is seen as the native method's
+  activation ends) and still does (`phase3.rex`, `haltOrder`, three cases).
+  The description: none (SYNTAX 4.1 has lost it). A pending SYNTAX 4.1 is
+  cleared first (none was seen: instrumented, every case raised directly);
+  another pending condition stays and the halt goes by `HaltThread()`, the
+  fallback. Commands unchanged (`caller~raise("HALT", 0)`).
 - **The handler's value is `RC` whatever its sign**, as before.
 - **Output and error without `WITH`** go to `Console.Out` / `Console.Error`
   (the write methods still answer `false`: not redirected). Before, nothing
@@ -602,9 +617,10 @@ design kept (the core's context, option (A)):
 - **`.NetCommandHandler~command` is native** (`rexxnet`'s `net_command`):
   the request made directly (the id, the command, the context by pointer:
   X), with no Rexx activation between the sender and the handler (the
-  Lua bridge's lesson 1 too). A HALT given back halts the thread
-  (`raiseHeld`), so the sender gets it as from a Ctrl-C (the three cases
-  tested as before); a released handler answers FAILURE RC 30 (tested).
+  Lua bridge's lesson 1 too). A HALT given back halted the thread
+  (`raiseHeld`), so the sender got it as from a Ctrl-C (the three cases
+  tested as before; since r13344 through the command's context instead,
+  below); a released handler answers FAILURE RC 30 (tested).
 
 Measured, the same machine, alternating, best of 6 × 100 000: a command to
 a .NET handler **16.2 → 7.6 µs**; one whose handler asks its context once
