@@ -128,3 +128,18 @@ CASE value while the expression is evaluated, as the DO instructions do.
 expression into a variable first (`caseOf = expr`, `select case caseOf`):
 a plain variable allocates nothing. The workaround went when the bridge's
 minimum became r13270.
+
+## `ole-events.diff` (10/10/2026, against trunk r13268) — removed
+
+Reported as **#2109** (<https://sourceforge.net/p/oorexx/bugs/2109/>,
+10/10/2026): `.OLEObject` event methods got their arguments in reverse
+order, and a value returned for an [in, out] parameter (ADO's `adStatus`)
+crashed the interpreter instead of going back through the parameter's
+pointer. One file, `extensions/platform/windows/ole/events.cpp`; checked by
+a workflow that built ooRexx from SVN on Windows (unpatched, then patched).
+**Fixed in ooRexx r13353** (tests r13354, r13357, `OLEObject.testGroup`):
+this patch plus two small changes (an explicit `.nil` in an Array returned
+for several out parameters leaves that parameter alone; a `VT_DECIMAL` one
+gets `wReserved = 0`). The bridge's minimum is past it (r13358), so the
+diff, its reproducers, its report and the workflow were removed (in the
+history); `samples/office/excel-events-ole.rex` no longer tolerates it.
