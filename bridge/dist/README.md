@@ -10,9 +10,11 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13358 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13358 is the base of the
-  family of ooRexx bridges: from r13348 an instance ends properly after
+- **ooRexx 5.3.0 r13365 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13365 is the base of the
+  family of ooRexx bridges: from r13365 a condition raised twice in one
+  clause under `CALL ON` no longer crashes the interpreter (#2084); from
+  r13363 built-in functions raise their own errors, 40.xxx (#2136); from r13348 an instance ends properly after
   `DetachThread` (#2107), from r13353 `.OLEObject` events give an out
   parameter back and pass their arguments in order (#2109), from r13355
   other Rexx threads run while rxapi is slow (#2115); r13346 gives a halt asked for while native code runs

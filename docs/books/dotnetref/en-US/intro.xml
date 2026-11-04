@@ -74,11 +74,14 @@ Console.WriteLine($"{d.items} {d.name}");</programlisting>
 
 <section id="introRequirements"><title>Requirements</title>
 <indexterm><primary>requirements</primary></indexterm>
-<para><emphasis role="bold">ooRexx 5.3.0 r13358 or later, 64-bit</emphasis>
+<para><emphasis role="bold">ooRexx 5.3.0 r13365 or later, 64-bit</emphasis>
 (a trunk build until 5.3.0 is released). The bridge uses only ooRexx's public
 native API: the interpreter needs no change, and the bridge is an extension
-package, as <literal>rxsock</literal> or BSF4ooRexx are. r13358 is the base
-of the family of ooRexx bridges: from r13348 an instance ends properly after
+package, as <literal>rxsock</literal> or BSF4ooRexx are. r13365 is the base
+of the family of ooRexx bridges: from r13365 a condition raised twice in one
+clause under <literal>CALL ON</literal> no longer crashes the interpreter
+(#2084); from r13363 built-in functions raise their own errors, 40.xxx
+(#2136); from r13348 an instance ends properly after
 <literal>DetachThread</literal> (#2107), from r13353
 <literal>.OLEObject</literal> events give an out parameter back and pass
 their arguments in order (#2109), from r13355 other Rexx threads run while
