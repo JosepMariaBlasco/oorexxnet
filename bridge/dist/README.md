@@ -10,9 +10,12 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13365 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13365 is the base of the
-  family of ooRexx bridges: from r13365 a condition raised twice in one
+- **ooRexx 5.3.0 r13379 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13379 is the base of the
+  family of ooRexx bridges: from r13374 `.OLEObject`'s error 92.909 names
+  the right argument and a long COM exception text no longer overflows
+  (#2137, #2138); from r13377 the stream functions check their position and
+  count (#2011, #2014); from r13365 a condition raised twice in one
   clause under `CALL ON` no longer crashes the interpreter (#2084); from
   r13363 built-in functions raise their own errors, 40.xxx (#2136); from r13348 an instance ends properly after
   `DetachThread` (#2107), from r13353 `.OLEObject` events give an out

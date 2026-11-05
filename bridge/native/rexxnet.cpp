@@ -803,7 +803,7 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     if (halt) haltBack(c);
     else if (c->functions->interfaceVersion < THREAD_INTERFACE_VERSION_5_3_0)       // (an ooRexx older than the minimum: no such entry)
         c->RaiseException1(Rexx_Error_Execution_user_defined,
-            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13365 or later to raise a Rexx condition again"));
+            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13379 or later to raise a Rexx condition again"));
     else
     {
         c->RaiseConditionObject((RexxDirectoryObject)k.object);

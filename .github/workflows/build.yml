@@ -2,7 +2,10 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13365 (the family's base: #2084 in
+# revision: the bridge needs at least r13379 (the family's base: #1890 in
+# r13379; #2011 and #2014 in r13377, the stream functions check their
+# position and count; #2009 in r13375; #2137 and #2138 in r13371-r13374,
+# .OLEObject's error texts; #1317 in r13369; #2018 in r13367; #2084 in
 # r13365, a condition raised twice in one clause under CALL ON; #2136 in
 # r13363, built-in functions raise their own 40.xxx errors; #2134 in r13361;
 # #2075 in r13360; #2135 in
@@ -44,7 +47,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13365"
+  OOREXX_REV: "13379"
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
