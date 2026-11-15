@@ -128,8 +128,8 @@ static partial class Program
         var items = (RexxObject)rexx.Run("use arg o; return .array~of(o, 'x')", sb)!;
         Ok("C: foreach gives the object",   ReferenceEquals(items.First(), sb), true);
         Ok("C: Send<T> gives the object",   ReferenceEquals(items.Send<StringBuilder>("AT", 1), sb), true);
-        Ok("C: a .NET error in Rexx",       rexx.Run<string>("use arg sb; signal on syntax; sb~Insert(99, 'x'); return 'no'; " +
-                                                             "syntax: return condition('O')~code", sb), "98.900");
+        Ok("C: a .NET error in Rexx",       rexx.Run<string>("use arg sb; do; sb~Insert(99, 'x'); return 'no'; " +
+                                                             "catch syntax; return condition('O')~code; end", sb), "98.900");
     }
 
     // Rexx code calling this host's .NET code: Rexx objects, nesting, errors
@@ -158,15 +158,15 @@ static partial class Program
 
         // a Rexx error in Rexx code that .NET called comes back to Rexx as it was
         var account = FindAccount(rexx).New(10)!;
-        Ok("C: Rexx error raised again",    rexx.Run<string>($"use arg a; signal on syntax; {H}~Withdraw(a, 100); return 'no'; " +
-                                                             "syntax: return condition('O')~code condition('O')~message", account),
+        Ok("C: Rexx error raised again",    rexx.Run<string>($"use arg a; do; {H}~Withdraw(a, 100); return 'no'; " +
+                                                             "catch c = syntax; return c~code c~message; end", account),
                                             "88.900 insufficient funds: 10.");
         try { rexx.Run($"use arg a; {H}~Withdraw(a, 100)", account); Ok("C: untrapped, to the host", "no exception", "88.900"); }
         catch (RexxException e) { Ok("C: untrapped, to the host", e.Code + " " + e.Message, "88.900 insufficient funds: 10."); }
-        Ok("C: through a wrapping exception", rexx.Run<string>($"use arg a; signal on syntax; {H}~Wrapped(a); return 'no'; " +
-                                                               "syntax: return condition('O')~code condition('O')~message", account),
+        Ok("C: through a wrapping exception", rexx.Run<string>($"use arg a; do; {H}~Wrapped(a); return 'no'; " +
+                                                               "catch c = syntax; return c~code c~message; end", account),
                                               "88.900 insufficient funds: 10.");
-        Ok("C: .NET catches a nested error", rexx.Run<string>($"signal on syntax; r = {H}~Catches; return r; syntax: return 'error'"),
+        Ok("C: .NET catches a nested error", rexx.Run<string>($"do; r = {H}~Catches; return r; catch syntax; return 'error'; end"),
                                              "caught 40.1, then 7");
 
         // 98.900 round trip: a .NET exception thrown under Rexx code, back in .NET

@@ -99,19 +99,21 @@ exit .fails > 0
 
 ::routine code
   use arg code
-  signal on syntax
-  interpret code
-  return "no error"
-syntax:
-  return condition("O")~code
+  do
+    interpret code
+    return "no error"
+  catch syntax
+    return condition("O")~code
+  end
 
 ::routine message
   use arg code
-  signal on syntax
-  interpret code
-  return "no error"
-syntax:
-  return condition("O")~message
+  do
+    interpret code
+    return "no error"
+  catch syntax
+    return condition("O")~message
+  end
 
 ::class Account
 ::attribute balance get

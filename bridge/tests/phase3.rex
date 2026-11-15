@@ -183,26 +183,30 @@ call ok "released: -= finds it", b~ClickSubscribers, 0
 call reg "CALC", dl~Calc
 address calc "2+3"; call ok "command: RC", rc, 5
 address calc "nothing"; call ok "no result: RC 0", rc, 0
-signal on error name rcSign; signal on failure name rcSign
-address calc "minus"; call ok "RC -3 raises nothing", rc, -3
-rcSign: signal off error; signal off failure
+do
+  address calc "minus"; call ok "RC -3 raises nothing", rc, -3
+catch error, failure
+  call ok "RC -3 raises nothing", condition("C"), "nothing"
+end
 call ok "a .NET error: SYNTAX 98.900", code('address calc "throw"'), "98.900"
 call ok "... the exception, additional[2]", code('address calc "throw"', 2), "System.FormatException"
 call ok "a Rexx error: itself", code('address calc "divide"'), "42.3"
 o = .array~new; address calc "lines" with output using (o)
 call ok "WITH OUTPUT (caller~output)", o~makeString("l", ","), "one,two"
 call ok "WITHOUT it: caller~output is SYNTAX 98.900, as ooRexx's", code('address calc "lines"'), "98.900"
-signal on error name calcError
-address calc "error"
-call ok "caller~raiseError: ERROR", "none", "ERROR"
-calcError: signal off error
-call ok "... its rc", condition("C") rc, "ERROR 5"
-signal on failure name calcFailure
+do
+  address calc "error"
+  call ok "caller~raiseError: ERROR", "none", "ERROR"
+catch error
+  call ok "... its rc", condition("C") rc, "ERROR 5"
+end
 trace off
-address calc "failure"
-call ok "caller~raise FAILURE: FAILURE", "none", "FAILURE"
-calcFailure: signal off failure
-call ok "... rc, description, additional", condition("C") rc condition("D") condition("A"), "FAILURE -3 it could not run the additional"
+do
+  address calc "failure"
+  call ok "caller~raise FAILURE: FAILURE", "none", "FAILURE"
+catch failure
+  call ok "... rc, description, additional", condition("C") rc condition("D") condition("A"), "FAILURE -3 it could not run the additional"
+end
 trace normal
 v = "issuer's"; drop nope; drop gone; gone = "x"
 address calc "vars"; call ok "the variables: [], hasVar, a name with no value, environment", rc, "issuer's True False NOPE CALC"
@@ -236,19 +240,21 @@ address stack "x"; call ok "registered again after deregister", rc, "X"
 call ok "the bridge's own entry is not among the environments", -
         .CommandHandler~environments~allIndexes~makeString("l", " ")~pos("REXXNET") == 0, 1
 gone = .NetCommandHandler~new(dl~Upper); .CommandHandler~register("GONE", gone); gone~release
-signal on failure name goneTrap
-address gone "x"
-call ok "a released .NetCommandHandler: FAILURE", "none", "FAILURE"
-goneTrap: signal off failure
-call ok "... RC 30, as an unknown environment", condition("C") rc, "FAILURE 30"
+do
+  address gone "x"
+  call ok "a released .NetCommandHandler: FAILURE", "none", "FAILURE"
+catch failure
+  call ok "... RC 30, as an unknown environment", condition("C") rc, "FAILURE 30"
+end
 .CommandHandler~deregister("GONE")
 .CommandHandler~deregister("STACK")
 .CommandHandler~deregister("calc")
-signal on failure name removed
-address calc "2+3"
-call ok "deregistered: FAILURE", "none", "FAILURE"
-removed: signal off failure
-call ok "deregistered: FAILURE RC 30, as unknown", condition("C") rc condition("D"), "FAILURE 30 2+3"
+do
+  address calc "2+3"
+  call ok "deregistered: FAILURE", "none", "FAILURE"
+catch failure
+  call ok "deregistered: FAILURE RC 30, as unknown", condition("C") rc condition("D"), "FAILURE 30 2+3"
+end
 call err "a .nil handler: SYNTAX", '.NetCommandHandler~new(.nil)', "the handler is .nil"
 call ok "... 93.900", code('.NetCommandHandler~new(.nil)'), "93.900"
 call err "not a handler", '.NetCommandHandler~new("text")', "must be a .NET delegate taking the command and a"
@@ -378,6 +384,73 @@ call ok "... a .NetTyped subclass's VALUE", encoded(.MyTyped~new("SYNTAX")), "93
 call ok "... its KIND", encoded(.MyTyped~new("KIND")), "93.900 kind says no"
 call ok "a .NetRef subclass whose own VALUE= raises, for an out parameter: that condition", outParam(), "93.900 value= says no"
 
+-- CATCH clauses (ooRexx r13514, RFE #31): a block's CATCH clause catches
+-- what crosses the bridge, as SIGNAL ON traps it above
+do
+  dl~Throw("nope")
+  call ok "CATCH: a .NET exception", "not caught", "caught"
+catch e = syntax
+  call ok "CATCH: a .NET exception, SYNTAX 98.900", e~code condition("I"), "98.900 CATCH"
+  call ok "... additional[2] the exception", .net~typeOf(e~additional[2]) e~additional[2]~Message, "System.IO.FileNotFoundException nope"
+  call ok "... the variable: the condition object", e~condition e~instruction (e~message == condition("O")~message), "SYNTAX CATCH 1"
+end
+call ok "CATCH USER, a .NET method sends to a method raising it", caught(raiser, "USER"), "CATCH USER OOPS a user condition a1"
+call ok "... NOTREADY", caught(raiser, "NOTREADY"), "CATCH NOTREADY not ready a2"
+call ok "... ERROR, its RC", caught(raiser, "ERROR"), "CATCH ERROR an error a3 rc 3 3"
+call ok "... FAILURE, its RC", caught(raiser, "FAILURE"), "CATCH FAILURE a failure a4 rc 4 4"
+call ok "... USER from a .NetHandler's method", caught(raiser, "USER", "handler"), "CATCH USER OOPS a user condition a1"
+call ok "... NOTREADY from a .NetHandler's method", caught(raiser, "NOTREADY", "handler"), "CATCH NOTREADY not ready a2"
+call ok "... ERROR from a .NetHandler's method, its RC", caught(raiser, "ERROR", "handler"), "CATCH ERROR an error a3 rc 3 3"
+call ok "... a .NET command handler sends: NOTREADY", caught(raiser, "notready", "command"), "CATCH NOTREADY not ready a2"
+call ok "... ERROR, its RC", caught(raiser, "error", "command"), "CATCH ERROR an error a3 rc 3 3"
+call ok "... with a SIGNAL ON for it set: the CATCH clause wins", catchWins(raiser), "caught"
+do
+  do
+    x = dl~SendTo(raiser, "ERROR")
+    r = "not caught"
+  catch error 4                                  -- not this RC: the outer block's clause
+    r = "caught by error 4"
+  end
+catch error 3
+  r = "caught by error 3, rc" rc
+end
+call ok "CATCH ERROR code: the clause for the RC that came back", r, "caught by error 3, rc 3"
+do
+  halting~Sort(haltCmp)
+  r = "not caught"
+catch halt
+  r = condition("C") condition("I")
+end
+call ok "CATCH HALT, a HALT given back for a callback", r, "HALT CATCH"
+do
+  address calc "halt"
+  r = "not caught"
+catch halt
+  r = condition("C") condition("I") rc
+end
+call ok "... from a .NET command handler (RC 0)", r, "HALT CATCH 0"
+do
+  address calc "send halt"
+  r = "not caught"
+catch halt
+  r = condition("C") condition("I")
+end
+call ok "... a .NET command handler sends to a method raising HALT", r, "HALT CATCH"
+do
+  r = .net~System~String~Concat(.object~new)
+catch nostring
+  r = "NOSTRING"
+end
+call ok "CATCH NOSTRING (a trap for requestString): .NET makes .object~new text", r, "an Object"
+n = 0
+do i = 1 to 3
+  n += dl~Apply(.net~handler(t, "ADD"), i, 1)
+  if i = 2 then dl~Run(.net~handler(t, "FAIL"))
+catch syntax
+  r = i n condition("O")~code
+end
+call ok "CATCH on a loop: a handler's error ends the loop", r, "2 5 98.900"
+
 if .fails = 0 then say "phase 3: all" .count "tests passed"
 else say "phase 3:" .fails "of" .count "tests FAILED"
 exit .fails > 0
@@ -385,13 +458,11 @@ exit .fails > 0
 haltSignalCmd: signal on halt name haltSignalCmdTrap; address calc "halt"; return "not trapped"
   haltSignalCmdTrap: return condition("C")
 haltCallCmd: halted = 0; call on halt name haltSeen; address calc "halt"; nop; nop; return rc halted
-haltUntrappedCmd: signal on syntax name haltUntrappedCmdTrap; address calc "halt"; return "nothing"
-  haltUntrappedCmdTrap: return "SYNTAX" condition("O")~code
+haltUntrappedCmd: do; address calc "halt"; return "nothing"; catch syntax; return "SYNTAX" condition("O")~code; end
 haltSignalCb: use arg l, cmp; signal on halt name haltSignalCbTrap; l~Sort(cmp); return "not trapped"
   haltSignalCbTrap: return condition("C")
 haltCallCb: use arg l, cmp; halted = 0; call on halt name haltSeen; l~Sort(cmp); nop; nop; return halted
-haltUntrappedCb: use arg l, cmp; signal on syntax name haltUntrappedCbTrap; l~Sort(cmp); return "nothing"
-  haltUntrappedCbTrap: return "SYNTAX" condition("O")~code
+haltUntrappedCb: use arg l, cmp; do; l~Sort(cmp); return "nothing"; catch syntax; return "SYNTAX" condition("O")~code; end
 haltSeen: halted = 1; return
 haltOrder: procedure expose dl      -- when CALL ON HALT's handler runs: at the call, as RAISE HALT's (a Ctrl-C's: after the next clause)
   use arg how, l, cmp, raiser
@@ -462,16 +533,19 @@ returned: procedure expose dl        -- what x = (a .NET call reaching Raiser~us
   returnedHandler: .local~handled = "handler"; return
 encoded: procedure                  -- o as an argument to .NET (String.Format): what .NET made, or the condition
   use arg o
-  signal on syntax name encodedTrap
-  return .net~System~String~Format("ran {0}", o)
-  encodedTrap: c = condition("O")
-  if c~code = "91.999" then return c~code
-  return c~code c~additional[1]
+  do
+    return .net~System~String~Format("ran {0}", o)
+  catch c = syntax
+    if c~code = "91.999" then return c~code
+    return c~code c~additional[1]
+  end
 outParam: procedure                 -- Int32.TryParse("5", out r), r a .NetRef subclass whose VALUE= raises
-  signal on syntax name outParamTrap
-  .net~System~Int32~TryParse("5", .MySetRef~new)
-  return "not trapped"
-  outParamTrap: c = condition("O"); return c~code c~additional[1]
+  do
+    .net~System~Int32~TryParse("5", .MySetRef~new)
+    return "not trapped"
+  catch c = syntax
+    return c~code c~additional[1]
+  end
 reply: procedure expose dl          -- obj as a callback's reply ("text", "count", "length"), or answered to .NET's Send, or made text by Rexx
   use arg how, obj
   signal on user says name replyTrap; signal on syntax name replyTrap
@@ -500,11 +574,37 @@ conditionText: procedure            -- a condition object: its name, description
   if a~isA(.array) then a = a~toString(, " "); else a = ""
   d = o~description; if d == .nil then d = ""
   return (o~condition d a)~space
+caught: procedure expose dl          -- a condition raised by Raiser's method that .NET sends to, caught by CATCH
+  use arg raiser, cond, how = "send"
+  do
+    select
+      when how = "send" then x = dl~SendTo(raiser, cond)
+      when how = "handler" then x = dl~Text(.net~handler(raiser, cond))
+      when how = "command" then address calc "send" cond
+    end
+    return "not caught"
+  catch c = user oops, notready
+    return condition("I") conditionText(c)
+  catch c = error, failure
+    return condition("I") conditionText(c) "rc" rc c~rc
+  end
+catchWins: procedure expose dl      -- a SIGNAL ON for the same condition set: the block's clause wins
+  use arg raiser
+  signal on user oops name catchWinsLost
+  do
+    x = dl~SendTo(raiser, "USER")
+    return "not caught"
+  catch user oops
+    return "caught"
+  end
+  catchWinsLost: return "SIGNAL ON took it"
 sendCmdUntrapped: use arg raiser
-  signal on syntax name sendCmdUntrappedTrap
-  address calc "send halt"
-  return "nothing"
-  sendCmdUntrappedTrap: return "SYNTAX" condition("O")~code
+  do
+    address calc "send halt"
+    return "nothing"
+  catch syntax
+    return "SYNTAX" condition("O")~code
+  end
 
 
 ::requires "net.cls"
@@ -692,33 +792,33 @@ sendCmdUntrapped: use arg raiser
   use arg code
   raiser = .Raiser~new
   dl = .dl
-  signal on syntax
-  interpret code
-  return "no error"
-syntax:
-  c = condition("O")
-  return c~code "["condition("D")"]" c~additional~toString(, " ") c~result
+  do
+    interpret code
+    return "no error"
+  catch c = syntax
+    return c~code "["condition("D")"]" c~additional~toString(, " ") c~result
+  end
 
 ::routine code                    -- the code's error: its code, or (item 2) the type of additional[2]
   use arg code, item = 1
-  signal on syntax
-  interpret code
-  return "no error"
-syntax:
-  c = condition("O")
-  if item = 1 then return c~code
-  return .net~typeOf(c~additional[2])
+  do
+    interpret code
+    return "no error"
+  catch c = syntax
+    if item = 1 then return c~code
+    return .net~typeOf(c~additional[2])
+  end
 
 ::routine err                     -- the code must raise an error whose message contains fragment
   use arg name, code, fragment
   .local~count += 1
-  signal on syntax
-  interpret code
-  .local~fails += 1
-  say "FAIL" name": no error"
-  return
-syntax:
-  msg = condition("O")~message
-  if msg~pos(fragment) > 0 then return
-  .local~fails += 1
-  say "FAIL" name": message ["msg"], want ["fragment"]"
+  do
+    interpret code
+    .local~fails += 1
+    say "FAIL" name": no error"
+  catch syntax
+    msg = condition("O")~message
+    if msg~pos(fragment) > 0 then return
+    .local~fails += 1
+    say "FAIL" name": message ["msg"], want ["fragment"]"
+  end

@@ -3,7 +3,7 @@
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
 # revision: the bridge needs at least r13514 (the family's base: CATCH
-# clauses, RFE #31, in r13514; about
+# clauses, RFE #31, in r13514, which net.cls and the tests trap errors with; about
 # forty fixes since r13379, #2159 and #2150 among them for native code;
 # #1890 in
 # r13379; #2011 and #2014 in r13377, the stream functions check their

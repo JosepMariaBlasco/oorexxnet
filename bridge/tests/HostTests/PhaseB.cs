@@ -118,6 +118,15 @@ static partial class Program
         rexx.AddCommandEnvironment("FAILING", (c, ctx) => ctx.Interpreter.Run("raise error 3 description 'd' return 3"));
         Ok("... a command",
            rexx.Run("signal on error name x; address failing 'go'; return 'not trapped'\nx: return rc condition('O')~rc condition('D')"), "3 3 d");
+        // the same caught by CATCH clauses (ooRexx r13514)
+        Ok("CATCH past the host: a command, USER as itself",
+           rexx.Run("do; address raising 'go'; return 'not caught, rc' rc\ncatch user x; return condition('I') condition('C') condition('D'); end"), "CATCH USER X d");
+        Ok("... a function, USER",
+           rexx.Run("do; v = raising(); return 'not caught:' v\ncatch user x; return condition('I') condition('C') condition('D'); end"), "CATCH USER X d");
+        Ok("... a function, ERROR: CATCH ERROR 4 (its RC)",
+           rexx.Run("do; v = failing('error'); return 'not caught'\ncatch error 3; return 'error 3'\ncatch error 4; return rc condition('O')~rc; end"), "4 4");
+        Ok("... a command, ERROR's RC",
+           rexx.Run("do; address failing 'go'; return 'not caught'\ncatch error; return rc condition('O')~rc condition('D'); end"), "3 3 d");
         // An object whose own STRING (or MAKESTRING) raises a condition, made
         // text by the host: a RexxException, and from a function the caller's
         // SIGNAL ON traps it as itself (oorexx-bridges, lesson 6). A SYNTAX
@@ -197,15 +206,19 @@ static partial class Program
         Ok("... CALL ON HALT, RC 0",
            rexx.Run("h = 0; call on halt name seen; address halting 'go'; nop; nop; return rc h\nseen: h = 1; return"), "0 1");
         Ok("... untrapped: SYNTAX 4.1",
-           rexx.Run("signal on syntax; address halting 'go'; return 'nothing'\nsyntax: return condition('O')~code"), "4.1");
+           rexx.Run("do; address halting 'go'; return 'nothing'\ncatch syntax; return condition('O')~code; end"), "4.1");
         Ok("a HALT through a .NET function: SIGNAL ON HALT",
            rexx.Run("signal on halt; v = halting(); return 'not trapped'\nhalt: return condition('C')"), "HALT");
         Ok("... CALL ON HALT",
            rexx.Run("h = 0; call on halt name seen; v = halting(); nop; nop; return h\nseen: h = 1; return"), "1");
         Ok("... untrapped: SYNTAX 4.1",
-           rexx.Run("signal on syntax; v = halting(); return 'nothing'\nsyntax: return condition('O')~code"), "4.1");
+           rexx.Run("do; v = halting(); return 'nothing'\ncatch syntax; return condition('O')~code; end"), "4.1");
         Ok("... CALL ON HALT: the handler runs at the call, as RAISE HALT's",
            rexx.Run("h = ''; call on halt name seen; v = halting(); h = h 'after'; nop; return strip(h)\nseen: h = h 'halt'; return"), "halt after");
+        Ok("CATCH HALT (ooRexx r13514): through a .NET function",
+           rexx.Run("do; v = halting(); return 'not caught'\ncatch halt; return condition('C') condition('I'); end"), "HALT CATCH");
+        Ok("... through a .NET command handler, RC 0",
+           rexx.Run("do; address halting 'go'; return 'not caught'\ncatch halt; return condition('C') condition('I') rc; end"), "HALT CATCH 0");
     }
 
     // ::OPTIONS ERROR SYNTAX in the code that sends the command (ooRexx #2119,
@@ -236,8 +249,8 @@ static partial class Program
                  "::requires 'net.cls'\n::class F\n::method twice\n  use arg call\n  return call~Arguments[1] * 2", holder);
         rexx.AddFunction("NETFN", holder.F!);
         Ok("a .NetHandler as a function",  rexx.Run("return netfn(3)"), "6");
-        Ok("... its Rexx error, whole",    rexx.Run("signal on syntax; x = netfn('a'); return 'no'\n" +
-                                                    "syntax: return condition('O')~code '|' condition('O')~message"),
+        Ok("... its Rexx error, whole",    rexx.Run("do; x = netfn('a'); return 'no'\n" +
+                                                    "catch c = syntax; return c~code '|' c~message; end"),
                                           "41.1 | Nonnumeric value (\"a\") used in arithmetic operation.");
     }
 
@@ -299,26 +312,26 @@ static partial class Program
         Ok("ADDRESS 'app' (case)",       rexx.Run("address 'app' 'x'; return rc"), "1");
         Ok("null result: RC 0",          rexx.Run("address app 'null'; return rc"), "0");
         Ok("an object as RC",            rexx.Run("address app 'object'; return rc~class~id rc~items"), "Array 2");
-        Ok("RaiseError: ERROR, trapped", rexx.Run("signal on error; address app 'error 5'; return 'no'\n" +
-                                                   "error: return condition('C') rc"), "ERROR 5");
+        Ok("RaiseError: ERROR, trapped", rexx.Run("do; address app 'error 5'; return 'no'\n" +
+                                                   "catch error; return condition('C') rc; end"), "ERROR 5");
         Ok("ERROR, untrapped: RC",       rexx.Run("address app 'error 7'; return rc"), "7");
-        Ok("Raise FAILURE, trapped",     rexx.Run("signal on failure; address app 'failure 9'; return 'no'\n" +
-                                                   "failure: return condition('C') rc condition('D') '|' condition('A')"),
+        Ok("Raise FAILURE, trapped",     rexx.Run("do; address app 'failure 9'; return 'no'\n" +
+                                                   "catch failure; return condition('C') rc condition('D') '|' condition('A'); end"),
                                          "FAILURE 9 it could not run | the additional");
-        Ok("FAILURE untrapped -> ERROR", rexx.Run("signal on error; address app 'failure 9'; return 'no'\n" +
-                                                   "error: return condition('C') rc"), "ERROR 9");
-        Ok(".NET exception: SYNTAX 98.900", rexx.Run("signal on syntax; address app 'throw'; return 'no'\n" +
-                                                   "syntax: o = condition('O'); return o~code '|' o~additional[1]"),
+        Ok("FAILURE untrapped -> ERROR", rexx.Run("do; address app 'failure 9'; return 'no'\n" +
+                                                   "catch error; return condition('C') rc; end"), "ERROR 9");
+        Ok(".NET exception: SYNTAX 98.900", rexx.Run("do; address app 'throw'; return 'no'\n" +
+                                                   "catch o = syntax; return o~code '|' o~additional[1]; end"),
                                          "98.900 | .NET error: System.InvalidOperationException: the application is not ready");
-        Ok("... the exception, additional[2]", rexx.Run("signal on syntax; address app 'throw'; return 'no'\n" +
-                                                   "syntax: return condition('O')~additional[2]~Message"), "the application is not ready");
+        Ok("... the exception, additional[2]", rexx.Run("do; address app 'throw'; return 'no'\n" +
+                                                   "catch syntax; return condition('O')~additional[2]~Message; end"), "the application is not ready");
         try { rexx.Run("address app 'throw'"); Ok("... untrapped", "none", "thrown"); }
         catch (RexxException e) { Ok("... untrapped", $"{e.Code} {e.InnerException?.GetType().Name}", "98.900 InvalidOperationException"); }
-        Ok("RC's sign raises nothing",   rexx.Run("signal on error; signal on failure; address app 'x'; a = rc\n" +
-                                                   "address app 'abc'; return a rc\nerror: failure: return 'raised'"), "1 3");
+        Ok("RC's sign raises nothing",   rexx.Run("do; address app 'x'; a = rc\n" +
+                                                   "address app 'abc'; return a rc\ncatch error, failure; return 'raised'; end"), "1 3");
         Ok("handler calls Rexx",         rexx.Run("address app 'nested'; return rc"), "42");
-        Ok("... its error, raised again", rexx.Run("signal on syntax; address app 'nested error'; return 'no'\n" +
-                                                    "syntax: return condition('O')~code"), "41.1");
+        Ok("... its error, raised again", rexx.Run("do; address app 'nested error'; return 'no'\n" +
+                                                    "catch syntax; return condition('O')~code; end"), "41.1");
         try { rexx.Run("address app 'nested error'"); Ok("... untrapped", "none", "thrown"); }
         catch (RexxException e) { Ok("... untrapped", e.Code, "41.1"); }
 
@@ -339,8 +352,8 @@ static partial class Program
         rexx.RemoveCommandEnvironment("PLAIN");
         using (var gone = RexxInterpreter.Create()) { gone.Dispose(); Throws<ObjectDisposedException>("RemoveCommandEnvironment, disposed", () => gone.RemoveCommandEnvironment("X")); }
         Throws<InvalidOperationException>("RemoveCommandEnvironment: none there", () => rexx.RemoveCommandEnvironment("PLAIN"), "no command environment PLAIN");
-        Ok("... then FAILURE, RC 30, as unknown", rexx.Run("signal on failure; address plain 'x'; return 'no'\n" +
-                                                   "failure: return condition('C') rc condition('D') (condition('O')~additional == .nil)"), "FAILURE 30 x 1");
+        Ok("... then FAILURE, RC 30, as unknown", rexx.Run("do; address plain 'x'; return 'no'\n" +
+                                                   "catch failure; return condition('C') rc condition('D') (condition('O')~additional == .nil); end"), "FAILURE 30 x 1");
         rexx.AddCommandEnvironment("PLAIN", (c, ctx) => "back");
         Ok("... added again",            rexx.Run("address plain 'x'; return rc"), "back");
         rexx.Run(".CommandHandler~deregister('PLAIN')");
@@ -554,6 +567,9 @@ static partial class Program
         using (var cts = new CancellationTokenSource(200))
             Ok("HALT trapped: the result",
                rexx.Run("signal on halt; do forever; nop; end\nhalt: return 'cleaned up'", cts.Token), "cleaned up");
+        using (var cts = new CancellationTokenSource(200))
+            Ok("... caught by CATCH HALT (ooRexx r13514)",
+               rexx.Run("do forever; nop\ncatch halt; r = 'cleaned up'; end\nreturn r condition('I')", cts.Token), "cleaned up CATCH");
         // only the calling thread is halted
         using (var a = new CancellationTokenSource())
         using (var b = new CancellationTokenSource())

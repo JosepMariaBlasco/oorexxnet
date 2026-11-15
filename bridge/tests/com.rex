@@ -88,30 +88,34 @@ end
 call ok "DO OVER a COM collection",        n > 0 & n = fso~Drives~Count, 1
 
 -- errors
-signal on syntax name unknown
-x = fso~NoSuchMember
-call ok "an unknown member", "no error", "97.1"
-unknown:
-call ok "an unknown member: 97.1",         condition("O")~code, "97.1"
-signal on syntax name failing
-x = fso~GetFile("Z:\no\such\file.txt")
-call ok "a failing call", "no error", "98.900"
-failing:
-call ok "a failing call: 98.900",          condition("O")~code, "98.900"
-signal off syntax
+do
+  x = fso~NoSuchMember
+  call ok "an unknown member", "no error", "97.1"
+catch syntax
+  call ok "an unknown member: 97.1",         condition("O")~code, "97.1"
+end
+do
+  x = fso~GetFile("Z:\no\such\file.txt")
+  call ok "a failing call", "no error", "98.900"
+catch syntax
+  call ok "a failing call: 98.900",          condition("O")~code, "98.900"
+end
 
 sh = .net~createObject("WScript.Shell")
 call ok "WScript.Shell",                   sh~ExpandEnvironmentStrings("%SystemRoot%")~upper~pos("WINDOWS") > 0, 1
 .net~releaseObject(sh)
-signal on syntax name released
-x = sh~ExpandEnvironmentStrings("%SystemRoot%")
-call ok "a released object", "usable", "98.900"
-released:
-call ok "releaseObject: unusable after",   condition("O")~code, "98.900"
-signal on syntax name noClass
-x = .net~createObject("No.Such.ProgID")
-noClass:
-call ok "an unknown ProgID: 98.900",       condition("O")~code, "98.900"
+do
+  x = sh~ExpandEnvironmentStrings("%SystemRoot%")
+  call ok "a released object", "usable", "98.900"
+catch syntax
+  call ok "releaseObject: unusable after",   condition("O")~code, "98.900"
+end
+do
+  x = .net~createObject("No.Such.ProgID")
+  call ok "an unknown ProgID", "no error", "98.900"
+catch syntax
+  call ok "an unknown ProgID: 98.900",       condition("O")~code, "98.900"
+end
 
 -- the language of the calls: English (US) by default; "user" or a culture name
 u = .net~createObject("Scripting.Dictionary", "user")
@@ -119,11 +123,12 @@ u~Add("k", 1.5)
 call ok "createObject(progID, 'user')",    u~Item("k"), 1.5
 fs = .net~createObject("Scripting.FileSystemObject", "es-ES")
 call ok "createObject(progID, 'es-ES'), and what it returns", fs~GetSpecialFolder(2)~Name~length > 0, 1
-signal on syntax name noLanguage
-x = .net~createObject("Scripting.Dictionary", "xx-nowhere")
-noLanguage:
-signal off syntax
-call ok "an unknown language: 98.900",     condition("O")~code, "98.900"
+do
+  x = .net~createObject("Scripting.Dictionary", "xx-nowhere")
+  call ok "an unknown language", "no error", "98.900"
+catch syntax
+  call ok "an unknown language: 98.900",     condition("O")~code, "98.900"
+end
 
 -- events: ADODB.Recordset (a disconnected one, in memory)
 rs = .net~createObject("ADODB.Recordset")
@@ -148,11 +153,11 @@ call ok "a parameter by reference: a ComRef", .net~typeOf(ev~status) datatype(ev
 rs~MoveNext
 call ok "... and again",                   ev~moves ev~reason rs~Fields~Item("name")~Value, "2 13 two"
 ev~cancel = .true                                         -- the handler sets adStatus to adStatusCancel
-signal on syntax name cancelled
-rs~MoveNext
-call ok "ref~Value = x: the event's source sees it", "not cancelled", "98.900"
-cancelled:
-signal off syntax
+do
+  rs~MoveNext
+  call ok "ref~Value = x: the event's source sees it", "not cancelled", "98.900"
+catch syntax
+end
 call ok "ref~Value = x: the move is cancelled", condition("O")~code ev~moves rs~Fields~Item("name")~Value, "98.900 3 two"
 ev~cancel = .false
 rs~WillMove -= h
@@ -182,23 +187,25 @@ call ok "... until dispatched",            ev~moves ev~reason, "6 12"
 rs~WillMove -= q
 bad = .net~handler(ev, "FAILING")
 rs~WillMove += bad
-signal on syntax name failed
-rs~MoveLast
-call ok "an error in a handler", "no error", "42.3"
-failed:
-signal off syntax
-call ok "an error in a handler: raised in the caller", condition("O")~code, "42.3"
+do
+  rs~MoveLast
+  call ok "an error in a handler", "no error", "42.3"
+catch syntax
+  call ok "an error in a handler: raised in the caller", condition("O")~code, "42.3"
+end
 rs~WillMove -= bad
-signal on syntax name noEvent
-.net~addHandler(rs, "NoSuchEvent", h)
-noEvent:
-signal off syntax
-call ok "not an event: 97.1",              condition("O")~code, "97.1"
-signal on syntax name notHandler
-rs~WillMove += "x"
-notHandler:
-signal off syntax
-call ok "+= a string: 98.900",             condition("O")~code, "98.900"
+do
+  .net~addHandler(rs, "NoSuchEvent", h)
+  call ok "not an event", "no error", "97.1"
+catch syntax
+  call ok "not an event: 97.1",              condition("O")~code, "97.1"
+end
+do
+  rs~WillMove += "x"
+  call ok "+= a string", "no error", "98.900"
+catch syntax
+  call ok "+= a string: 98.900",             condition("O")~code, "98.900"
+end
 rs~WillMove += h
 .net~releaseObject(rs)                                    -- disconnects its sinks too
 call ok "releaseObject with handlers",     ev~moves, 6
@@ -280,13 +287,13 @@ exit .fails > 0
 ::routine err                     -- the code must raise an error whose message contains fragment
   use arg name, code, fragment
   .local~count += 1
-  signal on syntax
-  interpret code
-  .local~fails += 1
-  say "FAIL" name": no error"
-  return
-syntax:
-  msg = condition("O")~message
-  if msg~pos(fragment) > 0 then return
-  .local~fails += 1
-  say "FAIL" name": message ["msg"], want ["fragment"]"
+  do
+    interpret code
+    .local~fails += 1
+    say "FAIL" name": no error"
+  catch syntax
+    msg = condition("O")~message
+    if msg~pos(fragment) > 0 then return
+    .local~fails += 1
+    say "FAIL" name": message ["msg"], want ["fragment"]"
+  end

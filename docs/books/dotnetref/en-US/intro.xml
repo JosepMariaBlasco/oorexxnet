@@ -78,7 +78,8 @@ Console.WriteLine($"{d.items} {d.name}");</programlisting>
 (a trunk build until 5.3.0 is released). The bridge uses only ooRexx's public
 native API: the interpreter needs no change, and the bridge is an extension
 package, as <literal>rxsock</literal> or BSF4ooRexx are. r13514 is the base
-of the family of ooRexx bridges: it has the CATCH clauses (RFE #31); from r13374
+of the family of ooRexx bridges: it has the CATCH clauses (RFE #31), which
+<literal>net.cls</literal> traps its errors with; from r13374
 <literal>.OLEObject</literal>'s error 92.909 names the right argument and a
 long COM exception text no longer overflows (#2137, #2138); from r13377 the
 stream functions check their position and count (#2011, #2014); from r13365 a condition raised twice in one

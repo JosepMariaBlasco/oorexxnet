@@ -116,36 +116,37 @@ row: procedure expose e types
   do t over types~makeArray(" ")
     line = line left(conv(e, t, v), 12)
   end
-  signal on syntax name objFail
-  line = line .net~System~Convert~GetTypeCode(v)
+  do
+    line = line .net~System~Convert~GetTypeCode(v)
+  catch syntax
+    line = line "-"
+  end
   say line
-  return
-objFail:
-  say line "-"
   return
 
 conv: procedure
   use arg e, t, v
-  signal on syntax name convFail
-  r = .net~invoke(e, "Repeat<"t">", v, 1)~makeArray[1]
-  if r == .nil then return ".nil"
-  if r~isA(.NetObject) then return r~ToString
-  return "'"r"'"
-convFail:
-  return "-"
+  do
+    r = .net~invoke(e, "Repeat<"t">", v, 1)~makeArray[1]
+    if r == .nil then return ".nil"
+    if r~isA(.NetObject) then return r~ToString
+    return "'"r"'"
+  catch syntax
+    return "-"
+  end
 
 show: procedure expose c e
   use arg label, v
-  signal on syntax name showFail
-  r = .net~invoke(e, "Repeat<object>", v, 1)~makeArray[1]
-  if r~isA(.NetObject) then say left(label, 40) "a copy:" .net~typeOf(r)
-  else if r == v then say left(label, 40) "by reference: a Rexx.Net.RexxObject (back: the object itself)"
-  else say left(label, 40) "?" r
-  return
-showFail:
-  msg = condition("O")~message
-  if msg~pos("accepts") > 0 then msg = msg~left(msg~pos("accepts") + 7)"..."
-  say left(label, 40) "error:" msg~left(70)
+  do
+    r = .net~invoke(e, "Repeat<object>", v, 1)~makeArray[1]
+    if r~isA(.NetObject) then say left(label, 40) "a copy:" .net~typeOf(r)
+    else if r == v then say left(label, 40) "by reference: a Rexx.Net.RexxObject (back: the object itself)"
+    else say left(label, 40) "?" r
+  catch syntax
+    msg = condition("O")~message
+    if msg~pos("accepts") > 0 then msg = msg~left(msg~pos("accepts") + 7)"..."
+    say left(label, 40) "error:" msg~left(70)
+  end
   return
 
 shown: procedure
@@ -174,12 +175,13 @@ cyclic: procedure                      -- Arrays in Arrays, to a List<object> an
     otherwise
       d = .array~new; t = d
       do 1001; n = .array~new; t~append(n); t = n; end
-      signal on syntax name deepFails
-      l~Add(d)
-      return "no error"
+      do
+        l~Add(d)
+        return "no error"
+      catch syntax
+        return "error:" condition("O")~message
+      end
   end
-deepFails:
-  return "error:" condition("O")~message
 dateBack: procedure
   d = .net~System~DateTime~new(2026, 10, 16)
   return d~class~id d~ToString("s")
@@ -205,13 +207,13 @@ float: procedure                       -- a .NET double (or long) as Rexx gets i
 toDouble: procedure                    -- a Rexx string to a double parameter
   use arg s
   l = .net~type("System.Collections.Generic.List<double>")~new
-  signal on syntax name noDouble
-  l~Add(s)
-  r = .net~invoke(.net~box("double", l[0]), "ToString", "R", .net~System~Globalization~CultureInfo~InvariantCulture)
-  say left("'"s"'", 40) r .net~System~Double~IsNegative(l[0])
-  return
-noDouble:
-  say left("'"s"'", 40) "no conversion:" condition("O")~message~left(60)
+  do
+    l~Add(s)
+    r = .net~invoke(.net~box("double", l[0]), "ToString", "R", .net~System~Globalization~CultureInfo~InvariantCulture)
+    say left("'"s"'", 40) r .net~System~Double~IsNegative(l[0])
+  catch syntax
+    say left("'"s"'", 40) "no conversion:" condition("O")~message~left(60)
+  end
   return
 ::requires "net.cls"
 ::requires "json.cls"

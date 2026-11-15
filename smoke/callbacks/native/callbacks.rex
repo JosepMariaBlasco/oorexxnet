@@ -17,10 +17,11 @@ end
 say "async: done" CbAsyncDone() "of 5, handled" h~asyncCount
 
 -- 4. an error in the Rexx callback reaches .NET, and Rexx as an error
-signal on syntax
-say "fail:" CbFail()
-exit
-syntax: say "fail: error:" condition("O")~message
+do
+  say "fail:" CbFail()
+catch syntax
+  say "fail: error:" condition("O")~message
+end
 exit
 
 ::class Handler

@@ -44,11 +44,12 @@ call ok "an enum: = caseless (CLR_Enum)", .clr~new("System.DateTime", 2026, 10, 
 call ok ".clr~new of a wrapper type: boxed", .clr~new("System.Int16", 5)~clr.type~FullName, "System.Int16"
 call ok "... and back",                 clr.unbox(.clr~new("System.Int16", 5)), 5
 call ok "a CLR goes to .NET as its object", .net~typeOf(sb), "System.Text.StringBuilder"
-signal on syntax name unknown1
-x = sb~NoSuchMember
-unknown1:
-call ok "no such member: 97.1",         condition("O")~code, "97.1"
-signal off syntax
+do
+  x = sb~NoSuchMember
+  call ok "no such member", "no error", "97.1"
+catch syntax
+  call ok "no such member: 97.1",         condition("O")~code, "97.1"
+end
 
 -- the routines
 call ok "clr.box",                      .net~typeOf(clr.box("INT16", 5)) clr.box("ST", "x")~isA(.CLR), "System.Int16 1"

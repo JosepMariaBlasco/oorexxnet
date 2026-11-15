@@ -42,11 +42,12 @@ call ok "the other thread is not the event thread", w~waiterOnEventThread, 0
 call SysSleep 0.2
 call ok "result waited for, on the other thread", w~waited, 42
 
-signal on syntax name badArgs
-x = .NetEventThread~runLater(w, "ADD", "X", 1)
-badArgs:
-signal off syntax
-call ok "a wrong indicator: 93.915",        condition("O")~code, "93.915"
+do
+  x = .NetEventThread~runLater(w, "ADD", "X", 1)
+  call ok "a wrong indicator", "no error", "93.915"
+catch syntax
+  call ok "a wrong indicator: 93.915",        condition("O")~code, "93.915"
+end
 
 -- event threads as objects: with no user interface, the loop's
 d = .NetEventThread~default

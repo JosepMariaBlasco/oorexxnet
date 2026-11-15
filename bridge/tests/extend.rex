@@ -350,16 +350,16 @@ windowsForm: procedure
 ::routine err                     -- the code must raise an error whose message contains fragment
   use arg name, code, fragment
   .local~count += 1
-  signal on syntax
-  interpret code
-  .local~fails += 1
-  say "FAIL" name": no error"
-  return
-syntax:
-  msg = condition("O")~message
-  if msg~pos(fragment) > 0 then return
-  .local~fails += 1
-  say "FAIL" name": message ["msg"], want ["fragment"]"
+  do
+    interpret code
+    .local~fails += 1
+    say "FAIL" name": no error"
+  catch syntax
+    msg = condition("O")~message
+    if msg~pos(fragment) > 0 then return
+    .local~fails += 1
+    say "FAIL" name": message ["msg"], want ["fragment"]"
+  end
 
 ::class MyFactory subclass NetObject
 ::method Make                    -- T Make<T>(string text)

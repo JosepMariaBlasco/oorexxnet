@@ -12,7 +12,8 @@ yours. Nothing needs to be compiled.
 
 - **ooRexx 5.3.0 r13514 or later, 64-bit** (a trunk build until 5.3.0 is
   released), with `rexx -v` working in a terminal. r13514 is the base of the
-  family of ooRexx bridges: it has the CATCH clauses (RFE #31); from r13374 `.OLEObject`'s error 92.909 names
+  family of ooRexx bridges: it has the CATCH clauses (RFE #31), which
+  `net.cls` traps its errors with; from r13374 `.OLEObject`'s error 92.909 names
   the right argument and a long COM exception text no longer overflows
   (#2137, #2138); from r13377 the stream functions check their position and
   count (#2011, #2014); from r13365 a condition raised twice in one

@@ -52,10 +52,11 @@ call err "put without value",   ".local~b2~put", "Not enough arguments for metho
 call err "dimension(0)",        "x = .local~b2~dimension(0)", "Method argument 1 must be a positive whole number"
 call err "no index",            "x = .local~b2~at", "Not enough arguments for method; 1 expected"
 code = 0
-signal on syntax name codeOf
-x = .local~b2[0]
-codeOf: code = condition("O")~code
-signal off syntax
+do
+  x = .local~b2[0]
+catch syntax
+  code = condition("O")~code
+end
 call ok "the code of a Rexx Array's error", code, "93.907"
 g = coll~Grid
 call ok "int[,] element",       g[1, 2] g[2, 3], "2 6"
@@ -353,16 +354,16 @@ exit .fails > 0
   .local~g2 = .net~RexxNetTests~Coll~Grid
   .local~b2 = .net~System~Text~Encoding~ASCII~GetBytes("abc")
   .local~h2 = .net~RexxNetTests~Coll~MakeHidden
-  signal on syntax
-  interpret code
-  .local~fails += 1
-  say "FAIL" name": no error"
-  return
-syntax:
-  msg = condition("O")~message
-  if msg~pos(fragment) > 0 then return
-  .local~fails += 1
-  say "FAIL" name": message ["msg"], want ["fragment"]"
+  do
+    interpret code
+    .local~fails += 1
+    say "FAIL" name": no error"
+  catch syntax
+    msg = condition("O")~message
+    if msg~pos(fragment) > 0 then return
+    .local~fails += 1
+    say "FAIL" name": message ["msg"], want ["fragment"]"
+  end
 
 ::routine pick                    -- SELECT with an enum value (= compares names)
   use arg d

@@ -182,9 +182,10 @@
   expose netid netdisplay
   type = .net~extendedType(self~class)
   if type \== .nil then do             -- a Rexx class extending a .NET class: ~new(args) constructs it
-    signal on syntax
     self~construct(type, arg(1, "A"))
     return
+  catch syntax
+    raise propagate
   end
   use strict arg id, display = .nil
   if id~isA(.NetObject) then do        -- .MyClass~new(o): an instance of a Rexx subclass for o's .NET object
@@ -198,29 +199,29 @@
     netdisplay = display
   end
   return
-syntax: raise propagate
 ::method construct private          -- .MyClass~new(args), MyClass extending a .NET class
   expose netid netdisplay netpeer netuninit
   use arg type, args
-  signal on syntax
-  netpeer = .NetHandler~new(self, "NET.OVERRIDE")
-  netpeer~netPeer                      -- not kept by the bridge: see "Lifetime" in managed/Extend.cs
-  parse value NetRequest("extAlloc", type, netpeer) with netid "09"x netdisplay
-  call NetRequest "extInit", self, args  -- its virtual members already reach this object
-  -- a pair: its class's UNINIT runs when the pair is over (netFinal), not
-  -- when Rexx no longer holds the object (a sentinel tells the bridge that)
-  netuninit = self~instanceMethod("UNINIT")
-  if netuninit == .NetObject~method("UNINIT") then netuninit = .nil
-  self~setMethod("UNINIT", "nop")      -- (an object's own UNINIT cannot be removed)
-  if \.local~hasEntry("NET.INSTANCEEND") then .local~"NET.INSTANCEEND" = .NetInstanceEnd~new
-  self~netArm
-  return
-syntax:
-  if var("NETID") then do              -- no pair: its handle goes as any proxy's
-    call NetRequest "extAbandon", self
-    call NetHandlerDrop netpeer~id
+  do
+    netpeer = .NetHandler~new(self, "NET.OVERRIDE")
+    netpeer~netPeer                    -- not kept by the bridge: see "Lifetime" in managed/Extend.cs
+    parse value NetRequest("extAlloc", type, netpeer) with netid "09"x netdisplay
+    call NetRequest "extInit", self, args  -- its virtual members already reach this object
+    -- a pair: its class's UNINIT runs when the pair is over (netFinal), not
+    -- when Rexx no longer holds the object (a sentinel tells the bridge that)
+    netuninit = self~instanceMethod("UNINIT")
+    if netuninit == .NetObject~method("UNINIT") then netuninit = .nil
+    self~setMethod("UNINIT", "nop")    -- (an object's own UNINIT cannot be removed)
+    if \.local~hasEntry("NET.INSTANCEEND") then .local~"NET.INSTANCEEND" = .NetInstanceEnd~new
+    self~netArm
+    return
+  catch syntax
+    if var("NETID") then do            -- no pair: its handle goes as any proxy's
+      call NetRequest "extAbandon", self
+      call NetHandlerDrop netpeer~id
+    end
+    raise propagate
   end
-  raise propagate
 ::method netArm unguarded            -- for the bridge: a new sentinel for a pair's Rexx object (Rexx holds it)
   expose netpeer netsentinel
   netsentinel = .NetPeerSentinel~new(self, netpeer~id, NetPeerArm(netpeer~id))
@@ -231,13 +232,13 @@ syntax:
   if var("NETUNINIT") then if netuninit \== .nil then do
     u = netuninit
     drop netuninit
-    signal on syntax
     self~run:.Object(u)
+  catch syntax                         -- (an error in it is not reported)
   end
-syntax:
-  signal on syntax name released       -- (its .NET object may be gone)
-  call NetRequest "extAbandon", self   -- (if it lives on: the instance ends) its base's implementations from now on
-released:
+  do
+    call NetRequest "extAbandon", self -- (if it lives on: the instance ends) its base's implementations from now on
+  catch syntax                         -- (its .NET object may be gone)
+  end
   self~netRelease
 ::method netRelease unguarded external "LIBRARY rexxnet net_uninit"
 ::method "NET.OVERRIDE" unguarded    -- an overridden .NET member called: the Rexx method (.net~extend)
@@ -281,30 +282,40 @@ released:
   expose netid
   return netid~hashCode
 ::method makeArray unguarded         -- DO x OVER o: the items of an IEnumerable (a snapshot)
-  signal on syntax
-  return NetRequest("items", self)
-syntax: raise propagate
+  do
+    return NetRequest("items", self)
+  catch syntax
+    raise propagate
+  end
 ::method supplier unguarded          -- DO WITH INDEX i ITEM v OVER o (indexes: see the header)
-  signal on syntax
-  pairs = NetRequest("pairs", self)
-  return .supplier~new(pairs[2], pairs[1])
-syntax: raise propagate
+  do
+    pairs = NetRequest("pairs", self)
+    return .supplier~new(pairs[2], pairs[1])
+  catch syntax
+    raise propagate
+  end
 ::method "[]" unguarded              -- o[i, ...]: an array element or the indexer (0-based)
-  signal on syntax
-  return NetRequest("index", self, arg(1, "A"))
-syntax: raise propagate
+  do
+    return NetRequest("index", self, arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method "[]=" unguarded             -- o[i, ...] = value (Rexx sends the value first)
-  signal on syntax
-  use arg value
-  call NetRequest "setIndex", self, value, arg(2, "A")
-  return
-syntax: raise propagate
+  do
+    use arg value
+    call NetRequest "setIndex", self, value, arg(2, "A")
+    return
+  catch syntax
+    raise propagate
+  end
 ::method await unguarded             -- a Task / ValueTask: wait, its result (none for a plain Task)
-  signal on syntax
-  call NetRequest "await", self
-  if var("RESULT") then return result
-  return
-syntax: raise propagate
+  do
+    call NetRequest "await", self
+    if var("RESULT") then return result
+    return
+  catch syntax
+    raise propagate
+  end
 ::method unknown unguarded           external "LIBRARY rexxnet net_unknown"
 ::method uninit unguarded            external "LIBRARY rexxnet net_uninit"
 ::method netExtension class unguarded  -- the .NetType this class extends (.net~extend), or .nil
@@ -334,51 +345,71 @@ syntax: raise propagate
 /** A .NET array, as a Rexx Array: from 1 in every dimension (see the header). */
 ::class NetArray public subclass NetObject
 ::method at unguarded                -- a~at(i, j), a~at(.array~of(i, j))
-  signal on syntax
-  return NetRequest("arrayAt", self, arg(1, "A"))
-syntax: raise propagate
+  do
+    return NetRequest("arrayAt", self, arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method "[]" unguarded              -- a[i, j]
-  signal on syntax
-  return NetRequest("arrayAt", self, arg(1, "A"))
-syntax: raise propagate
+  do
+    return NetRequest("arrayAt", self, arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method put unguarded               -- a~put(v, i, j), a~put(v, .array~of(i, j))
-  signal on syntax
-  if arg(1, "O") then raise syntax 93.901 array(2)
-  call NetRequest "arrayPut", self, arg(1), "2", arg(2, "A")
-  return
-syntax: raise propagate
+  do
+    if arg(1, "O") then raise syntax 93.901 array(2)
+    call NetRequest "arrayPut", self, arg(1), "2", arg(2, "A")
+    return
+  catch syntax
+    raise propagate
+  end
 ::method "[]=" unguarded             -- a[i, j] = v (Rexx sends the value first)
-  signal on syntax
-  if arg(1, "O") then raise syntax 93.901 array(2)
-  call NetRequest "arrayPut", self, arg(1), "2", arg(2, "A")
-  return
-syntax: raise propagate
+  do
+    if arg(1, "O") then raise syntax 93.901 array(2)
+    call NetRequest "arrayPut", self, arg(1), "2", arg(2, "A")
+    return
+  catch syntax
+    raise propagate
+  end
 ::method putStrict unguarded         -- a~putStrict(type, v, i, j): v as that .NET type (name or .NetType)
-  signal on syntax
-  if arg(1, "O") | arg(2, "O") then raise syntax 93.901 array(3)
-  call NetRequest "arrayPut", self, .net~as(arg(2), arg(1)), "3", arg(3, "A")
-  return
-syntax: raise propagate
+  do
+    if arg(1, "O") | arg(2, "O") then raise syntax 93.901 array(3)
+    call NetRequest "arrayPut", self, .net~as(arg(2), arg(1)), "3", arg(3, "A")
+    return
+  catch syntax
+    raise propagate
+  end
 ::method items unguarded             -- all its elements (a .NET array has a fixed size)
-  signal on syntax
-  return NetRequest("arraySize", self)
-syntax: raise propagate
+  do
+    return NetRequest("arraySize", self)
+  catch syntax
+    raise propagate
+  end
 ::method size unguarded
-  signal on syntax
-  return NetRequest("arraySize", self)
-syntax: raise propagate
+  do
+    return NetRequest("arraySize", self)
+  catch syntax
+    raise propagate
+  end
 ::method dimension unguarded         -- the rank; dimension(n): the length of dimension n
-  signal on syntax
-  return NetRequest("arrayDim", self, arg(1, "A"))
-syntax: raise propagate
+  do
+    return NetRequest("arrayDim", self, arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method dimensions unguarded        -- a Rexx Array with the length of each dimension
-  signal on syntax
-  return NetRequest("arrayDims", self)
-syntax: raise propagate
+  do
+    return NetRequest("arrayDims", self)
+  catch syntax
+    raise propagate
+  end
 ::method hasIndex unguarded          -- a~hasIndex(i, j): 1 within the bounds, 0 past them
-  signal on syntax
-  return NetRequest("arrayHas", self, arg(1, "A"))
-syntax: raise propagate
+  do
+    return NetRequest("arrayHas", self, arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method makeString unguarded        -- as Array's: makeString([format [, separator]]), its elements (say and || use it)
   forward to (self~makeArray)
 ::method toString unguarded          -- as Array's
@@ -410,9 +441,11 @@ syntax: raise propagate
   return self~name
 ::method "=" unguarded               -- the same enum value: another .NetEnum, or a name (caseless; flags
   use strict arg other                 -- in any order), or its number
-  signal on syntax
-  return NetRequest("enumEquals", self, other)
-syntax: raise propagate
+  do
+    return NetRequest("enumEquals", self, other)
+  catch syntax
+    raise propagate
+  end
 ::method "\=" unguarded
   forward message "=" continue
   return \result
@@ -434,9 +467,11 @@ syntax: raise propagate
 /** A .NET type: its messages go to its static members; NEW makes an instance. */
 ::class NetType public subclass NetObject
 ::method new unguarded
-  signal on syntax
-  return NetRequest("new", self, arg(1, "A"))
-syntax: raise propagate
+  do
+    return NetRequest("new", self, arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 
 /** A .NET namespace: ~Name is a sub-namespace or a type in it. */
 ::class NetNamespace public
@@ -448,9 +483,11 @@ syntax: raise propagate
   return "a NetNamespace ("netns")"
 ::method string unguarded            -- .net~System~String is the type System.String
   expose netns
-  signal on syntax
-  return NetNamespaceMember(netns, "String")
-syntax: return self~makeString
+  do
+    return NetNamespaceMember(netns, "String")
+  catch syntax
+    return self~makeString
+  end
 ::method unknown unguarded           -- ~Name: a namespace or a type, remembered by this namespace once found
   expose netns members
   use arg name, args
@@ -459,12 +496,14 @@ syntax: return self~makeString
     if found \== .nil then return found
   end
   else members = .stringTable~new
-  signal on syntax
-  if args~items > 0 then raise syntax 98.900 array("a .NET namespace takes no arguments:" netns"."name)
-  found = NetNamespaceMember(netns, name)
-  members[name] = found
-  return found
-syntax: raise propagate
+  do
+    if args~items > 0 then raise syntax 98.900 array("a .NET namespace takes no arguments:" netns"."name)
+    found = NetNamespaceMember(netns, name)
+    members[name] = found
+    return found
+  catch syntax
+    raise propagate
+  end
 ::method lookups class unguarded     -- what names resolved to (namespaces, types): they never change
   expose lookups
   if \var("LOOKUPS") then lookups = .stringTable~new
@@ -473,51 +512,53 @@ syntax: raise propagate
 /** .net: the root namespace and the bridge's helpers. */
 ::class NetGlobal public subclass NetNamespace
 ::method extend unguarded            -- .net~extend(class, base type or interface [, interfaces...]): see the header
-  signal on syntax
-  if arg() < 2 then raise syntax 93.903 array(2)
-  use arg cls
-  if \cls~isA(.Class) then raise syntax 98.900 array(".net~extend: the first argument must be a Rexx class, found" cls)
-  if \cls~isSubclassOf(.NetObject) then raise syntax 98.900 array(".net~extend:" cls~id "must be a subclass of NetObject")
-  if cls~netExtension \== .nil then raise syntax 98.900 array(".net~extend:" cls~id "already extends" cls~netExtension)
-  types = arg(2, "A")
-  do t over types
-    if \t~isA(.NetType) & \t~isA(.String) then raise syntax 98.900 array(".net~extend: a type must be a .NetType or a name, found" t)
+  do
+    if arg() < 2 then raise syntax 93.903 array(2)
+    use arg cls
+    if \cls~isA(.Class) then raise syntax 98.900 array(".net~extend: the first argument must be a Rexx class, found" cls)
+    if \cls~isSubclassOf(.NetObject) then raise syntax 98.900 array(".net~extend:" cls~id "must be a subclass of NetObject")
+    if cls~netExtension \== .nil then raise syntax 98.900 array(".net~extend:" cls~id "already extends" cls~netExtension)
+    types = arg(2, "A")
+    do t over types
+      if \t~isA(.NetType) & \t~isA(.String) then raise syntax 98.900 array(".net~extend: a type must be a .NetType or a name, found" t)
+    end
+    names = .Array~new                 -- the Rexx class's own methods (and its superclasses' below NetObject)
+    c = cls
+    do while c \== .NetObject
+      s = c~methods(c)
+      do while s~available; names~append(s~index); s~next; end
+      c = c~superClass
+    end
+    r = NetRequest("extend", cls~id, types, names)
+    -- private methods (only the object's own methods reach them, as a C#
+    -- subclass reaches its base's protected members): the protected members,
+    -- and base.Name for each overridden member with a base implementation
+    do name over r[2]
+      if names~hasItem(name) | wordPos(name, "INIT UNINIT UNKNOWN") > 0 then iterate   -- the class's own win
+      self~forwarder(cls, name, "extMember", name)
+    end
+    do name over r[3]
+      self~forwarder(cls, "BASE."name, "extBase", name)
+    end
+    do name over r[4]                  -- raise.Name: an interface's event, raised by the object
+      self~forwarder(cls, "RAISE."name, "extRaise", name)
+    end
+    -- self~Name:super, as in any Rexx class: a mixin the class inherits (after
+    -- its superclasses), whose private methods are the base's protected
+    -- members and the base implementations of what the class overrides
+    base = .Object~mixinClass(cls~id "BASE")
+    do name over r[2]
+      if \r[3]~hasItem(name) then self~forwarder(base, name, "extMember", name)
+    end
+    do name over r[3]
+      self~forwarder(base, name, "extBase", name)
+    end
+    cls~inherit(base)
+    cls~netExtension = r[1]
+    return r[1]
+  catch syntax
+    raise propagate
   end
-  names = .Array~new                   -- the Rexx class's own methods (and its superclasses' below NetObject)
-  c = cls
-  do while c \== .NetObject
-    s = c~methods(c)
-    do while s~available; names~append(s~index); s~next; end
-    c = c~superClass
-  end
-  r = NetRequest("extend", cls~id, types, names)
-  -- private methods (only the object's own methods reach them, as a C#
-  -- subclass reaches its base's protected members): the protected members,
-  -- and base.Name for each overridden member with a base implementation
-  do name over r[2]
-    if names~hasItem(name) | wordPos(name, "INIT UNINIT UNKNOWN") > 0 then iterate   -- the class's own win
-    self~forwarder(cls, name, "extMember", name)
-  end
-  do name over r[3]
-    self~forwarder(cls, "BASE."name, "extBase", name)
-  end
-  do name over r[4]                    -- raise.Name: an interface's event, raised by the object
-    self~forwarder(cls, "RAISE."name, "extRaise", name)
-  end
-  -- self~Name:super, as in any Rexx class: a mixin the class inherits (after
-  -- its superclasses), whose private methods are the base's protected
-  -- members and the base implementations of what the class overrides
-  base = .Object~mixinClass(cls~id "BASE")
-  do name over r[2]
-    if \r[3]~hasItem(name) then self~forwarder(base, name, "extMember", name)
-  end
-  do name over r[3]
-    self~forwarder(base, name, "extBase", name)
-  end
-  cls~inherit(base)
-  cls~netExtension = r[1]
-  return r[1]
-syntax: raise propagate
 ::method forwarder private
   use arg cls, name, op, member
   q = "'"
@@ -543,135 +584,177 @@ syntax: raise propagate
   use strict arg x
   return .NetTyped~new("System.String", x)
 ::method namespace unguarded         -- .net~namespace("System.IO"): exact
-  signal on syntax
-  use strict arg name
-  return NetRequest("nsname", name)
-syntax: raise propagate
-::method type unguarded              -- .net~type("System.Collections.Generic.List<int>"), or (open generic, type args...)
-  signal on syntax
-  if arg() = 1, arg(1)~isA(.String) then do   -- by name: remembered (a type found stays that type)
-    key = "type:" || arg(1)~upper
-    found = .NetNamespace~lookups[key]
-    if found == .nil then do
-      found = NetRequest("type", arg(1, "A"))
-      .NetNamespace~lookups[key] = found
-    end
-    return found
+  do
+    use strict arg name
+    return NetRequest("nsname", name)
+  catch syntax
+    raise propagate
   end
-  return NetRequest("type", arg(1, "A"))
-syntax: raise propagate
+::method type unguarded              -- .net~type("System.Collections.Generic.List<int>"), or (open generic, type args...)
+  do
+    if arg() = 1, arg(1)~isA(.String) then do   -- by name: remembered (a type found stays that type)
+      key = "type:" || arg(1)~upper
+      found = .NetNamespace~lookups[key]
+      if found == .nil then do
+        found = NetRequest("type", arg(1, "A"))
+        .NetNamespace~lookups[key] = found
+      end
+      return found
+    end
+    return NetRequest("type", arg(1, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method load unguarded              -- .net~load(assembly name or .dll path): its full name
-  signal on syntax
-  use strict arg name
-  return NetRequest("load", name)
-syntax: raise propagate
+  do
+    use strict arg name
+    return NetRequest("load", name)
+  catch syntax
+    raise propagate
+  end
 ::method createObject unguarded      -- .net~createObject(progID [, language]): a new COM object (Windows), reached through IDispatch
-  signal on syntax                     -- language: "user" (the user's, as .OLEObject) or a culture name; default English (US)
-  use strict arg progID, language = ""
-  return NetRequest("comCreate", progID, language)
-syntax: raise propagate
+  do                                   -- language: "user" (the user's, as .OLEObject) or a culture name; default English (US)
+    use strict arg progID, language = ""
+    return NetRequest("comCreate", progID, language)
+  catch syntax
+    raise propagate
+  end
 ::method named unguarded             -- .net~named(name, value): a named argument for a COM method (VBA's name:=value), anywhere among the others
   use strict arg name, value
   return .NetTyped~new("named:"name, value)
 ::method getObject unguarded         -- .net~getObject(moniker [, language]): the COM object a moniker names (a file, "winmgmts:"...), as .OLEObject~GetObject
-  signal on syntax
-  use strict arg moniker, language = ""
-  return NetRequest("comGet", moniker, language)
-syntax: raise propagate
-::method getActiveObject unguarded   -- .net~getActiveObject(progID [, language]): the running instance of a COM class (VBA's GetObject(, progID))
-  signal on syntax
-  use strict arg progID, language = ""
-  return NetRequest("comActive", progID, language)
-syntax: raise propagate
-::method getKnownMethods unguarded   -- .net~getKnownMethods(comObject): .OLEObject's o~getKnownMethods, the same stem (.nil: no type information)
-  signal on syntax
-  use strict arg o
-  return NetComStem(NetRequest("comMethods", o), .true)
-syntax: raise propagate
-::method getKnownEvents unguarded    -- .net~getKnownEvents(comObject): .OLEObject's o~getKnownEvents, the same stem (.nil: no events)
-  signal on syntax
-  use strict arg o
-  return NetComStem(NetRequest("comEvents", o), .false)
-syntax: raise propagate
-::method getConstant unguarded       -- .net~getConstant(comObject [, name]): a constant of its type library (.nil: none), or all of them (a StringTable)
-  signal on syntax
-  use strict arg o, name = .nil
-  if name \== .nil then return NetRequest("comConstant", o, name)
-  r = NetRequest("comConstant", o)
-  all = .StringTable~new
-  do i = 1 to r[1]~items
-    all[r[1][i]] = r[2][i]
+  do
+    use strict arg moniker, language = ""
+    return NetRequest("comGet", moniker, language)
+  catch syntax
+    raise propagate
   end
-  return all
-syntax: raise propagate
+::method getActiveObject unguarded   -- .net~getActiveObject(progID [, language]): the running instance of a COM class (VBA's GetObject(, progID))
+  do
+    use strict arg progID, language = ""
+    return NetRequest("comActive", progID, language)
+  catch syntax
+    raise propagate
+  end
+::method getKnownMethods unguarded   -- .net~getKnownMethods(comObject): .OLEObject's o~getKnownMethods, the same stem (.nil: no type information)
+  do
+    use strict arg o
+    return NetComStem(NetRequest("comMethods", o), .true)
+  catch syntax
+    raise propagate
+  end
+::method getKnownEvents unguarded    -- .net~getKnownEvents(comObject): .OLEObject's o~getKnownEvents, the same stem (.nil: no events)
+  do
+    use strict arg o
+    return NetComStem(NetRequest("comEvents", o), .false)
+  catch syntax
+    raise propagate
+  end
+::method getConstant unguarded       -- .net~getConstant(comObject [, name]): a constant of its type library (.nil: none), or all of them (a StringTable)
+  do
+    use strict arg o, name = .nil
+    if name \== .nil then return NetRequest("comConstant", o, name)
+    r = NetRequest("comConstant", o)
+    all = .StringTable~new
+    do i = 1 to r[1]~items
+      all[r[1][i]] = r[2][i]
+    end
+    return all
+  catch syntax
+    raise propagate
+  end
 ::method releaseObject unguarded     -- .net~releaseObject(o): releases a COM object now (lets its server end)
-  signal on syntax
-  use strict arg o
-  call NetRequest "comRelease", o
-  return
-syntax: raise propagate
+  do
+    use strict arg o
+    call NetRequest "comRelease", o
+    return
+  catch syntax
+    raise propagate
+  end
 ::method events unguarded            -- .net~events(o): the names of its events (a .NET object or type, or a COM object)
-  signal on syntax
-  use strict arg o
-  return NetRequest("events", o)
-syntax: raise propagate
+  do
+    use strict arg o
+    return NetRequest("events", o)
+  catch syntax
+    raise propagate
+  end
 ::method new unguarded               -- .net~new(type, args...)
-  signal on syntax
-  use arg type
-  if \type~isA(.NetType) then raise syntax 98.900 array(".net~new: the type must be a .NetType, found" type)
-  return NetRequest("new", type, arg(2, "A"))
-syntax: raise propagate
+  do
+    use arg type
+    if \type~isA(.NetType) then raise syntax 98.900 array(".net~new: the type must be a .NetType, found" type)
+    return NetRequest("new", type, arg(2, "A"))
+  catch syntax
+    raise propagate
+  end
 ::method invoke unguarded            -- .net~invoke(o, "ExactName", args...)
-  signal on syntax
-  use arg o, name
-  call NetRequest "send", o, name, "1", arg(3, "A")
-  if var("RESULT") then return result
-  return
-syntax: raise propagate
+  do
+    use arg o, name
+    call NetRequest "send", o, name, "1", arg(3, "A")
+    if var("RESULT") then return result
+    return
+  catch syntax
+    raise propagate
+  end
 ::method get unguarded               -- .net~get(o, "ExactName")
-  signal on syntax
-  use strict arg o, name
-  return NetRequest("send", o, name, "1", .array~new)
-syntax: raise propagate
+  do
+    use strict arg o, name
+    return NetRequest("send", o, name, "1", .array~new)
+  catch syntax
+    raise propagate
+  end
 ::method set unguarded               -- .net~set(o, "ExactName", value)
-  signal on syntax
-  use strict arg o, name, value
-  call NetRequest "set", o, name, "1", value
-  return
-syntax: raise propagate
+  do
+    use strict arg o, name, value
+    call NetRequest "set", o, name, "1", value
+    return
+  catch syntax
+    raise propagate
+  end
 ::method typeOf unguarded            -- the name of o's type
-  signal on syntax
-  use strict arg o
-  return NetRequest("typeOf", o)
-syntax: raise propagate
+  do
+    use strict arg o
+    return NetRequest("typeOf", o)
+  catch syntax
+    raise propagate
+  end
 ::method typeObject unguarded        -- o's System.Type, as a .NetObject
-  signal on syntax
-  use strict arg o
-  return NetRequest("typeObject", o)
-syntax: raise propagate
+  do
+    use strict arg o
+    return NetRequest("typeObject", o)
+  catch syntax
+    raise propagate
+  end
 ::method isInstance unguarded        -- .net~isInstance(o, type or "name")
-  signal on syntax
-  use strict arg o, type
-  return NetRequest("isInstance", o, type)
-syntax: raise propagate
+  do
+    use strict arg o, type
+    return NetRequest("isInstance", o, type)
+  catch syntax
+    raise propagate
+  end
 ::method members unguarded           -- the names of o's public members (an Array)
-  signal on syntax
-  use strict arg o
-  return NetRequest("members", o)
-syntax: raise propagate
+  do
+    use strict arg o
+    return NetRequest("members", o)
+  catch syntax
+    raise propagate
+  end
 ::method handleCount unguarded       -- live handles (diagnostics)
   return NetRequest("count")
 ::method handler unguarded           -- .net~handler(object, message [, options]): see the header
-  signal on syntax
-  use strict arg target, message, options = ""
-  return .NetHandler~new(target, message, options)
-syntax: raise propagate
+  do
+    use strict arg target, message, options = ""
+    return .NetHandler~new(target, message, options)
+  catch syntax
+    raise propagate
+  end
 ::method nextEvent unguarded         -- the next queued call (a .NetCall), or .nil after seconds
-  signal on syntax
-  use strict arg seconds = (-1)
-  if \datatype(seconds, "N") then raise syntax 98.900 array(".net~nextEvent: seconds must be a number, found" seconds)
-  return NetNextCall(seconds, -1)
-syntax: raise propagate
+  do
+    use strict arg seconds = (-1)
+    if \datatype(seconds, "N") then raise syntax 98.900 array(".net~nextEvent: seconds must be a number, found" seconds)
+    return NetNextCall(seconds, -1)
+  catch syntax
+    raise propagate
+  end
 ::method eventLoop unguarded         -- dispatch queued calls until .net~stopEventLoop
   generation = NetRequest("loopGeneration")
   do forever
@@ -709,30 +792,38 @@ syntax: raise propagate
   use strict arg value = .nil
   return .NetRef~new(value)
 ::method box unguarded               -- .net~box(type, value): a .NET object (a .NetObject) holding value as type
-  signal on syntax
-  use strict arg type, value
-  return NetRequest("box", type, value)
-syntax: raise propagate
+  do
+    use strict arg type, value
+    return NetRequest("box", type, value)
+  catch syntax
+    raise propagate
+  end
 ::method unbox unguarded             -- .net~unbox(o): a boxed primitive, string or enum as a Rexx string; else o
-  signal on syntax
-  use strict arg o
-  if \o~isA(.NetObject) then return o
-  call NetRequest "unbox", o
-  if var("RESULT") then return result
-  return o
-syntax: raise propagate
+  do
+    use strict arg o
+    if \o~isA(.NetObject) then return o
+    call NetRequest "unbox", o
+    if var("RESULT") then return result
+    return o
+  catch syntax
+    raise propagate
+  end
 ::method addHandler unguarded        -- .net~addHandler(o, "Click", handler): o~Click += handler
-  signal on syntax
-  use strict arg o, name, handler
-  call NetRequest "event", o, name, "add", handler
-  return
-syntax: raise propagate
+  do
+    use strict arg o, name, handler
+    call NetRequest "event", o, name, "add", handler
+    return
+  catch syntax
+    raise propagate
+  end
 ::method removeHandler unguarded     -- .net~removeHandler(o, "Click", handler): o~Click -= handler
-  signal on syntax
-  use strict arg o, name, handler
-  call NetRequest "event", o, name, "remove", handler
-  return
-syntax: raise propagate
+  do
+    use strict arg o, name, handler
+    call NetRequest "event", o, name, "remove", handler
+    return
+  catch syntax
+    raise propagate
+  end
 ::method as unguarded                -- .net~as(x, type or "type name")
   use strict arg x, type
   if type~isA(.NetType) then return .NetTyped~new("#"type~netId, x)
@@ -778,12 +869,14 @@ syntax: raise propagate
 ::class NetCommandHandler public inherit CommandHandler
 ::method init
   expose id
-  signal on syntax
-  use strict arg handler
-  if handler == .nil then raise syntax 93.900 array(".NetCommandHandler~new: the handler is .nil")
-  id = NetRequest("cmdHandler", handler)
-  return
-syntax: raise propagate
+  do
+    use strict arg handler
+    if handler == .nil then raise syntax 93.900 array(".NetCommandHandler~new: the handler is .nil")
+    id = NetRequest("cmdHandler", handler)
+    return
+  catch syntax
+    raise propagate
+  end
 -- command(command, caller): the handler's result is RC. Native (rexxnet's
 -- net_command): no Rexx activation between the sender and the handler
 ::method command unguarded external "LIBRARY rexxnet net_command"
@@ -825,18 +918,22 @@ syntax: raise propagate
   use strict arg owner, name
 ::method "+" unguarded
   expose owner name
-  signal on syntax
-  use strict arg handler
-  call NetRequest "event", owner, name, "add", handler
-  return self
-syntax: raise propagate
+  do
+    use strict arg handler
+    call NetRequest "event", owner, name, "add", handler
+    return self
+  catch syntax
+    raise propagate
+  end
 ::method "-" unguarded
   expose owner name
-  signal on syntax
-  use strict arg handler
-  call NetRequest "event", owner, name, "remove", handler
-  return self
-syntax: raise propagate
+  do
+    use strict arg handler
+    call NetRequest "event", owner, name, "remove", handler
+    return self
+  catch syntax
+    raise propagate
+  end
 ::method makeString unguarded
   expose owner name
   return "a NetEvent ("name "of" owner~makeString")"
@@ -913,48 +1010,47 @@ syntax: raise propagate
     threads go on queueing meanwhile). */
 ::method process                  unguarded private
   use strict arg guiMsg
-  signal on syntax                                        -- an error stays in the GUIMessage
-  if guiMsg~hasArguments then
-     .message~new(guiMsg~target, guiMsg~messageName, "Array", guiMsg~arguments)~send
-  else
-     .message~new(guiMsg~target, guiMsg~messageName)~send
-  if var("RESULT") then
   do
-     guiMsg~result=result
-     guiMsg~hasResult=.true
+    if guiMsg~hasArguments then
+       .message~new(guiMsg~target, guiMsg~messageName, "Array", guiMsg~arguments)~send
+    else
+       .message~new(guiMsg~target, guiMsg~messageName)~send
+    if var("RESULT") then
+    do
+       guiMsg~result=result
+       guiMsg~hasResult=.true
+    end
+  catch e = syntax                                        -- an error stays in the GUIMessage
+    guiMsg~errorCondition=e
+    guiMsg~hasError=.true
   end
   guiMsg~completed=.true
-  return
-syntax:
-  guiMsg~errorCondition=condition("o")
-  guiMsg~hasError=.true
-  guiMsg~completed=.true
-  return
 
 /** A GUIMessage from runLater's arguments: target, messageName [, "I", arg...] or [, "A", array]. */
 ::method createGUIMessage         guarded private
   use strict arg args
-  signal on syntax
-  target     =args[1]
-  messageName=args[2]
-  if args~items>2 then
   do
-     argType=args[3]~left(1)~upper                        -- "Individual" or "Array"
-     select
-        when argType="I" then msgArgs=args~section(4)
-        when argType="A" then
-             do
-                if args~items>4 then raise syntax 93.902 array (4)
-                if \args[4]~isA(.array) then raise syntax 93.948 array (4, "Array")
-                msgArgs=args[4]
-             end
-        otherwise raise syntax 93.915 array ("IA", args[3])
-     end
-     return .GUIMessage~new(target, messageName, msgArgs)
+    target     =args[1]
+    messageName=args[2]
+    if args~items>2 then
+    do
+       argType=args[3]~left(1)~upper                      -- "Individual" or "Array"
+       select
+          when argType="I" then msgArgs=args~section(4)
+          when argType="A" then
+               do
+                  if args~items>4 then raise syntax 93.902 array (4)
+                  if \args[4]~isA(.array) then raise syntax 93.948 array (4, "Array")
+                  msgArgs=args[4]
+               end
+          otherwise raise syntax 93.915 array ("IA", args[3])
+       end
+       return .GUIMessage~new(target, messageName, msgArgs)
+    end
+    return .GUIMessage~new(target, messageName)
+  catch syntax
+    raise propagate
   end
-  return .GUIMessage~new(target, messageName)
-syntax:
-  raise propagate
 
 /** Called later on its thread: runs the queued messages, those queued meanwhile too. Each is taken
     from the queue under the guard and run without it, so that other threads can queue (and
@@ -980,62 +1076,67 @@ syntax:
 /** Queues a message for this event thread; returns its GUIMessage. */
 ::method runLater                 guarded
   use strict arg target, messageName, ...
-  signal on syntax
-  guiMsg=self~createGuiMessage(arg(1,"array"))
-  self~msgQueue~queue(guiMsg)
-  self~askToRun
-  return guiMsg
-syntax:
-  raise propagate
+  do
+    guiMsg=self~createGuiMessage(arg(1,"array"))
+    self~msgQueue~queue(guiMsg)
+    self~askToRun
+    return guiMsg
+  catch syntax
+    raise propagate
+  end
 
 /** As runLater, but the message goes before those already queued. */
 ::method runLaterPush             guarded
   use strict arg target, messageName, ...
-  signal on syntax
-  guiMsg=self~createGuiMessage(arg(1,"array"))
-  self~msgQueue~push(guiMsg)
-  self~askToRun
-  return guiMsg
-syntax:
-  raise propagate
+  do
+    guiMsg=self~createGuiMessage(arg(1,"array"))
+    self~msgQueue~push(guiMsg)
+    self~askToRun
+    return guiMsg
+  catch syntax
+    raise propagate
+  end
 
 /** As runLater, removing first the queued messages with the same target and message name. */
 ::method runLaterLatest           guarded
   use strict arg target, messageName, ...
-  signal on syntax
-  forward message "REMOVEMESSAGE" continue
-  guiMsg=result
-  self~msgQueue~queue(guiMsg)
-  self~askToRun
-  return guiMsg
-syntax:
-  raise propagate
+  do
+    forward message "REMOVEMESSAGE" continue
+    guiMsg=result
+    self~msgQueue~queue(guiMsg)
+    self~askToRun
+    return guiMsg
+  catch syntax
+    raise propagate
+  end
 
 /** As runLaterLatest, but the message goes before those already queued. */
 ::method runLaterLatestPush       guarded
   use strict arg target, messageName, ...
-  signal on syntax
-  forward message "REMOVEMESSAGE" continue
-  guiMsg=result
-  self~msgQueue~push(guiMsg)
-  self~askToRun
-  return guiMsg
-syntax:
-  raise propagate
+  do
+    forward message "REMOVEMESSAGE" continue
+    guiMsg=result
+    self~msgQueue~push(guiMsg)
+    self~askToRun
+    return guiMsg
+  catch syntax
+    raise propagate
+  end
 
 /** Removes the queued messages with this target and message name; returns a new GUIMessage. */
 ::method removeMessage            guarded private
   use strict arg target, messageName, ...
-  signal on syntax
-  msgQueue=self~msgQueue
-  do idx=msgQueue~items to 1 by -1                        -- (positions: from the end, as items go)
-     tmpItem=msgQueue~at(idx)
-     if tmpItem~target=target, tmpItem~messageName~caselessEquals(messageName) then
-        msgQueue~remove(idx)
+  do
+    msgQueue=self~msgQueue
+    do idx=msgQueue~items to 1 by -1                      -- (positions: from the end, as items go)
+       tmpItem=msgQueue~at(idx)
+       if tmpItem~target=target, tmpItem~messageName~caselessEquals(messageName) then
+          msgQueue~remove(idx)
+    end
+    return self~createGuiMessage(arg(1,"array"))
+  catch syntax
+    raise propagate
   end
-  return self~createGuiMessage(arg(1,"array"))
-syntax:
-  raise propagate
 
 /** Has run called on its thread, unless that is pending already. */
 ::method askToRun                 guarded private
@@ -1197,23 +1298,25 @@ syntax:
   key = (prefix"."name)~upper
   found = .NetNamespace~lookups[key]
   if found \== .nil then return found
-  signal on syntax
-  found = NetRequest("ns", prefix, name)
-  .NetNamespace~lookups[key] = found
-  return found
-syntax: raise propagate
+  do
+    found = NetRequest("ns", prefix, name)
+    .NetNamespace~lookups[key] = found
+    return found
+  catch syntax
+    raise propagate
+  end
 
 /** The next queued call, as a .NetCall (.nil: time over, or the loop stopped). */
 ::routine NetNextCall
   use arg seconds, generation
-  signal on syntax
   do forever
     r = NetRequest("nextEvent", seconds, generation)
     if r == .nil then return .nil
     handler = NetHandlerOf(r[1])
     if handler \== .nil then return .NetCall~new(handler, r[2])
+  catch syntax                         -- (a catch ends the loop)
+    raise propagate
   end
-syntax: raise propagate
 
 /** A holder for a ref / out argument: r = .net~ref; d~TryGetValue("k", r); say r~value */
 ::class NetRef public

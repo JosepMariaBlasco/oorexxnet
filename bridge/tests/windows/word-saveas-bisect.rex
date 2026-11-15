@@ -10,46 +10,46 @@ if apartment \== "MTA" then apartment = "STA"
 say "apartment:" apartment
 word = .net~createObject("Word.Application")
 word~Visible = .false
-signal on syntax name finish
-.local~tmp = value("TEMP", , "ENVIRONMENT")
-.local~n = 0
+do                                                          -- Word quits at the end, whatever happens
+  .local~tmp = value("TEMP", , "ENVIRONMENT")
+  .local~n = 0
 
-doc = word~Documents~Add
-call try doc, "an empty document"
-call try doc, "an empty document, the file name from .NET", -
-     .net~System~IO~Path~Combine(.net~System~IO~Path~GetTempPath, "word-bisect-net.docx")
-call try doc, "an empty document, the format as .net~box('int', 16)", , .net~box("int", 16)
+  doc = word~Documents~Add
+  call try doc, "an empty document"
+  call try doc, "an empty document, the file name from .NET", -
+       .net~System~IO~Path~Combine(.net~System~IO~Path~GetTempPath, "word-bisect-net.docx")
+  call try doc, "an empty document, the format as .net~box('int', 16)", , .net~box("int", 16)
 
-sel = word~Selection
-sel~Style = -2
-call try doc, "after sel~Style = -2"
-sel~TypeText("ooRexx and Word")
-sel~TypeParagraph
-call try doc, "after the heading"
-sel~Style = -1
-sel~TypeText("This document was written by a Rexx program on" date() "at" time()".")
-sel~TypeParagraph
-call try doc, "after the paragraph"
+  sel = word~Selection
+  sel~Style = -2
+  call try doc, "after sel~Style = -2"
+  sel~TypeText("ooRexx and Word")
+  sel~TypeParagraph
+  call try doc, "after the heading"
+  sel~Style = -1
+  sel~TypeText("This document was written by a Rexx program on" date() "at" time()".")
+  sel~TypeParagraph
+  call try doc, "after the paragraph"
 
-data = .array~of(.array~of("Language", "Year", "Objects"),  -
-                 .array~of("Rexx",     "1979", "no"),       -
-                 .array~of("ooRexx",   "2004", "yes"))
-table = doc~Tables~Add(sel~Range, data~items, 3)
-call try doc, "after Tables~Add"
-do r = 1 to data~items
-  do c = 1 to 3
-    table~Cell(r, c)~Range~Text = data[r][c]
+  data = .array~of(.array~of("Language", "Year", "Objects"),  -
+                   .array~of("Rexx",     "1979", "no"),       -
+                   .array~of("ooRexx",   "2004", "yes"))
+  table = doc~Tables~Add(sel~Range, data~items, 3)
+  call try doc, "after Tables~Add"
+  do r = 1 to data~items
+    do c = 1 to 3
+      table~Cell(r, c)~Range~Text = data[r][c]
+    end
   end
+  call try doc, "after filling the table"
+  table~Rows~Item(1)~Range~Font~Bold = .true
+  table~Borders~Enable = .true
+  call try doc, "after Bold and Borders"
+  say "Paragraphs:" doc~Paragraphs~Count", words:" doc~Words~Count
+  call try doc, "after Paragraphs~Count and Words~Count"
+catch syntax
+  say "stopped:" condition("O")~message
 end
-call try doc, "after filling the table"
-table~Rows~Item(1)~Range~Font~Bold = .true
-table~Borders~Enable = .true
-call try doc, "after Bold and Borders"
-say "Paragraphs:" doc~Paragraphs~Count", words:" doc~Words~Count
-call try doc, "after Paragraphs~Count and Words~Count"
-
-finish:
-if condition() == "SYNTAX" then say "stopped:" condition("O")~message
 doc~Close(0)                                                -- wdDoNotSaveChanges
 word~Quit
 .net~releaseObject(word)
@@ -60,14 +60,14 @@ exit
 ::routine try
   use arg doc, what, file = (.tmp"\word-bisect-" || .n + 1 || ".docx"), format = 16
   .local~n = .n + 1
-  signal on syntax
-  doc~SaveAs2(file, format)
-  ok = .stream~new(file)~query("exists") \== ""
-  if ok then say right(.n, 2) "ok  " what
-  else say right(.n, 2) "ok  " what "(but no file)"
-  call SysFileDelete file
-  return
-syntax:
-  say right(.n, 2) "FAIL" what":" condition("O")~message
+  do
+    doc~SaveAs2(file, format)
+    ok = .stream~new(file)~query("exists") \== ""
+    if ok then say right(.n, 2) "ok  " what
+    else say right(.n, 2) "ok  " what "(but no file)"
+    call SysFileDelete file
+  catch syntax
+    say right(.n, 2) "FAIL" what":" condition("O")~message
+  end
 
 ::requires "net.cls"

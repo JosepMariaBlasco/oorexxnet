@@ -16,13 +16,14 @@ end
 rs~cancel = .false
 rs~MoveFirst
 rs~cancel = .true
-signal on syntax
-rs~MoveNext
-say "MoveNext was not cancelled: now at" rs~Fields~Item("name")~Value
-exit 1
-syntax:
+do
+  rs~MoveNext
+  say "MoveNext was not cancelled: now at" rs~Fields~Item("name")~Value
+  exit 1
+catch syntax
   say "MoveNext cancelled (" || condition("O")~code || "): still at" rs~Fields~Item("name")~Value
   exit 0
+end
 
 ::class WatchedRecordset subclass OLEObject
 ::attribute cancel
