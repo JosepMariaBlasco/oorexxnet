@@ -111,9 +111,12 @@ do n = 1 to examples~items
     prog = work || sep || "ex"n".rex"
     call writeLines prog, code
     old = directory()
-    call directory work
-    address system libvar'rexx "'prog'"' with output using (o) error using (e)
-    call directory old
+    do
+      call directory work
+      address system libvar'rexx "'prog'"' with output using (o) error using (e)
+    finally                                -- back however it ends
+      call directory old
+    end
   end
   else do
     proj = work || sep || "cs"n
@@ -136,9 +139,12 @@ do n = 1 to examples~items
       iterate
     end
     old = directory()
-    call directory work
-    address system libvar'dotnet "'proj || sep'out' || sep'Book.dll"' with output using (o) error using (e)
-    call directory old
+    do
+      call directory work
+      address system libvar'dotnet "'proj || sep'out' || sep'Book.dll"' with output using (o) error using (e)
+    finally                                -- back however it ends
+      call directory old
+    end
   end
   all = o~copy; do l over e; all~append(l); end
   got = joined(all)

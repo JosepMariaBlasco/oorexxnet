@@ -82,16 +82,19 @@ do d over dirs
     count += 1
     name = d"/"filespec("name", f)
     cwd = directory()
-    if guide then do                                        -- from the exercise's folder (ExerciseNN), as the originals expect
-      name = d"/"f~substr(length(here || d) + 2)~changeStr(sep, "/")
-      parse value f~substr(length(here || d) + 2) with exercise (sep)
-      call directory here || d~changeStr("/", sep) || sep || exercise
+    do
+      if guide then do                                        -- from the exercise's folder (ExerciseNN), as the originals expect
+        name = d"/"f~substr(length(here || d) + 2)~changeStr(sep, "/")
+        parse value f~substr(length(here || d) + 2) with exercise (sep)
+        call directory here || d~changeStr("/", sep) || sep || exercise
+      end
+      say "=====" name
+      if windows then                                         -- a hang ends after 90 s, not the CI's 20 min
+        address system 'powershell -NoProfile -ExecutionPolicy Bypass -File "'here'run-with-timeout.ps1" -File "'f'" -Arg auto -Seconds 90'
+      else address system libvar'rexx "'f'" auto'
+    finally                                -- back however it ends
+      call directory cwd
     end
-    say "=====" name
-    if windows then                                         -- a hang ends after 90 s, not the CI's 20 min
-      address system 'powershell -NoProfile -ExecutionPolicy Bypass -File "'here'run-with-timeout.ps1" -File "'f'" -Arg auto -Seconds 90'
-    else address system libvar'rexx "'f'" auto'
-    call directory cwd
     if rc \= 0 then do
       fails += 1
       say "FAIL" name "(exit status" rc")"

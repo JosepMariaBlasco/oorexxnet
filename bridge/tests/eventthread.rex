@@ -34,6 +34,9 @@ n = .NetEventThread~runLater(w, "NOTHING")
 .net~nextEvent(5)~dispatch
 call ok "an error: kept in its GUIMessage", e~completed e~hasError e~errorCondition~code e~hasResult, "1 1 42.3 0"
 call ok "... and the next one runs",        n~completed n~hasError n~hasResult, "1 0 0"
+h = .NetEventThread~runLater(w, "HALTS")                 -- a HALT the message leaves untrapped: SYNTAX 4.1
+.net~nextEvent(5)~dispatch
+call ok "a HALT: kept as an error (4.1), completed", h~completed h~hasError h~errorCondition~code, "1 1 4.1"
 
 -- from another thread: the event thread runs it, the other waits for its result
 w~startWaiter                                            -- another Rexx thread: runLater, then ~result
@@ -154,6 +157,7 @@ twoWindows: procedure
   self~log = (self~log "other")~strip
 ::method fail unguarded
   return 1 / 0
+::method halts unguarded; raise halt
 ::method nothing unguarded
   return
 ::method answer unguarded

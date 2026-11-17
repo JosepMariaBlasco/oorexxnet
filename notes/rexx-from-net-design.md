@@ -373,8 +373,10 @@ The bridges' command handlers were made homogeneous (`oorexx-bridges`,
   value a native routine returned with a condition raised without a
   `RESULT` (#2130). **Since the minimum r13344** (31/10/2026) the value is
   only answered by the call (held by an Array of the call's context until
-  it returns), the condition object has no `RESULT`, as in plain Rexx
-  (`phase3.rex`, `HostTests`: one test each), and `net_command` answers it
+  it returns), the condition object is the one Rexx raised, as in plain
+  Rexx (`phase3.rex`, `HostTests`: one test each): with no `RESULT` until
+  r13521, with the value as `RESULT` since r13522 (#2174, minimum r13532),
+  which then arrives with no change to the bridge, and `net_command` answers it
   with the condition pending (it used to answer nothing, the RC coming from
   that `RESULT`). For a `.NetHandler` (a delegate that
   .NET calls, `List.Sort`'s comparer) the value is what the handler
@@ -1553,7 +1555,9 @@ rexx.AddValueSelector("APP", name => settings[name], (name, value) => settings[n
   mode) has no such exits: `AddFunction` there is an
   `InvalidOperationException` saying why.
 - **Precedence**, Rexx's: the program's own routines and the built-in
-  functions win (an application `length` is never called: tested);
+  functions win (an application `length` is never called: tested; since
+  ooRexx r13531, RFE #890, BEEP, DIRECTORY and FILESPEC are built in too,
+  so an application function of one of those names is no longer called);
   external functions of the same name (a library's, a `.rex` file) are
   hidden by the application's. RXOFNC rather than RXFNC: arguments and
   result as objects (a .NET object goes and comes as itself), and no

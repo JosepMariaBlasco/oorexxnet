@@ -120,13 +120,16 @@ call err "returned the wrong thing", "x = .dl~Apply(.net~handler(.t, 'HELLO'), 1
 -- an error in a handler no Rexx code waits on (a background thread): reported, the program goes on
 saved = .error
 .local~error = .Collector~new
-b6 = .net~RexxNetTests~Button~new
-b6~ValueChanged += .net~handler(t, "FAILON2")
-b6~StartValues(3, 10)
-t0 = time("E")
-do while t~failCount < 3 & time("E") - t0 < 10; call SysSleep 0.01; end
-report = .error~text
-.local~error = saved
+do
+  b6 = .net~RexxNetTests~Button~new
+  b6~ValueChanged += .net~handler(t, "FAILON2")
+  b6~StartValues(3, 10)
+  t0 = time("E")
+  do while t~failCount < 3 & time("E") - t0 < 10; call SysSleep 0.01; end
+  report = .error~text
+finally                                -- .error back however this ends (an error here is then seen)
+  .local~error = saved
+end
 call ok "no Rexx caller: the events go on", t~failCount, 3
 call ok "... reported as Rexx does", report~pos("Error 98.900:  boom 2") > 0, 1
 call ok "... with its traceback", report~pos('raise syntax 98.900 array("boom"') > 0, 1
@@ -206,8 +209,9 @@ do
   call ok "caller~raise FAILURE: FAILURE", "none", "FAILURE"
 catch failure
   call ok "... rc, description, additional", condition("C") rc condition("D") condition("A"), "FAILURE -3 it could not run the additional"
+finally
+  trace normal
 end
-trace normal
 v = "issuer's"; drop nope; drop gone; gone = "x"
 address calc "vars"; call ok "the variables: [], hasVar, a name with no value, environment", rc, "issuer's True False NOPE CALC"
 o = .array~new; address calc "set" with output using (o)
@@ -318,7 +322,7 @@ call ok "... USER of Rexx code the handler runs", sendCmd(raiser, "", "user"), "
 call ok "RAISE ... RETURN, untrapped: .NET's call answers the value", returned(raiser, "send"), "1"
 call ok "... after CALL ON USER", returned(raiser, "send", "call on"), "handler 1"
 call ok "... from a .NetHandler's method", returned(raiser, "handler"), "1"
-call ok "... trapped, the condition object has no RESULT, as plain Rexx", noResult(raiser, "send") noResult(raiser, "handler") noResult(raiser, "rexx"), "1 1 1"
+call ok "... trapped, the condition object's RESULT is the value, as plain Rexx (#2174)", resultOf(raiser, "send") resultOf(raiser, "handler") resultOf(raiser, "rexx"), "1 1 1"
 
 -- ERROR's and FAILURE's RC: the condition object raised again as it is
 -- (RaiseConditionObject, ooRexx r13329), so the RC arrives as in plain Rexx:
@@ -560,14 +564,14 @@ reply: procedure expose dl          -- obj as a callback's reply ("text", "count
   replyTrap: c = condition("O")
   if c~condition == "SYNTAX" then return "SYNTAX" c~code
   return c~condition c~description
-noResult: procedure expose dl        -- RAISE USER ... RETURN, trapped by SIGNAL ON: 1 if condition("O") has no RESULT
+resultOf: procedure expose dl        -- RAISE USER ... RETURN, trapped by SIGNAL ON: condition("O")'s RESULT
   use arg o, how
-  signal on user oops name noResultTrap
+  signal on user oops name resultOfTrap
   if how = "send" then x = dl~SendTo(o, "USER")
   else if how = "handler" then x = dl~Text(.net~handler(o, "USER"))
   else x = o~user
   return "not trapped"
-  noResultTrap: return condition("O")~result == .nil
+  resultOfTrap: return condition("O")~result
 conditionText: procedure            -- a condition object: its name, description and additional
   use arg o
   a = o~additional

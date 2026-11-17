@@ -2,9 +2,13 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13514 (the family's base: CATCH
-# clauses, RFE #31, in r13514, which net.cls and the tests trap errors with; about
-# forty fixes since r13379, #2159 and #2150 among them for native code;
+# revision: the bridge needs at least r13532 (the family's base: FINALLY
+# clauses, RFE #31, in r13524, which net.cls, the tests and the checkers clean up
+# with; r13517, a CATCH clause's condition object kept alive; r13529, RAISE
+# SYNTAX in an internal routine reaches a CATCH around the CALL; #2174 in r13522,
+# RAISE ... RETURN's value is the condition object's RESULT; BEEP, DIRECTORY and
+# FILESPEC built in, RFE #890; CATCH clauses, RFE #31, in r13514, which net.cls
+# and the tests trap errors with; about forty fixes from r13379 to r13514, #2159 and #2150 among them for native code;
 # #1890 in
 # r13379; #2011 and #2014 in r13377, the stream functions check their
 # position and count; #2009 in r13375; #2137 and #2138 in r13371-r13374,
@@ -50,7 +54,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13514"
+  OOREXX_REV: "13532"
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"

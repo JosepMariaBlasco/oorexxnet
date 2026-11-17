@@ -10,9 +10,11 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13514 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13514 is the base of the
-  family of ooRexx bridges: it has the CATCH clauses (RFE #31), which
+- **ooRexx 5.3.0 r13532 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13532 is the base of the
+  family of ooRexx bridges: it has the FINALLY clauses (RFE #31, r13524),
+  which `net.cls` cleans up with, and keeps a CATCH clause's condition object
+  alive (r13517); from r13514 the CATCH clauses (RFE #31), which
   `net.cls` traps its errors with; from r13374 `.OLEObject`'s error 92.909 names
   the right argument and a long COM exception text no longer overflows
   (#2137, #2138); from r13377 the stream functions check their position and

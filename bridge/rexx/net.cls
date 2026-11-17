@@ -1023,8 +1023,9 @@
   catch e = syntax                                        -- an error stays in the GUIMessage
     guiMsg~errorCondition=e
     guiMsg~hasError=.true
+  finally                                                 -- also when another condition (a HALT) leaves:
+    guiMsg~completed=.true                                --   whoever waits for its result goes on
   end
-  guiMsg~completed=.true
 
 /** A GUIMessage from runLater's arguments: target, messageName [, "I", arg...] or [, "A", array]. */
 ::method createGUIMessage         guarded private
