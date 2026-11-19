@@ -253,6 +253,7 @@ jobs:
   # Parser, which highlights their Rexx listings: artifact books. (Their
   # examples are run by the jobs above: docs/check-books.rex.)
   books:
+    needs: trunk-oorexx                   # the Rexx Parser's latest release needs THROW (r13546)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -263,12 +264,16 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq subversion xsltproc docbook-xml docbook-xsl fop fonts-liberation zip >/dev/null
-      - name: ooRexx r${{ env.OOREXX_REV }} (portable)
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/oorexx-stage
+          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404
+          fail-on-cache-miss: true
+      - name: ooRexx trunk r${{ env.OOREXX_TRUNK_REV }}
         run: |
-          curl -sSfL --retry 3 -o "$RUNNER_TEMP/oorexx.zip" \
-            "$OOREXX_URL/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release.zip"
-          unzip -q "$RUNNER_TEMP/oorexx.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/oorexx-5.3.0-$OOREXX_REV.ubuntu2404.x86_64-portable-release/bin" >> "$GITHUB_PATH"
+          sudo cp -a "$RUNNER_TEMP/oorexx-stage/usr/local/." /usr/local/
+          sudo ldconfig
+          rexx -v
       - name: ooRexx's documentation tools, and the Rexx Parser
         run: |
           U=https://svn.code.sf.net/p/oorexx/code-0/docs/trunk
