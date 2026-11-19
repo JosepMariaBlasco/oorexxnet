@@ -38,7 +38,7 @@ if ! command -v rexx >/dev/null 2>&1; then
     echo "== ooRexx r$REV (no .deb on SourceForge: main/trunk from SVN, built here)"
     command -v svn >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1 && command -v g++ >/dev/null 2>&1 ||
       { apt-get update -qq && apt-get install -y -qq subversion cmake g++ >/dev/null; }
-    svn export -q -r "$REV" https://svn.code.sf.net/p/oorexx/code-0/main/trunk "$TMP/oorexx"
+    svn checkout -q -r "$REV" https://svn.code.sf.net/p/oorexx/code-0/main/trunk "$TMP/oorexx"   # (not export: CMake takes the revision from its SVN info)
     cmake -S "$TMP/oorexx" -B "$TMP/oorexx-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local >/dev/null
     cmake --build "$TMP/oorexx-build" -j"$(nproc)" >/dev/null
     cmake --install "$TMP/oorexx-build" >/dev/null

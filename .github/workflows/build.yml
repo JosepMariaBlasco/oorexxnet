@@ -148,13 +148,13 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/oorexx-stage
-          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404
+          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404-v3
           fail-on-cache-miss: true
       - name: ooRexx trunk r${{ env.OOREXX_TRUNK_REV }}
         run: |
           sudo cp -a "$RUNNER_TEMP/oorexx-stage/usr/local/." /usr/local/
           sudo ldconfig
-          rexx -v
+          rexx -v | tee /dev/stderr | grep -q " r$OOREXX_TRUNK_REV$"   # (the revision built, not r0: the trunk tests check it)
       - name: Test suites
         run: bridge/tests/run.sh
       - name: The guide's examples
@@ -174,12 +174,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/oorexx-stage
-          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404
+          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404-v3
       - if: steps.cache.outputs.cache-hit != 'true'
         name: Build ooRexx trunk r${{ env.OOREXX_TRUNK_REV }} from SVN
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq subversion cmake g++ >/dev/null
-          svn export -q -r "$OOREXX_TRUNK_REV" https://svn.code.sf.net/p/oorexx/code-0/main/trunk "$RUNNER_TEMP/oorexx"
+          # a checkout, not an export: CMake takes the revision from its SVN info (an export is r0)
+          svn checkout -q -r "$OOREXX_TRUNK_REV" https://svn.code.sf.net/p/oorexx/code-0/main/trunk "$RUNNER_TEMP/oorexx"
           cmake -S "$RUNNER_TEMP/oorexx" -B "$RUNNER_TEMP/oorexx-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
           cmake --build "$RUNNER_TEMP/oorexx-build" -j"$(nproc)"
           DESTDIR="$RUNNER_TEMP/oorexx-stage" cmake --install "$RUNNER_TEMP/oorexx-build"
@@ -267,13 +268,13 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/oorexx-stage
-          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404
+          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404-v3
           fail-on-cache-miss: true
       - name: ooRexx trunk r${{ env.OOREXX_TRUNK_REV }}
         run: |
           sudo cp -a "$RUNNER_TEMP/oorexx-stage/usr/local/." /usr/local/
           sudo ldconfig
-          rexx -v
+          rexx -v | tee /dev/stderr | grep -q " r$OOREXX_TRUNK_REV$"   # (the revision built, not r0: the trunk tests check it)
       - name: ooRexx's documentation tools, and the Rexx Parser
         run: |
           U=https://svn.code.sf.net/p/oorexx/code-0/docs/trunk
