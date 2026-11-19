@@ -1178,9 +1178,14 @@ static std::string conditionRecord(RexxThreadContext *tc, RexxObjectPtr returned
             traceback += line;
         }
     }
+    // thrown (THROW, the Throw API: RFE #31), and the description,
+    // length-prefixed (it may hold tabs), before the message
+    RexxObjectPtr thrown = tc->DirectoryAt(info, "THROWN");
+    std::string description = k.description ? tc->CString(k.description) : "";
     std::string p = std::to_string(kept.id) + '\t' + exc + '\t' + name + '\t' + code + '\t' + std::to_string((long)k.rc) + '\t' +
                     std::to_string(k.position) + '\t' + (k.program ? tc->CString(k.program) : "") + '\t' +
-                    (k.errortext ? tc->CString(k.errortext) : "") + '\t' + traceback + '\t' + message;
+                    (k.errortext ? tc->CString(k.errortext) : "") + '\t' + traceback + '\t' +
+                    (thrown == tc->True() ? "1" : "0") + '\t' + std::to_string(description.size()) + ':' + description + message;
     tc->ClearCondition();
     std::string out;
     record(out, 'E', p);

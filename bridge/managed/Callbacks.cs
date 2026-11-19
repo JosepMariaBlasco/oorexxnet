@@ -242,16 +242,19 @@ public static unsafe class Callbacks
         return v;
     }
 
-    // E: "conditionId\texceptionId\tname\tcode\trc\tline\tprogram\terrortext\ttraceback\tmessage"
-    // (the traceback's lines joined by \n)
+    // E: "conditionId\texceptionId\tname\tcode\trc\tline\tprogram\terrortext\ttraceback\tthrown\tN:descriptionmessage"
+    // (the traceback's lines joined by \n; N the description's length)
     static RexxException ToException(string payload)
     {
-        var f = payload.Split('\t', 10);
+        var f = payload.Split('\t', 11);
         int exc = int.Parse(f[1]);
         Exception? inner = null;
         if (exc != 0) try { inner = Handles.Get(exc) as Exception; } catch (BridgeException) { }
-        return new RexxException(f[9], inner, f[2], f[3], int.TryParse(f[4], out var rc) ? rc : 0, f[7], f[6],
-                                 int.TryParse(f[5], out var line) ? line : 0, f[8], int.Parse(f[0]));
+        int colon = f[10].IndexOf(':'), dl = int.Parse(f[10].AsSpan(0, colon));
+        string description = f[10].Substring(colon + 1, dl), message = f[10].Substring(colon + 1 + dl);
+        return new RexxException(message, inner, f[2], f[3], int.TryParse(f[4], out var rc) ? rc : 0, f[7], f[6],
+                                 int.TryParse(f[5], out var line) ? line : 0, f[8], int.Parse(f[0]))
+               { Thrown = f[9] == "1", Description = description.Length > 0 ? description : null };
     }
 
     /// A RexxException in e's chain that rexxnet can raise again in Rexx.

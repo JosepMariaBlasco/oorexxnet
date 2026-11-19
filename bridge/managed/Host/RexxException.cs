@@ -24,6 +24,14 @@ public sealed class RexxException : Exception
     /// The condition object (condition("O")), when the call was made from
     /// .NET (null for a callback's condition: rexxnet keeps that one).
     public RexxObject? Condition { get; }
+    /// True for a condition that was thrown (THROW, or the Throw API: it
+    /// goes from caller to caller until something catches it), false for one
+    /// that was raised (RAISE, or the interpreter). Its condition object's
+    /// THROWN entry; a SYNTAX error the interpreter raised is false.
+    public bool Thrown { get; init; }
+    /// The condition's description (DESCRIPTION, condition("D")), or null:
+    /// none, a null string, or not a String.
+    public string? Description { get; init; }
     internal readonly int ConditionId;            // rexxnet keeps the condition, to raise it again in Rexx
     /// What the call that left the condition answered: a RAISE ... RETURN
     /// value (a condition other than SYNTAX: the Rexx code went on and
@@ -86,12 +94,17 @@ public sealed class RexxException : Exception
             nint x = c.ArrayAt(k.additional, 2);
             if (x != 0) { inner = rexx.NetOf(c, x) as Exception; c.ReleaseLocal(x); }
         }
+        string? description = k.description != 0 && c.IsString(k.description) ? c.StrValue(k.description) : null;
         foreach (var x in new[] { k.conditionName, k.message, k.errortext, k.program, k.description, k.additional })
             if (x != 0) c.ReleaseLocal(x);                // DecodeConditionInfo's local references
+        nint thrown = c.DirectoryAt(info, "THROWN");          // (RFE #31)
+        bool isThrown = thrown != 0 && thrown == c.True;
+        if (thrown != 0) c.ReleaseLocal(thrown);
         var condition = rexx.Wrap(c, info) as RexxObject;
         return new RexxException(message, inner, name, code, (int)k.rc, errorText, program, (int)k.position,
                                  string.Join("\n", lines), 0, condition)
-               { Returned = returned != 0 && returned != c.Nil && name != "SYNTAX" ? rexx.Wrap(c, returned) : null };
+               { Returned = returned != 0 && returned != c.Nil && name != "SYNTAX" ? rexx.Wrap(c, returned) : null,
+                 Thrown = isThrown, Description = description is { Length: > 0 } ? description : null };
     }
 
     /// The RexxException that a .NET call made from Rexx let through (Rexx

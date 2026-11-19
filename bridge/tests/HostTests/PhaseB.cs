@@ -25,11 +25,46 @@ static partial class Program
         CommandsWhileRexxRuns();
         HandlerAsFunction();
         SignalPastTheHost();
+        ThrownPastTheHost();
         OptionsErrorSyntax();
         HaltBackAsHalt();
         ReliableCancellationOff();
         HandlersGoOnDispose();
         ContextAfterTheHandler();
+    }
+
+    // A thrown condition (THROW, ooRexx r13541; RFE #31) of Rexx code that
+    // .NET runs: a RexxException whose Thrown is true; let out of a host's
+    // function or command environment, it goes on from caller to caller in
+    // Rexx (raised again as its condition object, THROWN included), as in
+    // plain Rexx: CALL ON does not trap it. From r13550.
+    static void ThrownPastTheHost()
+    {
+        using var rexx = RexxInterpreter.Create();
+        if (rexx.Run<int>("return .RexxInfo~revision") < 13550) return;
+        try { rexx.Run("throw user badconfig description 'no port' additional 8080"); Ok("THROW: a RexxException", "none", "USER BADCONFIG"); }
+        catch (RexxException e)
+        {
+            Ok("THROW: a RexxException, Thrown, Description", $"{e.ConditionName} {e.Thrown} {e.Description}", "USER BADCONFIG True no port");
+            Ok("... its condition object's ADDITIONAL", e.Condition?.Send("[]", "ADDITIONAL")?.ToString(), "8080");
+        }
+        try { rexx.Run("raise user badconfig description 'no port'"); Ok("RAISE: a RexxException, not Thrown", "none", "USER BADCONFIG False no port"); }
+        catch (RexxException e) { Ok("RAISE: a RexxException, not Thrown", $"{e.ConditionName} {e.Thrown} {e.Description}", "USER BADCONFIG False no port"); }
+        try { rexx.Run("do; return 1/0; catch syntax; throw propagate; end"); }
+        catch (RexxException e) { Ok("THROW PROPAGATE of a SYNTAX: Thrown", $"{e.Code} {e.Thrown}", "42.3 True"); }
+        try { rexx.Run("return 1/0"); }
+        catch (RexxException e) { Ok("an error the interpreter raises: not Thrown", $"{e.Code} {e.Thrown}", "42.3 False"); }
+        rexx.AddFunction("THROWING", call => call.Interpreter.Run("throw user badconfig description 'deep'"));
+        rexx.AddCommandEnvironment("THROWING", (c, ctx) => ctx.Interpreter.Run("throw user badconfig description 'deep'"));
+        const string Up = "\nmid: procedure; x = throwing(); return 'mid went on'\ncmd: procedure; address throwing 'go'; return 'cmd went on'";
+        Ok("... through a host's function: caught two levels up",
+           rexx.Run("do; call mid; return 'not caught'; catch c = user badconfig; return c~description c~thrown; end" + Up), "deep 1");
+        Ok("... through a command environment",
+           rexx.Run("do; call cmd; return 'not caught'; catch c = user badconfig; return c~description c~thrown; end" + Up), "deep 1");
+        Ok("... CALL ON does not trap it",
+           rexx.Run("do; call on user badconfig name h; x = throwing(); return 'went on'; catch user badconfig; return 'outside'; end\nh: return"), "outside");
+        try { rexx.Run("x = throwing(); return 'went on'"); Ok("... uncaught: to .NET", "went on", "USER BADCONFIG True"); }
+        catch (RexxException e) { Ok("... uncaught: to .NET", $"{e.ConditionName} {e.Thrown}", "USER BADCONFIG True"); }
     }
 
     // The context is valid only while its handler runs: kept and used after,

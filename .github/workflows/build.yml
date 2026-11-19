@@ -54,7 +54,8 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13532"
+  OOREXX_REV: "13532"                 # SourceForge's builds: the three platforms, the package, the install jobs
+  OOREXX_TRUNK_REV: "13550"           # main/trunk built from SVN (no builds on SourceForge yet): job trunk, the sessions
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
@@ -127,6 +128,61 @@ jobs:
         with:
           name: native-${{ matrix.name }}
           path: ${{ env.REXXNET_BUILD }}/rexxnet/${{ matrix.native }}
+
+  # The bridge on ooRexx's trunk, built from SVN at OOREXX_TRUNK_REV (cached):
+  # the tests that need a revision past SourceForge's builds (THROW, the
+  # Throw API: RFE #31) run here; they are skipped on OOREXX_REV
+  trunk:
+    name: linux-x64 (ooRexx trunk)
+    needs: trunk-oorexx
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - run: echo "REXXNET_BUILD=$RUNNER_TEMP/build" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/oorexx-stage
+          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404
+          fail-on-cache-miss: true
+      - name: ooRexx trunk r${{ env.OOREXX_TRUNK_REV }}
+        run: |
+          sudo cp -a "$RUNNER_TEMP/oorexx-stage/usr/local/." /usr/local/
+          sudo ldconfig
+          rexx -v
+      - name: Test suites
+        run: bridge/tests/run.sh
+      - name: The guide's examples
+        run: rexx docs/check-guide.rex
+      - name: The books' examples
+        run: rexx docs/check-books.rex
+      - name: Smoke tests
+        run: smoke/run.sh && smoke/hostapi/run.sh
+
+  # ooRexx's main/trunk at OOREXX_TRUNK_REV, built once per revision (the
+  # cache keeps it: ~6 minutes when it misses)
+  trunk-oorexx:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/oorexx-stage
+          key: oorexx-trunk-${{ env.OOREXX_TRUNK_REV }}-ubuntu2404
+      - if: steps.cache.outputs.cache-hit != 'true'
+        name: Build ooRexx trunk r${{ env.OOREXX_TRUNK_REV }} from SVN
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq subversion cmake g++ >/dev/null
+          svn export -q -r "$OOREXX_TRUNK_REV" https://svn.code.sf.net/p/oorexx/code-0/main/trunk "$RUNNER_TEMP/oorexx"
+          cmake -S "$RUNNER_TEMP/oorexx" -B "$RUNNER_TEMP/oorexx-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build "$RUNNER_TEMP/oorexx-build" -j"$(nproc)"
+          DESTDIR="$RUNNER_TEMP/oorexx-stage" cmake --install "$RUNNER_TEMP/oorexx-build"
 
   windows:
     name: win-x64

@@ -323,6 +323,27 @@ call ok "RAISE ... RETURN, untrapped: .NET's call answers the value", returned(r
 call ok "... after CALL ON USER", returned(raiser, "send", "call on"), "handler 1"
 call ok "... from a .NetHandler's method", returned(raiser, "handler"), "1"
 call ok "... trapped, the condition object's RESULT is the value, as plain Rexx (#2174)", resultOf(raiser, "send") resultOf(raiser, "handler") resultOf(raiser, "rexx"), "1 1 1"
+-- A thrown condition (THROW, ooRexx r13541; the Throw API, r13546: RFE #31)
+-- that Rexx code called by .NET leaves: it goes on from caller to caller,
+-- as in plain Rexx, past the Rexx code that called .NET (its condition
+-- object, THROWN included, raised again as it is); CALL ON does not trap
+-- it; .NET sees it as a RexxException whose Thrown is true. From r13550
+-- (uncaught: error 4.901).
+if .RexxInfo~revision >= 13550 then do
+  thrower = .Thrower~new
+  call ok "THROW, .NET sends to the method: caught two levels up", thrownUp(thrower, "send"), "USER OOPS thrown a1 1"
+  call ok "... through a .NetHandler's method", thrownUp(thrower, "handler"), "USER OOPS thrown a1 1"
+  call ok "... the same in plain Rexx", thrownUp(thrower, "rexx"), "USER OOPS thrown a1 1"
+  call ok "... CALL ON does not trap it, through .NET", thrownCallOn(thrower, "send") thrownCallOn(thrower, "handler"), "outside outside"
+  call ok "... nor in plain Rexx", thrownCallOn(thrower, "rexx"), "outside"
+  call ok "... SIGNAL ON on the level that called .NET traps it", thrownSignal(thrower), "USER OOPS 1"
+  call ok "THROW ERROR: its RC through .NET", thrownUp(thrower, "send", "ERROR"), "ERROR thrown error 5 1"
+  call ok "THROW SYNTAX: the error through .NET, thrown", thrownUp(thrower, "send", "SYNTAX"), "SYNTAX 40.1 1"
+  call ok ".NET sees it: RexxException.Thrown, Description (Send)", dl~CaughtSend(thrower, "USER"), "USER OOPS 1 thrown"
+  call ok "... (a delegate)", dl~CaughtCall(.net~handler(thrower, "USER")), "USER OOPS 1 thrown"
+  call ok "... a raised one: Thrown false", dl~CaughtSend(raiser, "USER"), "USER OOPS 0 a user condition"
+  call ok "uncaught through .NET: error 4.901, as in plain Rexx", thrownUncaught(testlib), "4.901 Program interrupted with USER OOPS condition: thrown."
+end
 
 -- ERROR's and FAILURE's RC: the condition object raised again as it is
 -- (RaiseConditionObject, ooRexx r13329), so the RC arrives as in plain Rexx:
@@ -572,6 +593,62 @@ resultOf: procedure expose dl        -- RAISE USER ... RETURN, trapped by SIGNAL
   else x = o~user
   return "not trapped"
   resultOfTrap: return condition("O")~result
+thrownUp: procedure expose dl       -- a THROW two levels down (.NET between), caught here
+  use arg o, how, cond = "USER"
+  do
+    call thrownMiddle dl, o, how, cond
+    return "not caught"
+  catch c = any
+    if c~condition == "SYNTAX" then return c~condition c~code (c~thrown == .true)
+    if c~condition == "ERROR" then return c~condition c~description c~rc (c~thrown == .true)
+    return c~condition c~description c~additional[1] (c~thrown == .true)
+  end
+thrownMiddle: procedure              -- a level with no trap
+  use arg dl, o, how, cond
+  x = thrownVia(dl, o, how, cond)
+  return "went on"
+thrownVia: procedure
+  use arg dl, o, how, cond
+  if how = "rexx" then return o~send(cond)
+  if how = "send" then return dl~SendTo(o, cond)
+  return dl~Text(.net~handler(o, cond))
+thrownCallOn: procedure expose dl
+  use arg o, how
+  do
+    call thrownCallOnLevel dl, o, how
+    return "went on"
+  catch user oops
+    return "outside"
+  end
+thrownCallOnLevel: procedure
+  use arg dl, o, how
+  call on user oops name thrownCallOnTrap
+  x = thrownVia(dl, o, how, "USER")
+  return
+  thrownCallOnTrap: return
+thrownSignal: procedure expose dl
+  use arg o
+  signal on user oops name thrownSignalTrap
+  x = dl~SendTo(o, "USER")
+  return "not trapped"
+  thrownSignalTrap: return condition("C") (condition("O")~thrown == .true)
+thrownUncaught: procedure            -- a child program leaves it uncaught: its error line
+  use arg testlib
+  file = .File~new("thrown-" || date("S") || random(99999) || ".rex", .File~temporaryPath)~absolutePath
+  call lineout file, "parse arg testlib; x = .net~load(testlib)"
+  call lineout file, "x = .net~RexxNetTests~Delegates~SendTo(.T~new, 'USER')"
+  call lineout file, "say 'went on'"
+  call lineout file, "::class T"
+  call lineout file, "::method user; throw user oops description 'thrown'"
+  call lineout file, "::requires 'net.cls'"
+  call lineout file
+  out = .array~new
+  address system 'rexx "'file'"' testlib with output using (out) error using (out)
+  call SysFileDelete file
+  do l over out
+    if l~pos("Error 4.901:") > 0 then return "4.901" l~substr(l~pos(":") + 1)~strip
+  end
+  return "no 4.901:" out~makeString("L", " | ")
 conditionText: procedure            -- a condition object: its name, description and additional
   use arg o
   a = o~additional
@@ -712,6 +789,11 @@ sendCmdUntrapped: use arg raiser
 ::method failure;  raise failure 4 description "a failure" additional (.array~of("a4")) return 4
 ::method user;     raise user oops description "a user condition" additional (.array~of("a1")) return 1
 ::method described; raise syntax 40.1 array("BOOM") description "the description" return "r"
+
+::class Thrower                   -- methods throwing a condition (RFE #31), for .NET to send to
+::method user;   throw user oops description "thrown" additional (.array~of("a1"))
+::method error;  throw error 5 description "thrown error"
+::method syntax; throw syntax 40.1 array("T")
 
 ::class Giver                     -- gives what it was made with
 ::method init; expose v; use arg v

@@ -118,6 +118,18 @@ public static class Delegates
     }
     public static int Apply(Func<int, int, int> f, int a, int b) => f(a, b);
     public static string Text(Func<string> f) => f();
+    // a Rexx condition as .NET sees it, caught there (RexxException):
+    // its name, Thrown and Description; by RexxObject.Send, or a delegate
+    public static string CaughtSend(Rexx.Net.RexxObject o, string name)
+    {
+        try { o.Send(name); return "no exception"; }
+        catch (Rexx.Net.RexxException e) { return $"{e.ConditionName} {(e.Thrown ? 1 : 0)} {e.Description ?? "none"}"; }
+    }
+    public static string CaughtCall(Func<string> f)
+    {
+        try { f(); return "no exception"; }
+        catch (Rexx.Net.RexxException e) { return $"{e.ConditionName} {(e.Thrown ? 1 : 0)} {e.Description ?? "none"}"; }
+    }
     public static bool Check(Predicate<string> p, string s) => p(s);
     public static void Run(Action a) => a();
     public static object? RunDelegate(Delegate d) => d.DynamicInvoke();

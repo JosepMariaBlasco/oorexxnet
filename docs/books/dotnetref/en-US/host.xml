@@ -466,10 +466,22 @@ True</screen>
     public int Line { get; }
     public string Traceback { get; }        // as Rexx shows it
     public RexxObject? Condition { get; }   // condition("O"), for a call made from .NET
+    public bool Thrown { get; }             // thrown (THROW, the Throw API), not raised
+    public string? Description { get; }     // condition("D"), or null
 }</programlisting>
 <para>Its <literal>Message</literal> is the secondary message, else the error
 text. A 98.900 that carried a .NET exception has it as its
 <literal>InnerException</literal>: the very object thrown.</para>
+<para><literal>Thrown</literal> is true for a condition that Rexx code threw
+(the THROW instruction, ooRexx r13541 or later, or the Throw API of native
+code): one that goes on from caller to caller until something catches it,
+as a SYNTAX error does. It is the condition object's THROWN entry; an error
+that the interpreter raises, and a condition that RAISE raises, are not
+thrown. Let out of a .NET call that Rexx made (a function, a command handler,
+a method that Rexx code calls back), a thrown condition goes on in Rexx as
+it does in plain Rexx: CATCH clauses and SIGNAL ON traps catch it on every
+level, CALL ON does not trap it, and uncaught it ends the program with
+error 4.901 (4.1 without a description).</para>
 
 <example id="ex.host-exception">
 <title>Rexx's errors in C#</title>

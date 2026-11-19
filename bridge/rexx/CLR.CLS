@@ -46,40 +46,44 @@
 
 ::method init                        -- .clr~new(typeName, args...), or (a .NetObject): a proxy for it
   use arg what
-  signal on syntax
-  if arg() = 0 then raise syntax 93.901 array(1)
-  if what~isA(.NetObject) then do
-    if arg() > 1 then raise syntax 93.902 array(1)
-    self~init:super(what)
+  do
+    if arg() = 0 then raise syntax 93.901 array(1)
+    if what~isA(.NetObject) then do
+      if arg() > 1 then raise syntax 93.902 array(1)
+      self~init:super(what)
+      return
+    end
+    if \what~isA(.String) then raise syntax 40.900 array("CLR.CLS/CLR::INIT: the type name must be a string, found" what~class~id)
+    if clr.isBoxable(what) then do     -- .clr~new("System.Int16", 5): a boxed value, as clr.box
+      if arg() \= 2 then raise syntax 40.900 array("CLR.CLS/CLR::INIT, wrapping a primitive value: exactly one value needed")
+      self~init:super(.net~box(what, arg(2)))
+      return
+    end
+    type = .net~type(what)
+    self~init:super(type~sendWith("NEW", clr.args(arg(2, "A"))))
     return
+  catch syntax
+    raise propagate
   end
-  if \what~isA(.String) then raise syntax 40.900 array("CLR.CLS/CLR::INIT: the type name must be a string, found" what~class~id)
-  if clr.isBoxable(what) then do     -- .clr~new("System.Int16", 5): a boxed value, as clr.box
-    if arg() \= 2 then raise syntax 40.900 array("CLR.CLS/CLR::INIT, wrapping a primitive value: exactly one value needed")
-    self~init:super(.net~box(what, arg(2)))
-    return
-  end
-  type = .net~type(what)
-  self~init:super(type~sendWith("NEW", clr.args(arg(2, "A"))))
-  return
-syntax: raise propagate
 
 ::method unknown                     -- its instance and static members together, as CLR.CLS found them
   use arg name, args
-  signal on syntax
-  if name~right(1) == "=" then do      -- o~Name = value
-    if args~items \= 1 | args[1]~isA(.NetEvent) then forward class (super)   -- (o~Click += h: net.cls checks it)
-    -- the value as it is, converted to the property's type (CLR.CLS's
-    -- clr.setPropertyValue): not clr.args' Int32, which is for overloads
-    call NetRequest "set", self, name~left(name~length - 1), "b", args[1]
+  do
+    if name~right(1) == "=" then do      -- o~Name = value
+      if args~items \= 1 | args[1]~isA(.NetEvent) then forward class (super)   -- (o~Click += h: net.cls checks it)
+      -- the value as it is, converted to the property's type (CLR.CLS's
+      -- clr.setPropertyValue): not clr.args' Int32, which is for overloads
+      call NetRequest "set", self, name~left(name~length - 1), "b", args[1]
+      return
+    end
+    started = clr.shellStart(self, name, args)
+    if started \== .nil then return clr.result(started[1])
+    call NetRequest "send", self, name, "b", clr.args(args)
+    if var("RESULT") then return clr.result(result)
     return
+  catch syntax
+    raise propagate
   end
-  started = clr.shellStart(self, name, args)
-  if started \== .nil then return clr.result(started[1])
-  call NetRequest "send", self, name, "b", clr.args(args)
-  if var("RESULT") then return clr.result(result)
-  return
-syntax: raise propagate
 
 ::method clr.dispatch                -- o~clr.dispatch("Start", args...): a .NET member, whatever its name
   use arg name
@@ -93,12 +97,14 @@ syntax: raise propagate
 
 ::method clr.import class            -- .clr~clr.import(typeName [, name4local]): also in .local (default: the type name)
   use strict arg typeName, name4local = (typeName)
-  signal on syntax
-  type = clr.import(typeName)
-  if arg() > 1 & (name4local == .nil | name4local == "") then return type
-  .local~setEntry(name4local, type)
-  return type
-syntax: raise propagate
+  do
+    type = clr.import(typeName)
+    if arg() > 1 & (name4local == .nil | name4local == "") then return type
+    .local~setEntry(name4local, type)
+    return type
+  catch syntax
+    raise propagate
+  end
 
 /** A .NET object returned through a CLR proxy (CLR.CLS's CLR_Proxy). */
 ::class CLR_Proxy subclass CLR public
@@ -106,27 +112,31 @@ syntax: raise propagate
 /** An imported .NET type (CLR.CLS's CLR_Class): static members, NEW, then the System.Type's members. */
 ::class CLR_Class public subclass NetType
 ::method new unguarded
-  signal on syntax
-  if clr.isBoxable(.net~typeOf(self)) & arg() = 1 then return .CLR_Proxy~new(.net~box(self, arg(1)))
-  forward class (super) arguments (clr.args(arg(1, "A"))) continue
-  return clr.result(result)
-syntax: raise propagate
+  do
+    if clr.isBoxable(.net~typeOf(self)) & arg() = 1 then return .CLR_Proxy~new(.net~box(self, arg(1)))
+    forward class (super) arguments (clr.args(arg(1, "A"))) continue
+    return clr.result(result)
+  catch syntax
+    raise propagate
+  end
 ::method unknown                     -- static members, else the members of the System.Type object
   use arg name, args
-  signal on syntax name staticFailed
-  started = clr.shellStart(self, name, args)
-  if started \== .nil then return clr.result(started[1])
-  forward class (super) arguments (.array~of(name, clr.args(args))) continue
-  if var("RESULT") then return clr.result(result)
-  return
-staticFailed:
-  c = condition("O")
-  if c~code \== "97.1" | c~additional[1] \== self then raise propagate
-  signal on syntax name failed
-  forward to (.net~typeObject(self)) message (name) arguments (clr.args(args)) continue
-  if var("RESULT") then return clr.result(result)
-  return
-failed: raise propagate
+  do
+    started = clr.shellStart(self, name, args)
+    if started \== .nil then return clr.result(started[1])
+    forward class (super) arguments (.array~of(name, clr.args(args))) continue
+    if var("RESULT") then return clr.result(result)
+    return
+  catch c = syntax                     -- not a static member: the System.Type's
+    if c~code \== "97.1" | c~additional[1] \== self then raise propagate
+  end
+  do
+    forward to (.net~typeObject(self)) message (name) arguments (clr.args(args)) continue
+    if var("RESULT") then return clr.result(result)
+    return
+  catch syntax
+    raise propagate
+  end
 ::method clr.dispatch
   use arg name
   forward message "UNKNOWN" arguments (.array~of(name, arg(2, "A")))
@@ -142,11 +152,13 @@ failed: raise propagate
 /** clr.import(typeName [, name4local]): the type, which understands NEW (not put in .local unless named). */
 ::routine clr.import public
   use strict arg typeName, name4local = .nil
-  signal on syntax
-  type = .CLR_Class~new(.net~type(typeName))
-  if name4local \== .nil & name4local \== "" then .local~setEntry(name4local, type)
-  return type
-syntax: raise propagate
+  do
+    type = .CLR_Class~new(.net~type(typeName))
+    if name4local \== .nil & name4local \== "" then .local~setEntry(name4local, type)
+    return type
+  catch syntax
+    raise propagate
+  end
 
 /** clr.createEventHandler(rexxObject [, userData]): a handler whose calls go to rexxObject~invoke(sender,
     eventArgs, slotDir), slotDir a Directory with USERDATA (as BSF4ooRexx appends it). */
@@ -157,19 +169,23 @@ syntax: raise propagate
 /** clr.createArray(typeName, capacity): a one-dimensional .NET array (a .NetArray, from 1). */
 ::routine clr.createArray public
   use strict arg typeName, capacity
-  signal on syntax
-  if \datatype(capacity, "W") | capacity < 0 then
-    raise syntax 40.900 array("CLR.CLS/clr.createArray, argument 'capacity'" pp(capacity) "is not a non-negative whole number")
-  return .net~System~Array~CreateInstance(.net~type(typeName), .net~int32(capacity))
-syntax: raise propagate
+  do
+    if \datatype(capacity, "W") | capacity < 0 then
+      raise syntax 40.900 array("CLR.CLS/clr.createArray, argument 'capacity'" pp(capacity) "is not a non-negative whole number")
+    return .net~System~Array~CreateInstance(.net~type(typeName), .net~int32(capacity))
+  catch syntax
+    raise propagate
+  end
 
 /** clr.box(typeIndicator, value): a .NET object holding value as that type (CLR.CLS's indicators, any type name). */
 ::routine clr.box public
   use strict arg type, value
-  signal on syntax
-  if value == .nil then return .nil
-  return .CLR_Proxy~new(.net~box(type, value))
-syntax: raise propagate
+  do
+    if value == .nil then return .nil
+    return .CLR_Proxy~new(.net~box(type, value))
+  catch syntax
+    raise propagate
+  end
 
 /** clr.unbox(o): a boxed primitive, string or enum as a Rexx string; anything else unchanged. */
 ::routine clr.unbox public
@@ -179,28 +195,32 @@ syntax: raise propagate
 /** clr.wrap(value): a CLR proxy; a Rexx number boxed as Int32, Int64 or Decimal, any other string as a String. */
 ::routine clr.wrap public
   use strict arg value
-  signal on syntax
-  if value~isA(.CLR) then return value
-  if value~isA(.NetObject) then return .CLR_Proxy~new(value)
-  if \value~isA(.String) then raise syntax 40.900 array("CLR.CLS/clr.wrap, argument 'value'" pp(value) "cannot be wrapped for CLR")
-  numeric digits 30
-  if datatype(value, "N") then do
-    if datatype(value, "W") then do
-      if value >= -2147483648 & value <= 2147483647 then return clr.box("Int32", value)
-      if value >= -9223372036854775808 & value <= 9223372036854775807 then return clr.box("Int64", value)
+  do
+    if value~isA(.CLR) then return value
+    if value~isA(.NetObject) then return .CLR_Proxy~new(value)
+    if \value~isA(.String) then raise syntax 40.900 array("CLR.CLS/clr.wrap, argument 'value'" pp(value) "cannot be wrapped for CLR")
+    numeric digits 30
+    if datatype(value, "N") then do
+      if datatype(value, "W") then do
+        if value >= -2147483648 & value <= 2147483647 then return clr.box("Int32", value)
+        if value >= -9223372036854775808 & value <= 9223372036854775807 then return clr.box("Int64", value)
+      end
+      return clr.box("Decimal", value)
     end
-    return clr.box("Decimal", value)
+    return clr.box("String", value)
+  catch syntax
+    raise propagate
   end
-  return clr.box("String", value)
-syntax: raise propagate
 
 /** clr.addAssembly(name): loads an assembly (its types become reachable by name). */
 ::routine clr.addAssembly public
   use strict arg name
-  signal on syntax
-  x = .net~load(name)
-  return
-syntax: raise propagate
+  do
+    x = .net~load(name)
+    return
+  catch syntax
+    raise propagate
+  end
 
 /** BSF.CLS's pp(): "[" value "]". */
 ::routine pp public

@@ -734,6 +734,48 @@ condition raised again there reaches the issuer is to be measured then.)*
 table), also while the application keeps the `RexxInterpreter` object
 (`HostTests` `HandlersGoOnDispose`; a lesson of the Python bridge).
 
+## Thrown conditions (RFE #31: THROW and the Throw API, 19/11/2026)
+
+ooRexx's trunk (r13541, THROW; r13546, the `Throw()` API; r13550, error
+4.901) can **throw** a condition: raised where THROW runs, it goes on from
+caller to caller until something catches it, as a SYNTAX error does,
+whatever its name; CALL ON does not trap it; uncaught, error 4.1 (4.901
+with a description). Its condition object's `THROWN` entry is `.true`.
+
+**Measured on r13550: nothing to change in the bridge for it to cross .NET.**
+A thrown condition reaches native code that called Rexx as an error does
+(the API call returns, `CheckCondition`); both re-raise points (rexxnet's
+`raiseHeld`, the host's `RaiseAgain`) raise its condition object with
+`RaiseConditionObject`, and ooRexx decides from the copy's `THROWN` entry
+that it is thrown (`Activity::isThrown`), so it goes on in the Rexx caller
+as in plain Rexx: through `RexxObject.Send`, a `.NetHandler`'s method, a
+host's function and command environment, caught by CATCH and SIGNAL ON two
+levels up, not by CALL ON, uncaught error 4.901 (`phase3.rex`, `HostTests`
+`ThrownPastTheHost`; they run on r13550 or later, so in the CI's trunk job).
+No unwinding through managed frames: it stops at the API boundary like any
+condition (see "A Rexx condition past .NET's frames"). That
+`RaiseConditionObject` keeps `THROWN` is what ooRexx's code does; its
+documentation does not say it, and the tests pin it.
+
+**The Throw API itself is not for the bridge's own raising.** It does not
+return: the native method ends with a C++ unwind back to the interpreter,
+which cannot cross the CLR (as `ThrowException` and `ThrowCondition`, which
+the host never uses: `Api.cs`), and it takes a name, an RC, a description
+and an additional object, not a condition object, so the traceback and the
+object kept for rule 1 would be lost. A SYNTAX error made from a .NET
+exception (98.900) goes from caller to caller already, raised.
+
+**What .NET sees**: `RexxException.Thrown` (the `THROWN` entry; also for a
+callback's condition, which rexxnet holds: the `E` record carries it) and
+`RexxException.Description` (`condition("D")`, null when there is none:
+`Message` is only the name for a condition other than SYNTAX).
+
+**Not rewritten with THROW**: `net.cls` traps its errors with `catch
+syntax` and gives them back with RAISE PROPAGATE, so that Rexx reports the
+error at the user's clause; THROW PROPAGATE would report it inside `net.cls`
+(measured: `condition("O")~position` the line of the THROW PROPAGATE).
+The library raises no condition other than SYNTAX.
+
 ## Packaging (decision 8)
 
 - **NuGet `Rexx.Net`**: one managed assembly (the hosting API + the managed
