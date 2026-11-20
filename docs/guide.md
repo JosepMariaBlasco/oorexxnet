@@ -615,6 +615,38 @@ second:
 97.1 NOSUCHTHING System.MissingMemberException
 ```
 
+.NET code can also give its Rexx caller a condition of Rexx's own rather
+than an error: `throw RexxException.Throw(condition, rc, description,
+additional)` throws it there as the THROW instruction would (ooRexx 5.3.0
+r13546 or later), with THROW's arguments in its order, `rc` only for ERROR,
+FAILURE and SYNTAX. CATCH clauses and SIGNAL ON catch it however many
+callers up; uncaught, it is error 4.901. A one-dimensional .NET array as
+`additional` is a Rexx Array of its items. It works from a method that Rexx
+calls, a command handler, and a function of an application hosting Rexx:
+
+<!-- needs ooRexx r13550 -->
+```csharp
+using System;
+using Rexx.Net;
+
+using var rexx = RexxInterpreter.Create();
+rexx.AddFunction("PORT", call => throw RexxException.Throw("USER BADCONFIG", description: "no port", additional: "app.config"));
+Console.WriteLine(rexx.Run("""
+    do
+      call connect
+    catch c = user badConfig
+      return c~description "in" c~additional "thrown:" c~thrown
+    end
+    connect: procedure
+      p = port()
+      return
+    """));
+```
+
+```text
+no port in app.config thrown: 1
+```
+
 A Rexx error inside a handler that .NET called (a comparator, an event) is a
 `RexxException` in .NET; if it comes back out of .NET, it is raised again in
 Rexx as it was. On a thread where no Rexx code waits (a timer), the error is

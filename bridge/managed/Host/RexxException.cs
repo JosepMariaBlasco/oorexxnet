@@ -3,6 +3,7 @@
 // Errors.
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Rexx.Net;
 
@@ -47,6 +48,81 @@ public sealed class RexxException : Exception
         ConditionName = name; Code = code; Rc = rc; ErrorText = errorText;
         Program = program; Line = line; Traceback = traceback; ConditionId = conditionId;
         Condition = condition;
+    }
+
+    // A condition that .NET code throws to its Rexx caller (Throw): what the
+    // bridge throws there. ThrowRc: the RC as Rexx text, or null.
+    internal bool ThrowRequested { get; private init; }
+    internal string? ThrowRc { get; private init; }
+    internal object? ThrowAdditional { get; private init; }
+
+    static readonly HashSet<string> throwable =
+        new(StringComparer.Ordinal) { "ERROR", "FAILURE", "HALT", "LOSTDIGITS", "NOMETHOD", "NOSTRING", "NOTREADY", "NOVALUE", "SYNTAX" };
+
+    /// A Rexx condition for .NET code to throw to its Rexx caller, as the
+    /// THROW instruction would throw it there: <c>throw
+    /// RexxException.Throw("USER BADCONFIG", description: "no port")</c>.
+    /// The arguments are THROW's, in its order (and the Throw API's):
+    /// condition, a name THROW takes ("ERROR", "FAILURE", "HALT",
+    /// "LOSTDIGITS", "NOMETHOD", "NOSTRING", "NOTREADY", "NOVALUE",
+    /// "SYNTAX", or "USER" and a name); rc, needed for ERROR, FAILURE and
+    /// SYNTAX and for no other (for SYNTAX the error code as Rexx writes it,
+    /// "40.1"); the description; additional, any value (a one-dimensional
+    /// .NET array is a Rexx Array of its items: SYNTAX's substitution
+    /// values). The Rexx caller gets it as a thrown condition (THROWN 1):
+    /// CATCH clauses and SIGNAL ON catch it however many callers up;
+    /// uncaught, it is Error 4.901. .NET code on the way catches it as any
+    /// RexxException. Needs ooRexx 5.3.0 r13546 or later (THROW); on an
+    /// older ooRexx it is SYNTAX 98.900. ArgumentException for a name or an
+    /// rc that THROW would not take.
+    public static RexxException Throw(string condition, object? rc = null, string? description = null, object? additional = null)
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+        var words = condition.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string name = string.Join(" ", words).ToUpperInvariant();
+        if (words.Length == 0)
+            throw new ArgumentException("RexxException.Throw: no condition name", nameof(condition));
+        if (name.StartsWith("USER", StringComparison.Ordinal) && words[0].Length == 4)
+        {
+            if (words.Length != 2 || !IsSymbol(words[1]))
+                throw new ArgumentException($"RexxException.Throw: USER needs one condition name, a Rexx symbol; found \"{condition}\"", nameof(condition));
+        }
+        else if (words.Length != 1 || !throwable.Contains(name))
+            throw new ArgumentException($"RexxException.Throw: \"{condition}\" is no condition THROW takes (ERROR, FAILURE, HALT, LOSTDIGITS, " +
+                                        "NOMETHOD, NOSTRING, NOTREADY, NOVALUE, SYNTAX, or USER and a name)", nameof(condition));
+        bool needsRc = name is "ERROR" or "FAILURE" or "SYNTAX";
+        string? rcText = rc == null ? null : Convert.ToString(rc, System.Globalization.CultureInfo.InvariantCulture);
+        if (needsRc && string.IsNullOrEmpty(rcText))
+            throw new ArgumentException($"RexxException.Throw: {name} needs an rc", nameof(rc));
+        if (!needsRc && rc != null)
+            throw new ArgumentException($"RexxException.Throw: {name} takes no rc (only ERROR, FAILURE and SYNTAX do)", nameof(rc));
+        string code = "";
+        int number = 0;
+        if (rcText != null)
+        {
+            string major = name == "SYNTAX" ? rcText.Split('.')[0] : rcText;
+            int.TryParse(major, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out number);
+            if (name == "SYNTAX") code = rcText;
+        }
+        return new RexxException(description is { Length: > 0 } ? description : name, null, name, code, number, "", "", 0, "", 0)
+               { Thrown = true, Description = description is { Length: > 0 } ? description : null,
+                 ThrowRequested = true, ThrowRc = rcText, ThrowAdditional = additional };
+    }
+
+    static bool IsSymbol(string s) =>
+        s.Length > 0 && s.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '!' or '?' or '_');
+
+    /// The RexxException.Throw that a .NET call made from Rexx let through
+    /// (looked for as Raised looks), or null.
+    internal static RexxException? ThrowOf(Exception e)
+    {
+        for (Exception? x = e; x != null; )
+        {
+            if (x is RexxException re) return re.ThrowRequested ? re : null;
+            x = x is AggregateException ae ? (ae.InnerExceptions.Count == 1 ? ae.InnerExceptions[0] : null)
+              : x.InnerException;
+        }
+        return null;
     }
 
     public override string ToString() =>

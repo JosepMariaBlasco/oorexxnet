@@ -26,6 +26,7 @@ static partial class Program
         HandlerAsFunction();
         SignalPastTheHost();
         ThrownPastTheHost();
+        ThrowToRexx();
         OptionsErrorSyntax();
         HaltBackAsHalt();
         ReliableCancellationOff();
@@ -65,6 +66,62 @@ static partial class Program
            rexx.Run("do; call on user badconfig name h; x = throwing(); return 'went on'; catch user badconfig; return 'outside'; end\nh: return"), "outside");
         try { rexx.Run("x = throwing(); return 'went on'"); Ok("... uncaught: to .NET", "went on", "USER BADCONFIG True"); }
         catch (RexxException e) { Ok("... uncaught: to .NET", $"{e.ConditionName} {e.Thrown}", "USER BADCONFIG True"); }
+    }
+
+    // RexxException.Throw: .NET code throwing a Rexx condition to its Rexx
+    // caller, from a host's function (the condition object made by THROW
+    // and raised again: no Throw API through the CLR's frames) and from a
+    // command environment (the Throw API, rexxnet). From r13550.
+    static void ThrowToRexx()
+    {
+        using var rexx = RexxInterpreter.Create();
+        if (rexx.Run<int>("return .RexxInfo~revision") < 13550) return;
+        rexx.AddFunction("THROWS", call => call.Arguments[0]?.ToString() switch
+        {
+            "user" => throw RexxException.Throw("user badConfig", description: "no port", additional: 8080),
+            "error" => throw RexxException.Throw("ERROR", 12, "it failed"),
+            "syntax" => throw RexxException.Throw("SYNTAX", "40.1", additional: new[] { "ABC" }),
+            "array" => throw RexxException.Throw("USER BADCONFIG", additional: new object?[] { 1, "two" }),
+            "bare" => throw RexxException.Throw("NOVALUE"),
+            "inner" => throw new InvalidOperationException("a wrapper", RexxException.Throw("USER BADCONFIG", description: "inside")),
+            _ => "nothing",
+        });
+        rexx.AddCommandEnvironment("THROWS", (c, ctx) => throw RexxException.Throw("USER BADCONFIG", description: "from " + c));
+        const string Up = "\nmid: procedure; use arg w; x = throws(w); return 'mid went on'\ncmd: procedure; address throws 'the command'; return 'cmd went on'";
+        const string Catch = "do; call mid arg(1); return 'not caught'; catch c = any; return c~condition c~description c~thrown c~position; end" + Up;
+        Ok("Throw from a host's function: caught two levels up, the caller's position", rexx.Run(Catch, "user"), "USER BADCONFIG no port 1 2");
+        Ok("... its ADDITIONAL",
+           rexx.Run("do; call mid 'user'; catch c = user badConfig; return c~additional; end" + Up), "8080");
+        Ok("... ERROR with its RC",
+           rexx.Run("do; call mid 'error'; catch c = error; return c~rc c~description c~thrown; end" + Up), "12 it failed 1");
+        Ok("... SYNTAX: the error, its message, thrown",
+           rexx.Run("do; call mid 'syntax'; catch c = syntax; return c~code c~message c~thrown; end" + Up), "40.1 External routine \"ABC\" failed. 1");
+        Ok("... an array as ADDITIONAL: an Array of its items",
+           rexx.Run("do; call mid 'array'; catch c = user badConfig; return c~additional~items c~additional[2]; end" + Up), "2 two");
+        Ok("... no description",
+           rexx.Run("do; call mid 'bare'; catch c = novalue; return (c~description == '') c~thrown; end" + Up), "1 1");
+        Ok("... inside a wrapper exception",
+           rexx.Run("do; call mid 'inner'; catch c = user badConfig; return c~description; end" + Up), "inside");
+        Ok("... SIGNAL ON traps it",
+           rexx.Run("signal on user badConfig name t; x = throws('user'); return 'no'\nt: return condition('C') condition('O')~thrown"), "USER BADCONFIG 1");
+        Ok("... CALL ON does not",
+           rexx.Run("do; call lvl; return 'went on'; catch user badConfig; return 'outside'; end\nlvl: procedure; call on user badConfig name h; x = throws('user'); return\nh: return"), "outside");
+        Ok("Throw from a command environment: caught two levels up",
+           rexx.Run("do; call cmd; return 'not caught'; catch c = user badConfig; return c~description c~thrown; end" + Up), "from the command 1");
+        try { rexx.Run("x = throws('user'); return 'went on'"); Ok("... uncaught: to .NET, thrown", "went on", "USER BADCONFIG True"); }
+        catch (RexxException e) { Ok("... uncaught: to .NET, thrown", $"{e.ConditionName} {e.Thrown}", "USER BADCONFIG True"); }
+        Ok("... caught by .NET code on the way, as any RexxException", Caught(() => RexxException.Throw("ERROR", 5, "five")), "ERROR 5 True five");
+        Throws<ArgumentException>("... a name THROW does not take", () => RexxException.Throw("FOO"));
+        Throws<ArgumentException>("... USER without a name", () => RexxException.Throw("USER"));
+        Throws<ArgumentException>("... ERROR without an rc", () => RexxException.Throw("ERROR"));
+        Throws<ArgumentException>("... an rc for a condition that takes none", () => RexxException.Throw("HALT", 3));
+        Ok("... the name as THROW writes it", RexxException.Throw("  user   badConfig ").ConditionName, "USER BADCONFIG");
+        Ok("... SYNTAX: Code and Rc", $"{RexxException.Throw("SYNTAX", "40.1").Code} {RexxException.Throw("SYNTAX", "40.1").Rc}", "40.1 40");
+    }
+    static string Caught(Func<RexxException> make)
+    {
+        try { throw make(); }
+        catch (RexxException e) { return $"{e.ConditionName} {e.Rc} {e.Thrown} {e.Description}"; }
     }
 
     // The context is valid only while its handler runs: kept and used after,

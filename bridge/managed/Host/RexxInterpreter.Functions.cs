@@ -304,6 +304,15 @@ internal static unsafe class Exits
     static bool Fail(Ctx c, Exception e)
     {
         RexxInterpreter.LastResult = 0;
+        // RexxException.Throw: thrown to the Rexx code that called the function
+        if (RexxException.ThrowOf(e) is RexxException t)
+        {
+            if (RexxInterpreter.Find(c.Instance) is RexxInterpreter rexx && rexx.ThrowAgain(c, t)) return false;
+            nint m = c.NewArray(1);
+            c.ArrayPut(m, c.Str($"RexxException.Throw(\"{t.ConditionName}\") needs ooRexx 5.3.0 r13546 or later"), 1);
+            c.RaiseException(98900, m);
+            return false;
+        }
         // a Rexx condition of Rexx code the function called (or of a
         // .NetHandler's method, which rexxnet holds): raised again as itself
         if ((RexxException.Raised(e) ?? Callbacks.RexxCause(e)) is RexxException re)

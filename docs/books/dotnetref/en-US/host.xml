@@ -468,6 +468,9 @@ True</screen>
     public RexxObject? Condition { get; }   // condition("O"), for a call made from .NET
     public bool Thrown { get; }             // thrown (THROW, the Throw API), not raised
     public string? Description { get; }     // condition("D"), or null
+
+    public static RexxException Throw(string condition, object? rc = null,
+                                      string? description = null, object? additional = null);
 }</programlisting>
 <para>Its <literal>Message</literal> is the secondary message, else the error
 text. A 98.900 that carried a .NET exception has it as its
@@ -482,6 +485,28 @@ a method that Rexx code calls back), a thrown condition goes on in Rexx as
 it does in plain Rexx: CATCH clauses and SIGNAL ON traps catch it on every
 level, CALL ON does not trap it, and uncaught it ends the program with
 error 4.901 (4.1 without a description).</para>
+<para><literal>RexxException.Throw</literal> makes one for .NET code to
+throw to its Rexx caller: <literal>throw RexxException.Throw("USER
+BADCONFIG", description: "no port")</literal> throws the condition there as
+the THROW instruction would (ooRexx 5.3.0 r13546 or later; on an older one it
+is SYNTAX 98.900). Its arguments are THROW's, in THROW's order:
+<parameter>condition</parameter>, a name that THROW takes (ERROR, FAILURE,
+HALT, LOSTDIGITS, NOMETHOD, NOSTRING, NOTREADY, NOVALUE, SYNTAX, or USER and
+a name); <parameter>rc</parameter>, which ERROR, FAILURE and SYNTAX need and
+no other condition takes (for SYNTAX the error code as Rexx writes it,
+<literal>"40.1"</literal>); the description; and any value as
+<parameter>additional</parameter>, a one-dimensional .NET array being a Rexx
+Array of its items (SYNTAX's substitution values). A name or an
+<parameter>rc</parameter> that THROW would not take is an
+<literal>ArgumentException</literal>, in .NET. It reaches the Rexx caller
+from a .NET method or property that Rexx code calls (also through a task's
+<literal>~await</literal>, and inside a wrapper exception), from a command
+handler, and from a function of an application hosting Rexx; .NET code on
+the way catches it as any <literal>RexxException</literal>
+(<literal>Thrown</literal> true). Through the methods of
+<literal>net.cls</literal> that trap their errors (<literal>.net~invoke</literal>
+and its kin), a thrown SYNTAX arrives raised: they give errors back with RAISE
+PROPAGATE, so that Rexx reports them at the caller's clause.</para>
 
 <example id="ex.host-exception">
 <title>Rexx's errors in C#</title>

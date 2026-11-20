@@ -345,6 +345,31 @@ if .RexxInfo~revision >= 13550 then do
   call ok "uncaught through .NET: error 4.901, as in plain Rexx", thrownUncaught(testlib), "4.901 Program interrupted with USER OOPS condition: thrown."
 end
 
+-- RexxException.Throw: .NET code throwing a Rexx condition to its Rexx
+-- caller (rexxnet: the Throw API, ooRexx r13546, RFE #31), as the THROW
+-- instruction there would. From r13550 (uncaught: error 4.901).
+if .RexxInfo~revision >= 13550 then do
+  th = .net~RexxNetTests~Throwing
+  call ok "RexxException.Throw: caught two levels up, thrown, at the call", throwUp(th, "user"), "USER BADCONFIG [no port] [the config] 1 1"
+  call ok "... with no description", throwUp(th, "bare"), "USER BARE [] [The NIL object] 1 1"
+  call ok "... ERROR with its RC", throwUp(th, "error", "rc"), "ERROR 12 [it failed] 1"
+  call ok "... FAILURE", throwUp(th, "failure", "rc"), "FAILURE -3 [] 1"
+  call ok "... SYNTAX: the error, its message", throwUp(th, "syntax", "syntax"), "SYNTAX 40.1 External routine ""ABC"" failed. 1"
+  call ok "... NOVALUE", throwUp(th, "novalue"), "NOVALUE [V] [The NIL object] 1 1"
+  call ok "... an array as ADDITIONAL: an Array of its items", throwUp(th, "array", "array"), "3 1 two 1"
+  call ok "... inside a wrapper exception", throwUp(th, "inner"), "USER BADCONFIG [inside] [The NIL object] 1 1"
+  call ok "... a Task's (~await)", throwAwait(th), "USER BADCONFIG 1"
+  call ok "... another .NET exception: 98.900, raised", throwUp(th, "plain", "syntax"), "SYNTAX 98.900 .NET error: System.InvalidOperationException: not a throw. 0"
+  call ok "... SIGNAL ON on the calling level", throwSignal(th), "USER BADCONFIG 1"
+  call ok "... CALL ON does not trap it", throwCallOn(th), "outside"
+  call ok "... from a command handler, to the issuer", throwCmd("throw user", "user badConfig"), "USER BADCONFIG from the handler 1 The NIL object"
+  call ok "... ERROR from a command handler, with its RC", throwCmd("throw error", "error"), "ERROR the command failed 1 12"
+  call ok ".NET code on the way catches it as any RexxException", th~Caught("user") "|" th~Caught("syntax"), "USER BADCONFIG 1 no port  0 | SYNTAX 1 none 40.1 40"
+  call ok "arguments THROW would not take: ArgumentException", th~Bad("FOO", .nil) "|" th~Bad("user", .nil) "|" th~Bad("error", .nil) "|" th~Bad("halt", 3), -
+    'RexxException.Throw: "FOO" is no condition THROW takes | RexxException.Throw: USER needs one condition name, a Rexx symbol | RexxException.Throw: ERROR needs an rc | RexxException.Throw: HALT takes no rc'
+  call ok "uncaught: error 4.901", throwUncaught(testlib), "4.901 Program interrupted with USER BADCONFIG condition: no port."
+end
+
 -- ERROR's and FAILURE's RC: the condition object raised again as it is
 -- (RaiseConditionObject, ooRexx r13329), so the RC arrives as in plain Rexx:
 -- the variable RC and the object's, with SIGNAL ON and with CALL ON
@@ -612,6 +637,75 @@ thrownVia: procedure
   if how = "rexx" then return o~send(cond)
   if how = "send" then return dl~SendTo(o, cond)
   return dl~Text(.net~handler(o, cond))
+throwUp: procedure                   -- RexxException.Throw two levels down, caught here
+  use arg th, what, show = ""
+  do
+    call throwMiddle th, what
+    return "not caught"
+  catch c = any
+    if show == "rc" then return c~condition c~rc "["c~description"]" (c~thrown == .true)
+    if show == "syntax" then return c~condition c~code c~message (c~thrown == .true)
+    if show == "array" then return c~additional~items c~additional[1] c~additional[2] (c~additional[3] == .nil)
+    return c~condition "["c~description"]" "["c~additional"]" (c~thrown == .true) (c~position == .throwAt)
+  end
+throwMiddle: procedure; use arg th, what
+  .local~throwAt = .line; x = th~Throw(what)    -- (the line the condition is at)
+  return "went on"
+throwAwait: procedure
+  use arg th
+  do
+    x = th~Later("user")~~await~result
+    return "not caught"
+  catch c = user badConfig
+    return c~condition (c~thrown == .true)
+  end
+throwSignal: procedure
+  use arg th
+  signal on user badConfig name throwSignalTrap
+  x = th~Throw("user")
+  return "not trapped"
+  throwSignalTrap: return condition("C") (condition("O")~thrown == .true)
+throwCallOn: procedure
+  use arg th
+  do
+    call throwCallOnLevel th
+    return "went on"
+  catch user badConfig
+    return "outside"
+  end
+throwCallOnLevel: procedure
+  use arg th
+  call on user badConfig name throwCallOnTrap
+  x = th~Throw("user")
+  return
+  throwCallOnTrap: return
+throwCmd: procedure
+  use arg command, cond
+  do
+    call throwCmdLevel command
+    return "not caught"
+  catch c = any
+    return c~condition c~description (c~thrown == .true) c~rc
+  end
+throwCmdLevel: procedure
+  use arg command
+  address calc command
+  return
+throwUncaught: procedure             -- a child program leaves it uncaught: its error line
+  use arg testlib
+  file = .File~new("throw-" || date("S") || random(99999) || ".rex", .File~temporaryPath)~absolutePath
+  call lineout file, "parse arg testlib; x = .net~load(testlib)"
+  call lineout file, "x = .net~RexxNetTests~Throwing~Throw('user')"
+  call lineout file, "say 'went on'"
+  call lineout file, "::requires 'net.cls'"
+  call lineout file
+  out = .array~new
+  address system 'rexx "'file'"' testlib with output using (out) error using (out)
+  call SysFileDelete file
+  do l over out
+    if l~pos("Error 4.901:") > 0 then return "4.901" l~substr(l~pos(":") + 1)~strip
+  end
+  return "no 4.901:" out~makeString("L", " | ")
 thrownCallOn: procedure expose dl
   use arg o, how
   do

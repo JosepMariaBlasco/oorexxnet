@@ -11,7 +11,9 @@
    that exists, else ~/build/rexxnet: as scripts/platform.sh and
    bridge/build.ps1; build the bridge first). DOTNET_ROOT, when not set: the
    .NET of `dotnet --list-sdks`, or setup-env.sh's places. Exit status 1 if
-   any example fails. Linux, macOS and Windows. */
+   any example fails. Linux, macOS and Windows. A line
+   <!-- needs ooRexx rNNNNN --> just before an example's block: run only on
+   that revision of ooRexx or a later one. */
 
 parse source . . me
 here = filespec("location", me)
@@ -50,14 +52,20 @@ else libvar = "LD_LIBRARY_PATH='"out"' "
 lines = .stream~new(here || "guide.md")~arrayIn
 blocks = .array~new
 inBlock = .false
+needs = 0                                -- <!-- needs ooRexx rNNNNN -->: the next example only from that revision
 do line over lines
+  if \inBlock, line~strip~startsWith("<!-- needs ooRexx r") then do
+    parse value line~strip with "<!-- needs ooRexx r" needs .
+    iterate
+  end
   if \inBlock, line~startsWith("```") then do
     lang = line~substr(4)~strip
     body = .array~new
     inBlock = .true
   end
   else if inBlock, line~strip == "```" then do
-    blocks~append(.array~of(lang, body))
+    blocks~append(.array~of(lang, body, needs))
+    needs = 0
     inBlock = .false
   end
   else if inBlock then body~append(line)
@@ -67,14 +75,19 @@ pairs = .array~new
 do i = 1 to blocks~items - 1
   lang = blocks[i][1]
   if (lang == "rexx" | lang == "csharp") & blocks[i + 1][1] == "text" then
-    pairs~append(.array~of(lang, blocks[i][2], blocks[i + 1][2]))
+    pairs~append(.array~of(lang, blocks[i][2], blocks[i + 1][2], blocks[i][3]))
 end
 
 work = tempDir()
-fails = 0
+fails = 0; skipped = 0
 do n = 1 to pairs~items
   lang = pairs[n][1]; code = pairs[n][2]; want = pairs[n][3]
   first = firstLine(code)
+  if .rexxInfo~revision < pairs[n][4] then do
+    say "skip example" n "("lang":" first"): needs ooRexx r"pairs[n][4]
+    skipped += 1
+    iterate
+  end
   o = .array~new; e = .array~new
   if lang == "rexx" then do
     prog = work || sep || "ex"n".rex"
@@ -126,8 +139,10 @@ do n = 1 to pairs~items
   end
 end
 call removeDir work
-if fails = 0 then say "guide: all" pairs~items "examples match"
-else say "guide:" fails "of" pairs~items "examples FAILED"
+ran = pairs~items - skipped
+note = ""; if skipped > 0 then note = " ("skipped "not run: an older ooRexx)"
+if fails = 0 then say "guide: all" ran "examples match" || note
+else say "guide:" fails "of" ran "examples FAILED" || note
 exit fails > 0
 
 /* An environment variable: its value, or set it */

@@ -776,6 +776,81 @@ error at the user's clause; THROW PROPAGATE would report it inside `net.cls`
 (measured: `condition("O")~position` the line of the THROW PROPAGATE).
 The library raises no condition other than SYNTAX.
 
+### .NET code throwing a condition: `RexxException.Throw` (20/11/2026)
+
+The family's shape (oorexx-bridges, `topics/host-throw.md`): host code gives
+its Rexx caller a thrown condition of Rexx's own, with THROW's arguments in
+THROW's order, which is the Throw API's: `throw
+RexxException.Throw(condition, rc, description, additional)`, rc optional
+(Python's `oorexx.throw`). A static factory on the exception a Rexx
+condition already is in .NET, thrown by C#'s `throw`: no new exception
+class, and .NET code on the way catches it as any `RexxException` (`Thrown`
+true, `Description`, `Code` and `Rc` for SYNTAX). Only the factory's
+exception carries the mark (`ThrowRequested`); every other exception stays
+SYNTAX 98.900, and a `RexxException` that came from Rexx is raised again as
+its own condition object, as before. It is looked for through the chain of
+inner exceptions, as `Raised` looks (a task's `AggregateException`, a
+framework's wrapper).
+
+**The arguments are checked in .NET**: an `ArgumentException` for a name
+THROW does not take (ERROR, FAILURE, HALT, LOSTDIGITS, NOMETHOD, NOSTRING,
+NOTREADY, NOVALUE, SYNTAX, USER and one Rexx symbol), an ERROR, FAILURE or
+SYNTAX without an rc, an rc for any other; the name is normalised as THROW
+writes it (`"  user   badConfig "` is `USER BADCONFIG`). **Δ** Python leaves
+them to `Throw()` (93.900 in the Rexx caller): .NET's way is to fail where
+the mistake is, and the host direction has no `Throw()` to check them (see
+below), so one check covers both. The checks are the Throw API's own
+(measured on r13550: a name with spaces around is kept so by the API, which
+the normalising avoids); what is left (a SYNTAX code ooRexx does not know)
+is ooRexx's error. A one-dimensional .NET array as `additional` is a Rexx
+Array of its items (SYNTAX's substitution values; Python: a `list` or a
+`tuple`); any other value goes as a result would. The rc is Rexx text,
+written with the invariant culture (`40.1`, never `40,1`).
+
+**Guest direction (rexxnet): the Throw API.** The response to a request is a
+record `T` (the name, the rc, the description, additional); `decode` keeps
+it in a thread-local `pendingThrow`, and the native entry point that made
+the request (`net_unknown`, `NetRequest`, `net_command`) throws it with its
+context's `Throw()` as the last thing it does (`finish`). By then the CLR
+has returned: the C++ unwind crosses only that entry point's frame. METHOD
+103 / CALL 102 is checked at run time and `Throw` exists only in r13546's
+headers (`#ifdef CALL_INTERFACE_VERSION_5_3_0`): below either, SYNTAX
+98.900 saying what is needed, so the bridge still builds and runs on its
+minimum, r13532. Measured: from a method or property (`net_unknown`), a
+task's `~await`, a wrapper exception, a command handler (the issuer gets it,
+an ERROR with its RC); CATCH and SIGNAL ON two levels up, CALL ON not, the
+condition at the caller's clause, uncaught error 4.901 (`phase3.rex`).
+
+**Host direction (a host's function or value selector): THROW itself.**
+There `Throw()` cannot be used: the exit's .NET part is reached through an
+`[UnmanagedCallersOnly]` entry, and the unwind would cross the CLR. The
+condition object is made instead by the THROW instruction, in a routine of
+the instance's (`ThrowSource`, INTERPRET of a clause built from the checked
+name), caught there with `catch c = any`, stripped of where it was thrown
+(`PROGRAM`, `POSITION`, `PACKAGE`, `INSTRUCTION`, `STACKFRAMES`,
+`TRACEBACK`, `PROPAGATED`) and raised again with `RaiseConditionObject`.
+Measured on r13550: ooRexx raises the copy as thrown (its `THROWN` entry)
+and fills in where, from the exit's caller, so it is what a THROW there
+would give (the caller's `POSITION` and traceback, `PROPAGATED` 1 two
+levels up, uncaught 4.901); a hand-made Directory with `THROWN` does the
+same, but THROW also builds a SYNTAX's message from its substitution
+values. THROW's DESCRIPTION and ADDITIONAL are in parentheses in the clause: as
+RAISE's, they take a literal string, a constant or an expression in
+parentheses (`throw user x description d` is error 35.1; measured). Below r13546 the routine
+answers `.nil` at once (INTERPRET would take the clause for a command
+there: measured on r13532, it ran one) and the function raises SYNTAX
+98.900 (`HostTests` `ThrowToRexx`; the fallback measured by hand on r13532,
+both directions).
+
+**A thrown SYNTAX through `net.cls`'s own methods arrives raised.** The
+methods of `net.cls` that give their errors back with `catch syntax` /
+RAISE PROPAGATE (see above: so that Rexx reports the error at the user's
+clause) turn a thrown SYNTAX into a raised one (`.net~invoke(o, "Throw",
+...)`: `THROWN` 0; measured). It behaves the same otherwise (a SYNTAX goes
+from caller to caller either way, and CALL ON SYNTAX does not exist); other
+conditions are not trapped there. Messages to a `.NetObject` (`o~Name`) do
+not go through such a method.
+
 ## Packaging (decision 8)
 
 - **NuGet `Rexx.Net`**: one managed assembly (the hosting API + the managed

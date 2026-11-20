@@ -626,8 +626,16 @@ static RexxObjectPtr newProxy(RexxThreadContext *c, RexxClassObject k, const std
 // once the managed side has answered, so nested requests cannot change it.
 static thread_local RexxObjectPtr answering = NULLOBJECT;
 
+// A RexxException.Throw that a response asked for (decode 'T'): thrown by
+// the native method or routine that made the request (throwPending), with
+// its context's Throw: a thread context has none, and Throw does not
+// return, so it is the last thing that entry point does.
+struct PendingThrow { bool set; std::string name; RexxObjectPtr rc, description, additional; };
+static thread_local PendingThrow pendingThrow{false, "", NULLOBJECT, NULLOBJECT, NULLOBJECT};
+
 // A response record as a Rexx value. NULLOBJECT: no value (void), or an error
-// (then a condition is pending: c->CheckCondition()).
+// (then a condition is pending: c->CheckCondition()), or a throw
+// (pendingThrow.set).
 static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &payload)
 {
     switch (tag)
@@ -700,6 +708,23 @@ static RexxObjectPtr decode(RexxThreadContext *c, char tag, const std::string &p
             RexxArrayObject subs = c->NewArray(f.size() - 1);
             for (size_t k = 1; k < f.size(); k++) c->ArrayPut(subs, c->String(f[k].c_str()), k);
             c->RaiseException((size_t)strtoul(f[0].c_str(), nullptr, 10), subs);
+            return NULLOBJECT;
+        }
+        case 'T':                                   // RexxException.Throw: name, rc, description, additional
+        {
+            const unsigned char *p = (const unsigned char *)payload.data();
+            RexxObjectPtr v[4] = {NULLOBJECT, NULLOBJECT, NULLOBJECT, NULLOBJECT};
+            std::string name;
+            size_t at = 0;
+            for (int k = 0; k < 4 && at < payload.size(); k++)
+            {
+                char t; std::string pl;
+                at = parseRecord(p, payload.size(), at, t, pl);
+                if (k == 0) name = pl;
+                else if (t != 'N' && t != 'V') v[k] = decode(c, t, pl);
+                if (c->CheckCondition()) return NULLOBJECT;
+            }
+            pendingThrow = {true, name, v[1], v[2], v[3]};
             return NULLOBJECT;
         }
         case 'E':
@@ -869,6 +894,36 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
 
 // -------------------------------------------------------------- Rexx methods
 
+// The pending throw (decode 'T'), thrown with the context's Throw (ooRexx
+// r13546, RFE #31: METHOD 103, CALL 102): from the caller of this native
+// method or routine on, as the THROW instruction there would throw it. An
+// older ooRexx (or headers without Throw): SYNTAX 98.900. Answers
+// NULLOBJECT when it cannot throw.
+template <class Context> static RexxObjectPtr throwPending(Context *context, wholenumber_t version)
+{
+    PendingThrow t = pendingThrow;
+    pendingThrow = {false, "", NULLOBJECT, NULLOBJECT, NULLOBJECT};
+#ifdef CALL_INTERFACE_VERSION_5_3_0
+    if (context->functions->interfaceVersion >= version)
+    {
+        RexxStringObject d = t.description ? context->ObjectToString(t.description) : NULLOBJECT;
+        context->Throw(t.name.c_str(), t.rc, d, t.additional);     // (does not return)
+    }
+#endif
+    (void)version;
+    context->RaiseException1(Rexx_Error_Execution_user_defined,
+        context->String(("RexxException.Throw(\"" + t.name + "\") needs ooRexx 5.3.0 r13546 or later").c_str()));
+    return NULLOBJECT;
+}
+static RexxObjectPtr finish(RexxMethodContext *context, RexxObjectPtr r)
+{
+    return pendingThrow.set ? throwPending(context, 103) : r;     // METHOD_INTERFACE_VERSION_5_3_0
+}
+static RexxObjectPtr finish(RexxCallContext *context, RexxObjectPtr r)
+{
+    return pendingThrow.set ? throwPending(context, 102) : r;     // CALL_INTERFACE_VERSION_5_3_0
+}
+
 // NetObject~unknown(name, args): o~name, o~name(args), o~name = v.
 static RexxObjectPtr netUnknown(RexxMethodContext *context, CSTRING name, RexxArrayObject args)
 {
@@ -916,7 +971,7 @@ static RexxObjectPtr netUnknown(RexxMethodContext *context, CSTRING name, RexxAr
 RexxMethod2(RexxObjectPtr, net_unknown, CSTRING, name, RexxArrayObject, args)
 {
     findClasses(context);
-    return netUnknown(context, name, args);
+    return finish(context, netUnknown(context, name, args));
 }
 
 // NetObject~uninit: one Rexx proxy fewer for this handle.
@@ -939,7 +994,7 @@ RexxRoutine2(RexxObjectPtr, NetRequest, CSTRING, op, ARGLIST, args)
     for (size_t i = 2; i <= n; i++) if (!encode(c, context->ArrayAt(args, i), req, &refs)) return NULLOBJECT;
     std::string o(op);                              // .net~invoke(o, ...), .net~get, .net~set, events: o receives
     RexxObjectPtr receiver = (o == "send" || o == "set" || o == "event") && n >= 2 ? context->ArrayAt(args, 2) : NULLOBJECT;
-    return request(c, req, &refs, receiver);
+    return finish(context, request(c, req, &refs, receiver));
 }
 
 // .NetCommandHandler~command(command, caller): native, so that no Rexx
@@ -967,6 +1022,7 @@ RexxMethod2(RexxObjectPtr, net_command, RexxObjectPtr, command, RexxObjectPtr, c
     haltCaller = caller;
     RexxObjectPtr r = request(context->threadContext, req);
     haltCaller = outerCaller;
+    if (pendingThrow.set) return finish(context, r);              // RexxException.Throw: to the issuer of the command
     // a condition raised again on the issuer: the call answers what the
     // handler's Rexx code returned with it (RAISE ... RETURN: the RC, as a
     // handler written in Rexx gives; ooRexx #2130 keeps it), else nothing
@@ -1086,6 +1142,7 @@ RexxRoutine3(CSTRING, NetPeerUninit, RexxObjectPtr, self, int, id, size_t, senti
         record(req, 'S', "peerWeak");
         if (encode(c, self, req)) { record(req, 'S', std::to_string(received)); request(c, req); }
         if (c->CheckCondition()) c->ClearCondition();
+        pendingThrow.set = false;                   // (never asked for here)
     }
     drainDead(c);
     return answer;

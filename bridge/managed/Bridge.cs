@@ -119,6 +119,26 @@ public static unsafe class Bridge
         if (NetObjectClass == 0) { NetTypeClass = netType; NetArrayClass = netArray; NetEnumClass = netEnum; NetObjectClass = netObject; }
     }
 
+    // A RexxException.Throw as records: the name, the rc (N: none), the
+    // description (N: none), additional (a one-dimensional array: an Array
+    // of its items; V: none).
+    static byte[] ThrowRecord(RexxException t)
+    {
+        var w = new Writer();
+        w.Add('S', t.ConditionName);
+        if (t.ThrowRc != null) w.Add('S', t.ThrowRc); else w.Add('N', "");
+        if (t.Description != null) w.Add('S', t.Description); else w.Add('N', "");
+        if (t.ThrowAdditional is Array { Rank: 1 } items)
+        {
+            var list = new Writer();
+            foreach (var x in items) Conv.ToRexx(list, x);
+            w.Add('A', list.ToArray());
+        }
+        else if (t.ThrowAdditional != null) Conv.ToRexx(w, t.ThrowAdditional);
+        else w.Add('V', "");
+        return w.ToArray();
+    }
+
     public static byte[] Handle(ReadOnlySpan<byte> request)
     {
         var w = new Writer();
@@ -148,6 +168,12 @@ public static unsafe class Bridge
                 // returned with the condition, RAISE ... RETURN, or none)
                 w.Add('K', RexxInterpreter.LastWasHalt ? "halt"
                          : RexxInterpreter.LastResult != 0 ? ((nuint)RexxInterpreter.LastResult).ToString() : "");
+                return w.ToArray();
+            }
+            if (RexxException.ThrowOf(e) is RexxException thrown)
+            {                                                     // RexxException.Throw: rexxnet throws it to the Rexx caller
+                w = new Writer();
+                w.Add('T', ThrowRecord(thrown));
                 return w.ToArray();
             }
             while ((e is TargetInvocationException || e is TypeInitializationException) && e.InnerException != null)

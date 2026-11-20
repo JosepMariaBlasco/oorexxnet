@@ -97,6 +97,8 @@ public static class Delegates
         "send halt" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("HALT"),      // a message to a Rexx method
         "send notready" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("NOTREADY"),
         "send error" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("ERROR"),
+        "throw user" => throw Rexx.Net.RexxException.Throw("USER BADCONFIG", description: "from the handler"),
+        "throw error" => throw Rexx.Net.RexxException.Throw("ERROR", 12, "the command failed"),
         "run failure" => ctx.Interpreter.Run("raise failure 4 description 'a failure' return 4"),
         "send described" => ((Rexx.Net.RexxObject)ctx["RAISER"]!).Send("DESCRIBED"),
         "run described" => ctx.Interpreter.Run("raise syntax 40.1 array('BOOM') description 'the description' return 'r'"),
@@ -167,4 +169,40 @@ public static class Delegates
     }
 
     public static void Throw(string m) => throw new System.IO.FileNotFoundException(m);
+}
+
+// RexxException.Throw: .NET code throwing a Rexx condition to its Rexx caller
+public static class Throwing
+{
+    public static string Throw(string what) => what switch
+    {
+        "user" => throw Rexx.Net.RexxException.Throw("user badConfig", description: "no port", additional: "the config"),
+        "bare" => throw Rexx.Net.RexxException.Throw("USER BARE"),
+        "error" => throw Rexx.Net.RexxException.Throw("ERROR", 12, "it failed"),
+        "failure" => throw Rexx.Net.RexxException.Throw("FAILURE", -3),
+        "syntax" => throw Rexx.Net.RexxException.Throw("SYNTAX", "40.1", additional: new[] { "ABC" }),
+        "novalue" => throw Rexx.Net.RexxException.Throw("NOVALUE", description: "V"),
+        "array" => throw Rexx.Net.RexxException.Throw("USER BADCONFIG", additional: new object?[] { 1, "two", null }),
+        "inner" => throw new InvalidOperationException("a wrapper", Rexx.Net.RexxException.Throw("USER BADCONFIG", description: "inside")),
+        "plain" => throw new InvalidOperationException("not a throw"),
+        _ => "nothing",
+    };
+    public static async System.Threading.Tasks.Task<string> Later(string what)
+    {
+        await System.Threading.Tasks.Task.Yield();
+        return Throw(what);
+    }
+    // caught in .NET on the way: as any RexxException
+    public static string Caught(string what)
+    {
+        try { Throw(what); return "no exception"; }
+        catch (Rexx.Net.RexxException e)
+        { return $"{e.ConditionName} {(e.Thrown ? 1 : 0)} {e.Description ?? "none"} {e.Code} {e.Rc}"; }
+    }
+    // the arguments THROW would not take
+    public static string Bad(string condition, object? rc)
+    {
+        try { Rexx.Net.RexxException.Throw(condition, rc); return "taken"; }
+        catch (ArgumentException e) { return e.Message.Split(';')[0].Split(" (")[0]; }
+    }
 }

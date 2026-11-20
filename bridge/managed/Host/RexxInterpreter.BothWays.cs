@@ -14,6 +14,75 @@ namespace Rexx.Net;
 
 public sealed unsafe partial class RexxInterpreter
 {
+    // ------------------------------------------------- RexxException.Throw
+
+    // The host's functions and value selectors (exits) cannot use the Throw
+    // API: their .NET part is reached through an [UnmanagedCallersOnly]
+    // entry, and Throw's C++ unwind through the CLR's frames ends the
+    // process. So the condition object is made by the THROW instruction
+    // itself (every entry it holds, a SYNTAX's message included), caught,
+    // stripped of where it was thrown, and raised again with
+    // RaiseConditionObject: ooRexx raises the copy as thrown (its THROWN
+    // entry) from the caller of the exit, and fills in where (measured on
+    // r13550: CATCH and SIGNAL ON however many callers up, the caller's
+    // POSITION and TRACEBACK, uncaught Error 4.901). The arguments were
+    // checked by RexxException.Throw: the name is safe to INTERPRET.
+    const string ThrowSource = """
+        ::routine throw public
+          use arg name, rc = .nil, d = .nil, how, a
+          if .rexxInfo~revision < 13546 then return .nil   -- (no THROW: INTERPRET would take it for a command)
+          clause = 'throw' name
+          if rc \== .nil then clause ||= ' (rc)'
+          if d \== .nil then clause ||= ' description (d)'
+          if how == 1 then clause ||= ' additional (a)'
+          if how == 2 then do
+            a = .context~args~section(5)
+            clause ||= ' additional (a)'
+          end
+          do
+            interpret clause
+          catch c = any
+            do e over 'PROGRAM POSITION PACKAGE INSTRUCTION STACKFRAMES TRACEBACK PROPAGATED'~subwords
+              c~remove(e)
+            end
+            return c
+          end
+        """;
+
+    RexxRoutine? throwRoutine;
+    readonly object throwLock = new();
+
+    /// RexxException.Throw, thrown again from the Rexx code that called the
+    /// exit on c; false if it cannot be (an ooRexx without THROW): then the
+    /// caller raises 98.900.
+    internal bool ThrowAgain(Ctx c, RexxException t)
+    {
+        RexxRoutine? r;
+        lock (throwLock)
+        {
+            if (throwRoutine == null)
+            {
+                try { throwRoutine = (RexxRoutine)LoadPackage("Rexx.Net throw", ThrowSource).Routines["THROW"]!; }
+                catch (RexxException) { return false; }
+            }
+            r = throwRoutine;
+        }
+        var args = new List<object?> { t.ConditionName, t.ThrowRc, t.Description };
+        if (t.ThrowAdditional is Array { Rank: 1 } items)
+        {
+            args.Add(2);
+            foreach (var x in items) args.Add(x);
+        }
+        else if (t.ThrowAdditional != null) { args.Add(1); args.Add(t.ThrowAdditional); }
+        else args.Add(0);
+        RexxObject? condition;
+        try { condition = r.Call(args.ToArray()); }
+        catch (RexxException) { return false; }
+        if (condition == null) return false;
+        c.RaiseConditionObject(condition.Live);
+        return true;
+    }
+
     // ------------------------------------------------------------ guest mode
 
     /// The interpreter instance whose Rexx code is calling .NET on this
