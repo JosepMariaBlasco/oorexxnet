@@ -820,6 +820,11 @@ minimum, r13532. Measured: from a method or property (`net_unknown`), a
 task's `~await`, a wrapper exception, a command handler (the issuer gets it,
 an ERROR with its RC); CATCH and SIGNAL ON two levels up, CALL ON not, the
 condition at the caller's clause, uncaught error 4.901 (`phase3.rex`).
+Past a `::routine` too, from a command handler as well: a
+`.NetCommandHandler` is a `.CommandHandler`, not a native command
+environment, so the ooRexx issue that loses a condition thrown in one
+(oorexx-bridges, `oorexx-bugs/2026-11-20-throw-in-native-command-environment.md`)
+does not touch it (measured on r13550).
 
 **Host direction (a host's function or value selector): THROW itself.**
 There `Throw()` cannot be used: the exit's .NET part is reached through an
@@ -840,7 +845,12 @@ parentheses (`throw user x description d` is error 35.1; measured). Below r13546
 answers `.nil` at once (INTERPRET would take the clause for a command
 there: measured on r13532, it ran one) and the function raises SYNTAX
 98.900 (`HostTests` `ThrowToRexx`; the fallback measured by hand on r13532,
-both directions).
+both directions). This rests on `RaiseConditionObject` keeping `THROWN`,
+as the pass-through of a thrown condition from Rexx code already does
+(above); a proposal to ooRexx would make it always raise, with a new API
+that throws and returns (`oorexx-bugs/2026-11-20-throw-object-api.md`).
+If it is adopted, this call and the two re-raise points change to choose
+by the object's `THROWN`.
 
 **A thrown SYNTAX through `net.cls`'s own methods arrives raised.** The
 methods of `net.cls` that give their errors back with `catch syntax` /

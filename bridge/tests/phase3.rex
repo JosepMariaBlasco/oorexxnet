@@ -364,6 +364,7 @@ if .RexxInfo~revision >= 13550 then do
   call ok "... CALL ON does not trap it", throwCallOn(th), "outside"
   call ok "... from a command handler, to the issuer", throwCmd("throw user", "user badConfig"), "USER BADCONFIG from the handler 1 The NIL object"
   call ok "... ERROR from a command handler, with its RC", throwCmd("throw error", "error"), "ERROR the command failed 1 12"
+  call ok "... past a ::routine, from a method and from a command handler", throwPastRoutine(th), "1 1"
   call ok ".NET code on the way catches it as any RexxException", th~Caught("user") "|" th~Caught("syntax"), "USER BADCONFIG 1 no port  0 | SYNTAX 1 none 40.1 40"
   call ok "arguments THROW would not take: ArgumentException", th~Bad("FOO", .nil) "|" th~Bad("user", .nil) "|" th~Bad("error", .nil) "|" th~Bad("halt", 3), -
     'RexxException.Throw: "FOO" is no condition THROW takes | RexxException.Throw: USER needs one condition name, a Rexx symbol | RexxException.Throw: ERROR needs an rc | RexxException.Throw: HALT takes no rc'
@@ -783,6 +784,15 @@ sendCmdUntrapped: use arg raiser
 
 
 ::requires "net.cls"
+
+::routine throwPastRoutine            -- RexxException.Throw goes on past a ::routine (a native method's, a command handler's)
+  use arg th
+  r = ""
+  do; call throwMethodRoutine th; r = "lost"; catch c = user badConfig; r = (c~thrown == .true); end
+  do; call throwCmdRoutine; r = r "lost"; catch c = user badConfig; r = r (c~thrown == .true); end
+  return r
+::routine throwMethodRoutine; use arg th; x = th~Throw("user"); return
+::routine throwCmdRoutine; address calc "throw user"; return
 
 ::class Tester
 ::attribute clicks
