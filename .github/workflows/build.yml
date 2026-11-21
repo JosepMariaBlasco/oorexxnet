@@ -284,7 +284,7 @@ jobs:
           # the Rexx Parser's latest release
           curl -sSfL --retry 3 -o "$RUNNER_TEMP/parser.zip" https://rexx.epbcn.com/rexx-parser/Rexx-Parser-latest.zip
           mkdir -p "$RUNNER_TEMP/rexx-parser" && unzip -q "$RUNNER_TEMP/parser.zip" -d "$RUNNER_TEMP/rexx-parser"
-          test -f "$RUNNER_TEMP/rexx-parser/bin/Rexx.Parser.cls"
+          test -f "$RUNNER_TEMP/rexx-parser/bin/parser.cls"   # (Rexx.Parser.cls before the release of 21/11/2026)
       - name: Build the books
         run: |
           DOCS_SVN=$RUNNER_TEMP/docSVN REXX_PARSER=$RUNNER_TEMP/rexx-parser \

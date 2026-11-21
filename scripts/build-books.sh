@@ -41,7 +41,7 @@ STAGE=${STAGE:-$WORK/books-build}
 BOOKS=${BOOKS:-"dotnetref dotnetcookbook"}
 
 for need in "$DOCS_SVN/tools/bldoc_orx/hldocprep.rex" "$DOCS_SVN/oorexx/en-US/Legal_Notice.xml" \
-            "$REXX_PARSER/bin/Rexx.Parser.cls"; do
+            "$REXX_PARSER/bin/parser.cls"; do
   [ -f "$need" ] || { echo "build-books.sh: $need not found (see the comments at the top)" >&2; exit 2; }
 done
 for tool in rexx xsltproc fop java zip; do
