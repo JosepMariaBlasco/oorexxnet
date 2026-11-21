@@ -100,8 +100,8 @@ install:
   say "  ooRexx" .RexxInfo~version "r".RexxInfo~revision "("rexxExe")," .RexxInfo~architecture "bits"
   parse value .RexxInfo~version with major "."
   if major < 5 then call fail "ooRexx 5 or later is needed"
-  if .RexxInfo~revision < 13532 then                     -- (the family's base: FINALLY, RFE #31; r13517, r13529, #2174; RFE #890; CATCH, RFE #31; #1890, #2011, #2014, #2009, #2137, #2138, #1317, #2018, #2084, #2136, #2134, #2075, #2135, #2115, #2109, #2133, #2107; #2124's regression fixed; #2132, #2130, #2108, #2124; RFE #883, RaiseConditionObject; #2129; #2123, #2128, #2116; .CommandHandler; #2122; .LogicalWrapper; ooRexx bugs #2111, #2112, #2114: see bridge/dist/README.md)
-    call fail "ooRexx 5.3.0 r13532 or later is needed (this one is r".RexxInfo~revision")"
+  if .RexxInfo~revision < 13564 then                     -- (the family's base: THROW, the Throw API, ThrowObject, RFE #31; #2179, #2180; earlier: FINALLY, RFE #31; r13517, r13529, #2174; RFE #890; CATCH, RFE #31; #1890, #2011, #2014, #2009, #2137, #2138, #1317, #2018, #2084, #2136, #2134, #2075, #2135, #2115, #2109, #2133, #2107; #2124's regression fixed; #2132, #2130, #2108, #2124; RFE #883, RaiseConditionObject; #2129; #2123, #2128, #2116; .CommandHandler; #2122; .LogicalWrapper; ooRexx bugs #2111, #2112, #2114: see bridge/dist/README.md)
+    call fail "ooRexx 5.3.0 r13564 or later is needed (this one is r".RexxInfo~revision")"
   if .RexxInfo~architecture \= 64 then call fail "a 64-bit ooRexx is needed"
   if windows, \.File~new(join(bin, "rexx.dll"))~exists then
     call fail "rexx.dll is not next to rexx.exe in" bin": this layout of ooRexx is not supported"

@@ -181,10 +181,12 @@ public sealed unsafe partial class RexxInterpreter : IDisposable
             if (rc == 0 || ip == 0) throw new InvalidOperationException("ooRexx could not create an interpreter instance");
             var r = new RexxInterpreter(ip, cp);
             var c = new Ctx(cp);
-            if (r.inst.Version < Native.InstanceInterfaceVersion || c.Version < Native.ThreadInterfaceVersion)
+            // (ThrowObject, r13554, came in the same thread interface version
+            // as RaiseConditionObject: the revision tells them apart)
+            if (r.inst.Version < Native.InstanceInterfaceVersion || c.Version < Native.ThreadInterfaceVersion || c.Revision < Native.MinimumRevision)
             {
                 r.inst.Terminate();
-                throw new InvalidOperationException($"ooRexx 5.3.0 r13532 or later is needed (this one's API: instance {r.inst.Version}, thread {c.Version})");
+                throw new InvalidOperationException($"ooRexx 5.3.0 r{Native.MinimumRevision} or later is needed (this one: r{c.Revision}, API: instance {r.inst.Version}, thread {c.Version})");
             }
             nint sc = c.FindClass("STRING");
             r.stringClass = c.Global(sc);

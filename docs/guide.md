@@ -624,7 +624,6 @@ callers up; uncaught, it is error 4.901. A one-dimensional .NET array as
 `additional` is a Rexx Array of its items. It works from a method that Rexx
 calls, a command handler, and a function of an application hosting Rexx:
 
-<!-- needs ooRexx r13550 -->
 ```csharp
 using System;
 using Rexx.Net;

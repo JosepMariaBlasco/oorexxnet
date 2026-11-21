@@ -10,9 +10,13 @@ yours. Nothing needs to be compiled.
 
 ## What you need
 
-- **ooRexx 5.3.0 r13532 or later, 64-bit** (a trunk build until 5.3.0 is
-  released), with `rexx -v` working in a terminal. r13532 is the base of the
-  family of ooRexx bridges: it has the FINALLY clauses (RFE #31, r13524),
+- **ooRexx 5.3.0 r13564 or later, 64-bit** (a trunk build until 5.3.0 is
+  released), with `rexx -v` working in a terminal. r13564 is the base of the
+  family of ooRexx bridges: it has thrown conditions (RFE #31: THROW from
+  r13541, the Throw API from r13546, which `RexxException.Throw` uses, error
+  4.901 from r13550, and from r13554 `ThrowObject`, which the bridge passes a
+  thrown condition on with, since `RaiseConditionObject` now always raises);
+  from r13532 the FINALLY clauses (RFE #31, r13524),
   which `net.cls` cleans up with, and keeps a CATCH clause's condition object
   alive (r13517); from r13514 the CATCH clauses (RFE #31), which
   `net.cls` traps its errors with; from r13374 `.OLEObject`'s error 92.909 names

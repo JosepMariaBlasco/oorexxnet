@@ -327,9 +327,8 @@ call ok "... trapped, the condition object's RESULT is the value, as plain Rexx 
 -- that Rexx code called by .NET leaves: it goes on from caller to caller,
 -- as in plain Rexx, past the Rexx code that called .NET (its condition
 -- object, THROWN included, raised again as it is); CALL ON does not trap
--- it; .NET sees it as a RexxException whose Thrown is true. From r13550
--- (uncaught: error 4.901).
-if .RexxInfo~revision >= 13550 then do
+-- it; .NET sees it as a RexxException whose Thrown is true.
+do                                    -- (r13550 or later: always, since the minimum r13564)
   thrower = .Thrower~new
   call ok "THROW, .NET sends to the method: caught two levels up", thrownUp(thrower, "send"), "USER OOPS thrown a1 1"
   call ok "... through a .NetHandler's method", thrownUp(thrower, "handler"), "USER OOPS thrown a1 1"
@@ -347,8 +346,8 @@ end
 
 -- RexxException.Throw: .NET code throwing a Rexx condition to its Rexx
 -- caller (rexxnet: the Throw API, ooRexx r13546, RFE #31), as the THROW
--- instruction there would. From r13550 (uncaught: error 4.901).
-if .RexxInfo~revision >= 13550 then do
+-- instruction there would.
+do                                    -- (r13550 or later: always, since the minimum r13564)
   th = .net~RexxNetTests~Throwing
   call ok "RexxException.Throw: caught two levels up, thrown, at the call", throwUp(th, "user"), "USER BADCONFIG [no port] [the config] 1 1"
   call ok "... with no description", throwUp(th, "bare"), "USER BARE [] [The NIL object] 1 1"

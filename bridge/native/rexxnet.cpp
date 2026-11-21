@@ -811,25 +811,17 @@ static wholenumber_t rexxRevision(RexxThreadContext *c)
     return r;
 }
 
-// ThrowObject (ooRexx r13554), where the headers have it.
-template <class T> static auto throwObject(T *c, RexxDirectoryObject k, int)
-    -> decltype(c->functions->ThrowObject(c, k), bool())
-{
-    c->functions->ThrowObject(c, k);
-    return true;
-}
-template <class T> static bool throwObject(T *, RexxDirectoryObject, long) { return false; }
-
 // A condition object raised again on c as it was: thrown again if it was
 // thrown (THROWN .true; RFE #31), else raised. Since ooRexx r13554
 // RaiseConditionObject always raises (one level, THROWN .false) and
-// ThrowObject throws; before, RaiseConditionObject kept the copy's THROWN
-// (and there is no ThrowObject: the interface version did not change, so
-// the revision says which).
+// ThrowObject throws (the bridge's minimum, r13564, has both). ThrowObject
+// came in the same thread interface version as RaiseConditionObject, so a
+// rexxnet loaded by an ooRexx older than r13554 (below the minimum: not
+// installed by install.rex) is told by the revision and raises as before.
 static void raiseOrThrow(RexxThreadContext *c, RexxDirectoryObject k)
 {
     RexxObjectPtr thrown = c->DirectoryAt(k, "THROWN");
-    if (thrown == c->True() && rexxRevision(c) >= 13554 && throwObject(c, k, 0)) return;
+    if (thrown == c->True() && rexxRevision(c) >= 13554) { c->ThrowObject(k); return; }
     c->RaiseConditionObject(k);
 }
 
@@ -863,7 +855,7 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
     if (halt) haltBack(c);
     else if (c->functions->interfaceVersion < THREAD_INTERFACE_VERSION_5_3_0)       // (an ooRexx older than the minimum: no such entry)
         c->RaiseException1(Rexx_Error_Execution_user_defined,
-            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13532 or later to raise a Rexx condition again"));
+            c->String("ooRexx/.NET needs ooRexx 5.3.0 r13564 or later to raise a Rexx condition again"));
     else
     {
         raiseOrThrow(c, (RexxDirectoryObject)k.object);
@@ -932,20 +924,17 @@ static RexxObjectPtr request(RexxThreadContext *c, const std::string &req, const
 // The pending throw (decode 'T'), thrown with the context's Throw (ooRexx
 // r13546, RFE #31: METHOD 103, CALL 102): from the caller of this native
 // method or routine on, as the THROW instruction there would throw it. An
-// older ooRexx (or headers without Throw): SYNTAX 98.900. Answers
+// ooRexx below the minimum: SYNTAX 98.900. Answers
 // NULLOBJECT when it cannot throw.
 template <class Context> static RexxObjectPtr throwPending(Context *context, wholenumber_t version)
 {
     PendingThrow t = pendingThrow;
     pendingThrow = {false, "", NULLOBJECT, NULLOBJECT, NULLOBJECT};
-#ifdef CALL_INTERFACE_VERSION_5_3_0
-    if (context->functions->interfaceVersion >= version)
+    if (context->functions->interfaceVersion >= version)  // (an ooRexx below the minimum: none)
     {
         RexxStringObject d = t.description ? context->ObjectToString(t.description) : NULLOBJECT;
         context->Throw(t.name.c_str(), t.rc, d, t.additional);     // (does not return)
     }
-#endif
-    (void)version;
     context->RaiseException1(Rexx_Error_Execution_user_defined,
         context->String(("RexxException.Throw(\"" + t.name + "\") needs ooRexx 5.3.0 r13546 or later").c_str()));
     return NULLOBJECT;

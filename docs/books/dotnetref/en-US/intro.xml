@@ -74,11 +74,14 @@ Console.WriteLine($"{d.items} {d.name}");</programlisting>
 
 <section id="introRequirements"><title>Requirements</title>
 <indexterm><primary>requirements</primary></indexterm>
-<para><emphasis role="bold">ooRexx 5.3.0 r13532 or later, 64-bit</emphasis>
+<para><emphasis role="bold">ooRexx 5.3.0 r13564 or later, 64-bit</emphasis>
 (a trunk build until 5.3.0 is released). The bridge uses only ooRexx's public
 native API: the interpreter needs no change, and the bridge is an extension
-package, as <literal>rxsock</literal> or BSF4ooRexx are. r13532 is the base
-of the family of ooRexx bridges: it has the FINALLY clauses (RFE #31, r13524),
+package, as <literal>rxsock</literal> or BSF4ooRexx are. r13564 is the base
+of the family of ooRexx bridges: it has thrown conditions (RFE #31: THROW from
+r13541, the Throw API from r13546, which <literal>RexxException.Throw</literal>
+uses, error 4.901 from r13550, and from r13554 <literal>ThrowObject</literal>,
+which the bridge passes a thrown condition on with); from r13532 the FINALLY clauses (RFE #31, r13524),
 which <literal>net.cls</literal> cleans up with, and keeps a CATCH clause's
 condition object alive (r13517); from r13514 the CATCH clauses (RFE #31), which
 <literal>net.cls</literal> traps its errors with; from r13374

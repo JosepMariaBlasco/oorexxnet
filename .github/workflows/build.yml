@@ -2,7 +2,10 @@
 # NuGet package with the native library of all three, and the binary zip
 # (rexxnet-*.zip: all three, with install.rex), which it then installs and
 # checks on each of them. ooRexx comes from its portable builds on SourceForge, pinned to one
-# revision: the bridge needs at least r13532 (the family's base: FINALLY
+# revision: the bridge needs at least r13564 (the family's base: THROW in r13541,
+# the Throw API in r13546, error 4.901 in r13550, ThrowObject in r13554, which a
+# thrown condition is passed on with, RaiseConditionObject always raising; #2179,
+# #2180; earlier r13532: FINALLY
 # clauses, RFE #31, in r13524, which net.cls, the tests and the checkers clean up
 # with; r13517, a CATCH clause's condition object kept alive; r13529, RAISE
 # SYNTAX in an internal routine reaches a CATCH around the CALL; #2174 in r13522,
@@ -54,7 +57,7 @@ on:
   workflow_dispatch:
 
 env:
-  OOREXX_REV: "13532"                 # SourceForge's builds: the three platforms, the package, the install jobs
+  OOREXX_REV: "13564"                 # SourceForge's builds: the three platforms, the package, the install jobs
   OOREXX_TRUNK_REV: "13564"           # main/trunk built from SVN (no builds on SourceForge yet): job trunk, the sessions
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -130,8 +133,8 @@ jobs:
           path: ${{ env.REXXNET_BUILD }}/rexxnet/${{ matrix.native }}
 
   # The bridge on ooRexx's trunk, built from SVN at OOREXX_TRUNK_REV (cached):
-  # the tests that need a revision past SourceForge's builds (THROW, the
-  # Throw API: RFE #31) run here; they are skipped on OOREXX_REV
+  # ahead of SourceForge's builds when trunk moves past OOREXX_REV (the same
+  # revision since the minimum r13564)
   trunk:
     name: linux-x64 (ooRexx trunk)
     needs: trunk-oorexx

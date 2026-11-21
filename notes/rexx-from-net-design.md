@@ -763,13 +763,14 @@ condition acted on when the native code returns. Both re-raise points and
 the host's `ThrowAgain` call one function for it (rexxnet's
 `raiseOrThrow`, the host's `Ctx.RaiseOrThrow`): `ThrowObject` when the
 object's `THROWN` is `.true` (compared with `.true`: an object made by hand
-may have none) on r13554 or later, else `RaiseConditionObject`. **Δ of
-ooRexx's, not of the family**: `ThrowObject` came in the same thread
-interface version (104), so the revision decides (`.RexxInfo~revision`,
-read once), not `interfaceVersion`; and rexxnet calls it only where its
-headers have it (a C++ overload that compiles the call only if the member
-exists), so it still builds against r13532's. So the bridge keeps its
-minimum, r13532, where `RaiseConditionObject` alone does it. Measured on
+may have none), else `RaiseConditionObject`. **The minimum is r13564**
+(21/11/2026: SourceForge builds again, and dropped r13532's Windows and
+macOS files; the CI's jobs all run r13564). `ThrowObject` came in the same
+thread interface version (104), so `interfaceVersion` cannot tell an
+older ooRexx: the host's `Create` refuses one below the minimum by its
+revision (`.RexxInfo~revision`, read once), as `install.rex` does, and
+rexxnet calls `ThrowObject` only from r13554 (a `rexxnet` not installed,
+loaded by an older ooRexx, raises as before). Measured on
 r13564: with `RaiseConditionObject` alone the thrown tests fail (`THROWN`
 0, stopped one level up: 12 of them); with the switch, every suite passes.
 
@@ -829,10 +830,8 @@ it in a thread-local `pendingThrow`, and the native entry point that made
 the request (`net_unknown`, `NetRequest`, `net_command`) throws it with its
 context's `Throw()` as the last thing it does (`finish`). By then the CLR
 has returned: the C++ unwind crosses only that entry point's frame. METHOD
-103 / CALL 102 is checked at run time and `Throw` exists only in r13546's
-headers (`#ifdef CALL_INTERFACE_VERSION_5_3_0`): below either, SYNTAX
-98.900 saying what is needed, so the bridge still builds and runs on its
-minimum, r13532. Measured: from a method or property (`net_unknown`), a
+103 / CALL 102 is checked at run time: below it (an ooRexx below the
+minimum), SYNTAX 98.900 saying what is needed. Measured: from a method or property (`net_unknown`), a
 task's `~await`, a wrapper exception, a command handler (the issuer gets it,
 an ERROR with its RC); CATCH and SIGNAL ON two levels up, CALL ON not, the
 condition at the caller's clause, uncaught error 4.901 (`phase3.rex`).
@@ -861,8 +860,8 @@ parentheses (`throw user x description d` is error 35.1; measured). Below r13546
 answers `.nil` at once (INTERPRET would take the clause for a command
 there: measured on r13532, it ran one) and the function raises SYNTAX
 98.900 (`HostTests` `ThrowToRexx`; the fallback measured by hand on r13532,
-both directions). Raised again as the pass-through does (above:
-`ThrowObject` from r13554, `RaiseConditionObject` before).
+both directions; below the minimum since 21/11/2026). Raised again as the
+pass-through does (above: `ThrowObject`).
 
 **A thrown SYNTAX through `net.cls`'s own methods arrives raised.** The
 methods of `net.cls` that give their errors back with `catch syntax` /

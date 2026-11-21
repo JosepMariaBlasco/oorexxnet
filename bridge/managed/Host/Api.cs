@@ -34,7 +34,8 @@ internal struct RexxOptionData
 internal static unsafe class Native
 {
     public const ushort REXX_VALUE_CSTRING = 15, REXX_VALUE_POINTER = 16;
-    public const long InstanceInterfaceVersion = 101, ThreadInterfaceVersion = 104;   // RaiseConditionObject: ooRexx 5.3.0 r13329 or later (the minimum, r13532, is checked by install.rex)
+    public const long InstanceInterfaceVersion = 101, ThreadInterfaceVersion = 104;   // RaiseConditionObject: ooRexx 5.3.0 r13329 or later
+    public const int MinimumRevision = 13564;             // the bridge's minimum (also install.rex's): ThrowObject, r13554, has no interface version of its own
 
     static Native()
     {
@@ -497,22 +498,21 @@ internal readonly unsafe struct Ctx
     /// #883, ooRexx r13329: thread interface 104), the same way.
     public void RaiseConditionObject(nint condition) =>
         ((delegate* unmanaged<nint, nint, void>)F(ThreadInterface.RaiseConditionObject))(P, condition);
-    // ooRexx r13554 or later (the same interface version as before: see RaiseOrThrow)
+    // ooRexx r13554 or later (the minimum has it; same interface version as before)
     public void ThrowObject(nint condition) =>
         ((delegate* unmanaged<nint, nint, void>)F(ThreadInterface.ThrowObject))(P, condition);
 
     /// A condition object raised again as it was: thrown again if it was
-    /// thrown (THROWN .true; RFE #31), else raised. Since ooRexx r13554
+    /// thrown (THROWN .true; RFE #31), else raised: since ooRexx r13554
     /// RaiseConditionObject always raises (one level, THROWN .false) and
-    /// ThrowObject throws; before, RaiseConditionObject kept the copy's
-    /// THROWN, and there is no ThrowObject. The interface version did not
-    /// change with it, so the revision says which (rexxnet's raiseOrThrow).
+    /// ThrowObject throws (rexxnet's raiseOrThrow). THROWN is compared with
+    /// .true: an object made by hand may have none.
     public void RaiseOrThrow(nint condition)
     {
         nint t = DirectoryAt(condition, "THROWN");
         bool thrown = t != 0 && t == True;
         if (t != 0) ReleaseLocal(t);
-        if (thrown && Revision >= 13554) ThrowObject(condition);
+        if (thrown) ThrowObject(condition);
         else RaiseConditionObject(condition);
     }
 

@@ -42,7 +42,6 @@ static partial class Program
     static void ThrownPastTheHost()
     {
         using var rexx = RexxInterpreter.Create();
-        if (rexx.Run<int>("return .RexxInfo~revision") < 13550) return;
         try { rexx.Run("throw user badconfig description 'no port' additional 8080"); Ok("THROW: a RexxException", "none", "USER BADCONFIG"); }
         catch (RexxException e)
         {
@@ -75,7 +74,6 @@ static partial class Program
     static void ThrowToRexx()
     {
         using var rexx = RexxInterpreter.Create();
-        if (rexx.Run<int>("return .RexxInfo~revision") < 13550) return;
         rexx.AddFunction("THROWS", call => call.Arguments[0]?.ToString() switch
         {
             "user" => throw RexxException.Throw("user badConfig", description: "no port", additional: 8080),
