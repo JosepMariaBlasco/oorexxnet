@@ -162,7 +162,6 @@ static class ThreadInterface
     public const int SendMessageScoped = 145;
     public const int GetInterpreterInstance = 146;
     public const int RaiseConditionObject = 147;
-    public const int ThrowObject = 148;
 }
 static class ExitContextInterface
 {
@@ -178,7 +177,6 @@ static class ExitContextInterface
     public const int ThrowException2 = 9;
     public const int ThrowException = 10;
     public const int ThrowCondition = 11;
-    public const int Throw = 12;
 }
 static class IORedirectorInterface
 {
