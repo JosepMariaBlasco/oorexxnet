@@ -164,6 +164,7 @@ int main() {
   printf("RexxThreadInterface.SendMessageScoped %zu\n", offsetof(RexxThreadInterface, SendMessageScoped));
   printf("RexxThreadInterface.GetInterpreterInstance %zu\n", offsetof(RexxThreadInterface, GetInterpreterInstance));
   printf("RexxThreadInterface.RaiseConditionObject %zu\n", offsetof(RexxThreadInterface, RaiseConditionObject));
+  printf("RexxThreadInterface.ThrowObject %zu\n", offsetof(RexxThreadInterface, ThrowObject));
   printf("ExitContextInterface %zu\n", sizeof(ExitContextInterface));
   printf("ExitContextInterface.interfaceVersion %zu\n", offsetof(ExitContextInterface, interfaceVersion));
   printf("ExitContextInterface.SetContextVariable %zu\n", offsetof(ExitContextInterface, SetContextVariable));
@@ -177,6 +178,7 @@ int main() {
   printf("ExitContextInterface.ThrowException2 %zu\n", offsetof(ExitContextInterface, ThrowException2));
   printf("ExitContextInterface.ThrowException %zu\n", offsetof(ExitContextInterface, ThrowException));
   printf("ExitContextInterface.ThrowCondition %zu\n", offsetof(ExitContextInterface, ThrowCondition));
+  printf("ExitContextInterface.Throw %zu\n", offsetof(ExitContextInterface, Throw));
   printf("IORedirectorInterface %zu\n", sizeof(IORedirectorInterface));
   printf("IORedirectorInterface.interfaceVersion %zu\n", offsetof(IORedirectorInterface, interfaceVersion));
   printf("IORedirectorInterface.ReadInput %zu\n", offsetof(IORedirectorInterface, ReadInput));

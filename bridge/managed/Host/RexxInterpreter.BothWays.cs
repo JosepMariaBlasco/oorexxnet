@@ -21,11 +21,11 @@ public sealed unsafe partial class RexxInterpreter
     // entry, and Throw's C++ unwind through the CLR's frames ends the
     // process. So the condition object is made by the THROW instruction
     // itself (every entry it holds, a SYNTAX's message included), caught,
-    // stripped of where it was thrown, and raised again with
-    // RaiseConditionObject: ooRexx raises the copy as thrown (its THROWN
-    // entry) from the caller of the exit, and fills in where (measured on
-    // r13550: CATCH and SIGNAL ON however many callers up, the caller's
-    // POSITION and TRACEBACK, uncaught Error 4.901). The arguments were
+    // stripped of where it was thrown, and thrown again (Ctx.RaiseOrThrow:
+    // ThrowObject since ooRexx r13554, RaiseConditionObject before, which
+    // kept THROWN) from the caller of the exit, ooRexx filling in where
+    // (measured on r13550 and r13564: CATCH and SIGNAL ON however many
+    // callers up, the caller's POSITION and TRACEBACK, uncaught Error 4.901). The arguments were
     // checked by RexxException.Throw: the name is safe to INTERPRET.
     const string ThrowSource = """
         ::routine throw public
@@ -79,7 +79,7 @@ public sealed unsafe partial class RexxInterpreter
         try { condition = r.Call(args.ToArray()); }
         catch (RexxException) { return false; }
         if (condition == null) return false;
-        c.RaiseConditionObject(condition.Live);
+        c.RaiseOrThrow(condition.Live);                 // (thrown: ThrowObject since r13554)
         return true;
     }
 
@@ -221,8 +221,9 @@ public sealed unsafe partial class RexxInterpreter
         // the condition object as it is (RaiseConditionObject: a copy with
         // everything it holds, the DESCRIPTION of a SYNTAX and the RC of an
         // ERROR or FAILURE included; for a SYNTAX safely since ooRexx r13344,
-        // #2132; see rexxnet.cpp's raiseHeld)
-        if (e.Condition is { Disposed: false } condition) c.RaiseConditionObject(condition.Live);
+        // #2132; thrown again with ThrowObject if it was thrown, since
+        // r13554: RaiseOrThrow; see rexxnet.cpp's raiseHeld)
+        if (e.Condition is { Disposed: false } condition) c.RaiseOrThrow(condition.Live);
         else if (e.Code.Length > 0)                 // (its condition object disposed by the application: what is known)
         {
             var parts = e.Code.Split('.');

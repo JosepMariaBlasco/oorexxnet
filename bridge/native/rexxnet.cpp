@@ -798,6 +798,41 @@ static void haltBack(RexxThreadContext *c)
     c->RaiseCondition("HALT", NULLOBJECT, NULLOBJECT, NULLOBJECT);
 }
 
+// The revision of the ooRexx running (.RexxInfo~revision), 0 if unknown.
+static wholenumber_t rexxRevision(RexxThreadContext *c)
+{
+    static wholenumber_t revision = -1;
+    if (revision >= 0) return revision;
+    wholenumber_t r = 0;
+    RexxObjectPtr info = c->SendMessage1(c->GetGlobalEnvironment(), "AT", c->String("REXXINFO"));
+    RexxObjectPtr v = info && !c->CheckCondition() ? c->SendMessage0(info, "REVISION") : NULLOBJECT;
+    if (c->CheckCondition()) c->ClearCondition();
+    else if (v && c->ObjectToWholeNumber(v, &r)) revision = r;
+    return r;
+}
+
+// ThrowObject (ooRexx r13554), where the headers have it.
+template <class T> static auto throwObject(T *c, RexxDirectoryObject k, int)
+    -> decltype(c->functions->ThrowObject(c, k), bool())
+{
+    c->functions->ThrowObject(c, k);
+    return true;
+}
+template <class T> static bool throwObject(T *, RexxDirectoryObject, long) { return false; }
+
+// A condition object raised again on c as it was: thrown again if it was
+// thrown (THROWN .true; RFE #31), else raised. Since ooRexx r13554
+// RaiseConditionObject always raises (one level, THROWN .false) and
+// ThrowObject throws; before, RaiseConditionObject kept the copy's THROWN
+// (and there is no ThrowObject: the interface version did not change, so
+// the revision says which).
+static void raiseOrThrow(RexxThreadContext *c, RexxDirectoryObject k)
+{
+    RexxObjectPtr thrown = c->DirectoryAt(k, "THROWN");
+    if (thrown == c->True() && rexxRevision(c) >= 13554 && throwObject(c, k, 0)) return;
+    c->RaiseConditionObject(k);
+}
+
 // A Rexx condition that a callback's Rexx code raised, kept by its id (the
 // callback's answer E), raised again on c: by a response C, or by the managed
 // side directly (a command handler, which no request answers). 0 if no such id,
@@ -831,7 +866,7 @@ static int raiseHeld(RexxThreadContext *c, int id, RexxObjectPtr *answer)
             c->String("ooRexx/.NET needs ooRexx 5.3.0 r13532 or later to raise a Rexx condition again"));
     else
     {
-        c->RaiseConditionObject((RexxDirectoryObject)k.object);
+        raiseOrThrow(c, (RexxDirectoryObject)k.object);
         // RAISE ... RETURN's value: what the native call answers, as plain
         // Rexx gives it (ooRexx r13339, #2130, keeps it with the condition
         // raised); held by an Array of this context until the call returns,

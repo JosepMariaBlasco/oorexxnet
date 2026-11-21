@@ -146,3 +146,4 @@ IsStringTable
 SendMessageScoped
 GetInterpreterInstance
 RaiseConditionObject
+ThrowObject

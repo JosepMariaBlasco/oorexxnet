@@ -10,3 +10,4 @@ ThrowException1
 ThrowException2
 ThrowException
 ThrowCondition
+Throw

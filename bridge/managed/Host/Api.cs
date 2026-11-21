@@ -497,6 +497,48 @@ internal readonly unsafe struct Ctx
     /// #883, ooRexx r13329: thread interface 104), the same way.
     public void RaiseConditionObject(nint condition) =>
         ((delegate* unmanaged<nint, nint, void>)F(ThreadInterface.RaiseConditionObject))(P, condition);
+    // ooRexx r13554 or later (the same interface version as before: see RaiseOrThrow)
+    public void ThrowObject(nint condition) =>
+        ((delegate* unmanaged<nint, nint, void>)F(ThreadInterface.ThrowObject))(P, condition);
+
+    /// A condition object raised again as it was: thrown again if it was
+    /// thrown (THROWN .true; RFE #31), else raised. Since ooRexx r13554
+    /// RaiseConditionObject always raises (one level, THROWN .false) and
+    /// ThrowObject throws; before, RaiseConditionObject kept the copy's
+    /// THROWN, and there is no ThrowObject. The interface version did not
+    /// change with it, so the revision says which (rexxnet's raiseOrThrow).
+    public void RaiseOrThrow(nint condition)
+    {
+        nint t = DirectoryAt(condition, "THROWN");
+        bool thrown = t != 0 && t == True;
+        if (t != 0) ReleaseLocal(t);
+        if (thrown && Revision >= 13554) ThrowObject(condition);
+        else RaiseConditionObject(condition);
+    }
+
+    static int revision = -1;
+    /// The revision of the ooRexx running (.RexxInfo~revision), 0 if unknown.
+    public int Revision
+    {
+        get
+        {
+            if (revision >= 0) return revision;
+            nint a = NewArray(1);
+            ArrayPut(a, Str("REXXINFO"), 1);
+            nint info = Send(GlobalEnvironment, "AT", a);
+            ReleaseLocal(a);
+            if (CheckCondition() || info == 0) { ClearCondition(); return 0; }
+            nint none = NewArray(0);
+            nint v = Send(info, "REVISION", none);
+            ReleaseLocal(none);
+            ReleaseLocal(info);
+            if (CheckCondition() || v == 0) { ClearCondition(); return 0; }
+            bool ok = int.TryParse(ToStr(v), out int r);
+            ReleaseLocal(v);
+            if (ok) revision = r;
+            return ok ? r : 0;
+        }
+    }
 
     /// Raises a SYNTAX error (code: major * 1000 + minor; its substitutions), the same way.
     public void RaiseException(long code, nint additional) =>

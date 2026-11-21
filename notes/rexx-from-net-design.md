@@ -753,9 +753,25 @@ host's function and command environment, caught by CATCH and SIGNAL ON two
 levels up, not by CALL ON, uncaught error 4.901 (`phase3.rex`, `HostTests`
 `ThrownPastTheHost`; they run on r13550 or later, so in the CI's trunk job).
 No unwinding through managed frames: it stops at the API boundary like any
-condition (see "A Rexx condition past .NET's frames"). That
-`RaiseConditionObject` keeps `THROWN` is what ooRexx's code does; its
-documentation does not say it, and the tests pin it.
+condition (see "A Rexx condition past .NET's frames").
+
+**Since ooRexx r13554: `ThrowObject`** (21/11/2026). Up to r13553
+`RaiseConditionObject` kept the copy's `THROWN` (undocumented); from r13554
+it always raises (one level, `THROWN` `.false`, as RAISE PROPAGATE of a
+thrown condition), and the new `ThrowObject` throws a copy and returns, the
+condition acted on when the native code returns. Both re-raise points and
+the host's `ThrowAgain` call one function for it (rexxnet's
+`raiseOrThrow`, the host's `Ctx.RaiseOrThrow`): `ThrowObject` when the
+object's `THROWN` is `.true` (compared with `.true`: an object made by hand
+may have none) on r13554 or later, else `RaiseConditionObject`. **Δ of
+ooRexx's, not of the family**: `ThrowObject` came in the same thread
+interface version (104), so the revision decides (`.RexxInfo~revision`,
+read once), not `interfaceVersion`; and rexxnet calls it only where its
+headers have it (a C++ overload that compiles the call only if the member
+exists), so it still builds against r13532's. So the bridge keeps its
+minimum, r13532, where `RaiseConditionObject` alone does it. Measured on
+r13564: with `RaiseConditionObject` alone the thrown tests fail (`THROWN`
+0, stopped one level up: 12 of them); with the switch, every suite passes.
 
 **The Throw API itself is not for the bridge's own raising.** It does not
 return: the native method ends with a C++ unwind back to the interpreter,
@@ -833,9 +849,9 @@ condition object is made instead by the THROW instruction, in a routine of
 the instance's (`ThrowSource`, INTERPRET of a clause built from the checked
 name), caught there with `catch c = any`, stripped of where it was thrown
 (`PROGRAM`, `POSITION`, `PACKAGE`, `INSTRUCTION`, `STACKFRAMES`,
-`TRACEBACK`, `PROPAGATED`) and raised again with `RaiseConditionObject`.
-Measured on r13550: ooRexx raises the copy as thrown (its `THROWN` entry)
-and fills in where, from the exit's caller, so it is what a THROW there
+`TRACEBACK`, `PROPAGATED`) and thrown again (`RaiseOrThrow`).
+Measured on r13550 (with `RaiseConditionObject`, which kept `THROWN`)
+and on r13564 (with `ThrowObject`, see above): ooRexx throws the copy and fills in where, from the exit's caller, so it is what a THROW there
 would give (the caller's `POSITION` and traceback, `PROPAGATED` 1 two
 levels up, uncaught 4.901); a hand-made Directory with `THROWN` does the
 same, but THROW also builds a SYNTAX's message from its substitution
@@ -845,12 +861,8 @@ parentheses (`throw user x description d` is error 35.1; measured). Below r13546
 answers `.nil` at once (INTERPRET would take the clause for a command
 there: measured on r13532, it ran one) and the function raises SYNTAX
 98.900 (`HostTests` `ThrowToRexx`; the fallback measured by hand on r13532,
-both directions). This rests on `RaiseConditionObject` keeping `THROWN`,
-as the pass-through of a thrown condition from Rexx code already does
-(above); a proposal to ooRexx would make it always raise, with a new API
-that throws and returns (`oorexx-bugs/2026-11-20-throw-object-api.md`).
-If it is adopted, this call and the two re-raise points change to choose
-by the object's `THROWN`.
+both directions). Raised again as the pass-through does (above:
+`ThrowObject` from r13554, `RaiseConditionObject` before).
 
 **A thrown SYNTAX through `net.cls`'s own methods arrives raised.** The
 methods of `net.cls` that give their errors back with `catch syntax` /

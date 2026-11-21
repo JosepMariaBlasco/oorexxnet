@@ -55,7 +55,7 @@ on:
 
 env:
   OOREXX_REV: "13532"                 # SourceForge's builds: the three platforms, the package, the install jobs
-  OOREXX_TRUNK_REV: "13550"           # main/trunk built from SVN (no builds on SourceForge yet): job trunk, the sessions
+  OOREXX_TRUNK_REV: "13564"           # main/trunk built from SVN (no builds on SourceForge yet): job trunk, the sessions
   OOREXX_URL: https://downloads.sourceforge.net/project/oorexx/oorexx/5.3.0beta/portable
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "1"
